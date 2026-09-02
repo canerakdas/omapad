@@ -79,6 +79,10 @@ line before anybody summons them.
   nobody reads.
 - It is the shell's schema, not ours. Add a field only because the shell reads
   it; anything omapad needs to say goes over a socket instead.
+- `description` says the plugin draws nothing without the daemon. A plugin-only
+  install is a silent no-op - the bar widget stays hidden until a status line
+  arrives, and a summon spawns an `omapad` that is not on PATH - and Omarchy's
+  plugin list is the one place that is read before it happens.
 
 ## The systemd unit and the udev rule
 
