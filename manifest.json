@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "canerakdas.omapad",
+  "name": "Omapad",
+  "version": "1.0.0",
+  "author": "Caner Akdas",
+  "description": "The surfaces omapad draws: an on-screen keyboard, the controller menu, the bindings guide, the mapping wizard and the game-mode bar, plus a bar widget for what the pad is doing. Summon a surface with {\"surface\":\"osk|menu|guide|map\"}.",
+  "kinds": [
+    "panel",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "panel": "shell-plugin/Surfaces.qml",
+    "barWidget": "shell-plugin/PadStatus.qml"
+  },
+  "barWidget": {
+    "displayName": "Controller",
+    "description": "Whether a pad is connected and which mode it is in",
+    "category": "Hardware",
+    "aliases": ["gamepad", "controller", "pad"],
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

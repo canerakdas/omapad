@@ -1,0 +1,5 @@
+# omapad needs to create virtual mouse and keyboard devices, which means
+# write access to /dev/uinput. Granting it to the "input" group avoids running
+# the daemon as root; static_node applies the same mode before the module has
+# been loaded on demand.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

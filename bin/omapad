@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Wrapper so omapad runs straight from its checkout, with no install step.
+set -euo pipefail
+REPO="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+export PYTHONPATH="$REPO${PYTHONPATH:+:$PYTHONPATH}"
+exec python3 -m omapad "$@"

@@ -1,0 +1,17 @@
+[Unit]
+Description=omapad - drive the desktop with a game controller
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=__REPO__/bin/omapad run
+Restart=on-failure
+RestartSec=3
+
+# The compositor's own variables are rediscovered at runtime, but the runtime
+# directory is what makes that lookup possible in the first place.
+Environment=XDG_RUNTIME_DIR=%t
+
+[Install]
+WantedBy=graphical-session.target

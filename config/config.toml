@@ -1,0 +1,1698 @@
+# omapad - control the Omarchy/Hyprland desktop with a game controller.
+#
+# Copy this file to ~/.config/omapad/config.toml and edit it there; anything
+# you leave out falls back to the values shipped here. Restart after editing:
+#   systemctl --user restart omapad
+#
+# Action grammar for every binding:
+#   click:left|right|middle|back|forward   mouse button (held, so drag works)
+#   key:SUPER+RETURN                       virtual keyboard chord (held, repeats)
+#   scroll:up|down|left|right              wheel, repeats while held
+#   hypr:<lua dispatcher>                  Hyprland IPC, fired on press. This
+#                                          Hyprland routes dispatch through Lua,
+#                                          so it is written exactly as in
+#                                          hyprland.lua, e.g.
+#                                          hl.dsp.focus({ workspace = 'e+1' })
+#   exec:<command>                         run a command, fired on press
+#   osk:toggle|open|close                  the on-screen keyboard
+#   osk:up|down|left|right|press           navigate and press it (directions repeat)
+#   osk:shift|ctrl|alt                     latch a modifier for the next key
+#   osk:caps                               toggle Caps Lock (and the labels)
+#   osk:hold:shift|ctrl|alt                hold a modifier while the button is
+#                                          down, the way a real one behaves
+#   osk:submit                             Enter, then put the keyboard away
+#   osk:layer:main|sym|fn|app              switch keyboard layer ('app' is
+#                                          the page the focused app lends)
+#   osk:layer:next|prev                    walk the keyboard's pages
+#   menu:toggle|open|close                 the controller menu
+#   menu:up|down|press|back                navigate and pick from it (up/down repeat)
+#   guide:toggle|open|close                the bindings guide - what every
+#                                          button does, badged like the buttons
+#   guide:next|prev                        turn its pages
+#   map:toggle|open|close                  the controller mapping screen -
+#                                          teach omapad which button is which
+#   map:skip|back|restart|save|cancel      drive it without the pad
+#   mode:toggle|desktop|game               switch between desktop and game mode
+#   pad:profile=auto|nintendo_pro|xbox     which codes this pad is read with
+#   pad:layout=auto|nintendo|xbox|playstation
+#                                          which console's names the badges print
+#   pad:rumble=on|off|toggle               the motor
+#   pad:rumble_strength=up|down|<0..1>     how hard it ticks
+#                                          Every `pad:` value also takes
+#                                          `next`/`prev` to step through what
+#                                          the setting holds, so one button can
+#                                          walk it. What is chosen is written to
+#                                          ~/.config/omapad/settings.toml and
+#                                          wins over this file until it is
+#                                          deleted.
+#   snap:left|right|up|down                put the pointer on the window that
+#                                          way, and focus it
+#   snap:centre                            put it in the middle of the window
+#                                          in front
+#   focus:next|prev                        walk the focused app's own controls
+#                                          (Tab / Shift+Tab), see [traverse]
+#   focus:up|down|left|right               the same, with the arrow keys
+#   focus:activate|back                    press what is focused, or back out
+#   nop                                    disable an inherited binding
+#
+# A binding can also be a table to separate a tap from a press-and-hold:
+#   PLUS = { tap = "exec:omarchy-menu toggle", hold = "exec:omarchy-menu toggle apps" }
+#
+# The same table says what a binding means, for the guide (`guide:open`), which
+# otherwise reads the action itself - fine for `key:ENTER`, thin for a Lua
+# dispatcher:
+#   L = { tap = "hypr:hl.dsp.focus({ workspace = 'r-1' })", desc = "Previous workspace" }
+#   HOME = { tap = "...", hold = "...", desc = "Next window", hold_desc = "Game mode" }
+#
+# `reaches_past` decides whether a binding still fires while the pad has been
+# handed to the app in front. Say nothing and a summon gets through and nothing
+# else; `true` lets anything through (a click over a cloud session, which no
+# announced hold can be), `false` keeps even a summon back (PLUS and MINUS ship
+# that way - Back and Start are buttons every game binds). It can also be said
+# once for a whole layer under [layers.*], and a row inside can still opt out:
+#   ZR = { tap = "click:left", reaches_past = true }
+
+[device]
+# Which pad to drive. "auto" takes whichever pad is connected: a node counts as
+# a pad because of what it advertises - absolute axes and buttons in the
+# joystick range - not because of its name, so a pad nobody has heard of needs
+# nothing written here, and the keyboard and mouse nodes a wireless Xbox pad
+# also enumerates are never mistaken for it.
+#
+# Name one when you have more than one pad plugged in and care which wins, or a
+# list of them tried in the order written. Each is either "VVVV:PPPP" (as evdev
+# reports it) or part of the device name. A name fragment is the sturdier
+# choice for pads with a hardware mode switch: the Beitong KP20/KP40 enumerates
+# as "BEITONG BTP-KP20 NS" (057E:2009) in NS mode and as
+# "Beitong KP20A/KP40A Controller" (20BC:5127) in XInput mode, and "BEITONG"
+# matches both.
+#
+#   match = ["Xbox", "BEITONG"]
+match = "auto"
+
+# auto reads the profile off the connected device, so switching the pad between
+# NS and XInput mode needs no config change. Force it with nintendo_pro | xbox.
+profile = "auto"
+
+# Which console's printing the badges carry: nintendo | xbox | playstation, or
+# auto to follow the profile. The profile says what a button *is* - which code
+# is the one under your right thumb - and this says what it is *called*, which
+# is a different question: the same button is A on an Xbox pad, B on a Switch
+# one and the circle on a PlayStation one.
+#
+#   nintendo     A B X Y   L R ZL ZR    − +   Home  Capture
+#   xbox         A B X Y   LB RB LT RT  View Menu   Guide  Share
+#   playstation  ✕ ○ □ △   L1 R1 L2 R2  Create Options  PS  Mute
+#
+# Every one of those is drawn rather than typed - see assets/README.md.
+#
+# Worth setting by hand for a PlayStation pad: it reports itself as an XInput
+# device, so auto lands on xbox and prints letters on a pad that has shapes on
+# it. Worth leaving alone otherwise - a layout that names a pad you are not
+# holding puts the face symbols in the wrong corners.
+layout = "auto"
+
+# XInput pads report ZL/ZR as analog axes rather than buttons. These are the
+# press and release points, as a fraction of full travel; the gap between them
+# is hysteresis that stops a half-held trigger from chattering.
+trigger_threshold = 0.45
+trigger_release = 0.30
+
+# ---------------------------------------------------------------------------
+# The keyboard on the desk.
+#
+# Every surface omapad draws is put up over everything else and driven by the
+# pad, which makes it a trap the moment the pad is not what is in your hand: a
+# keyboard summoned from an Omarchy keybind, a menu still up when the battery
+# went, a guide opened from a terminal. So while - and only while - one of them
+# is on screen, the keyboard can send it away too.
+#
+# The nodes are opened when a surface opens and closed again when the last one
+# goes; nothing here reads the keyboard the rest of the time.
+# ---------------------------------------------------------------------------
+
+[keyboard]
+enabled = true
+# Which keyboards count. "auto" is every one the machine has; narrow it the way
+# [device] match does - "VVVV:PPPP" or part of the device name - if only one
+# should. Name fragments in `ignore` are skipped: for a node that says keyboard
+# and is not one (a receiver that also carries media keys, a KVM). omapad's
+# own virtual keyboard is always skipped, whatever is written here.
+match = "auto"
+ignore = []
+# Take the keyboard exclusively while a surface is up, so a key that closes a
+# panel does not also reach the game behind it. Off by default: with it on
+# nothing can be typed into anything - what the on-screen keyboard is for
+# included - until the panel goes away.
+grab = false
+
+# key = action, in the same grammar the pad's bindings use, and resolved the
+# same way: the table named after whatever surface is on top, then base. Three
+# actions exist for a key that cannot know what is up -
+#   surface:close        send away whatever is on top
+#   surface:close_all    all of them
+#   surface:back         up one level where there is one, out where there isn't
+# but anything a button can do can be written here as well.
+[keyboard.bindings.base]
+esc = "surface:close"
+
+[keyboard.bindings.menu]
+esc = "surface:back"          # out of a submenu first, then out of the menu
+
+# The arrow keys are deliberately not bound: without `grab` they would reach
+# whatever is behind the panel as well. Turn that on and the menu walks:
+# [keyboard.bindings.menu]
+# up = "menu:up"
+# down = "menu:down"
+# enter = "menu:press"
+# left = "menu:back"
+# right = "menu:press"
+
+[mode]
+# desktop = the ordinary desktop. game = the same thing from the couch: the bar
+# replaces Omarchy's, and every binding still works. Game mode is not a
+# hand-off - handing the pad to a game is automatic, and separate.
+start = "desktop"
+grab = true                   # take the pad exclusively, so nothing else acts
+                              # on the buttons omapad is already acting on
+notify = true                 # desktop notification on every mode switch
+# There is no list of games worth keeping, so the question is asked of the
+# program instead: a gamepad is a file, anything that wants to read one has to
+# open it, and /proc says who has. When the window in front - or its process
+# tree - has the pad open, omapad lets go; when it stops, omapad takes it
+# back. A terminal never opens it. A browser opens it the moment a page asks
+# for a gamepad, which is exactly when a cloud session wants it.
+#
+# The menu, the keyboard and the guide can still be summoned while an app has
+# the pad, and opening one takes it back for as long as it is up - otherwise
+# the D-pad would drive the menu and the game at once.
+#
+# Seconds between checks. Focus changes ask anyway; this catches the app that
+# opens the pad a moment after its window appears, which is most of them.
+handover_poll = 2.0
+# How far around the focused window's process to look. Steam -> reaper ->
+# wrapper -> game is three deep, which is where the default comes from; raising
+# it walks towards the session leader, and everything under that is every
+# window on the desktop.
+handover_depth = 3
+# Whether a process *beside* the focused one counts as the same app - same
+# cgroup, but neither its parent nor its child. Under Proton the process that
+# opens the pad is `winedevice.exe`, wine's HID service, which is a sibling of
+# the game rather than part of its line, so with this off a Proton game leaves
+# the pad driving the desktop's pointer over the top of it.
+handover_siblings = true
+# Omarchy's bar is a desktop object: every widget on it opens a popup you
+# click, and from the couch there is no pointer worth clicking with. With this
+# on, game mode parks it off-screen (`omarchy toggle bar`, no shell restart)
+# and omapad's own bar takes its place. It is put back on the way out, and at
+# shutdown too, so a daemon that dies there does not leave you without one.
+hide_bar_in_game = false
+# What the sticks do in game mode. Empty means "the same as on the desktop",
+# which is the answer for the left one: the pointer is the pointer wherever you
+# are sitting.
+#
+# The right one is not. On the desktop it is the wheel; from the couch, walking
+# the focused app's own controls is worth more than scrolling - and it does the
+# scrolling anyway, because focus scrolls into view. See [traverse].
+#
+# This is the one thing game mode changes about a stick, and it costs no
+# button. Set it to "scroll" to have the wheel back everywhere, or give one app
+# the wheel and leave the rest walking their controls with
+# `right_stick` in a [profile.<name>] - which is what the browser does, because
+# it scrolls the focused element rather than the one under the pointer.
+left_stick = ""
+right_stick = "focus"
+
+[pointer]
+speed = 1100.0                # pixels per second at full stick deflection
+accel = 2.2                   # response curve; 1.0 linear, higher = finer control near center
+deadzone = 0.10
+# Bear the pad that lies about its sticks. A Beitong KP20 in NS mode rests
+# every axis half a range off the centre it advertises and then uses only that
+# half (X spans -32767..0, Y spans 0..32767), so an untouched stick reads as a
+# half deflection and walks the cursor into a corner. recenter calibrates each
+# axis on the value it actually rests at when the pad connects, and takes the
+# nearer advertised end as the half-range, so rest reads 0 and both ends still
+# reach full speed. A pad that rests where it says it does is unaffected.
+recenter = true
+recenter_limit = 0.90         # a rest farther than this from centre is a stick
+                              # someone is holding at connect; leave it alone
+# Console-shaped scheme (item 07): the left trigger is right-click now, and the
+# precision slowdown was removed with it. Set a button here to bring it back.
+precision_button = ""
+precision_factor = 0.28
+poll_hz = 125
+left_stick = "cursor"         # cursor | scroll | snap | focus | none
+# "snap" turns a stick into a flick: push it over and the pointer jumps to the
+# window that way instead of walking there. See [snap].
+# "focus" stops aiming altogether: the stick walks the focused app's own
+# controls, Tab by Tab, and repeats while it is held. See [traverse].
+right_stick = "scroll"
+
+[rumble]
+# A tick under the thumb when a binding marked `rumble = true` fires, so a
+# workspace switch is felt as well as seen - the pad's own answer to a press,
+# which matters most when the change happens off screen. Bindings that only
+# move a cursor or type a character never buzz; nothing is worth feeling if
+# everything is.
+#
+# The defaults were picked by feel on a Beitong KP20 in NS mode, which wires
+# only the low-frequency motor: its high-frequency one is silent at any
+# magnitude. Pads that wire both usually give a crisper tick on `weak`.
+enabled = true
+strong = 0.20                 # 0..1 on the low-frequency motor - this is the tick
+weak = 0.0                    # 0..1 on the high-frequency motor, where there is one
+duration_ms = 60              # short enough to read as a click, not a buzz.
+                              # hid-nintendo sends rumble every 50ms, so
+                              # anything under that is a pulse it can swallow
+
+[scroll]
+speed = 8.0                   # wheel notches per second at full deflection
+deadzone = 0.18
+# Two different things get called acceleration, and both are here. This one is
+# the response curve - how far the stick is over, into how fast it goes. 1.0
+# is linear; higher gives finer control near the centre.
+accel = 2.0
+# And this one is time: a page is long and a thumb is not, so a stick held one
+# way keeps getting faster, up to `ramp` times the speed above, reached after
+# `ramp_ms` of holding. Letting go hands it back, and so does reversing - a
+# reversal is somebody who has gone too far, and the speed they overshot at is
+# the last thing they want. 1.0 is off, which is what a mouse wheel does.
+ramp = 3.0
+ramp_ms = 900
+natural = false               # true inverts the direction
+
+[cursor]
+# The pointer game mode draws. An arrow eleven pixels wide is unfindable from
+# a sofa, and nothing installed here is a large round one, so omapad draws
+# its own: a ring with a dot in the middle, written once into
+# ~/.local/share/icons and applied with Hyprland's setcursor. The desktop's
+# own pointer comes back when game mode ends, and at shutdown too, so a daemon
+# that dies in game mode does not leave you with it.
+#
+# Every cursor shape in the theme is the same ring on purpose. From the couch
+# an I-beam over a text field is the same smudge as an arrow, and one shape
+# that never changes is easier to follow than a correct one that does.
+enabled = true
+apply = "game"                # game = only from the couch. "always" wears it
+                              # whenever the daemon is running, for anyone who
+                              # drives the desktop with the pad all day.
+size = 48                     # nominal pixels. 32 is an ordinary large pointer,
+                              # 96 a target
+theme = "omapad-ring"         # the name it is written and applied under
+# The colours. `auto` reads the desktop's own theme - Omarchy keeps it in
+# ~/.local/state/omarchy/current/theme/colors.toml - so the pointer changes
+# with everything else on screen instead of being the one white thing on a
+# themed desktop: `color` takes its foreground, `outline` its background.
+#
+# Any other name is a key read out of that same file, so `color = "accent"` is
+# a pointer in the theme's accent; a `#rrggbb` or `#rrggbbaa` is used as it is,
+# and anything the theme cannot answer falls back to white on black.
+color = "auto"
+outline = "auto"              # the halo under the ring, so a pale pointer
+                              # stays visible on a pale window
+# The ring's proportions, as fractions of the size rather than pixel counts, so
+# it looks like itself at 24px and at 128px alike.
+thickness = 0.085             # how thick the ring's band is
+dot = 0.05                    # the dot in the middle; 0 leaves it off
+halo = 0.045                  # how far the outline reaches past the ring;
+                              # 0 leaves it off, which is worth it only on a
+                              # wallpaper you already know the colour of
+ring_opacity = 0.75           # how solid the ring's band is, 0..1. The dot in
+                              # the middle is always solid - it is where the
+                              # click lands; the ring only has to be findable,
+                              # and a little under full reads as a target
+                              # around the pointer rather than a hoop over
+                              # whatever is beneath it
+# all     every cursor shape is the ring - the I-beam, the resize arrows, all
+#         of them. This is the couch answer.
+# pointer only the plain arrow is replaced, and every other shape comes from
+#         the desktop's own theme (written into Inherits=).
+shapes = "all"
+# What to put back afterwards. Empty asks the desktop at the moment of the
+# swap - gsettings, which this Hyprland follows, then XCURSOR_THEME - so a
+# theme changed while omapad runs is still the one restored.
+restore_theme = ""
+restore_size = 0
+
+[snap]
+# Stop aiming. `snap:left|right|up|down` puts the pointer on the window that
+# way and focuses it, which is the console answer to the one thing a thumbstick
+# is worse at than a mouse.
+#
+# Windows, not buttons: the accessibility bus is the only thing that knows
+# where a button is, it reports every widget at screen 0,0 under Wayland, and
+# browsers, games and terminals do not join it at all. Hyprland knows exactly
+# where every window is, so that is the layer this can be right about; aiming
+# inside a window stays the stick's job.
+focus = true                  # focus what it lands on, not just point at it
+same_monitor = true           # false lets a flick cross to the next screen
+# What a window off to the side costs against one straight ahead, both measured
+# edge to edge. Below 1 the nearest window wins whatever direction was pressed,
+# which makes the press meaningless; far above it only a window perfectly in
+# line is ever reachable.
+bias = 2.0
+# A tick under the thumb when a snap lands, and only when it lands: a flick
+# into an empty edge that buzzed would say the same thing as one that worked.
+# A `snap:` binding on a button can already ask for this with `rumble = true`;
+# this is the switch for the stick, which carries a role rather than a binding.
+# Off by default, and there is no equivalent for [traverse]: a step that
+# repeats while it is held would buzz all the way down a list.
+rumble = false
+# For a stick whose role is "snap": how far it has to go over to count as a
+# flick, and how far back it has to come before the next one. The same
+# hysteresis the analog triggers use, for the same reason - a stick held over
+# is one press, not a stream of them.
+flick = 0.75
+release = 0.45
+
+[traverse]
+# Stop aiming, part two: let the app do the geometry.
+#
+# `snap` gets the pointer onto the right window; inside that window nothing
+# outside the app knows where its buttons are. The accessibility bus is the
+# only thing that could say, and under Wayland it reports every widget at
+# screen 0,0 - and browsers, games and terminals do not join it at all. But
+# every toolkit already answers Tab and the arrows, and answers them
+# correctly, because it is the thing that knows. So omapad asks instead of
+# aiming: `focus:next` sends Tab and the app moves its own focus ring.
+#
+# Which key each step sends is written here rather than in the code because
+# the answer is not the same everywhere - a list wants the arrows, a form
+# wants Tab - and an app that disagrees can be given a profile of its own.
+# An empty string turns a step off.
+next = "TAB"
+prev = "SHIFT+TAB"
+up = "UP"
+down = "DOWN"
+left = "LEFT"
+right = "RIGHT"
+# Space rather than Enter: Space presses the focused button and ticks the
+# focused checkbox in GTK, Qt and every browser, where Enter fires the form's
+# default action - which is not always the thing under the focus ring.
+activate = "SPACE"
+back = "ESC"
+# For a stick whose role is "focus". It steps once when it goes over, waits
+# out the delay, then walks at the rate - the way a held key behaves. The
+# repeat is omapad's rather than the compositor's: a stick pushed over is
+# not a key held down, and an app that saw one would autorepeat straight past
+# wherever the thumb stopped.
+repeat_delay_ms = 350
+repeat_rate_ms = 90
+flick = 0.65                  # lower than [snap]'s: this one is a direction
+release = 0.35                # held, not a shove
+
+# Which step each way of that stick means. The Tab order across and the arrows
+# up and down suits a form or a page; a list is often the other way round, so
+# it is named here rather than assumed. Any of the eight steps above, or an
+# empty string to turn a direction off.
+[traverse.stick]
+left = "prev"
+right = "next"
+up = "up"
+down = "down"
+
+# Chromium has a spatial navigation mode that makes the arrow keys jump to the
+# nearest control instead of scrolling, which is what `focus:up|down|left|right`
+# wants from a web page. It is off by default:
+#   chromium --enable-features=SpatialNavigation
+# or the Spatial Navigation entry in chrome://flags.
+
+[ui]
+# How big omapad's own surfaces draw - the keyboard, the menu, the guide, the
+# mapping screen and the game-mode bar. It multiplies the
+# shell's own spacing and type scale rather than replacing it, so a theme that
+# already runs roomy stays roomy here; 1.0 is exactly what Omarchy draws.
+#
+# Two values, because the same desktop is read from two distances. On the
+# desktop the surfaces sit beside Omarchy's own menus and should measure like
+# them; in game mode the screen is across a room, and the size that reads at a
+# keyboard is the size nobody can read from a sofa. Only the surfaces move -
+# the desktop itself, and anything the shell draws, is Omarchy's business.
+#
+# The switch is live: change modes with a surface up and it is redrawn at the
+# other scale.
+scale = 1.0
+game_scale = 1.25
+
+[osk]
+# On-screen keyboard. The layout and the selection live in omapad; the
+# Omarchy shell plugin `canerakdas.omapad` only draws them, so a key is
+# typed the moment it is pressed rather than after a round trip to the shell.
+# grid    a console keyboard: the whole thing on the first page, keys sized the
+#         way a real keyboard sizes them (a letter is one unit, Tab and Enter
+#         and the shifts are wider) inside a width budget every row shares.
+# classic  a physical desktop keyboard, full size, two pages.
+layout = "grid"
+
+# Print what the keys will actually type. omapad sends keycodes, so the
+# character depends on the compositor's XKB layout; with this on, the labels are
+# read back out of that same layout instead of assuming US QWERTY.
+labels_follow_layout = true
+
+# Print the controller button beside the key it reaches. The keyboard's own
+# layer binds buttons to things the keyboard also has keys for - Backspace,
+# Space, Shift, the page turn - and a small badge on the key itself is what
+# says so, matched on what a binding does rather than on which button carries
+# it, so a rebound scheme badges itself.
+badges = true
+
+# Where on the key that badge sits.
+# right  against the key's own right edge, so the badges line up down the
+#        keyboard and read as one list of what the pad reaches.
+# label  beside the character, the two centred together as a pair.
+badge_align = "right"
+
+repeat_delay_ms = 350         # hold a direction this long before it walks
+repeat_rate_ms = 70           # then one key every this many ms
+# socket = "/run/user/1000/omapad/osk.sock"   # defaults to $XDG_RUNTIME_DIR
+
+# Per-key overrides for the on-screen keyboard, keyed by what the key does by
+# default. Either half is optional, and a bare string is taken as the label:
+#   BACKSPACE = ""              # relabel it
+#   close     = { label = "" }  # the key that puts the keyboard away
+#   DELETE    = { label = "Delete" }
+# The shell draws with the same Nerd Font the rest of Omarchy uses, so its
+# glyphs work as labels. A key that appears on more than one page is
+# overridden on all of them, and `omapad check` rejects an action that does
+# not parse.
+[osk.keys]
+# Caps Lock, the long way round. Omarchy's own layout sets
+# `compose:caps,shift:both_capslock_cancel` (/usr/share/omarchy/default/hypr/
+# input.lua), which turns the Caps Lock key into Compose - so sending
+# KEY_CAPSLOCK toggles nothing at all. The same option makes *both shifts
+# together* the way to toggle caps lock, which is what this sends. On a layout
+# that has not been remapped, put it back with:
+#   CAPSLOCK = { action = "CAPSLOCK" }
+CAPSLOCK = { action = "LEFTSHIFT+RIGHTSHIFT" }
+
+[gamebar]
+# The game-mode bar. Omarchy's own bar is hidden in game mode (see
+# `hide_bar_in_game`) because every widget on it opens a popup you click, and
+# in game mode there is no pointer; this is what stands in its place. Left, the
+# controller menu and the button that opens it; centre, the workspaces; right,
+# what the buttons under your thumbs do.
+#
+# It prints only what is true: the bindings live in the layer that is live
+# right now, resolved through exactly the path a press takes. Hold the window
+# trigger and the hints become that layer's. The bar goes away while the pad is
+# handed to an app, since none of it would answer then.
+enabled = false
+# The bar has three slots on the right and they are worth spending on what is
+# different about where you are. A gesture that means the same wherever you are
+# - confirm, go back - teaches nothing by being repeated, so it is left off.
+#
+# Listed by *action* rather than by button on purpose: move Enter to another
+# button and it stays unprinted; give A something else to do and A starts being
+# printed. A list of button names would go stale the first time the scheme
+# changed.
+omit = ["key:ENTER", "key:ESC"]
+# Which edge the bar sits on. "auto" follows Omarchy's own bar: move that one
+# to the bottom and this one goes with it, so the couch bar is where the
+# desktop bar taught you to look. "top" or "bottom" pin it regardless.
+#
+# Only those two edges: Omarchy's bar can also stand on the left or the right,
+# but this one is a horizontal readout - a menu at one end, the workspaces in
+# the middle, the live bindings at the other - and turning that on its side is
+# a different bar, not this one rotated. A vertical desktop bar leaves both
+# horizontal edges free anyway, so "auto" takes the top.
+position = "auto"
+# How tall the bar is, in the same units Omarchy's own bar is 26 of - the
+# shell's spacing scale multiplies it, and so does `[ui] game_scale`, so a
+# theme that runs roomier gets a roomier bar here too, and so does a couch
+# further from the screen. Big enough to read from a sofa is the whole point of
+# not reusing the 26px desktop bar; past that it is only eating screen, so the
+# default is the row of badges plus a little air. Lower it if your sofa is
+# closer, raise it if it is further. The plugin will not go below what the
+# badges need, so a very small number just gets you the tightest bar that still
+# shows what the bar is for.
+height = 32
+# Where the app in front has claimed a shoulder - a browser's tabs, Steam - the
+# workspace is only reachable behind the announced hold, so the badge beside
+# the workspace strip is drawn dimmed: it still points at the workspaces, but
+# not at a tap, and a badge that looked the same would be promising something
+# a press will not do. Holding it walks the dimming off over exactly as long as
+# the hold takes, so the countdown is visible as well as felt.
+#
+# Dimmed rather than coloured on purpose: "not at a tap" is contrast, and a
+# fixed hue would fight a bar whose foreground is chosen per wallpaper.
+#
+# Three states, one per phase of the gesture: dimmed while it sits there,
+# filling in from the left while you hold it, and at the tick - full, and
+# trembling towards the workspace it is about to walk to - for the confirm
+# window. The tick and the notification both happen away from the bar, so the
+# badge says it too. It never fills twice: the confirm window is the same wait
+# continuing, and a second fill read as a second, separate one.
+#
+# How far that tremble leans, in the same units as `height` above, and how long
+# one lean-and-back takes. 0 leaves the badge simply full for the confirm
+# window; raise the reach if the bar is across a room, lower it if a badge
+# shifting under the workspace strip is more than you want to see. Raise the ms
+# for a slower sway, lower it for a tighter shiver.
+confirm_tremble = 2
+confirm_tremble_ms = 90
+# How long the badge stays dimmed before it starts filling. A fill that begins
+# on contact flickers under a shoulder tapped to walk browser tabs - the
+# commonest press these buttons take - so it sits still for a moment first.
+# The fill is still full at the tick: the wait comes out of the ramp, not off
+# the end, so a longer delay means a faster fill over what is left of
+# `hold_ms`. Raise it if a flick still flashes, lower it towards 0 - fill from
+# the moment the button goes down - if the hold feels slow to answer.
+confirm_fill_delay_ms = 60
+# Whether the badges on the bar are clickable. The bar was drawn for a thumb -
+# it stands in for a desktop bar whose every widget wants a pointer - but game
+# mode is the couch environment rather than a hand-off, so the desktop is still
+# under it and a mouse may well still be on the desk. A badge that says what a
+# button does is then the obvious thing to click, and clicking it fires exactly
+# the binding the press would: the same layer, the same profile, the same path.
+#
+# Only the badges do anything; a click elsewhere on the strip lands on the bar
+# and stops there, the way it does on a desktop bar's background. Turn this off
+# for a strip a click passes straight through, as it did before.
+#
+# Whichever way this is set, a badge lights up while its button is down - that
+# is the bar answering the pad, not a control.
+click = true
+# socket = "/run/user/1000/omapad/gamebar.sock"  # defaults to $XDG_RUNTIME_DIR
+
+[status]
+# What the daemon is doing, pushed to the Omarchy bar widget: whether a pad is
+# connected, which mode it is in, and which app profile is active. The widget
+# is part of the same shell plugin - add `{ id = "canerakdas.omapad" }` to
+# a section of the bar layout in ~/.config/omarchy/shell.json to place it. It
+# hides itself when no daemon is talking, so nothing is drawn for a service
+# that is not running.
+# socket = "/run/user/1000/omapad/status.sock"  # defaults to $XDG_RUNTIME_DIR
+
+[mapping]
+# The controller mapping screen. omapad names buttons by what is printed on
+# the pad and picks a profile from what the driver reports - two facts that do
+# not always agree, which is how a pad ends up answering to its neighbour's
+# name. The screen asks for each button by name, writes down the code that
+# arrives, and saves it per device identity in ~/.config/omapad/mapping.toml.
+# Delete that file to put every pad back on its shipped profile.
+#
+# It reads the pad raw while it is up - no binding fires, because the map that
+# would resolve one is the thing being fixed - so it carries its own way out: a
+# button that already has a name skips the one being asked for (an Xbox pad has
+# no Capture), holding anything for 2.5s leaves without saving, and the last
+# step asks for A to save and B to discard, in the names it has just learned.
+# socket = "/run/user/1000/omapad/mapping.sock"  # defaults to $XDG_RUNTIME_DIR
+
+[guide]
+# The bindings guide: one page per layer, every button drawn as the button it
+# is. Read-only - it is a map, not an editor - and summoned from the menu or
+# with `omapad ctl guide toggle`. Descriptions come from the actions
+# themselves; a binding with a `desc` says it in its own words instead.
+# socket = "/run/user/1000/omapad/guide.sock"  # defaults to $XDG_RUNTIME_DIR
+
+[window]
+step = 900.0                  # window move/resize pixels per second (window layer sticks)
+update_hz = 30.0
+
+# ---------------------------------------------------------------------------
+# Chords: buttons pressed together, in either order.
+#
+# A chord takes the press outright - neither button also does its own job, and
+# a layer trigger inside one does not open its layer. They are global rather
+# than per-layer on purpose: the one below is the way in from inside a game,
+# and that has to work from wherever you are.
+#
+# A chord is also the one gesture that always reaches past an app holding the
+# pad, whatever it runs. Two buttons at once is not an input any game asks you
+# for, which is what makes it safe there - and once PLUS and MINUS stand aside
+# over a game (see [bindings.base]), it is the only way back in.
+# ---------------------------------------------------------------------------
+
+[chords]
+# Back + Start together opens the controller menu. Over a cloud session or a
+# game this is *the* door: everything else - the keyboard, the window ops, game
+# mode, the guide - is a row inside it.
+#
+# This used to be `mode:toggle`, which had three other homes and did not need a
+# chord: HOME held for 700ms toggles the mode in every layer, and the menu has
+# a `Game mode` row. The menu had none, and it is the one that has to be
+# reachable from inside a game.
+"MINUS+PLUS" = "menu:toggle"
+
+# ---------------------------------------------------------------------------
+# Layers: hold the button to reach a second set of bindings.
+# ---------------------------------------------------------------------------
+
+[layers.window]
+# The left trigger. A modifier for window ops has to be held by a finger that
+# is not a thumb - inside the layer both thumbs are busy with the D-pad and the
+# face buttons - which leaves the shoulders and the triggers. The bumpers walk
+# workspaces and that is worth keeping, so the trigger it is; its right-click
+# moved to Y, which was a duplicate of B.
+button = "ZL"
+left_stick = "resize"         # resize the focused window
+right_stick = "move"          # move the focused window
+fallthrough = false           # true = unbound buttons fall back to [bindings.base]
+# `reaches_past = true` here would keep the whole layer working while the pad
+# has been handed to the app in front. It is off because the app sees ZL too:
+# in a game ZL is aim, and ZL + A would put the window full-screen mid-fight.
+# Over a game the window ops are on the menu instead.
+reaches_past = false
+
+# ---------------------------------------------------------------------------
+# Base layer - pointer and everyday navigation.
+# ---------------------------------------------------------------------------
+
+[bindings.base]
+# Console-shaped scheme (item 07): A confirms, B goes back, the triggers click.
+A = "key:ENTER"
+B = "key:ESC"
+X = "click:middle"
+Y = "click:right"
+LSTICK = "click:middle"
+RSTICK = "click:back"
+# ZR clicks; ZL holds the window layer, so it has no binding of its own.
+# It stays a plain click: a game reading the trigger is holding it constantly,
+# and `reaches_past = true` here would left-click the desktop with every shot.
+ZR = "click:left"
+
+# MINUS (Xbox "Back"/View) used to hold the window layer. Free now, and the
+# on-screen keyboard is what it is worth spending on: one button instead of a
+# two-handed combination.
+#
+# `reaches_past = false` on both this and PLUS below: a summon reaches past an
+# app holding the pad by default, and for these two that is the wrong default.
+# Back and Start are buttons every game binds, so over a cloud session or a
+# game they would put our keyboard and our menu on screen every time you
+# reached for the game's own pause screen. Over a game the way in is the
+# MINUS+PLUS chord, and the keyboard is a row inside the menu. Take these two
+# keys out to have Back and Start summon over a game again.
+MINUS = { tap = "osk:toggle", reaches_past = false }
+
+# L and R walk the previous / next workspace.
+# `on_release = true`: the shoulders fire when they come back up, not on the
+# way down. An app profile can then give the same button a hold (see
+# [profile.browser]) without its tap having already gone out, and the shoulders
+# behave the same everywhere whether or not one does.
+L = { tap = "hypr:hl.dsp.focus({ workspace = 'r-1' })", desc = "Previous workspace", on_release = true }
+R = { tap = "hypr:hl.dsp.focus({ workspace = 'r+1' })", desc = "Next workspace", on_release = true }
+
+DPAD_UP = "key:UP"
+DPAD_DOWN = "key:DOWN"
+DPAD_LEFT = "key:LEFT"
+DPAD_RIGHT = "key:RIGHT"
+
+# The controller menu is what PLUS is for now; the real Omarchy menu is a hold
+# away, since it wants a keyboard to be driven comfortably.
+PLUS = { tap = "menu:toggle", hold = "exec:omarchy-menu toggle", hold_ms = 400, hold_desc = "Omarchy menu", reaches_past = false }
+HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle", hold_ms = 700, desc = "Next window" }
+CAPTURE = { tap = "exec:omarchy-capture-screenshot", hold = "exec:omarchy-capture-region", hold_ms = 500 }
+
+# ---------------------------------------------------------------------------
+# Window layer - hold ZL (left trigger). ZL is the trigger, so it can't also be
+# a binding inside the layer; the shoulders move a window between workspaces,
+# the same direction each walks the workspaces with at the base layer.
+# ---------------------------------------------------------------------------
+
+[bindings.window]
+A = { tap = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })", desc = "Fullscreen" }
+B = { tap = "hypr:hl.dsp.window.close()", desc = "Close the window" }
+X = { tap = "hypr:hl.dsp.window.float({ action = 'toggle' })", desc = "Float / tile" }
+Y = { tap = "exec:omarchy-hyprland-window-pop", desc = "Pop the window out" }
+
+# `r-1` / `r+1`, not `e-1` / `e+1`: `e` walks only the workspaces that are
+# already open and wraps around them, so a window could never be sent to an
+# empty one. `r` counts every workspace on the monitor and creates the empty
+# one it lands on, which is what the base layer's L / R already do.
+L = { tap = "hypr:hl.dsp.window.move({ workspace = 'r-1' })", desc = "Send to previous workspace" }
+R = { tap = "hypr:hl.dsp.window.move({ workspace = 'r+1' })", desc = "Send to next workspace" }
+
+# These focus the window without moving the pointer. Swap `hypr:...` for
+# `snap:up|down|left|right` to take the pointer with it, which is what you want
+# from the couch - the focused window and the thing under the cursor being two
+# different windows is the desktop's habit, not a useful one on a sofa.
+DPAD_UP = { tap = "hypr:hl.dsp.focus({ direction = 'u' })", desc = "Focus up" }
+DPAD_DOWN = { tap = "hypr:hl.dsp.focus({ direction = 'd' })", desc = "Focus down" }
+DPAD_LEFT = { tap = "hypr:hl.dsp.focus({ direction = 'l' })", desc = "Focus left" }
+DPAD_RIGHT = { tap = "hypr:hl.dsp.focus({ direction = 'r' })", desc = "Focus right" }
+
+PLUS = { tap = "hypr:hl.dsp.layout('togglesplit')", desc = "Toggle split" }
+HOME = { tap = "hypr:hl.dsp.window.center()", desc = "Centre the window" }
+LSTICK = { tap = "hypr:hl.dsp.window.pin()", desc = "Pin the window" }
+CAPTURE = "exec:omarchy-capture-screenrecording"
+
+# Text entry: MINUS does this at the base layer now, but the old combination
+# still works.
+RSTICK = "osk:toggle"
+
+# ---------------------------------------------------------------------------
+# Traversal, and why it is not a layer here.
+#
+# `focus:*` can be put on any button, and a held layer of its own is the
+# obvious shape for it. It is not the shipped one because a layer trigger costs
+# a button outright: `layer_for_button` is checked before any binding, so the
+# button that opens a layer has no binding of its own in any layer or profile.
+# The cheapest candidate on this pad, X, would still have taken float / tile
+# out of the window layer and Ctrl+T out of the browser.
+#
+# So traversal ships on a stick instead, in game mode, where it costs nothing
+# at all - see `right_stick` under [mode]. A layer is three lines away if you
+# would rather spend a button:
+#
+#   [layers.traverse]
+#   button = "X"
+#   fallthrough = true
+#
+#   [bindings.traverse]
+#   DPAD_LEFT = "focus:prev"
+#   DPAD_RIGHT = "focus:next"
+#   DPAD_UP = "focus:up"
+#   DPAD_DOWN = "focus:down"
+#   A = "focus:activate"
+#   B = "focus:back"
+
+# ---------------------------------------------------------------------------
+# Keyboard layer - active whenever the on-screen keyboard is up.
+#
+# This layer is implicit: it has no [layers.osk] entry because it activates
+# with the keyboard rather than while a button is held. Holding MINUS still
+# wins, so window controls stay reachable while typing. The sticks keep doing
+# what they do on the base layer, so the pointer still works.
+# ---------------------------------------------------------------------------
+
+[bindings.osk]
+DPAD_UP = "osk:up"
+DPAD_DOWN = "osk:down"
+DPAD_LEFT = "osk:left"
+DPAD_RIGHT = "osk:right"
+
+A = "osk:press"
+B = "osk:close"
+X = "key:BACKSPACE"
+Y = "key:SPACE"
+
+L = "osk:layer:prev"
+R = "osk:layer:next"
+
+# The triggers, while the keyboard is up. ZL is Shift for as long as it is
+# held - a real Shift, not the one-shot latch, so a whole capitalised word
+# costs one finger - and ZR is "done": Enter, then the keyboard goes away.
+#
+# ZL holds the window layer everywhere else. It cannot do both, and typing is
+# what the keyboard is for, so while it is open the window layer waits: the
+# keyboard's own binding outranks the layer trigger.
+ZL = "osk:hold:shift"
+ZR = "osk:submit"
+
+PLUS = "key:ENTER"
+HOME = { tap = "osk:close", hold = "mode:toggle", hold_ms = 700 }
+# L3 toggles Caps Lock as it does in item 07's base scheme. Through osk:caps
+# rather than a key: chord, so the printed letters follow the state and the
+# Caps key stays the one place that decides what gets sent.
+LSTICK = "osk:caps"
+# The same button that summoned the keyboard puts it away again.
+MINUS = "osk:toggle"
+# Left click, displaced from ZR by Shift. Clicking into another field is worth
+# keeping while the keyboard is up, and the right stick is already the thing
+# aiming the cursor. Not CAPTURE: that button only exists on the NS-mode
+# profile, so a click parked there would do nothing in XInput mode. Closing the
+# keyboard was on six buttons anyway.
+RSTICK = "click:left"
+CAPTURE = "osk:close"
+
+# ---------------------------------------------------------------------------
+# Menu layer - active whenever the controller menu is up.
+#
+# Implicit like the keyboard layer, and it outranks it: opening the menu closes
+# the keyboard, so only one surface ever reads the D-pad.
+# ---------------------------------------------------------------------------
+
+[bindings.menu]
+DPAD_UP = "menu:up"
+DPAD_DOWN = "menu:down"
+DPAD_LEFT = "menu:back"
+DPAD_RIGHT = "menu:press"
+
+A = "menu:press"
+B = "menu:back"                # at the top level this closes the menu
+X = "menu:close"
+Y = "menu:close"
+
+PLUS = "menu:close"
+HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700 }
+RSTICK = "menu:close"
+CAPTURE = "menu:close"
+
+# ---------------------------------------------------------------------------
+# Per-application profiles (item 09): a profile matches the focused window by
+# class and layers its own bindings over the shipped ones, so an app changes
+# only the buttons it names. Matching is a case-insensitive substring of the
+# class, the first profile that hits wins, and a profile never reaches the
+# keyboard, the menu or the guide - a surface on screen outranks the app under
+# it.
+#
+# The browser is the pilot for the shoulders (item 18). L and R are its tab
+# switcher as much as they are our workspace switcher, so inside it a tap goes
+# to the app and only a deliberate hold takes the workspace: `confirm = true`
+# takes both its numbers from [confirm] - at hold_ms it ticks the pad and says
+# what is coming, and confirm_ms later it happens, with the bar filling the
+# badge in over each.
+# Letting go before then backs out, and so does the cancel button - which is
+# what makes a tap that ran long harmless.
+# ---------------------------------------------------------------------------
+
+[confirm]
+cancel_button = "B"           # backs out of any hold that is counting down
+# What an announced hold costs, for every binding that says `confirm = true`
+# rather than naming its own numbers: hold_ms is how long you hold before it
+# ticks and says what is coming, confirm_ms how long the countdown after that
+# runs before it fires. Letting go, or the cancel button, backs out of either.
+#
+# Both were two seconds when the countdown was invisible. The bar now fills
+# the badge in from the left over each of them, so the wait can be read rather
+# than guessed at, and a wait you can see does not have to be as long. Raise
+# them if a shoulder fires while you are playing - the app in front sees that
+# button too, which is the whole reason this is a hold and not a press.
+hold_ms = 1200
+confirm_ms = 800
+
+# Discord, where the four face buttons are the voice controls.
+#
+# A voice chat is the one desktop app whose most-pressed controls are not on
+# screen where a pointer can reach them: the mute and deafen buttons sit in a
+# strip the size of a thumbnail, in the corner furthest from wherever you are
+# aiming. From a sofa that is the worst target on the desktop, and it is the
+# one you hit mid-sentence. So the face buttons stop being the console scheme
+# here and become the voice panel.
+#
+# A and B are the pair, next to each other on the pad the way they are in the
+# app: mute the microphone, and deafen - the mic and everybody else's sound at
+# once, which is what you press when the room you are in gets loud rather than
+# the call. Both keep what they meant everywhere else on a hold, which is
+# what Enter and Esc are worth in a chat window: Esc is also how Discord
+# declines an incoming call, and a message is sent by the keyboard's own ZR
+# (Enter, and the keyboard away) rather than by A.
+#
+# X and Y are the two the pointer is worst at. Ctrl+K is Discord's quick
+# switcher - a server, a channel or a DM by name, which beats walking a
+# sidebar with a cursor; and Ctrl+Enter answers an incoming call, the one
+# thing here that is timed and cannot wait for you to aim at a small button.
+#
+# What this costs, in Discord only: the middle click (X, and the left stick
+# click) is gone, and Enter and Esc are a hold rather than a press. The right
+# click is not gone - it moves to the left stick click, because a context menu
+# is how Discord replies to and reacts to a message, and losing that would
+# cost more than it saved. As in [profile.browser], that reaches into the
+# window layer too, so ZL + left stick no longer pins the window while Discord
+# is focused; take the line out if you would rather keep the pin.
+#
+# `match` is a substring, so "discord" also covers Canary and PTB. The forks
+# are named separately because they are not: Vesktop, WebCord, Legcord.
+# These are Discord's own shortcuts and they only fire while it has focus -
+# the global keybinds in its own settings are a different list.
+
+# Ahead of [profile.browser] on purpose, because the first profile that
+# matches wins and Discord is often not an app at all: run as an Omarchy
+# webapp its window class is `chrome-discord.com__channels_@me-Default`,
+# which matches "chrome" as squarely as it matches "discord". Declared after
+# the browser, none of this would ever fire on the install that needs it most.
+
+[profile.discord]
+match = ["discord", "vesktop", "webcord", "legcord", "armcord"]
+
+[profile.discord.bindings]
+A = { tap = "key:CTRL+SHIFT+M", desc = "Mute the microphone", hold = "key:ENTER", hold_desc = "Enter" }
+B = { tap = "key:CTRL+SHIFT+D", desc = "Deafen - mic and sound", hold = "key:ESC", hold_desc = "Esc / decline a call" }
+X = { tap = "key:CTRL+K", desc = "Jump to a channel" }
+Y = { tap = "key:CTRL+ENTER", desc = "Answer the call" }
+# The right click Y gave up. The left stick's middle click was X's twice over,
+# so this is the cheapest button on the pad to spend here.
+LSTICK = { tap = "click:right", desc = "Context menu" }
+
+[profile.browser]
+match = ["chromium", "chrome", "brave", "vivaldi"]
+# The wheel back, in the browser only. Game mode hands the right stick to
+# `focus` (see [mode]), which sends the keys in [traverse] - and a browser
+# applies those to whatever holds the keyboard focus, not to what the pointer
+# is over: the page carries on scrolling where you first clicked while the
+# cursor sits somewhere else entirely. Every other app moves its focus ring
+# where you can see it, so this is the browser's exception rather than a
+# change of mind about the stick. A profile may name either stick; empty, or
+# absent, leaves the layer's own role alone.
+right_stick = "scroll"
+
+[profile.browser.bindings]
+L = { tap = "key:CTRL+SHIFT+TAB", desc = "Previous tab", hold = "hypr:hl.dsp.focus({ workspace = 'r-1' })", hold_desc = "Previous workspace", confirm = true }
+R = { tap = "key:CTRL+TAB", desc = "Next tab", hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next workspace", confirm = true }
+
+# The rest of the browser. Four jobs and three spare buttons, so the two that
+# belong to the page share one: a new tab is what you reach for, reloading is
+# not, and both are about the tab in front of you.
+#
+# What these cost, in the browser only: X and the left stick click were the
+# middle click (twice over), and the right stick click was mouse button 4,
+# which browsers already read as Back - so it keeps its direction and only
+# stops depending on the app honouring that button.
+X = { tap = "key:CTRL+T", desc = "New tab", hold = "key:F5", hold_desc = "Reload", hold_ms = 500 }
+RSTICK = { tap = "key:ALT+LEFT", desc = "Back" }
+LSTICK = { tap = "key:ALT+RIGHT", desc = "Forward" }
+
+# The file manager, where B is the button the whole app is walked with.
+#
+# B is Esc everywhere else, which a file manager does nothing with: browsing is
+# a walk into folders and back out of them, and the way back out is the one key
+# a pad has no button for. So here it goes up one directory - the same
+# direction B already means in the menu and the keyboard, applied to the tree
+# the app in front is showing.
+#
+# Alt+Up is the shortcut every desktop file manager agrees on (Nautilus,
+# Thunar, Nemo, Dolphin, PCManFM alike), so one binding covers `match`.
+
+[profile.files]
+match = ["nautilus", "thunar", "nemo", "dolphin", "pcmanfm"]
+
+[profile.files.bindings]
+B = { tap = "key:ALT+UP", desc = "Up one directory" }
+
+# The terminal, where what a shell is driven with is exactly what the pad has
+# no button for (item 37).
+#
+# Every key here is the *shell's* own rather than an emulator's, so one profile
+# covers all five names in `match`: foot and alacritty have neither tabs nor a
+# context menu, and a scheme built on those would be dead in two of the five.
+#
+# `right_stick`, and why this profile needs one at all: game mode hands the
+# right stick to `focus` (see [mode]), which sends the keys in [traverse] - and
+# at a prompt those are the worst keys on the keyboard. `next` is Tab, so the
+# stick completes; `up` and `down` walk the shell's history, so it rewrites the
+# line you were reading. Meanwhile a terminal answers the wheel with its
+# scrollback, which is the thing the stick is being pushed for. Same exception
+# the browser makes, for the opposite reason: there the focus keys go somewhere
+# real but not where the pointer is, here they go somewhere actively wrong.
+[profile.shell]
+match = ["foot", "alacritty", "ghostty", "kitty", "wezterm"]
+right_stick = "scroll"
+
+[profile.shell.bindings]
+# Backspace, and why it is a button here while Tab is not.
+#
+# What a command typed from the sofa needs most is the letter back: it is
+# aimed at with a thumbstick, and the letter aimed at is regularly not the one
+# that lands. Tab held this button first and was the wrong shape for it -
+# completing meant putting the keyboard away, pressing Y and summoning it
+# again, once per completion. It costs nothing to give up, because the
+# keyboard has always had a Tab key of its own on the first page: with the
+# line still in front of you, it is aimed at like any other key.
+#
+# Written plain rather than as a tap/hold on purpose: a tap/hold binding waits
+# for the release before the key goes down (`waits_for_release`), and that
+# costs the autorepeat. Backspace is the one key that is held rather than
+# pressed, which is also why Ctrl+C had to leave this button for X below.
+#
+# Y is the right click, which in a terminal opens a menu of two entries in
+# kitty and ghostty and nothing at all in foot and alacritty: the cheapest
+# button here. It costs `ZL` + Y, popping the window out.
+Y = "key:BACKSPACE"
+
+# The middle click X carries at the base layer pastes the PRIMARY selection,
+# which wants a selection made with a mouse and a pointer parked on the
+# prompt - from the couch, the deadest button in a terminal. Ctrl+Shift+V
+# pastes the clipboard the rest of the desktop actually fills.
+#
+# Ctrl+C rides this hold rather than B's, and that is the whole reason it is
+# here: a profile reaches into the window layer too, so B would have taken
+# `ZL` + B - closing the window - away from every terminal. X costs `ZL` + X,
+# float / tile. A hold is also the right shape for an interrupt: killing a
+# command by accident is worse than pasting one by accident.
+X = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
+
+# The cheapest click left in a terminal - the same displacement
+# [profile.browser] and [profile.discord] make, and it costs `ZL` + left
+# stick, the window pin. Ctrl+L is what you press when the screen has scrolled
+# past reading.
+LSTICK = { tap = "key:CTRL+L", desc = "Clear the screen" }
+
+# Left alone on purpose. B stays Esc, which vim, less and every full-screen
+# program in a terminal want; A is Enter, ZR is the left click, and the D-pad
+# is the arrows the line editor and the history are walked with.
+#
+# What the two overrides above spend: X and the left stick were the pad's two
+# middle clicks, so a terminal now has none, and text selected with a mouse
+# but never copied is no longer reachable from the pad. That is the price of
+# a paste that works with the clipboard everything else on this desktop uses.
+
+# ---------------------------------------------------------------------------
+# A keyboard page of the app's own (item 27).
+#
+# Typing a command letter by letter with a thumbstick is the worst thing the
+# on-screen keyboard asks anybody to do, and in a terminal it is also the most
+# predictable: the command you want is nearly always one you have run before.
+# So a profile can lend the keyboard a page. It joins the cycle L/R already
+# walk - abc, &123, Fn, and then this one - for as long as that window is in
+# front, and leaves with it. An entry types its whole string, which leaves ZR
+# (Enter, and the keyboard away) to run it.
+#
+# Entries come from two places, both optional and `keys` drawn first:
+#
+#   keys   commands worth having in front of you, written down here
+#   from   a shell command whose output is one entry per line - which is how
+#          the commands you actually ran get onto the keyboard without omapad
+#          knowing anything about anybody's shell
+#
+# A written-down entry is a plain string, or a table that names it:
+#
+#   { label = "Update", text = "sudo pacman -Syu" }
+#
+# and a table with `action` instead of `text` sends a **chord** rather than
+# typing a string, written the way [osk.keys] writes one. That is what a key
+# which is wrong in exactly one app needs: the bottom row's Paste is Ctrl+V,
+# right everywhere except here, and the terminal's own paste goes on this page.
+#
+# `limit` caps the two together, `ttl` is how long the command's output is
+# reused before it is run again, and the page holds four rows: a short entry
+# shares a row, a long one takes it alone, and the rest do not fit.
+#
+# **bash only writes its history file when the shell exits**, so what the
+# terminal in front has typed today is not in it yet. One line in ~/.bashrc
+# appends every command as it is run:
+#
+#   PROMPT_COMMAND='history -a'
+#
+# Another shell or history tool changes only the command:
+#
+#   from = "atuin history list --reverse --format '{command}' | head -8"
+
+[profile.shell.osk]
+label = "Term"
+keys = [
+  { label = "Paste", action = "CTRL+SHIFT+V" },
+  "git status",
+  "sudo pacman -Syu",
+]
+# Newest first and each command once. What is thrown away is what a page read
+# from the sofa cannot use: `#`-prefixed timestamp lines (bash writes those
+# when HISTTIMEFORMAT is set), the one- and two-character typos, and anything
+# too long to read on a key.
+from = "tac ~/.bash_history | awk '!/^#/ && length > 2 && length < 60 && !seen[$0]++' | head -8"
+ttl = 10
+limit = 8
+
+# The browser's page, over the same mechanism (item 32).
+#
+# A URL is the one string on this desktop that has to be typed exactly, and it
+# is the thing a thumbstick is worst at, so the page is built around the
+# address bar rather than around the browser's menus. `Address bar` puts the
+# caret where you are about to type without aiming at it; `https://` is the
+# prefix the omnibox will not guess for you once what follows is not a plain
+# domain; and `Go .com` wraps what you have typed in www./.com and opens it,
+# which turns a domain into the few letters in the middle of it.
+#
+# The four after those are what the pad has no button left for and what the
+# keyboard is open for anyway: finding in the page and searching the open tabs
+# are both typed at, reopening a tab is the one-key undo of a mis-click, and
+# zoom is the couch's own complaint - a page written for a desk, read from a
+# sofa. Zoom is two entries because it is pressed more than once.
+#
+# These are Chromium's shortcuts, which is what `match` above names. Firefox
+# reads Ctrl+Shift+A as its add-on manager rather than tab search, so a Firefox
+# profile wants a page of its own.
+#
+# Four rows is the whole page, so eight short entries is all of it. What did
+# not fit, in case you would rather have it than one of these: bookmark this
+# page (CTRL+D), history (CTRL+H), downloads (CTRL+J), close the tab (CTRL+W),
+# full screen (F11), reset the zoom (CTRL+0), a private window
+# (CTRL+SHIFT+N).
+
+[profile.browser.osk]
+label = "Web"
+keys = [
+  { label = "Address bar", action = "CTRL+L" },
+  "https://",
+  { label = "Go .com", action = "CTRL+ENTER" },
+  { label = "Find", action = "CTRL+F" },
+  { label = "Search tabs", action = "CTRL+SHIFT+A" },
+  { label = "Reopen tab", action = "CTRL+SHIFT+T" },
+  { label = "Zoom −", action = "CTRL+MINUS" },
+  { label = "Zoom +", action = "CTRL+EQUAL" },
+]
+
+# Discord's page, over the same mechanism.
+#
+# A chat app is typed at, which is the one thing a thumbstick cannot do
+# quickly - so half of this page is the sentences you send without meaning
+# anything by them. "brb", "omw" and "gg" are three keys instead of nine
+# aimed letters, and they are what most of a couch conversation actually is.
+#
+# The other half is the pickers, because each of them opens something that is
+# then typed into or walked with the D-pad: the emoji and GIF pickers are
+# searched by name, Ctrl+F searches the messages, and Shift+Esc marks the
+# whole server read - the one-key answer to coming back to a wall of bold
+# channels. The quick switcher is not here; it is on X, where it does not
+# cost a page turn.
+#
+# Four rows is the whole page, so eight short entries is all of it. What did
+# not fit: the sticker picker (CTRL+S), the inbox (CTRL+I), uploading a file
+# (CTRL+SHIFT+U), editing the message you last sent (UP, which the D-pad
+# already sends), and the previous / next unread channel (ALT+SHIFT+UP /
+# ALT+SHIFT+DOWN).
+
+[profile.discord.osk]
+label = "Chat"
+keys = [
+  "brb",
+  "omw",
+  "gg",
+  { label = "Search", action = "CTRL+F" },
+  { label = "Emoji", action = "CTRL+E" },
+  { label = "GIF", action = "CTRL+G" },
+  { label = "Mark read", action = "SHIFT+ESC" },
+  { label = "Pins", action = "CTRL+P" },
+]
+
+# ---------------------------------------------------------------------------
+# Couch layer - what game mode changes about the desktop, and nothing more.
+#
+# Empty by default, and usually that is right: game mode is the desktop from
+# the sofa, so every binding, layer and profile works there exactly as it does
+# anywhere else. A button this does not name keeps doing what the base layer
+# says. Name one only where the couch wants something different:
+#
+#   [bindings.game]
+#   Y = "exec:steam steam://open/bigpicture"
+#
+# Fill it in and the guide grows a page for what it changed.
+
+[bindings.game]
+# Empty on purpose: game mode is the desktop read from further away, so every
+# base binding still means what it meant. Name a button above only where the
+# couch wants something different.
+
+# Steam takes the pad for itself - it reads controllers through hidraw, so
+# omapad notices and lets go - which leaves no way back to the desktop from
+# inside Big Picture or a game. This is that way: hold a shoulder, it ticks and
+# says what is coming, keep holding while the badge fills the rest of the way
+# and the workspace changes. Let go or press the cancel button and nothing
+# happens. Both waits are [confirm]'s, so they are changed in one place.
+#
+# An announced, counted-down hold is the only thing besides a summon that
+# reaches past an app holding the pad, and deliberately so: Steam sees that
+# button too, so anything shorter would fire while you were playing.
+#
+# `match` is a substring, so this covers the client, Big Picture and the games
+# it launches (`steam_app_...`) alike.
+
+[profile.steam]
+match = ["steam"]
+
+[profile.steam.bindings]
+L = { hold = "hypr:hl.dsp.focus({ workspace = 'r-1' })", hold_desc = "Previous workspace", confirm = true }
+R = { hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next workspace", confirm = true }
+
+# Cloud gaming and remote play: the same shape as Steam, for the same reason.
+# These open the pad the moment a session starts - measured with GeForce NOW,
+# which held /dev/input/event17 and js0 while Fortnite was on screen - so
+# omapad lets go and every plain binding stands aside. That is right: the
+# game is being played, and a button of ours firing on top of it is a button
+# taken away from the game.
+#
+# What is left is the two gestures a game does not ask for. The shoulders held
+# and confirmed walk the workspaces, which is the one thing worth doing without
+# leaving the stream; everything else - the keyboard, the window ops, game mode
+# - is a row in the menu, and the menu is the MINUS+PLUS chord.
+#
+# The classes are the applications' own: GeForce NOW's window class is plainly
+# `GeForceNOW`, and a session run in a browser instead matches
+# [profile.browser], which puts the same confirmed hold on the same two
+# buttons. Moonlight and Chiaki are the self-hosted end of the same thing.
+
+[profile.cloud]
+match = ["geforcenow", "moonlight", "chiaki", "xcloud", "greenlight"]
+
+[profile.cloud.bindings]
+L = { hold = "hypr:hl.dsp.focus({ workspace = 'r-1' })", hold_desc = "Previous workspace", confirm = true }
+R = { hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next workspace", confirm = true }
+
+# ---------------------------------------------------------------------------
+# Guide layer - active whenever the bindings guide is up.
+#
+# Implicit like the other two, and it outranks both: the guide is the thing
+# being read, so it owns the pad while it is up. It has one job - turn the
+# page - and every other button is a way out, because the guide is where you
+# go when you have forgotten which button does what.
+#
+# Whatever is bound here prints along the bottom of the guide itself, on every
+# page, so it stays honest if you change it.
+# ---------------------------------------------------------------------------
+
+[bindings.guide]
+L = "guide:prev"
+R = "guide:next"
+DPAD_LEFT = "guide:prev"
+DPAD_RIGHT = "guide:next"
+
+A = "guide:close"
+B = "guide:close"
+X = "guide:close"
+Y = "guide:close"
+
+MINUS = "guide:close"
+PLUS = "guide:close"
+RSTICK = "guide:close"
+CAPTURE = "guide:close"
+HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700 }
+
+# ---------------------------------------------------------------------------
+# The controller menu - one column of rows, the way the Omarchy menu is shaped.
+#
+# A radial reads a stick angle in one flick, but it caps out at a handful of
+# entries and has nowhere to put a submenu; a list is what a D-pad walks well
+# and what the desktop already teaches.
+#
+# Every row takes an `action` from the same grammar as a button binding, or an
+# `items` list to open a submenu. `icon` is any glyph the shell's font has -
+# these are the Nerd Font icons the Omarchy menu itself uses. `detail` prints a
+# quieter second line under the label.
+#
+# `repeat = true` marks a row you nudge rather than pick: the menu stays where
+# it is and holding the button keeps firing, the way a held volume key does.
+# `stay = true` is the quieter half of that - one press, and the menu stays up:
+# what a row that changes a setting the menu itself prints needs, so trying two
+# badge layouts costs two presses rather than two trips back here. Every other
+# row closes the menu the moment it is picked.
+#
+# A row whose action sets something is ticked while that something is what is
+# in force, so a list of choices says which one you are on.
+#
+# The root is kept short and grouped, because a list that runs past the fold is
+# one you scroll rather than read: what you open, then what is on screen, then
+# the room, then the pad, then the machine - and last, on its own, the way out
+# into the Omarchy menu. A row that is not reached often lives inside the group
+# it belongs to rather than at the top level.
+#
+# Overriding `items` in your own config replaces the whole tree rather than
+# merging row by row, which is what you want: your menu is your menu.
+# ---------------------------------------------------------------------------
+
+[menu]
+title = "Go"                  # header shown at the top level
+# The day and the time, at the head of the menu, in strftime. Game mode takes
+# Omarchy's bar away and the pad can reach no other clock. Empty for none.
+clock = "%A %H:%M"
+repeat_delay_ms = 400         # hold up/down this long before the list walks
+repeat_rate_ms = 110          # then one row every this many ms
+# socket = "/run/user/1000/omapad/menu.sock"   # defaults to $XDG_RUNTIME_DIR
+
+[[menu.items]]
+icon = "󰀻"
+label = "Apps"
+detail = "Open something"
+
+  # Steam first: on a sofa it is what the menu is opened for. The URL form
+  # works either way - it starts Steam in Big Picture when it is closed, and
+  # flips an already-running Steam into it.
+  [[menu.items.items]]
+  icon = ""
+  label = "Steam"
+  detail = "Big Picture"
+  action = "exec:steam steam://open/bigpicture"
+
+  # Then the two that make the sofa a sofa rather than a desk, in the order a
+  # couch reaches for them. Both launch **or focus**: with a pointer this slow
+  # a second copy of a chat client or a second music player is never what was
+  # asked for, and `omarchy-launch-or-focus` matches the class *and* the title,
+  # so it finds the window whichever way the thing is installed.
+  #
+  # Discord is the row that cannot assume anything: Omarchy installs it as a
+  # webapp as readily as pacman installs the client, and the two have nothing
+  # in common but the name. So the row asks - `omarchy-cmd-present` picks the
+  # native client when there is one and falls back to the webapp when there is
+  # not. See [profile.discord] for what the pad does once it is in front.
+  [[menu.items.items]]
+  icon = "󰙯"
+  label = "Discord"
+  detail = "Voice chat"
+  action = 'exec:omarchy-launch-or-focus discord "$(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me)"'
+
+  # Spotify has a launcher of Omarchy's own that focuses a running one and
+  # offers to install a missing one, which is more than this row could do.
+  [[menu.items.items]]
+  icon = "󰓇"
+  label = "Spotify"
+  detail = "Music"
+  action = "exec:omarchy-launch-spotify"
+
+  # The television. A game console has one of these and a desktop does not,
+  # which is most of the difference this project is about; the webapp is a
+  # window of its own rather than a tab, so the pad can walk to it.
+  [[menu.items.items]]
+  icon = "󰗃"
+  label = "YouTube"
+  detail = "The couch's television"
+  action = "exec:omarchy-launch-or-focus youtube 'omarchy-launch-webapp https://www.youtube.com'"
+
+  # What a couch might add next, and why neither is here: Battle.net
+  # (`omarchy-launch-battlenet`) says nothing at all when it is not installed,
+  # and a row that does nothing visible is worse from a sofa than no row; OBS
+  # is a desk's tool, and the CAPTURE button already records.
+
+  [[menu.items.items]]
+  icon = ""
+  label = "Browser"
+  action = "exec:omarchy-launch-browser"
+
+  [[menu.items.items]]
+  icon = ""
+  label = "Terminal"
+  action = "exec:omarchy-launch-terminal"
+
+  # Everything installed, which is a list no controller menu should try to be.
+  [[menu.items.items]]
+  icon = "󰀻"
+  label = "All apps"
+  detail = "Everything installed"
+  action = "exec:omarchy-menu toggle apps"
+
+[[menu.items]]
+icon = "󰌌"
+label = "Keyboard"
+action = "osk:open"
+
+# The window in front, from the menu rather than from the window layer (item
+# 33). ZL already holds a layer with all of this on it, and none of it reaches
+# past an app that has taken the pad: only a summon and an announced hold do,
+# and the menu is the summon. Launch a game from Steam Big Picture and that is
+# exactly where you are - Steam holds the pad, Big Picture floats over the
+# game, and until this existed the only way out was a keyboard.
+#
+# `Fullscreen` is first because it is the one that clears it. Big Picture is a
+# floating window and a game launched from it is tiled; in Hyprland a floating
+# window is always drawn above a tiled one, so focusing the game or raising it
+# changes nothing - measured - and making it fullscreen is what puts it in
+# front. The Hyprland rule that stops it happening at all is in the README.
+
+[[menu.items]]
+icon = "󰖯"
+label = "Windows"
+detail = "The window in front"
+
+  [[menu.items.items]]
+  icon = "󰊓"
+  label = "Fullscreen"
+  detail = "What a game hidden behind Steam needs"
+  action = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })"
+
+  [[menu.items.items]]
+  icon = "󰕰"
+  label = "Next window"
+  action = "hypr:hl.dsp.window.cycle_next()"
+
+  [[menu.items.items]]
+  icon = "󰀿"
+  label = "Float / tile"
+  action = "hypr:hl.dsp.window.float({ action = 'toggle' })"
+
+  [[menu.items.items]]
+  icon = "󰅗"
+  label = "Close the window in front"
+  action = "hypr:hl.dsp.window.close()"
+
+[[menu.items]]
+icon = ""
+label = "Audio"
+
+  [[menu.items.items]]
+  icon = "󰝝"
+  label = "Volume up"
+  repeat = true
+  action = "exec:omarchy-audio-output-volume raise"
+
+  [[menu.items.items]]
+  icon = "󰝞"
+  label = "Volume down"
+  repeat = true
+  action = "exec:omarchy-audio-output-volume lower"
+
+  [[menu.items.items]]
+  icon = "󰝟"
+  label = "Mute"
+  action = "exec:omarchy-audio-output-volume mute-toggle"
+
+  [[menu.items.items]]
+  icon = "󰐊"
+  label = "Play / pause"
+  action = "exec:omarchy-shell media playPause"
+
+  [[menu.items.items]]
+  icon = "󰒭"
+  label = "Next track"
+  action = "exec:omarchy-shell media next"
+
+  [[menu.items.items]]
+  icon = "󰒮"
+  label = "Previous track"
+  action = "exec:omarchy-shell media previous"
+
+[[menu.items]]
+icon = "󰍹"
+label = "Display"
+
+  [[menu.items.items]]
+  icon = "󰃠"
+  label = "Brighter"
+  repeat = true
+  action = "exec:omarchy-brightness-display +5%"
+
+  [[menu.items.items]]
+  icon = "󰃞"
+  label = "Dimmer"
+  repeat = true
+  action = "exec:omarchy-brightness-display 5%-"
+
+  # Not `repeat = true` like the brightness rows above it: a step here
+  # reconfigures the monitor and rewrites monitors.lua, which is not something
+  # to fire every 110ms under a resting thumb. Scale is also a thing you set
+  # once for where you are sitting, not one you nudge.
+  [[menu.items.items]]
+  icon = "󰁌"
+  label = "Scale up"
+  detail = "Bigger desktop, for the couch"
+  action = "exec:omarchy-hyprland-monitor-scaling up"
+
+  [[menu.items.items]]
+  icon = "󰘕"
+  label = "Scale down"
+  action = "exec:omarchy-hyprland-monitor-scaling down"
+
+  [[menu.items.items]]
+  icon = "󱄄"
+  label = "Screensaver"
+  action = "exec:omarchy-launch-screensaver force"
+
+[[menu.items]]
+icon = "󰊗"
+label = "Game mode"
+detail = "Hand the pad back to games"
+action = "mode:game"
+
+# The pad itself: what it does, what it is, and how it feels. Loose rows in the
+# root menu and a line in a config file before; a controller is one thing and
+# reads as one row. Inside, the order is what you look up, then what you feel,
+# then what you set once and forget.
+
+[[menu.items]]
+icon = "󰊴"
+label = "Controller"
+detail = "The pad in your hands"
+
+  [[menu.items.items]]
+  icon = ""
+  label = "Shortcuts"
+  detail = "What every button does"
+  action = "guide:open"
+
+  # How fast the two thumbs are. Nobody can pick these at a keyboard: they
+  # depend on the pad, the screen and how far away the sofa is, and the answer
+  # is felt rather than reasoned about. The two live on one screen because they
+  # are the same decision made twice, and a submenu of two rows is not a place.
+  # Every row repeats, so a setting is walked by holding the button rather than
+  # pressed eleven times, and each prints where its number is now - a step
+  # nothing acknowledges is a press in the dark, and these are the two settings
+  # that have an end to reach.
+  #
+  # The pointer still moves while the menu is up, so a step is felt at once.
+  [[menu.items.items]]
+  icon = "󰍽"
+  label = "Speed"
+  detail = "How fast the two thumbs are"
+
+    [[menu.items.items.items]]
+    icon = "󰍽"
+    label = "Pointer faster"
+    action = "pad:pointer_speed=up"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰍽"
+    label = "Pointer slower"
+    action = "pad:pointer_speed=down"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰄼"
+    label = "Scroll faster"
+    action = "pad:scroll_speed=up"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰄼"
+    label = "Scroll slower"
+    action = "pad:scroll_speed=down"
+    repeat = true
+
+  # Every row here ticks the motor as it lands, which is the only honest way to
+  # set a strength: the number says nothing and the buzz says everything.
+  [[menu.items.items]]
+  icon = "󰕦"
+  label = "Vibration"
+  detail = "The tick under your thumb"
+
+    [[menu.items.items.items]]
+    label = "On"
+    action = "pad:rumble=on"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Off"
+    action = "pad:rumble=off"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Stronger"
+    action = "pad:rumble_strength=up"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Weaker"
+    action = "pad:rumble_strength=down"
+    stay = true
+
+  # What the badges print, which is a second question from the profile below:
+  # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
+  # profile and prints shapes. `auto` follows the profile.
+  [[menu.items.items]]
+  icon = "󰌕"
+  label = "Button labels"
+  detail = "What the badges print"
+
+    [[menu.items.items.items]]
+    label = "Follow the pad"
+    detail = "Whatever the profile prints"
+    action = "pad:layout=auto"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Nintendo"
+    detail = "A B X Y, ZL and ZR, − and +"
+    action = "pad:layout=nintendo"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Xbox"
+    detail = "LB and LT, View and Menu"
+    action = "pad:layout=xbox"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "PlayStation"
+    detail = "The shapes, L1 and L2, Create and Options"
+    action = "pad:layout=playstation"
+    stay = true
+
+  # Which codes the pad is read with. `auto` is what the driver says it is,
+  # which is right until it is not: a pad with a hardware mode switch reports
+  # one thing and prints another, and that is the whole reason this is a
+  # choice. Getting it wrong scrambles the face buttons, and the row below is
+  # what answers a pad neither profile fits.
+  [[menu.items.items]]
+  icon = "󰒓"
+  label = "Profile"
+  detail = "Which codes this pad sends"
+
+    [[menu.items.items.items]]
+    label = "Detect it"
+    detail = "Follow what the driver reports"
+    action = "pad:profile=auto"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Nintendo Pro"
+    action = "pad:profile=nintendo_pro"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Xbox"
+    detail = "The triggers arrive as axes"
+    action = "pad:profile=xbox"
+    stay = true
+
+  [[menu.items.items]]
+  icon = "󰘮"
+  label = "Remap the buttons"
+  detail = "Teach it which button is which"
+  action = "map:open"
+
+[[menu.items]]
+icon = ""
+label = "System"
+
+  [[menu.items.items]]
+  icon = ""
+  label = "Lock"
+  action = "exec:omarchy-system-lock"
+
+  [[menu.items.items]]
+  icon = "󰒲"
+  label = "Suspend"
+  action = "exec:systemctl suspend"
+
+  [[menu.items.items]]
+  icon = "󰍃"
+  label = "Logout"
+  action = "exec:omarchy-system-logout"
+
+  [[menu.items.items]]
+  icon = "󰜉"
+  label = "Reboot"
+  action = "exec:omarchy-system-reboot"
+
+  [[menu.items.items]]
+  icon = "󰐥"
+  label = "Shutdown"
+  action = "exec:omarchy-system-shutdown"
+
+# Last, and its own group: the way out of this menu into the one that has
+# everything else. It wants a keyboard, which is why it is not the menu the pad
+# opens.
+
+[[menu.items]]
+icon = "󰍜"
+label = "Omarchy menu"
+detail = "Everything else"
+action = "exec:omarchy-menu toggle"
+
+# ---------------------------------------------------------------------------
+# Per-application profiles (item 09) - optional.
+#
+# A profile matches the focused window's class (case-insensitive substring; a
+# list matches any of them) and swaps the buttons it names over the shipped
+# map. Buttons a profile does not name keep working as before. A profile never
+# reaches the keyboard, menu or guide surfaces - what is drawn on screen
+# outranks the app underneath. `omapad check` flags a binding that does not
+# parse. Uncomment and edit to use.
+#
+# [profile.shell]
+# match = ["alacritty", "foot", "wezterm"]     # a list matches any of them
+# [profile.shell.bindings]
+# Y = "key:SUPER+L"        # lock the terminal - some terminals ignore this key
+# B = "exec:omarchy-menu toggle"
+
+# [profile.browser]
+# match = "chromium"        # a bare string is a single match
+# [profile.browser.bindings]
+# ZR = "exec:omarchy-capture-screenshot"
