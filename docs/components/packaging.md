@@ -51,11 +51,15 @@ pulls. Neither can grant `/dev/uinput` or install a user service, so without
 this the first install is always two commands.
 
 Where it fetches from is settings, defaulted in place - `OMAPAD_REPO`,
-`OMAPAD_BRANCH`, `OMAPAD_PLUGIN_ID`, `OMAPAD_DIR` - which is also how it is
+`OMAPAD_SHA`, `OMAPAD_PLUGIN_ID`, `OMAPAD_DIR` - which is also how it is
 tested against a local clone without touching the machine.
 
 It refuses rather than guesses: a target that exists but is not a checkout is
-left alone, and an update is `--ff-only`, because a checkout someone has edited
-is theirs.
+left alone, an update stops rather than reset a checkout someone has edited,
+and `OMAPAD_SHA` must be a full 40-character commit SHA, never a branch name.
+What runs is the **pinned review commit**: the snapshot in `OMAPAD_SHA` (kept
+in step with every release) is checked out in detached mode and verified
+against `HEAD` before anything from the remote executes, so a branch moving
+after a review can never change what an install runs.
 
 See [`../conventions/bash.md`](../conventions/bash.md) for how to change it.

@@ -59,8 +59,11 @@ curl -fsSL https://raw.githubusercontent.com/canerakdas/omapad/main/boot.sh | ba
 `boot.sh` clones the repo straight into
 `~/.config/omarchy/plugins/canerakdas.omapad` — `manifest.json` is at the root,
 so the checkout **is** the plugin, with no symlink — and hands over to
-`install.sh` for the parts that need permissions. It is forty lines; read it
-first if you would rather not pipe a script into a shell.
+`install.sh` for the parts that need permissions. It runs the **pinned review
+commit** stored inside itself (`OMAPAD_SHA`, set to the exact snapshot this
+boot.sh was published with) rather than a moving branch, so installing never
+executes code that was not reviewed. It is fifty lines; read it first if you
+would rather not pipe a script into a shell.
 
 Or use Omarchy's own plugin command, which is two steps:
 
@@ -96,8 +99,10 @@ What `install.sh` does:
 5. Installs and starts the `omapad.service` user service.
 
 Updating it — `omarchy plugin update` only pulls, so re-run the installer when
-the pull touched the service or the udev rule. It is idempotent, and re-running
-it always is the simpler rule:
+the pull touched the service or the udev rule. Because `boot.sh` is pinned to
+a reviewed commit, the way to update is to re-run **this** `boot.sh` (it
+fetches the new release's commit and checks it out) or, after a `git pull`,
+the installer:
 
 ```bash
 omarchy plugin update canerakdas.omapad
