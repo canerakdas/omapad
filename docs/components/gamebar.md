@@ -13,7 +13,8 @@ So it shows three things, and none of them was a control:
 - the menu, and which button opens it - a door is only worth drawing if you can
   say how to walk through it;
 - the workspaces, the one piece of desktop state you still navigate by;
-- what the buttons under your thumbs do right now.
+- what the buttons under your thumbs do right now - the face buttons, which
+  are the half of the pad that changes under you.
 
 ## Honest to a fault
 
@@ -24,12 +25,49 @@ than printing a row of buttons that do nothing. The bar is the only way to see
 that layer, since pressing buttons to find out is exactly what game mode stops
 working.
 
+## The half that changes
+
+The row on the right is the **face buttons** (`[gamebar] kinds`, `["face"]`).
+They are what an application profile rewrites - X is the app's own verb, Y
+reaches for what is not on screen - and a layer rewrites all four, so what they
+mean where you are standing right now is what three slots are worth spending
+on.
+
+A shoulder or a trigger carries the same job wherever the scheme goes: `ZR`
+clicks, `L` and `R` walk the workspaces. A slot spent on one repeats what the
+pad told you the first time you pressed it, in place of something you did not
+know yet - and neither is lost by being left out here, since the workspace
+walkers are drawn beside the workspaces and the menu's opener stands on the
+left. `kinds` names regions rather than buttons - `face`, `bumper`, `trigger`,
+`dpad`, `stick`, `system`, the same grouping the guide reads by - so widening
+it picks up every button in the region and the order stays `PREFERRED`'s.
+
+## One word per hint
+
+The bar is glanced at over the top of a game with three slots; the guide is a
+page you sit and read. So it asks `guide.button_row(..., brief=True)` for the
+same rows in one word - *Keyboard*, not *On-screen keyboard*. It is the same
+binding read shorter and **never a different meaning**: a bar that disagreed
+with the guide would be worse than a bar with no words on it. The word is the
+binding's own `short` (`hold_short` for the other half), then the first word of
+its `desc`, then `guide.brief_of()` for the action itself.
+`[gamebar] brief = false` puts the guide's phrase back.
+
+`COMMON` and the face-button contract meet here: the bar never prints a
+gesture that means the same wherever you are, which on the shipped scheme is
+exactly A and B - so an application profile that takes one of them under
+`docs/conventions/bindings.md` rule 2 makes it start being printed, which is
+the rule enforced by what you can see.
+
 ## It answers the pad
 
 Every badge on it **lights up while its button is down**. The bar is the only
 thing on screen in game mode, so a press it did not answer reads as a pad that
 has stopped working - and on the one surface that exists to say what the
 buttons do, saying which one you just pressed is the same sentence finished.
+How it lights up depends on `[ui] badge_style`: a filled badge brightens, and
+a stencil one inverts, the fill draining out as the punched label fills back
+in - a shape already at full strength has nowhere brighter to go.
 `pressed` carries every button that is down, in logical names; which of them
 the bar has a badge for is the panel's question.
 
@@ -70,9 +108,10 @@ does not add it - the guide prints rows to be read, and only the bar has
 anything to press.
 
 `PREFERRED` is the order buttons are offered in, thumbs-first: face buttons,
-then shoulders, then the rest. `MAX_ACTIONS` (3) is where a row stops reading
-as a hint and starts reading as a list. `COMMON` is what is not worth printing
-(`key:ENTER`, `key:ESC`). A button already drawn somewhere on the bar is never
+then shoulders, then the rest. `HINTED` is which of those regions the row is
+allowed to print at all - `("face",)`, the default behind `[gamebar] kinds`.
+`MAX_ACTIONS` (3) is where a row stops reading as a hint and starts reading as
+a list. `COMMON` is what is not worth printing (`key:ENTER`, `key:ESC`). A button already drawn somewhere on the bar is never
 drawn twice: one printed in two places reads as two different things you can
 press.
 
@@ -80,15 +119,17 @@ press.
 
 ```
 open, mode, menu: {b, k, n}, wsprev, wsnext, holding, pressed, click,
-workspaces, active, actions: [{b, k, n, c, d, h}], pos, h, tremble,
-tremble_ms, fill_delay_ms, note
+workspaces, active, actions: [{b, k, n, c, d, h}], pos, h, lean,
+fill_delay_ms, note
 ```
 
-`pos`, `h`, `tremble`, `tremble_ms` and `fill_delay_ms` are settings carried in
+`pos`, `h`, `lean` and `fill_delay_ms` are settings carried in
 the payload rather than left to the plugin: how far away the sofa is is a
 setting, and the shell cannot read the config. `holding` says which badge is
 counting down and over how long, so the bar walks it back to full exactly as
-the hold completes, and `pressed` which are down. `click` is carried for the
+the hold completes - and, past the tick, how long the sweep has to run back
+out, which is why the lean needs no duration of its own. `pressed` says which
+buttons are down. `click` is carried for the
 same reason the geometry is.
 
 ## The panel
@@ -109,5 +150,6 @@ is saying how much longer, and a press brightening the same fill would erase
 it. `Click` is the one click surface, laid over the thing it fires so the
 window's mask and what the bar answers are the same handful of items.
 
-Settings: `[gamebar] enabled`, `position`, `height`, `confirm_tremble`,
-`confirm_tremble_ms`, `confirm_fill_delay_ms`, `click`, `omit`, `socket`.
+Settings: `[gamebar] enabled`, `position`, `height`, `confirm_lean`,
+`confirm_fill_delay_ms`, `click`, `brief`, `omit`,
+`kinds`, `socket`.

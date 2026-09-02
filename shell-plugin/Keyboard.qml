@@ -38,6 +38,11 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+  // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
+  // field rather than a shell constant: the panel cannot read the config, and
+  // the answer changes from the menu while the surface is up.
+  property string badgeStyle: "filled"
+  readonly property bool stencil: root.badgeStyle === "stencil"
 
   Metrics {
     id: metrics
@@ -63,8 +68,8 @@ Item {
   // to be big enough to be recognised out of the corner of an eye - what the
   // key types is the thing actually being read, and a badge that stands as
   // tall as the character competes with it.
-  readonly property int badgeUnit: Math.max(metrics.space(12),
-    Math.round(keyHeight * 0.34))
+  readonly property int badgeUnit: metrics.badge(
+    Math.max(metrics.space(12), Math.round(keyHeight * 0.34)))
 
   // A typed badge label is centred by its line box, and the line box is not
   // centred on the capitals inside it. Measured rather than typed in, the same
@@ -106,7 +111,7 @@ Item {
     // The guide can afford that at reading size; a badge this small cannot,
     // so the system kind is given back the padding baked into its drawing.
     readonly property int unit: kind === "system"
-      ? Math.round(root.badgeUnit * 1.4) : root.badgeUnit
+      ? metrics.badge(root.badgeUnit * 1.4) : root.badgeUnit
     readonly property var drawn: buttonArt.find(badge.kind, badge.label)
     readonly property var bare: buttonArt.shape(badge.kind, badge.label)
     readonly property var art: badge.drawn !== null ? badge.drawn : badge.bare
@@ -124,9 +129,14 @@ Item {
     BadgeArt {
       anchors.fill: parent
       drawn: badge.art
-      fill: badge.fill
-      ink: badge.ink
-      ringColor: badge.ink
+      // Stencil turns the key's two colours around: the badge is solid in
+      // the ink and the label is the hole, so what shows through the letter
+      // is the key itself - including the moment the selection lands and the
+      // key inverts under the badge.
+      fill: root.stencil ? badge.ink : badge.fill
+      ink: root.stencil ? "transparent" : badge.ink
+      knockout: root.stencil
+      ringColor: root.stencil ? badge.fill : badge.ink
       ringWidth: Math.max(1, metrics.space(1))
     }
 
@@ -143,7 +153,7 @@ Item {
       x: Math.round((badge.width - contentWidth) / 2)
       y: Math.round((badge.height - height) / 2) + root.capNudge
       text: badge.label
-      color: badge.ink
+      color: root.stencil ? badge.fill : badge.ink
       font.family: buttonArt.family
       font.pixelSize: Math.max(6, Math.round(badge.unit * buttonArt.capSize))
       fontSizeMode: Text.HorizontalFit
@@ -180,6 +190,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.rows !== undefined && root.fresh("rows", s.rows))
         root.rows = s.rows
       if (s.sel !== undefined) { root.selRow = s.sel[0]; root.selCol = s.sel[1] }

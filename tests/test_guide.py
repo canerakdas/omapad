@@ -52,6 +52,48 @@ class DescribeTests(unittest.TestCase):
         self.assertEqual(guide.describe(None), "")
 
 
+class BriefTests(unittest.TestCase):
+    """One word for the bar, which is the same meaning read shorter."""
+
+    def test_an_action_with_no_short_name_is_cut_to_its_first_word(self):
+        # The first word is the verb often enough to be the rule.
+        self.assertEqual(guide.brief_of("hypr:hl.dsp.window.close()"), "Window")
+        self.assertEqual(guide.brief_of("exec:omarchy-capture-region"), "Capture")
+
+    def test_the_surfaces_are_named_rather_than_cut(self):
+        # "On-screen keyboard" would cut to "On-screen", which names nothing.
+        self.assertEqual(guide.brief_of("osk:toggle"), "Keyboard")
+        self.assertEqual(guide.brief_of("menu:toggle"), "Menu")
+        self.assertEqual(guide.brief_of("guide:toggle"), "Guide")
+        self.assertEqual(guide.brief_of("mode:toggle"), "Mode")
+
+    def test_a_right_click_is_named_for_what_it_opens(self):
+        # "Right" beside a badge reads as a direction, which it is not.
+        self.assertEqual(guide.brief_of("click:right"), "Context")
+        self.assertEqual(guide.brief_of("click:left"), "Click")
+
+    def test_punctuation_does_not_ride_along(self):
+        self.assertEqual(guide.brief_of("key:ESC"), "Esc")
+        self.assertEqual(guide._shorten("Deafen - mic and sound"), "Deafen")
+        self.assertEqual(guide._shorten("Float / tile"), "Float")
+        self.assertEqual(guide._shorten(""), "")
+
+    def test_a_binding_says_its_own_word_where_the_first_one_is_wrong(self):
+        row = guide.button_row(
+            "X", {"tap": "key:CTRL+T", "desc": "New tab", "short": "Tab",
+                  "hold": "key:F5", "hold_desc": "Reload"}, brief=True)
+        self.assertEqual((row["d"], row["h"]), ("Tab", "Reload"))
+
+    def test_the_guide_keeps_the_phrase_the_bar_shortens(self):
+        spec = {"tap": "key:CTRL+SHIFT+M", "desc": "Mute the microphone"}
+        self.assertEqual(guide.button_row("A", spec)["d"], "Mute the microphone")
+        self.assertEqual(guide.button_row("A", spec, brief=True)["d"], "Mute")
+
+    def test_a_plain_binding_shortens_too(self):
+        self.assertEqual(guide.button_row("Y", "click:right", brief=True)["d"],
+                         "Context")
+
+
 class RowTests(unittest.TestCase):
     def test_a_bindings_own_words_outrank_the_derivation(self):
         row = guide.button_row("L", {"tap": "hypr:hl.dsp.focus({ workspace = 'r-1' })",

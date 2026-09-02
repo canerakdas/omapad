@@ -40,6 +40,28 @@ QtObject {
     return Math.max(1, Math.round(n * metrics.factor))
   }
 
+  // A badge is one of `assets/shapes` scaled into the box a surface reserves
+  // for it, and that box has to be whole pixels on *both* sides. BadgeArt
+  // scales the drawing by one factor taken from the width, so a height the
+  // shape's own aspect does not divide leaves the drawing standing a fraction
+  // of a pixel off its box - and the flat edges inside it, the system pill's
+  // rim above all, land mid-pixel and come out grey rather than drawn.
+  //
+  // Every shape is 32 units tall against 32 or 64 wide except the system
+  // pill, 40 by 64, so five is the smallest step that keeps `unit * w / h`
+  // whole for all of them. A geometric identity of the drawings rather than a
+  // setting - it changes when a shape is redrawn on another canvas, and
+  // nowhere else.
+  readonly property int badgeGrid: 5
+
+  // Snapped up, never down: every caller hands this the larger of the floors
+  // it has already decided a badge must clear, and a badge losing a pixel to
+  // the grid would be the one place sharpening cost legibility.
+  function badge(px) {
+    var n = Math.max(1, Math.round(px))
+    return Math.ceil(n / metrics.badgeGrid) * metrics.badgeGrid
+  }
+
   readonly property QtObject font: QtObject {
     // The family is the session's, at any size.
     readonly property string family: Style.font.family

@@ -63,10 +63,20 @@ is deliberately not summonable: it follows game mode, and
   stays roomy. `Style.cornerRadius` and `Style.gapsOut` are **not** scaled:
   they are the compositor's own geometry, and a surface rounded harder than
   the windows beside it just looks wrong.
+
+  `metrics.badge(px)` is the other exception: a badge box has to be whole
+  pixels on **both** sides, because BadgeArt scales the drawing by one factor
+  taken from the width. Every shape is 32 units tall but the system pill is 40
+  by 64, so the height is snapped up to a multiple of five - the smallest step
+  that keeps `unit * w / h` whole for all of them. Off the grid the pill's rim
+  lands mid-pixel and is painted grey instead of drawn. Size a badge with this
+  and nothing else.
 - **`BadgeArt.qml`** - paints one controller button in given colours. Decides
   nothing: the caller picks the entry, the colours and the stroke weight, and
   this scales the drawing. Set the width; the height follows the drawing's
-  aspect, because a squashed button stops reading as one. `strokeWidth` is set
+  aspect, because a squashed button stops reading as one - and the box the
+  caller gives has to carry that aspect exactly, which is what
+  `Metrics.badge` is for. `strokeWidth` is set
   once and not animated - the mapping screen is the only surface that outlines
   a badge at all, and the countdown that used to thicken an outline is drawn
   by the game bar's fill sweep now.

@@ -48,6 +48,11 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+  // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
+  // field rather than a shell constant: the panel cannot read the config, and
+  // the answer changes from the menu while the surface is up.
+  property string badgeStyle: "filled"
+  readonly property bool stencil: root.badgeStyle === "stencil"
 
   Metrics {
     id: metrics
@@ -57,7 +62,8 @@ Item {
   // Same measurements as the menu and the guide, so all four read as one.
   readonly property int contentMargin: metrics.spacing.panelPadding
   readonly property int contentSpacing: metrics.spacing.md
-  readonly property int chipUnit: Math.max(metrics.space(26), metrics.font.body + metrics.space(10))
+  readonly property int chipUnit: metrics.badge(
+    Math.max(metrics.space(26), metrics.font.body + metrics.space(10)))
 
   // What the pad prints on one of the three buttons the confirmation takes,
   // falling back to the logical name until the daemon has said.
@@ -93,6 +99,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       // `root.` on every one of these: a bare name resolves against the whole
       // QML scope chain and can land on something read-only, and the throw
       // that follows takes every assignment after it with it.
@@ -166,11 +173,16 @@ Item {
       // The accent, not the text colour the guide fills a badge with: this
       // one is an instruction rather than a legend, and it is the only thing
       // on the screen worth looking up for.
-      fill: Util.alpha(Color.accent, 0.22)
-      stroke: Util.alpha(Color.accent, 0.55)
+      // Stencil says the same thing louder: the accent solid with the
+      // button punched out of it. The outline goes with it - a line around a
+      // shape already at full strength draws nothing but a seam.
+      fill: root.stencil ? Color.accent : Util.alpha(Color.accent, 0.22)
+      stroke: root.stencil ? "transparent" : Util.alpha(Color.accent, 0.55)
       strokeWidth: Math.max(1, metrics.space(2))
-      ink: Color.accent
-      ringColor: Util.alpha(Color.accent, 0.65)
+      ink: root.stencil ? "transparent" : Color.accent
+      knockout: root.stencil
+      ringColor: root.stencil
+        ? Color.menu.background : Util.alpha(Color.accent, 0.65)
       ringWidth: Math.max(1, metrics.space(2))
     }
 
@@ -340,7 +352,7 @@ Item {
               // it is read out of the corner of an eye that is on the pad. A
               // face button is the narrowest shape here, so the height is
               // what it is sized by and a shoulder simply comes out wider.
-              unit: Math.round(metrics.font.title * 4)
+              unit: metrics.badge(metrics.font.title * 4)
               x: Math.round((parent.width - width) / 2)
             }
           }

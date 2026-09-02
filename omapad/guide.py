@@ -167,6 +167,7 @@ PAD_NAMES = {
     "rumble_strength": "Vibration strength",
     "scroll_speed": "Scroll speed",
     "pointer_speed": "Pointer speed",
+    "badge_style": "Button style",
 }
 
 PAD_VALUES = {
@@ -175,6 +176,7 @@ PAD_VALUES = {
     "up": "one step up", "down": "one step down",
     "nintendo_pro": "Nintendo Pro", "nintendo": "Nintendo",
     "xbox": "Xbox", "playstation": "PlayStation",
+    "filled": "filled in", "stencil": "punched through",
 }
 
 MODE_TEXT = {
@@ -201,6 +203,55 @@ STICK_ROLES = {
     "snap": "Flick to the next window",
     "focus": "Walk the focus",
 }
+
+# What the *bar* prints instead, where one word is not the first word of the
+# phrase. The guide is read; the bar is glanced at over the top of a game,
+# three slots wide, so it says the verb and stops - "Keyboard", not "On-screen
+# keyboard".
+#
+# Keyed by action rather than by the sentence the guide builds, so this cannot
+# drift the way a table of long strings would: rewrite OSK_TEXT above and the
+# short form still answers. Only the entries `_shorten` gets wrong are here -
+# "Clear the screen" is already Clear, and a row for it would be a second
+# place to change one word.
+BRIEF = {
+    "click": {"left": "Click", "right": "Context"},
+    "osk": {
+        "toggle": "Keyboard", "open": "Keyboard", "submit": "Done",
+        "up": "Up", "down": "Down", "left": "Left", "right": "Right",
+    },
+    "menu": {"toggle": "Menu", "open": "Menu", "up": "Up", "down": "Down"},
+    "guide": {"toggle": "Guide", "open": "Guide"},
+    "map": {"toggle": "Mapping", "restart": "Restart"},
+    "mode": {"toggle": "Mode", "desktop": "Desktop", "game": "Game"},
+    "focus": {"up": "Up", "down": "Down", "left": "Left", "right": "Right"},
+    "snap": {"up": "Up", "down": "Down", "left": "Left", "right": "Right"},
+}
+
+
+def _shorten(text):
+    """The first word of a phrase, which is nearly always the verb in it.
+
+    "Mute the microphone" is Mute and "Clear the screen" is Clear. Where the
+    first word is not the meaning - "New tab" is a tab, not a new - the
+    binding says `short` itself; guessing better than this would mean parsing
+    English, and a bar that guessed wrong would disagree with the guide.
+    """
+    words = text.split()
+    if not words:
+        return ""
+    return words[0].strip(",;:-/") or text
+
+
+def brief_of(spec):
+    """One word for what an action does, for the bar. See BRIEF."""
+    text = str(spec or "").strip()
+    kind, _, argument = text.partition(":")
+    word = BRIEF.get(kind.strip(), {}).get(argument.strip())
+    if word:
+        return word
+    return _shorten(describe(spec))
+
 
 # hl.dsp.window.close() - the dispatcher path, and the quoted arguments that
 # say what it acts on.
@@ -312,11 +363,27 @@ def describe(spec):
     return spec
 
 
-def button_row(button, spec, layout=DEFAULT_LAYOUT):
-    """One printed row, or None when the binding says to do nothing."""
+def button_row(button, spec, layout=DEFAULT_LAYOUT, brief=False):
+    """One printed row, or None when the binding says to do nothing.
+
+    `brief` is the bar's reading of the same binding: one word rather than a
+    phrase. It is the same binding read shorter and never a different meaning
+    - a bar that disagreed with the guide would be worse than a bar with no
+    words on it - so it takes the binding's own `short` where there is one,
+    the first word of its `desc` where there is not, and the action's own
+    short form only when the binding says nothing at all.
+    """
     if isinstance(spec, dict):
-        text = str(spec.get("desc", "")).strip() or describe(spec.get("tap"))
-        hold = str(spec.get("hold_desc", "")).strip() or describe(spec.get("hold"))
+        text = str(spec.get("desc", "")).strip()
+        hold = str(spec.get("hold_desc", "")).strip()
+        if brief:
+            text = str(spec.get("short", "")).strip() or _shorten(text)
+            hold = str(spec.get("hold_short", "")).strip() or _shorten(hold)
+        say = brief_of if brief else describe
+        text = text or say(spec.get("tap"))
+        hold = hold or say(spec.get("hold"))
+    elif brief:
+        text, hold = brief_of(spec), ""
     else:
         text, hold = describe(spec), ""
     if not text and not hold:

@@ -41,7 +41,9 @@ when the shelved assistant needed it.
 `release_binding()`, through:
 
 - `binding_for(layer, button)` - the profile's override, then the layer, then
-  fallthrough to the layer underneath.
+  fallthrough to the layer underneath. A profile overrides the base layer and
+  game mode only; a held layer keeps its own bindings unless the profile names
+  it (`[profile.<app>.window]`).
 - `fire_chord()` / `forget_chords()` - two buttons at once, from `[chords]`.
 - `set_holding()` / `check_hold_timers()` - `HOLD_MS` decides tap from hold;
   a held action that is announced leans its badge on the game bar

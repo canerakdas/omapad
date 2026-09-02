@@ -31,8 +31,10 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 
 ## `Binding`
 
-A button is a `Binding`: a `tap`, an optional `hold`, `on_release`, a `desc`,
-and the repeat settings. `HOLD_MS` is the default that separates the two;
+A button is a `Binding`: a `tap`, an optional `hold`, `on_release`, and the
+repeat settings. `desc` / `hold_desc` and `short` / `hold_short` ride along
+untouched - `Binding` reads only `hold_desc`, for the notification an
+announced hold sends, and the rest is the [guide](guide.md)'s to print. `HOLD_MS` is the default that separates the two;
 `ANNOUNCED_MS` is how long a held action leans its badge on the game bar
 before it fires.
 
@@ -72,4 +74,8 @@ with no compositor.
   rule in [`daemon.md`](daemon.md).
 - Give the guide something to print: `guide.describe()` derives a sentence
   from the action, and where the derivation is thin the binding carries a
-  `desc`.
+  `desc`. A `desc` whose first word is not the meaning needs a `short` for
+  the bar - see [`../conventions/bindings.md`](../conventions/bindings.md).
+- **Which button an action lands on is not a free choice.** The face buttons
+  carry one meaning each, everywhere; the same file says what a layer or a
+  profile may take.

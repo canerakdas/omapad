@@ -1,0 +1,15 @@
+# The overlay a take runs under. Deep-merged over config/config.toml the same
+# way a user's file is, so everything the video shows is the shipped default
+# unless it is named here - and the two lines that are named are about the
+# recording, not about the bindings.
+
+[device]
+# The pad demo/pad.py creates. Named rather than left on "auto" so a take does
+# not pick up whatever real controller happens to be plugged in.
+match = "omapad demo pad"
+
+# Which console's printing the badges carry. The captions are rendered through
+# `guide.badge_of` with whatever this resolves to, so changing it here
+# re-letters the video and the captions together: try "nintendo" or
+# "playstation".
+layout = "xbox"

@@ -176,6 +176,11 @@ start = "desktop"
 grab = true                   # take the pad exclusively, so nothing else acts
                               # on the buttons omapad is already acting on
 notify = true                 # desktop notification on every mode switch
+# A tick on the motor at every mode switch too. The switch is the one press
+# whose result you may not be looking at - the pad is on your lap, the bar is
+# swapping itself out across the room - so it is worth feeling. One tick each
+# way; turn it off if the notification above is answer enough.
+rumble = true
 # There is no list of games worth keeping, so the question is asked of the
 # program instead: a gamepad is a file, anything that wants to read one has to
 # open it, and /proc says who has. When the window in front - or its process
@@ -434,6 +439,18 @@ down = "down"
 # other scale.
 scale = 1.0
 game_scale = 1.25
+# How a badge is drawn, which is a different question from what it prints:
+#   filled   the shape washed in the surface's own colour with the label set
+#            solid on top. A badge that sits quietly in a list of them.
+#   stencil  the shape solid in the theme's accent with the label punched
+#            through it, so whatever is behind the badge shows through the
+#            letter. It reads from further away and turns a row of badges into
+#            the loudest thing on the screen - which is what game mode wants
+#            and can be more than a desk does.
+# The two also press differently on the game bar. A filled badge brightens
+# under the thumb; a stencil one inverts - the fill drains out and the letter
+# fills in - because a shape that is already solid has nowhere brighter to go.
+badge_style = "filled"
 
 [osk]
 # On-screen keyboard. The layout and the selection live in omapad; the
@@ -507,6 +524,40 @@ enabled = false
 # printed. A list of button names would go stale the first time the scheme
 # changed.
 omit = ["key:ENTER", "key:ESC"]
+# And which part of the pad those three slots are about. The face buttons, and
+# by default only them: they are the half of the pad that changes under you. An
+# application profile rewrites X and Y, a layer rewrites all four, and what
+# they mean where you are standing right now is what a hint is for.
+#
+# A shoulder or a trigger means the same thing wherever the scheme goes - RT
+# clicks, LB and RB walk the workspaces - so a slot spent on one repeats what
+# the pad told you the first time you pressed it, in place of something you did
+# not know yet. Nothing is lost by leaving them out: the two that walk the
+# workspaces are drawn beside the workspaces, and the one that opens the menu
+# stands on the left.
+#
+# By kind rather than by button, which is the grouping the guide reads by:
+# "face", "bumper", "trigger", "dpad", "stick", "system". Name the ones you
+# want back - `kinds = ["face", "trigger"]` - and they are offered in the order
+# the thumbs reach them, up to the same three.
+kinds = ["face"]
+# One word per hint, or the phrase the guide prints. The bar is glanced at
+# over the top of a game with three slots to say where you are in; the guide is
+# the page you sit and read. So the bar prints the verb and stops - `Keyboard`
+# rather than `On-screen keyboard`, `Mute` rather than `Mute the microphone`.
+#
+# The word is the binding's own `short` where it says one, the first word of
+# its `desc` where it does not, and the action's own short name where the
+# binding says nothing at all. The first word is the verb often enough to be
+# the rule - `Clear the screen` is Clear - and where it is not, the binding
+# says so itself:
+#
+#   X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab" }
+#
+# `hold_short` is the same for the other half. Turn this off for the guide's
+# full phrase on the bar as well - a bar across a room, or a scheme whose
+# bindings are hard to name in one word.
+brief = true
 # Which edge the bar sits on. "auto" follows Omarchy's own bar: move that one
 # to the bottom and this one goes with it, so the couch bar is where the
 # desktop bar taught you to look. "top" or "bottom" pin it regardless.
@@ -538,19 +589,26 @@ height = 32
 # fixed hue would fight a bar whose foreground is chosen per wallpaper.
 #
 # Three states, one per phase of the gesture: dimmed while it sits there,
-# filling in from the left while you hold it, and at the tick - full, and
-# trembling towards the workspace it is about to walk to - for the confirm
-# window. The tick and the notification both happen away from the bar, so the
-# badge says it too. It never fills twice: the confirm window is the same wait
-# continuing, and a second fill read as a second, separate one.
+# filling in from the left while you hold it, and at the tick - leaning once
+# towards the workspace it is about to reach, while the sweep it filled with
+# runs back out over the confirm window. The tick and the notification both
+# happen away from the bar, so the badge says it too. It never fills twice:
+# the confirm window is the same wait continuing, and a second fill read as a
+# second, separate one - so the same sweep empties instead, and is gone at the
+# moment the press fires.
 #
-# How far that tremble leans, in the same units as `height` above, and how long
-# one lean-and-back takes. 0 leaves the badge simply full for the confirm
-# window; raise the reach if the bar is across a room, lower it if a badge
-# shifting under the workspace strip is more than you want to see. Raise the ms
-# for a slower sway, lower it for a tighter shiver.
-confirm_tremble = 2
-confirm_tremble_ms = 90
+# The lean and the sweep answer different questions on purpose. Which way this
+# is about to move things is a fact, so it is said once and held; how much
+# longer is a countdown, so it is said by the only thing that can count. Both
+# at once, and neither reads.
+#
+# How far that lean carries the badge, in the same units as `height` above.
+# Small on purpose: the lean only has to say which way, and the sweep beside
+# it is doing the talking - a badge that leaves its place in the row draws the
+# eye off the thing it is announcing. Raise it if the bar is across a room; 0
+# leaves the badge where it is and lets the sweep say the whole of the window,
+# which is what a badge with no direction to lean in does anyway.
+confirm_lean = 2
 # How long the badge stays dimmed before it starts filling. A fill that begins
 # on contact flickers under a shoulder tapped to walk browser tabs - the
 # commonest press these buttons take - so it sits still for a moment first.
@@ -701,8 +759,10 @@ DPAD_RIGHT = "key:RIGHT"
 # The controller menu is what PLUS is for now; the real Omarchy menu is a hold
 # away, since it wants a keyboard to be driven comfortably.
 PLUS = { tap = "menu:toggle", hold = "exec:omarchy-menu toggle", hold_ms = 400, hold_desc = "Omarchy menu", reaches_past = false }
-HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle", hold_ms = 700, desc = "Next window" }
-CAPTURE = { tap = "exec:omarchy-capture-screenshot", hold = "exec:omarchy-capture-region", hold_ms = 500 }
+HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle", hold_ms = 700, desc = "Next window", short = "Window" }
+# Both halves of this one shorten to `Capture`, which on a bar of three words
+# says nothing about which half you are getting.
+CAPTURE = { tap = "exec:omarchy-capture-screenshot", hold = "exec:omarchy-capture-region", hold_ms = 500, short = "Screenshot", hold_short = "Region" }
 
 # ---------------------------------------------------------------------------
 # Window layer - hold ZL (left trigger). ZL is the trigger, so it can't also be
@@ -732,7 +792,7 @@ DPAD_DOWN = { tap = "hypr:hl.dsp.focus({ direction = 'd' })", desc = "Focus down
 DPAD_LEFT = { tap = "hypr:hl.dsp.focus({ direction = 'l' })", desc = "Focus left" }
 DPAD_RIGHT = { tap = "hypr:hl.dsp.focus({ direction = 'r' })", desc = "Focus right" }
 
-PLUS = { tap = "hypr:hl.dsp.layout('togglesplit')", desc = "Toggle split" }
+PLUS = { tap = "hypr:hl.dsp.layout('togglesplit')", desc = "Toggle split", short = "Split" }
 HOME = { tap = "hypr:hl.dsp.window.center()", desc = "Centre the window" }
 LSTICK = { tap = "hypr:hl.dsp.window.pin()", desc = "Pin the window" }
 CAPTURE = "exec:omarchy-capture-screenrecording"
@@ -831,8 +891,19 @@ DPAD_RIGHT = "menu:press"
 
 A = "menu:press"
 B = "menu:back"                # at the top level this closes the menu
+# X leaves outright, which is not what B does: B walks back up one submenu at
+# a time, and from inside `Controller > Speeds` that is two presses. The other
+# half of Back rather than a second one.
 X = "menu:close"
-Y = "menu:close"
+# Y is the reach the face-button pattern asks for - see
+# `docs/conventions/bindings.md`. `Controller > Shortcuts` is this same view,
+# and this is that row without walking to it: the button for when the menu was
+# opened *because* you had forgotten which button does what. It used to be a
+# third way to close a menu that four other buttons already close.
+# `desc` because the derived words for `guide:toggle` are "This view", which is
+# only true when it is read from inside the guide - and this is read from the
+# menu.
+Y = { tap = "guide:toggle", desc = "Bindings guide", short = "Guide" }
 
 PLUS = "menu:close"
 HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700 }
@@ -846,6 +917,15 @@ CAPTURE = "menu:close"
 # class, the first profile that hits wins, and a profile never reaches the
 # keyboard, the menu or the guide - a surface on screen outranks the app under
 # it.
+#
+# `[bindings]` is the app's scheme *at rest*, and it stops where a modifier
+# starts (item 38): hold `ZL` and the window layer is the desktop's again, so
+# `ZL` + `B` closes the window in every app whatever `B` is worth in the one in
+# front. That is also the only reading under which the guide's window page -
+# which knows nothing about profiles - tells the truth. An app that wants a
+# window op of its own says which layer, `[profile.<name>.window]`, and that
+# table is read in [bindings.window]'s place while it has focus. Any other key
+# in a profile table is a typo, and `omapad check` says so.
 #
 # The browser is the pilot for the shoulders (item 18). L and R are its tab
 # switcher as much as they are our workspace switcher, so inside it a tap goes
@@ -898,9 +978,9 @@ confirm_ms = 800
 # click) is gone, and Enter and Esc are a hold rather than a press. The right
 # click is not gone - it moves to the left stick click, because a context menu
 # is how Discord replies to and reacts to a message, and losing that would
-# cost more than it saved. As in [profile.browser], that reaches into the
-# window layer too, so ZL + left stick no longer pins the window while Discord
-# is focused; take the line out if you would rather keep the pin.
+# cost more than it saved. None of it reaches the window layer: ZL + A, B, X,
+# Y and the left stick are fullscreen, close, float, pop out and pin here as
+# they are anywhere else (item 38).
 #
 # `match` is a substring, so "discord" also covers Canary and PTB. The forks
 # are named separately because they are not: Vesktop, WebCord, Legcord.
@@ -924,6 +1004,59 @@ Y = { tap = "key:CTRL+ENTER", desc = "Answer the call" }
 # The right click Y gave up. The left stick's middle click was X's twice over,
 # so this is the cheapest button on the pad to spend here.
 LSTICK = { tap = "click:right", desc = "Context menu" }
+
+# YouTube, the couch's television (item 39).
+#
+# The menu has launched it since 35, and what it launches is a webapp window
+# rather than a tab - so the pad can walk to it, and a profile can answer for
+# it. A television asks a sofa for two things: whether it is playing, and
+# whether it fills the screen. Both are the player's own controls, both sit
+# along the bottom edge of the video behind an overlay that hides itself, and
+# that is the definition of what a pointer on a sofa is worst at.
+#
+# X is play / pause on `k` rather than Space: Space scrolls the page whenever
+# the player is not the focused element, while `k` is answered by YouTube's
+# own document handler wherever the focus is, as long as it is not in a text
+# box. Y is fullscreen, and that is a second Do where the pattern asks for the
+# reach - rule 3 in docs/conventions/bindings.md, logged in the ledger at the
+# end of it. The reach here is the search box, which cannot be used without
+# the on-screen keyboard anyway, so it goes to the left stick click, and the
+# button a thumb finds first carries the control every video needs.
+#
+# A and B are left alone, and both already say the right thing here: A is
+# Enter, which opens the thumbnail the right stick walked to in game mode, and
+# B is Esc, which is how a browser leaves fullscreen - "B goes back" in the
+# player's own words. The D-pad costs nothing either: YouTube reads the arrows
+# as seek and volume for as long as the player has the focus.
+#
+# What this costs, in YouTube only: the middle click (X, and the left stick
+# click) and the right click (Y). Mouse button 4 on the right stick is handed
+# straight back as Alt+Left, the way [profile.browser] does it and for the same
+# reason - a webapp is a Chromium window, and Back is how a video is left.
+#
+# What did not fit: `shift+n` / `shift+p` (next / previous video), `m` (mute)
+# and `c` (captions). The first is what the budget would buy next; the volume
+# is already on the D-pad, and the shoulders stay the workspaces because a
+# webapp has no tabs to walk.
+#
+# `match` is the host with its leading dash rather than the bare word: the
+# class here is `chrome-www.youtube.com__-Default`, and "youtube" on its own
+# would take YouTube Music (`chrome-music.youtube.com__...`) with it, where
+# none of these keys exist. Declared before [profile.browser] for 35's reason:
+# a webapp class matches "chrome" as squarely as it matches its own host.
+
+[profile.youtube]
+match = ["-www.youtube.com", "-youtube.com"]
+
+[profile.youtube.bindings]
+X = { tap = "key:K", desc = "Play / pause" }
+Y = { tap = "key:F", desc = "Fullscreen" }
+# The search box, and the reach Y gave up. `/` puts the caret in it; MINUS
+# brings the keyboard, and ZR types the Enter and puts it away again.
+LSTICK = { tap = "key:SLASH", desc = "Search" }
+# Back, off the button that already meant it. Mouse button 4 is Back in
+# Chromium too, so this only stops depending on the app honouring it.
+RSTICK = { tap = "key:ALT+LEFT", desc = "Back" }
 
 [profile.browser]
 match = ["chromium", "chrome", "brave", "vivaldi"]
@@ -949,7 +1082,7 @@ R = { tap = "key:CTRL+TAB", desc = "Next tab", hold = "hypr:hl.dsp.focus({ works
 # middle click (twice over), and the right stick click was mouse button 4,
 # which browsers already read as Back - so it keeps its direction and only
 # stops depending on the app honouring that button.
-X = { tap = "key:CTRL+T", desc = "New tab", hold = "key:F5", hold_desc = "Reload", hold_ms = 500 }
+X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab", hold = "key:F5", hold_desc = "Reload", hold_ms = 500 }
 RSTICK = { tap = "key:ALT+LEFT", desc = "Back" }
 LSTICK = { tap = "key:ALT+RIGHT", desc = "Forward" }
 
@@ -995,47 +1128,57 @@ right_stick = "scroll"
 # What a command typed from the sofa needs most is the letter back: it is
 # aimed at with a thumbstick, and the letter aimed at is regularly not the one
 # that lands. Tab held this button first and was the wrong shape for it -
-# completing meant putting the keyboard away, pressing Y and summoning it
-# again, once per completion. It costs nothing to give up, because the
+# completing meant putting the keyboard away, pressing a button and summoning
+# it again, once per completion. It costs nothing to give up, because the
 # keyboard has always had a Tab key of its own on the first page: with the
 # line still in front of you, it is aimed at like any other key.
+#
+# X rather than Y, and that is the whole of the pattern in
+# `docs/conventions/bindings.md`: X is the app's own verb, and erasing what
+# you have typed is a terminal's. It is also where the *keyboard* layer has
+# put Backspace since it was drawn, so the key does not move under your thumb
+# when the on-screen keyboard opens over the prompt and closes again - which
+# is exactly the pair of surfaces a command is typed across. It costs the
+# terminal nothing else: `ZL` + X is still float / tile (item 38).
 #
 # Written plain rather than as a tap/hold on purpose: a tap/hold binding waits
 # for the release before the key goes down (`waits_for_release`), and that
 # costs the autorepeat. Backspace is the one key that is held rather than
-# pressed, which is also why Ctrl+C had to leave this button for X below.
-#
-# Y is the right click, which in a terminal opens a menu of two entries in
-# kitty and ghostty and nothing at all in foot and alacritty: the cheapest
-# button here. It costs `ZL` + Y, popping the window out.
-Y = "key:BACKSPACE"
+# pressed, which is also why Ctrl+C rides Y below and not this button.
+X = "key:BACKSPACE"
 
-# The middle click X carries at the base layer pastes the PRIMARY selection,
-# which wants a selection made with a mouse and a pointer parked on the
-# prompt - from the couch, the deadest button in a terminal. Ctrl+Shift+V
+# The middle click X used to carry at the base layer pastes the PRIMARY
+# selection, which wants a selection made with a mouse and a pointer parked on
+# the prompt - from the couch, the deadest button in a terminal. Ctrl+Shift+V
 # pastes the clipboard the rest of the desktop actually fills.
 #
-# Ctrl+C rides this hold rather than B's, and that is the whole reason it is
-# here: a profile reaches into the window layer too, so B would have taken
-# `ZL` + B - closing the window - away from every terminal. X costs `ZL` + X,
-# float / tile. A hold is also the right shape for an interrupt: killing a
-# command by accident is worse than pasting one by accident.
-X = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
+# On Y because Backspace took X, and Y is the cheaper of the two to spend
+# here: it is the right click, which in a terminal opens a menu of two entries
+# in kitty and ghostty and nothing at all in foot and alacritty.
+#
+# Ctrl+C rides this hold rather than B's. When it was written, a profile
+# reached into the window layer too, and B would have taken `ZL` + B - closing
+# the window - away from every terminal; item 38 ended that, and this stays
+# where it is because a hold is the right shape for an interrupt: killing a
+# command by accident is worse than pasting one by accident, and B is Esc,
+# which vim and less want more than the shell wants a second way to interrupt.
+Y = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
 
 # The cheapest click left in a terminal - the same displacement
-# [profile.browser] and [profile.discord] make, and it costs `ZL` + left
-# stick, the window pin. Ctrl+L is what you press when the screen has scrolled
-# past reading.
+# [profile.browser] and [profile.discord] make, and it costs the window pin
+# nothing: `ZL` + left stick still pins. Ctrl+L is what you press when the
+# screen has scrolled past reading.
 LSTICK = { tap = "key:CTRL+L", desc = "Clear the screen" }
 
 # Left alone on purpose. B stays Esc, which vim, less and every full-screen
 # program in a terminal want; A is Enter, ZR is the left click, and the D-pad
 # is the arrows the line editor and the history are walked with.
 #
-# What the two overrides above spend: X and the left stick were the pad's two
+# What the three overrides above spend: X and the left stick were the pad's two
 # middle clicks, so a terminal now has none, and text selected with a mouse
 # but never copied is no longer reachable from the pad. That is the price of
 # a paste that works with the clipboard everything else on this desktop uses.
+# Y was the right click, which is the one this profile is happiest to lose.
 
 # ---------------------------------------------------------------------------
 # A keyboard page of the app's own (item 27).
@@ -1602,6 +1745,29 @@ detail = "The pad in your hands"
     label = "PlayStation"
     detail = "The shapes, L1 and L2, Create and Options"
     action = "pad:layout=playstation"
+    stay = true
+
+  # And how they are drawn, which is the same question asked about the shape
+  # instead of the letter. A stencil badge is the one to reach for when the
+  # screen is across a room; a filled one is quieter beside a keyboard. Both
+  # rows tick, so the menu says which is in force rather than offering two
+  # guesses, and both stay: choosing between two looks and being thrown out of
+  # the menu means opening it twice to compare them.
+  [[menu.items.items]]
+  icon = "󰏘"
+  label = "Button style"
+  detail = "How the badges are drawn"
+
+    [[menu.items.items.items]]
+    label = "Filled"
+    detail = "The label set on a washed shape"
+    action = "pad:badge_style=filled"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Stencil"
+    detail = "The label punched through a solid one"
+    action = "pad:badge_style=stencil"
     stay = true
 
   # Which codes the pad is read with. `auto` is what the driver says it is,

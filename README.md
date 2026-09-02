@@ -26,6 +26,7 @@ already been typed.
 [The pointer and snap](#not-having-to-aim-the-pointer-and-snap) ·
 [Focus traversal](#inside-the-window-focus-traversal) ·
 [The default bindings](#the-default-bindings) ·
+[What each button means](#the-face-buttons-mean-the-same-thing-everywhere) ·
 [Controller modes](#controller-modes) · [Configuration](#configuration) ·
 [Application profiles](#application-profiles) · [The menu](#the-menu) ·
 [The bindings guide](#the-bindings-guide) · [The bar widget](#the-bar-widget) ·
@@ -120,9 +121,19 @@ journalctl --user -u omapad -f
   restriction, a difference in presentation.
 
 Switching between them: **hold HOME for 0.7 s**, or pick `Game mode` in the
-controller menu. Every switch drops a notification. (MINUS + PLUS used to be
-the chord for this; it opens the **menu** now, which had no second way in —
-see below.)
+controller menu. Every switch drops a notification **and ticks the motor** —
+one tick each way, because the switch is the press whose result you may not be
+looking at: the bar is swapping itself out across the room while the pad is on
+your lap. Either answer can be turned off on its own:
+
+```toml
+[mode]
+notify = true   # the desktop notification
+rumble = true   # the tick under the thumb
+```
+
+(MINUS + PLUS used to be the chord for this; it opens the **menu** now, which
+had no second way in — see below.)
 
 **Handing the pad to a game is separate from all this, and happens by
 itself** — the next section.
@@ -204,8 +215,8 @@ MINUS = { tap = "osk:toggle", reaches_past = false }
 
 The shipped `[profile.steam]` uses this: hold a shoulder inside Big Picture or a
 game and the badge on the bar fills in; when it is full the pad ticks and says
-what is coming, and the badge trembles towards the workspace it is about to
-walk to until it gets there. It exists
+what is coming, and the badge leans towards the workspace it is about to reach
+while the fill runs back out of it. It exists
 because once Steam has the pad there is no other way back to the desktop. Both
 waits come from `[confirm]` (1.2 s, then 0.8 s) — raise them there if a shoulder
 ever fires while you are playing.
@@ -309,7 +320,7 @@ with `[gamebar] enabled`, and shown in game mode only:
 |---|---|
 | Left | **The button that opens the menu** — its own mark and the word *Menu* in one pill, at face-button height |
 | Centre | The workspaces, flanked by **the badges of the buttons that walk them** |
-| Right | The other buttons that are **really bound right now**, and what they do |
+| Right | The **face buttons** that are **really bound right now**, and what they do |
 
 Omarchy's 26 px bar could not be read from the couch; this one defaults to
 32 px — a row of badges plus a little air. The height is set with
@@ -332,10 +343,45 @@ gets. In everything else it follows Omarchy:
 - **The badges** share the guide's geometry — so the same button looks the same
   in both places.
 
+**The words are one each.** The bar is glanced at over the top of a game with
+three slots to spend; the [guide](#the-bindings-guide) is a page you sit and
+read. So the bar prints the verb and stops — *Keyboard*, not *On-screen
+keyboard*; *Mute*, not *Mute the microphone*. It is the same meaning said
+shorter and never a different one: the word is the binding's own `short` where
+it names one, the first word of its `desc` where it does not.
+
+```toml
+# "New tab" would cut to "New", so this one says its word itself.
+X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab", hold = "key:F5", hold_desc = "Reload" }
+```
+
+`hold_short` is the same for the other half, and `[gamebar] brief = false` puts
+the guide's full phrase on the bar as well — for a bar read across a room, or a
+scheme whose bindings are hard to name in one word.
+
+Two buttons are **never** printed: the ones bound to Enter and Esc
+(`[gamebar] omit`). A gesture that means the same wherever you are teaches
+nothing by being repeated, and on the shipped scheme that is exactly A and B —
+so the moment an application profile takes one of them for something of its
+own, it starts being printed.
+
+**And only the face buttons are printed at all** (`[gamebar] kinds`). They are
+the half of the pad that changes under you: a profile rewrites X and Y, a layer
+rewrites all four. A shoulder or a trigger means the same thing wherever the
+scheme goes — RT clicks, LB and RB walk the workspaces — so a slot spent on one
+repeats what the pad told you the first time you pressed it. Nothing is lost by
+leaving them off this row: the two that walk the workspaces are drawn beside the
+workspaces, and the one that opens the menu stands on the left. Name the regions
+you want back — `kinds = ["face", "trigger"]`, out of `face`, `bumper`,
+`trigger`, `dpad`, `stick`, `system` — and they are offered in the order the
+thumbs reach them.
+
 **Every badge lights up while its button is down** — the pill on the left, the
 two beside the workspaces, the hints on the right. The bar is the only thing on
 screen in game mode, and on the one surface whose job is to say what the buttons
-do, saying which one you just pressed is the same sentence finished.
+do, saying which one you just pressed is the same sentence finished. That is
+what a `filled` badge does; a `stencil` one inverts instead — see [how the
+badges are drawn](#how-the-badges-are-drawn).
 
 **And you can click them.** Game mode is the couch environment, not a hand-off:
 the desktop is still under the bar and the mouse is still on the desk. Clicking
@@ -373,7 +419,7 @@ shows all three:
 |---|---|
 | Idle, locked | faded |
 | Held | stays put for `confirm_fill_delay_ms`, then **fills in from the left** over what is left of `hold_ms`, coming up to full brightness as it goes |
-| **The tick** (the pad rumbles, a notification drops) | stays full and **trembles** over `confirm_ms`, leaning towards the workspace it will walk to |
+| **The tick** (the pad rumbles, a notification drops) | **leans** once towards the workspace it will reach and stays there, while the fill **runs back out** over `confirm_ms` — empty at the moment the press fires. Which way is a fact, so it is said once; how much longer is a countdown, so the sweep says it |
 
 The third phase is there because the rumble and the notification happen away
 from where you are looking — the badge should say so too. All of it is drawn in
@@ -382,19 +428,21 @@ text colour is picked against the wallpaper.
 
 | Setting | What it decides |
 |---|---|
-| `[gamebar] confirm_tremble` | how far the badge leans, in the units `height` is 32 of; 0 leaves it simply full |
-| `[gamebar] confirm_tremble_ms` | one lean and back — lower for a tighter shiver, higher for a slow sway |
+| `[gamebar] confirm_lean` | how far the badge leans at the tick, in the units `height` is 32 of; 0 leaves it where it is and lets the sweep say the whole window. Anything but the two shoulders has no direction to lean in and stays put either way |
 | `[gamebar] confirm_fill_delay_ms` | how long the badge sits still before it starts filling, so a shoulder flicked to walk browser tabs does not flash a fill nobody asked for. The wait comes out of the ramp rather than off the end, so the badge is still exactly full at the tick; 0 fills from the press |
 | `[gamebar] click` | whether a pointer can fire what a badge names; `false` leaves the bar a readout that swallows no clicks |
+| `[gamebar] brief` | one word per hint (the default) or the guide's full phrase; see [the words above](#game-bar) |
+| `[gamebar] kinds` | which regions of the pad the hints are about; `["face"]` — the half that changes under you |
 
 Both waits themselves are `[confirm] hold_ms` and `[confirm] confirm_ms`, and a
 binding takes them by saying `confirm = true` rather than naming its own
 numbers.
 
 At most **three actions** stand on the right, and they **do not lie**: they are
-the buttons really bound in the layer that is live right now, resolved through
-exactly the path a press takes. Gestures that mean the same thing everywhere
-(confirm, back) are left unwritten — `[gamebar] omit`. The list is **by
+the face buttons really bound in the layer that is live right now, resolved
+through exactly the path a press takes — `[gamebar] kinds` is what widens that
+to the rest of the pad. Gestures that mean the same thing everywhere (confirm,
+back) are left unwritten — `[gamebar] omit`. The list is **by
 action**, not by button: move Enter to another button and the omission follows
 it; give A something else to do and A starts being shown. Hold the window layer
 and the hints become that layer's. The menu follows the same rule: if no button
@@ -604,8 +652,11 @@ candidate on this pad, would have taken float/tile out of the window layer and
 
 ## The default bindings
 
-A console-shaped scheme: **A** confirms, **B** goes back, **ZR**
-clicks. The window layer opens while **ZL** (the left trigger) is held.
+A console-shaped scheme: **A** confirms, **B** goes back, **X** does the thing
+in front of you and **Y** reaches for what is not on screen; **ZR** clicks. The
+window layer opens while **ZL** (the left trigger) is held. Those four meanings
+hold in every layer and every application —
+[what each button means](#the-face-buttons-mean-the-same-thing-everywhere).
 
 | Button | Base | ZL held (window) |
 |---|---|---|
@@ -648,6 +699,46 @@ own. Edit `[bindings.base]`, `[layers.window]`, `[bindings.menu]` and
 
 While the menu or the on-screen keyboard is up a separate layer takes over —
 [The menu](#the-menu), [Typing](#typing).
+
+### The face buttons mean the same thing everywhere
+
+The scheme above is not four arbitrary choices repeated in each layer. Someone
+who has used the pad for a week presses **A** without deciding to, and that
+reflex is the only thing this project has instead of labels on the buttons. So
+each face button carries one meaning, and it holds in every layer, on every
+surface and in every application:
+
+| Button | Means | On the desktop | In the menu | In the keyboard | In a browser |
+|---|---|---|---|---|---|
+| **A** | **confirm** — enter, activate, open what is selected | Enter | pick the row | press the key | Enter |
+| **B** | **back** — escape, cancel, up one level, out | Esc | up one level | close the keyboard | Esc |
+| **X** | **do** — the app's own verb, the thing you press most often | middle click | leave the menu outright | Backspace | new tab |
+| **Y** | **reach** — for something not on screen: a menu, a switcher, another view | right click | the bindings guide | Space | right click |
+
+**A and B are not ours to move.** They are the console standard, and an
+application profile may only take them when the thing it needs is not reachable
+on screen at all — and then it keeps Enter and Esc on the *hold*.
+[Discord](#discord-the-face-buttons-are-the-voice-controls) is the one shipped
+profile that does: its mute and deafen buttons sit in a thumbnail-sized strip
+in the corner of the screen furthest from wherever you are aiming.
+
+**X and Y are the application's**, and the split follows the thumb: X is nearer
+where a thumb rests than Y, so the button pressed more often is X. That is why
+`Ctrl+T` is on X in a browser and Backspace is on X in a terminal, while the
+context menu, the quick switcher and the window popped out are all on Y. Where
+an app has no reach worth having — a terminal's right-click menu is two entries
+in kitty and nothing at all in foot — Y carries a second verb instead.
+
+**A meaning never moves between two places you cross.** Backspace is X on the
+on-screen keyboard, so Backspace is X in a terminal too: those are the two
+surfaces a command is typed across, and a key that moved under your thumb when
+the keyboard opened over the prompt would be worse than no key at all.
+
+When you write your own bindings, the same four questions are the whole method
+— what can a pointer not reach, what is the verb, what is the reach, and does
+the app already own L or R. The rules, and the ledger of where the shipped
+config bends one, are in
+[`docs/conventions/bindings.md`](docs/conventions/bindings.md).
 
 ## Controller modes
 
@@ -711,6 +802,41 @@ profiles do.
 `omapad check` prints which one is in effect, and **Controller › Button
 labels** in the menu changes it without a config file or a restart — every
 badge on every surface follows at once.
+
+### How the badges are drawn
+
+What a badge prints is one question. Whether it is a shape with a label set on
+it, or a label punched out of a solid shape, is another:
+
+```toml
+[ui]
+badge_style = "filled"   # filled | stencil
+```
+
+| Style | The badge | What a press does to it on the bar |
+|---|---|---|
+| `filled` | the shape washed in the surface's own colour, the label solid on top | it brightens |
+| `stencil` | that colour at full strength, the label the hole in it | it inverts — the fill drains out and the label fills in |
+
+`filled` is the quiet one, and the default. `stencil` is the one for a sofa: a
+solid shape carries about twice as far as a washed one, and a badge that turns
+inside out under your thumb is a change you catch out of the corner of your
+eye rather than one you have to be watching for. A shape already at full
+strength has nowhere brighter to go, which is why the two press differently
+rather than one borrowing the other's answer.
+
+It is the same drawing either way — nothing in `assets/shapes/` knows which
+style is on — so a button looks like the same button in both, and each surface
+keeps its own colour: the accent on the guide and the mapping screen, the
+bar's own text colour on the bar, the key's colour on the keyboard.
+
+The label is a **hole**, not a letter painted the colour of the background. A
+badge sits over a wallpaper, over a card that fades, and on the keyboard over
+a key that inverts under it when the selection lands — a faked background is
+right on one of those and wrong on the other two.
+
+**Controller › Button style** changes it from the menu, and every surface that
+is already up redraws at the press rather than at the next heartbeat.
 
 ## Configuration
 
@@ -783,6 +909,22 @@ To tell a tap from a hold:
 PLUS = { tap = "exec:omarchy-menu toggle", hold = "mode:toggle", hold_ms = 500 }
 ```
 
+Everything a binding table can say:
+
+| Key | What it decides |
+|---|---|
+| `tap` · `hold` | the two halves. A table with no `hold` fires on the way down, exactly like the plain string it replaces |
+| `hold_ms` | how long the hold waits — 500 ms by default, 1200 for an announced one |
+| `confirm` · `confirm_ms` | an **announced** hold: at `hold_ms` it ticks and says what is coming, and only `confirm_ms` later does it fire. `confirm = true` takes both numbers from `[confirm]` |
+| `desc` · `hold_desc` | what the [guide](#the-bindings-guide) prints for each half |
+| `short` · `hold_short` | what the [game bar](#game-bar) prints — one word |
+| `on_release` | fire the tap when the button comes back up, so the same button can grow a hold later without its tap having already gone out |
+| `rumble` | tick the motor when this one fires |
+| `reaches_past` | whether it still fires while the pad has been handed to an app |
+
+Which button to spend on what is a question of its own —
+[what each button means](#the-face-buttons-mean-the-same-thing-everywhere).
+
 ### Chords: two buttons at once
 
 ```toml
@@ -836,7 +978,7 @@ match = ["alacritty", "foot", "wezterm"]
 right_stick = "scroll"      # the wheel, even where game mode walks the focus
 
 [profile.shell.bindings]
-Y = "key:BACKSPACE"         # the letter back, in a terminal only
+X = "key:BACKSPACE"         # the letter back, in a terminal only
 LSTICK = "key:CTRL+L"
 
 [profile.browser]
@@ -852,16 +994,21 @@ Profiles behave in three ways:
   is resolved through the ordinary `profile → layer → base` chain, so walking
   workspaces and the arrow keys keep working. A button you write `nop` on does
   nothing at all.
-- **They override layers too.** A game profile can take a button away from the
-  window layer; the answer is still decided in `profile → layer → base` order.
+- **They stop where a modifier starts.** The bindings are the app's scheme *at
+  rest*: hold **ZL** and the window layer is the desktop's again, so `ZL` + `B`
+  closes the window in every application whatever `B` is worth in the one in
+  front. An app that really does want a window op of its own says which layer —
+  `[profile.<app>.window]` is read in `[bindings.window]`'s place while that
+  app has focus — and nothing that ships does.
 - **They do not fight the surfaces on screen.** While the keyboard, the menu or
   the guide is up, those always win — what you can see outranks the application
   underneath. A profile touches none of those three surfaces.
 
 A profile may also say what a **stick** is for, with the same `left_stick` /
 `right_stick` roles a layer takes (`cursor`, `scroll`, `resize`, `move`, `snap`,
-`focus`, `none`). It has the last word over the layer and over game mode, on the
-same layers its bindings reach; leave it out and both thumbs keep whatever the
+`focus`, `none`). It has the last word at rest and in game mode, on the same
+layers its bindings reach — while **ZL** is held both sticks belong to the
+window, whatever the app says; leave it out and both thumbs keep whatever the
 layer gives them. This is what the shipped browser profile uses: game mode gives
 the right stick to `focus`, and a browser is the one place that answers those
 keys somewhere other than under the pointer.
@@ -1034,11 +1181,9 @@ R = { tap = "key:CTRL+TAB", desc = "Next tab",
       hold_desc = "Next workspace", hold_ms = 2000, confirm_ms = 2000 }
 ```
 
-A profile reaches **into the window layer** too: with a browser focused, the
-left stick click is "forward" and the right stick click "back" even while ZL is
-held — so what those two do in the window layer (pin the window, the keyboard)
-is off in a browser. The keyboard is still on MINUS, but if it bothers you,
-take those two lines out of the profile.
+None of it reaches the window layer: hold **ZL** in a browser and the left
+stick still pins the window, the right stick click is still the keyboard, and
+`ZL` + `X` is still float / tile. What a profile spends, it spends at rest.
 
 The buttons of the `browser` profile that ships:
 
@@ -1154,9 +1299,9 @@ What this costs, in Discord only: the middle click (which stood on `X` and on
 the left stick click) is gone, and Enter and Esc are a hold rather than a
 press. The right click is **not** gone — it moves to the left stick click,
 because the context menu is how Discord replies to and reacts to a message.
-As with `[profile.browser]`, that reaches into the window layer too, so
-`ZL` + left stick no longer pins the window while Discord is focused; take the
-line out if you would rather keep the pin.
+None of it reaches the window layer: `ZL` + `A`, `B`, `X`, `Y` and the left
+stick are fullscreen, **close the window**, float, pop out and pin here exactly
+as they are anywhere else.
 
 `match` is a substring, so `"discord"` covers Canary and PTB as well; the forks
 are named separately because their class is their own. These are Discord's own
@@ -1174,6 +1319,69 @@ grows a `Chat` page: three canned replies, the pickers and the pins — see
 > window the shortcuts are also Chromium's to claim first, and the native
 > client is the one that has all of them.
 
+### YouTube: the television's two controls
+
+A game console has a television and a desktop does not, which is most of what
+this project is about. The menu launches YouTube as a **webapp window** rather
+than a tab, so the pad can walk to it — and what a television asks for from a
+sofa is two things: whether it is playing, and whether it fills the screen.
+Both are the player's own controls, both sit along the bottom edge of the video
+behind an overlay that hides itself, and that is the definition of a target a
+pointer on a sofa is worst at.
+
+```toml
+[profile.youtube]
+match = ["-www.youtube.com", "-youtube.com"]
+
+[profile.youtube.bindings]
+X = { tap = "key:K", desc = "Play / pause" }
+Y = { tap = "key:F", desc = "Fullscreen" }
+LSTICK = { tap = "key:SLASH", desc = "Search" }
+RSTICK = { tap = "key:ALT+LEFT", desc = "Back" }
+```
+
+| Button | In YouTube | Otherwise |
+|---|---|---|
+| X | **play / pause** (`k`) | middle click |
+| Y | **fullscreen** (`f`) | right click |
+| Left stick click | **search** (`/`) | middle click |
+| Right stick click | **back** (`Alt+←`) | back (mouse 4) |
+| A / B | Enter and Esc, untouched | the same |
+| D-pad ←/→, ↑/↓ | seek and volume, YouTube's own | the arrow keys |
+
+`k` rather than Space, because Space scrolls the page whenever the player is
+not the focused element — `k` is answered by YouTube's own handler wherever the
+focus is, as long as it is not in a text box.
+
+**`A` and `B` are left alone, and both already fit.** `A` is Enter, which opens
+the thumbnail [focus traversal](#inside-the-window-focus-traversal) walked to
+with the right stick in game mode; `B` is Esc, which is how a browser leaves
+fullscreen — "B goes back", said in the player's own words. The D-pad costs
+nothing either: YouTube reads the arrows as seek and volume for as long as the
+player has the focus.
+
+**Search is on the left stick click, not on `Y`.** The pattern puts the app's
+*reach* on `Y` ([the face buttons](#the-face-buttons-mean-the-same-thing-everywhere)),
+and here that would be the search box — but searching needs the on-screen
+keyboard anyway, so it costs nothing to move one button along: press the left
+stick, then `MINUS` for the keyboard, then `ZR` to send it and put the keyboard
+away. Fullscreen takes the button a thumb finds first because it is the control
+every video needs.
+
+What this costs, in YouTube only: the middle click (`X` and the left stick
+click) and the right click (`Y`). Mouse button 4 is handed straight back as
+`Alt+←`, the way [the browser profile](#per-application-profiles-and-the-shoulder-buttons)
+does it and for the same reason. What did not fit: `shift+n` / `shift+p` (next
+and previous video), `m` (mute) and `c` (captions) — the first is what the
+budget would buy next.
+
+> **`match` is the host, not the word.** The class here is
+> `chrome-www.youtube.com__-Default`, and matching the bare word `youtube`
+> would take **YouTube Music** (`chrome-music.youtube.com__…`) with it, where
+> none of these keys exist. The leading dash is what keeps the two apart. Like
+> `[profile.discord]`, it is declared **before** `[profile.browser]` — a webapp
+> class matches `chrome` as squarely as it matches its own host.
+
 ### The terminal: Backspace, the interrupt and the scrollback
 
 A shell is driven with keys the pad has no button for. The one it needs most
@@ -1189,16 +1397,16 @@ match = ["foot", "alacritty", "ghostty", "kitty", "wezterm"]
 right_stick = "scroll"
 
 [profile.shell.bindings]
-Y = "key:BACKSPACE"
-X = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
+X = "key:BACKSPACE"
+Y = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
 LSTICK = { tap = "key:CTRL+L", desc = "Clear the screen" }
 ```
 
 | Button | In a terminal | Otherwise |
 |---|---|---|
-| Y | **Backspace** — repeats while held | right click |
-| X | **paste** (`Ctrl+Shift+V`) | middle click |
-| X **held** | **`Ctrl+C`** — interrupt | – |
+| X | **Backspace** — repeats while held | middle click |
+| Y | **paste** (`Ctrl+Shift+V`) | right click |
+| Y **held** | **`Ctrl+C`** — interrupt | – |
 | Left stick click | **clear the screen** (`Ctrl+L`) | middle click |
 | Right stick | **the wheel** — the scrollback | game mode walks the focus |
 
@@ -1207,33 +1415,43 @@ profile covers all five names in `match`: foot and alacritty have neither tabs
 nor a context menu, and a scheme built on those would be dead in two of the
 five.
 
-**`Y` is written plain, and that is deliberate.** A tap/hold binding waits for
+**Backspace is on `X` because that is where the keyboard puts it.** `X` is the
+[app's own verb](#the-face-buttons-mean-the-same-thing-everywhere), and erasing
+what you have typed is a terminal's — but the real reason is that
+`[bindings.osk]` has had Backspace on `X` since it was drawn, and the terminal
+and the on-screen keyboard are exactly the pair of surfaces a command is typed
+across. A key that moved under your thumb when the keyboard opened over the
+prompt would be worse than no key.
+
+**It is written plain, and that is deliberate.** A tap/hold binding waits for
 the release before its key goes down, which costs the autorepeat — and
-Backspace is the one key that is held rather than pressed. So `Y` carries
+Backspace is the one key that is held rather than pressed. So `X` carries
 nothing else, and Backspace repeats the way it does on a keyboard.
 
-**Tab is not on a button, because the keyboard already has one.** It was on `Y`
-until it turned out to be the wrong shape for a button: completing a command
-meant putting the keyboard away, pressing `Y` and summoning it again, once per
-completion. The on-screen keyboard's first page has had a `Tab` key all along
-— with the line you are typing still in front of you, it is aimed at like any
-other key.
+**Tab is not on a button, because the keyboard already has one.** It held this
+button until it turned out to be the wrong shape for it: completing a command
+meant putting the keyboard away, pressing a button and summoning it again, once
+per completion. The on-screen keyboard's first page has had a `Tab` key all
+along — with the line you are typing still in front of you, it is aimed at like
+any other key.
 
-`Ctrl+C` rides `X`'s hold because a profile [reaches into the window
-layer](#per-application-profiles-and-the-shoulder-buttons) too. On `B` — where
-it first looks like it belongs, next to Esc — the override would have taken
-`ZL` + `B`, **closing the window**, away from every terminal. On `X` it costs
-`ZL` + `X`, float / tile, and `B` stays the Esc that vim, less and every
-full-screen program in a terminal want. A hold is the right shape for an
-interrupt anyway: killing a command by accident is worse than pasting one by
-accident.
+`Ctrl+C` rides `Y`'s hold rather than `B`'s. When it was written, a profile
+reached into the window layer as well, and putting it on `B` — where it first
+looks like it belongs, next to Esc — would have taken `ZL` + `B`, **closing the
+window**, away from every terminal. Profiles [stop at the window
+layer](#per-application-profiles-and-the-shoulder-buttons) now, and it stays on
+`Y` regardless: `B` is the Esc that vim, less and every full-screen program in
+a terminal want, and a hold is the right shape for an interrupt — killing a
+command by accident is worse than pasting one by accident.
 
-`X`'s tap is the paste that works. The middle click it carries elsewhere pastes
+`Y`'s tap is the paste that works. The middle click `X` carries elsewhere pastes
 the PRIMARY selection, which wants a selection made with a mouse and a pointer
 parked on the prompt; `Ctrl+Shift+V` pastes the clipboard the rest of the
-desktop fills. The left stick click is then the cheapest click left — the same
-displacement the browser and Discord profiles make, and it costs `ZL` + left
-stick, the window pin.
+desktop fills. `Y` is the cheaper of the two face buttons to spend it on: it is
+the right click, which in a terminal opens a menu of two entries in kitty and
+ghostty and nothing at all in foot and alacritty. The left stick click is then
+the cheapest click left — the same displacement the browser and Discord
+profiles make, and it costs `ZL` + left stick, the window pin.
 
 **The stick is the reason this profile needed one at all.** Game mode hands the
 right stick to `focus` (see [Focus traversal](#inside-the-window-focus-traversal)),
@@ -1251,7 +1469,8 @@ the D-pad is the arrows the line editor and the history are walked with.
 What the profile **spends**: `X` and the left stick were the pad's two middle
 clicks, so a terminal now has none — text selected with a mouse but never
 copied is no longer reachable from the pad. That is the price of a paste that
-works with the clipboard everything else on this desktop uses.
+works with the clipboard everything else on this desktop uses. `Y` was the
+right click, which is the one this profile is happiest to lose.
 
 ### Rumble
 
@@ -1263,11 +1482,13 @@ binding fires:
 Y = { tap = "hypr:hl.dsp.window.center()", rumble = true }
 ```
 
-In the shipped scheme this flag is not on anywhere. The rumble's real job right
-now is the **confirmation countdown**: the pad ticks when the `confirm_ms` above
-runs out. With the screen off or a window fullscreen you do not see the
-notification but you do feel the rumble — and that situation is the whole reason
-the countdown exists.
+In the shipped scheme this flag is not on anywhere. The rumble's two standing
+jobs are elsewhere. One is the **confirmation countdown**: the pad ticks when
+the `confirm_ms` above runs out. With the screen off or a window fullscreen you
+do not see the notification but you do feel the rumble — and that situation is
+the whole reason the countdown exists. The other is the **mode switch**
+(`[mode] rumble`), which is the same problem: what changes is across the room,
+so one tick goes in and one comes back out.
 
 **Controller › Vibration** in the menu turns it on and off and steps the
 strength, ticking the motor at each step so you set it by feel rather than by
@@ -1318,8 +1539,16 @@ the desktop teaches anyway.
 | D-pad up / down | Walk the rows (hold it and it keeps walking) |
 | A · D-pad right | Pick — and go in, if it is a submenu |
 | B · D-pad left | Back to the menu above; at the top it closes the menu |
-| X · Y · PLUS · Capture · Right stick click | Close the menu |
+| X · PLUS · Capture · Right stick click | Close the menu outright, from any depth |
+| Y | Open [the bindings guide](#the-bindings-guide) |
 | HOME | Tap: close the menu · Hold: switch mode |
+
+`X` and `B` are not the same button twice: `B` walks back up **one** submenu at
+a time, and from inside `Controller › Speeds` that is two presses, while `X`
+leaves outright. `Y` is the pad's reach for something not on screen — the menu
+has a `Controller › Shortcuts` row that opens the same guide, and `Y` is that
+row without walking to it. It is the button for when you opened the menu
+*because* you had forgotten which button does what.
 
 The menu layer sits above the keyboard layer: opening the menu closes the
 on-screen keyboard, so that exactly one surface reads the D-pad. Holding MINUS
@@ -1414,6 +1643,7 @@ Everything about the pad itself is one row, because a controller is one thing:
 | Speed | how fast the two thumbs are: pointer faster/slower, scroll faster/slower |
 | Vibration | the motor: on, off, stronger, weaker |
 | Button labels | [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
+| Button style | [how they are drawn](#how-the-badges-are-drawn): filled, or the label punched out of a solid shape |
 | Profile | which codes this pad is read with: detect it, Nintendo Pro, Xbox |
 | Remap the buttons | the [mapping screen](#controller-mapping) |
 
@@ -1424,8 +1654,9 @@ and a submenu of two rows is not a place.
 Everything but the guide is a setting rather than a command, and they
 are the ones that belong on the pad rather than in a file: which profile a pad
 takes and what its badges print are exactly the questions you have while holding
-the thing and getting the wrong answer, and how hard the motor ticks — or how
-fast a thumb aims — is a preference about the room you are sitting in. So those
+the thing and getting the wrong answer, how they are drawn is one you have while
+looking at them from across the room, and how hard the motor ticks — or how fast
+a thumb aims — is a preference about the room you are sitting in. So those
 rows leave the menu up, the one in force is ticked, and each vibration row ticks
 the motor as it lands — the number says nothing and the buzz says everything.
 
@@ -1514,7 +1745,10 @@ HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle",
 
 `desc` shows up in the guide only; it does not touch how the binding works — a
 table carrying nothing but a `desc` behaves exactly like the plain string
-binding.
+binding. `short` is the same sentence for [the game bar](#game-bar), in one
+word, and is worth writing whenever the first word of `desc` is not the meaning
+— "New tab" would be cut to "New". `hold_desc` and `hold_short` are the pair
+for the other half of a tap/hold.
 
 The guide writes down only the buttons the connected pad **really has**: in
 XInput mode the Capture row never appears, because that button is not on that

@@ -1402,9 +1402,9 @@ also how Esc keeps declining a call.
 menu, and in Discord that menu is how a message is replied to and reacted to —
 more than the binding was worth. It moves to the left stick click, whose middle
 click was `X`'s twice over, so nothing that mattered paid for it. That is the
-same displacement `[profile.browser]` makes, and it reaches into the window
-layer the same way: `ZL` + left stick no longer pins the window while Discord
-is focused.
+same displacement `[profile.browser]` makes, and it reached into the window
+layer the same way: `ZL` + left stick no longer pinned the window while Discord
+was focused. **38 ended that** — the pin is back, in Discord as everywhere.
 
 The keyboard gets a `Chat` page over 27's mechanism, and it is a third kind of
 page again: a terminal's is what you have already run, a browser's is the
@@ -1519,9 +1519,10 @@ the same reason.
 belongs, and that was the first draft. But 09's resolution reaches into the
 held layers, so a profile's `B` is `ZL` + `B` as well - and that is *close the
 window*, which a terminal needs more than any other app on the desktop. `Y`
-costs popping the window out instead. The lesson generalises: **a profile's
-real price is what the button does in the window layer**, not what it does at
-rest, and the shipped profiles had only ever paid it in pins and middle clicks.
+costs popping the window out instead. The lesson generalised as far as
+**38**, which decided the premise was the fault: a profile now stops at the
+held layers and pays only at rest. `Ctrl+C` stayed on `Y` anyway — `B` is the
+Esc that vim and less want, and an interrupt belongs on a hold.
 
 **And the stick was the actual bug.** 24 gives the right stick to `focus` in
 game mode, which sends `[traverse]`'s keys - `next` is Tab and `up` / `down`
@@ -1561,14 +1562,99 @@ button that must repeat cannot carry a hold, so the interrupt had to move, and
 it went to `X` with `Ctrl+Shift+V` on the tap: `X`'s middle click pastes the
 PRIMARY selection, which wants a mouse to have made a selection and a pointer
 parked on the prompt - from the couch, the deadest button in a terminal. The
-price is the one this item already named: a profile pays in the window layer,
-and `X` costs `ZL` + `X`, float / tile, where `Y` cost popping the window out.
-A terminal now has no middle click at all, which is what a paste that works
-with the clipboard everything else fills is worth.
+price is the one this item already named, and after **38** it is the whole of
+it: what a profile spends, it spends at rest, and the window layer is untouched
+either way. A terminal now has no middle click at all, which is what a paste
+that works with the clipboard everything else fills is worth.
+
+### 38. The modifier the apps kept taking · ✅ Done · S
+
+Asked for from the sofa: *in Discord, `LT` + `B` should close the window - the
+LT modifier can work the way it does in every other application.* It did not,
+and 09 is why: a profile's bindings were resolved in front of **every** layer,
+so `[profile.discord]`'s `B` - deafen - answered the window layer as well, and
+`ZL` + `B` deafened instead of closing. The same held everywhere a profile
+existed: `ZL` + `X` opened a browser tab rather than floating the window, `ZL`
++ `L` / `R` switched tabs rather than sending the window to a workspace, and
+the browser's `right_stick = "scroll"` scrolled the page while `ZL` was down
+instead of moving the window.
+
+**Nobody had ever wanted that.** The ledger says so in its own words: every
+shipped profile records the window-layer reach as a *price* - "it costs `ZL` +
+`X`, float / tile", "`ZL` + left stick no longer pins the window" - and 37 went
+as far as choosing which button carried an interrupt in order not to pay it.
+A cost that four profiles pay and none of them wants is not a feature, and
+37's lesson - *a profile's real price is what the button does in the window
+layer* - was the premise being wrong rather than a rule to design around.
+
+**The guide had already decided this.** `build_pages()` reads `[bindings.*]`
+and knows nothing about profiles, so the window page has always printed
+*Close the window* on `B` no matter what was in front. Under the old
+resolution that page was a lie in any app with a profile; under the new one it
+is true again, and there is nothing profile-shaped for it to learn.
+
+**So a profile stops where a modifier starts.** `[bindings]` is the app's
+scheme *at rest*: it answers the base layer and game mode - which is the same
+desktop with a bar on it - and a held layer keeps its own table. `stick_roles`
+follows the same line: while `ZL` is down both sticks belong to the window.
+
+**And the capability is still reachable, by name.** An app that really does
+want a window op of its own writes `[profile.<app>.window]`, read in
+`[bindings.window]`'s place for as long as it has focus - the layer named, not
+inherited by accident. Nothing ships with one. A profile key that is neither a
+layer nor `match` / `bindings` / `osk` / `left_stick` / `right_stick` raises at
+load, because `[profile.shell.windows]` would otherwise be a table that simply
+never fires and nothing on screen would say why.
+
+**Nothing in the daemon changed** - the fourth time in a row. It is thirty
+lines of `config.py`, and what it gives back is one sentence: the left trigger
+means the same thing in every application.
+
+### 39. YouTube: the television's two controls · ✅ Done · S
+
+Asked for from the sofa: *give the YouTube webapp its own shortcuts - play /
+pause and fullscreen on the face buttons.* The fifth app to want a profile, and
+the first that is a **television** rather than a tool: 35 put a row in the menu
+for it because a console has one of these and a desktop does not, and what
+that row launches is a webapp window the pad can walk to.
+
+**Two controls, and both are the same kind of target.** Whether it is playing
+and whether it fills the screen are the player's own buttons, they sit along
+the bottom edge of the video behind an overlay that hides itself, and hitting
+one from a sofa means waking the overlay first and then aiming inside it. So
+`X` is `k` and `Y` is `f`.
+
+**`k`, not Space.** Space scrolls the page whenever the player is not the
+focused element, which after any click is most of the time; `k` is answered by
+YouTube's own document handler wherever the focus is, as long as it is not in
+a text box.
+
+**`Y` is a second Do, and the ledger says so.** The pattern wants the reach on
+`Y`, and here the reach is the search box - but searching cannot happen without
+the on-screen keyboard anyway, so `/` costs nothing by moving one button along
+to `L3`, and the button a thumb finds first carries the control every video
+needs. `R3` hands mouse button 4 back as `Alt+Left`, the displacement
+`[profile.browser]` already makes.
+
+**A and B were free, which is the part worth recording.** Nothing had to bend:
+`A` is Enter, which opens the thumbnail 22's traversal walked to, and `B` is
+Esc, which is how a browser leaves fullscreen - "B goes back" in the player's
+own words. The D-pad was free too: YouTube reads the arrows as seek and volume
+while the player has the focus. Four buttons of the budget bought two controls,
+because the scheme already answered for the other two.
+
+**`match` is the host with its leading dash**, and that is new. Every profile
+so far matched a word - `discord`, `foot`, `chromium` - but `youtube` on its
+own takes **YouTube Music** (`chrome-music.youtube.com__...`) with it, where
+none of these keys exist. `-www.youtube.com` and `-youtube.com` match any
+browser's webapp class and neither matches Music's. Declared before
+`[profile.browser]` for 35's reason.
+
+**Nothing in the daemon changed**, the fifth time in a row.
 
 ## Suggested order
 
-Done: **01–09**, **11**, **13–37**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–39**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

@@ -11,6 +11,7 @@ the tree.
 | [`bash.md`](bash.md) | `bin/omapad`, `install.sh` |
 | [`lua.md`](lua.md) | the `hypr:` expressions inside `config/config.toml` |
 | [`data.md`](data.md) | TOML, the socket payloads, JSON manifest, SVG, unit and udev rule |
+| [`bindings.md`](bindings.md) | what each button means, and what a profile may take |
 | [`naming.md`](naming.md) | file names and folder structure, for every kind of file |
 
 ## How to read a rule

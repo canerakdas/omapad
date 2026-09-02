@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from omapad import config as config_module, gamebar
+from omapad import config as config_module, gamebar, guide
 
 
 def build(data):
@@ -46,17 +46,17 @@ class ViewTests(unittest.TestCase):
     def test_every_badge_on_it_is_printed_in_the_pads_own_names(self):
         """The hints, the workspace walkers and the door, all three: one of
         them built without the layout puts two consoles on one bar."""
-        self.model.layout = "xbox"
+        self.model.layout = "playstation"
         state = self.view({
-            "ZR": "click:left",
+            "A": "click:left",
             "L": "hypr:hl.dsp.focus({ workspace = 'e-1' })",
             "R": "hypr:hl.dsp.focus({ workspace = 'e+1' })",
             "PLUS": "menu:toggle",
         })
-        self.assertEqual([row["b"] for row in state["actions"]], ["RT"])
-        self.assertEqual(state["wsprev"]["b"], "LB")
-        self.assertEqual(state["wsnext"]["b"], "RB")
-        self.assertEqual(state["menu"]["b"], "Menu")
+        self.assertEqual([row["b"] for row in state["actions"]], ["✕"])
+        self.assertEqual(state["wsprev"]["b"], "L1")
+        self.assertEqual(state["wsnext"]["b"], "R1")
+        self.assertEqual(state["menu"]["b"], "Options")
 
     def test_the_bar_follows_omarchys_own_edge_unless_it_is_pinned(self):
         # The plugin is the one that can see Omarchy's bar, so "auto" is
@@ -83,19 +83,20 @@ class ViewTests(unittest.TestCase):
         with self.assertRaises(config_module.ConfigError):
             build({"gamebar": {"height": 0}})
 
-    def test_the_bar_carries_the_tremble_an_armed_badge_makes(self):
+    def test_the_bar_carries_the_lean_an_armed_badge_makes(self):
         # Same reason as the height: it has to be seen from wherever the sofa
-        # is, so the shell is told rather than deciding.
+        # is, so the shell is told rather than deciding. No duration travels
+        # beside it - the lean is one flick, and the confirm window it sits
+        # out already reaches the badge in `holding`.
         state = self.view({})
-        self.assertEqual(state["tremble"], 2)
-        self.assertEqual(state["tremble_ms"], 90)
+        self.assertEqual(state["lean"], 2)
+        self.assertNotIn("tremble_ms", state)
         still = gamebar.GameBarModel(build({
             "bindings": {"game": {}},
-            "gamebar": {"confirm_tremble": 0, "confirm_tremble_ms": 200},
+            "gamebar": {"confirm_lean": 0},
         }))
         state = still.view_state(True, lambda button: None, None, "game")
-        self.assertEqual(state["tremble"], 0)
-        self.assertEqual(state["tremble_ms"], 200)
+        self.assertEqual(state["lean"], 0)
 
     def test_the_bar_carries_how_long_a_fill_waits_before_it_starts(self):
         # A fill that began on contact flickered under a shoulder tapped to
@@ -153,7 +154,7 @@ class ViewTests(unittest.TestCase):
         # the same one names a different button on another pad.
         self.model.layout = "xbox"
         state = self.view({
-            "ZR": "click:left",
+            "A": "click:left",
             "L": "hypr:hl.dsp.focus({ workspace = 'e-1' })",
             "R": "hypr:hl.dsp.focus({ workspace = 'e+1' })",
             "PLUS": "menu:toggle",
@@ -161,14 +162,13 @@ class ViewTests(unittest.TestCase):
         self.assertEqual(state["menu"]["n"], "PLUS")
         self.assertEqual(state["wsprev"]["n"], "L")
         self.assertEqual(state["wsnext"]["n"], "R")
-        self.assertEqual([row["n"] for row in state["actions"]], ["ZR"])
+        self.assertEqual([row["n"] for row in state["actions"]], ["A"])
 
-    def test_a_tremble_that_could_not_be_drawn_is_named(self):
+    def test_a_lean_that_could_not_be_drawn_is_named(self):
+        # A badge cannot lean a negative distance; 0 is "stay put and let the
+        # sweep say the window on its own".
         with self.assertRaises(config_module.ConfigError):
-            build({"gamebar": {"confirm_tremble": -1}})
-        # Zero would loop an animation with no duration at all.
-        with self.assertRaises(config_module.ConfigError):
-            build({"gamebar": {"confirm_tremble_ms": 0}})
+            build({"gamebar": {"confirm_lean": -1}})
         # A wait cannot be negative; 0 is "fill from the press".
         with self.assertRaises(config_module.ConfigError):
             build({"gamebar": {"confirm_fill_delay_ms": -1}})
@@ -179,21 +179,68 @@ class ViewTests(unittest.TestCase):
         self.assertEqual(state["actions"], [])
         self.assertEqual(state["note"], "The pad is the game's")
 
-    def test_a_bound_button_is_printed_in_the_guides_own_words(self):
-        state = self.view({"ZR": "click:left"})
+    def test_a_bound_button_is_printed_in_one_word(self):
+        state = self.view({"Y": "click:left"})
         self.assertEqual(state["actions"], [
             # `c` false: a click on this badge would click the pointer, and
             # the pointer is on the badge.
-            {"b": "ZR", "k": "trigger", "n": "ZR", "c": False,
-             "d": "Left click", "h": ""},
+            {"b": "Y", "k": "face", "n": "Y", "c": False,
+             "d": "Click", "h": ""},
         ])
         self.assertEqual(state["note"], "")
 
-    def test_the_face_buttons_come_first_because_the_thumbs_do(self):
-        state = self.view({"HOME": "mode:toggle", "A": "click:left"})
-        # "Home" rather than HOME: the badge prints what the pad does, and
-        # the model badges with the nintendo layout until a pad says otherwise.
-        self.assertEqual([row["b"] for row in state["actions"]], ["A", "Home"])
+    def test_the_long_form_is_one_setting_away(self):
+        """`[gamebar] brief = false` puts the guide's own phrase on the bar."""
+        spelt = gamebar.GameBarModel(build({"gamebar": {"brief": False}}))
+        state = spelt.view_state(
+            True, lambda button: {"Y": "click:left"}.get(button), None, "game"
+        )
+        self.assertEqual(state["actions"][0]["d"], "Left click")
+
+    def test_a_binding_that_names_its_own_short_word_keeps_it(self):
+        """The first word is the verb often enough to be the rule, and where
+        it is not - "New tab" is a tab, not a new - the binding says so."""
+        state = self.view({
+            "X": {"tap": "key:CTRL+T", "desc": "New tab", "short": "Tab",
+                  "hold": "key:F5", "hold_desc": "Reload"},
+        })
+        self.assertEqual(state["actions"][0]["d"], "Tab")
+        self.assertEqual(state["actions"][0]["h"], "Reload")
+
+    def test_a_phrase_with_no_short_word_is_cut_to_its_first(self):
+        state = self.view({
+            "X": {"tap": "key:CTRL+SHIFT+M", "desc": "Mute the microphone"},
+        })
+        self.assertEqual(state["actions"][0]["d"], "Mute")
+
+    def test_the_row_is_the_face_buttons_because_they_are_what_changes(self):
+        # A shoulder or a trigger carries the same job wherever the scheme
+        # goes, so a slot spent on one repeats what the pad said the first
+        # time you pressed it. The face buttons are what a profile rewrites
+        # under you, which is what three slots are worth spending on.
+        state = self.view({"ZR": "click:left", "HOME": "mode:toggle",
+                           "X": "key:SUPER+SPACE"})
+        self.assertEqual([row["b"] for row in state["actions"]], ["X"])
+
+    def test_another_region_of_the_pad_is_one_setting_away(self):
+        wider = gamebar.GameBarModel(build({
+            "bindings": {"game": {}},
+            "gamebar": {"kinds": ["face", "trigger"]},
+        }))
+        bindings = {"ZR": "click:left", "X": "key:SUPER+SPACE"}
+        state = wider.view_state(
+            True, lambda button: bindings.get(button), None, "game"
+        )
+        # Still offered thumbs-first: the order is PREFERRED's, not the list's.
+        self.assertEqual([row["b"] for row in state["actions"]], ["X", "ZR"])
+
+    def test_a_kind_the_pad_has_no_buttons_of_is_named(self):
+        with self.assertRaises(config_module.ConfigError):
+            build({"gamebar": {"kinds": ["face", "shoulder"]}})
+        # And a list that could print nothing at all: the row of hints is the
+        # only place the bar says what the pad does where you are standing.
+        with self.assertRaises(config_module.ConfigError):
+            build({"gamebar": {"kinds": []}})
 
     def test_a_gesture_that_means_the_same_everywhere_is_not_printed(self):
         # Three slots, spent on what is different about where you are. Confirm
@@ -209,12 +256,20 @@ class ViewTests(unittest.TestCase):
         self.assertEqual([row["b"] for row in state["actions"]], ["A"])
 
     def test_it_stops_before_it_becomes_a_list(self):
+        # Every region of the pad offered, so the count is what stops it.
+        every = gamebar.GameBarModel(build({
+            "bindings": {"game": {}},
+            "gamebar": {"kinds": sorted(set(guide.KINDS.values()))},
+        }))
         bindings = {b: "click:left" for b in gamebar.PREFERRED}
-        self.assertEqual(len(self.view(bindings)["actions"]), gamebar.MAX_ACTIONS)
+        state = every.view_state(
+            True, lambda button: bindings.get(button), None, "game"
+        )
+        self.assertEqual(len(state["actions"]), gamebar.MAX_ACTIONS)
         self.assertEqual(gamebar.MAX_ACTIONS, 3)
 
     def test_a_button_the_pad_does_not_have_is_not_printed(self):
-        state = self.view({"CAPTURE": "key:F12", "A": "click:left"},
+        state = self.view({"X": "key:F12", "A": "click:left"},
                           available={"A", "B"})
         self.assertEqual([row["b"] for row in state["actions"]], ["A"])
 

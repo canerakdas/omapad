@@ -81,6 +81,11 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+  // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
+  // field rather than a shell constant: the panel cannot read the config, and
+  // the answer changes from the menu while the surface is up.
+  property string badgeStyle: "filled"
+  readonly property bool stencil: root.badgeStyle === "stencil"
 
   Metrics {
     id: metrics
@@ -97,23 +102,24 @@ Item {
   // too small yields the tightest legible bar rather than a cropped one - the
   // bar is a readout, and half a badge reads as a glitch.
   property int wantedHeight: 32
-  // How far an armed badge leans, and how long one lean-and-back takes. Both
-  // come from the daemon rather than being picked here: how big a tremble has
-  // to be before it is seen is a function of how far away the sofa is, which
-  // is the same thing the bar's height answers.
-  property int wantedTremble: 2
-  property int trembleMs: 90
+  // How far an armed badge leans at the tick. From the daemon rather than
+  // picked here: how big a movement has to be before it is seen is a
+  // function of how far away the sofa is, which is the same thing the bar's
+  // height answers. There is no duration beside it - the lean is one flick
+  // and then it stays, and what counts the window down is the sweep.
+  property int wantedLean: 2
   // How long a badge sits dimmed before it begins to fill. Same reason as the
   // two above: what counts as "longer than a tap" is the user's, not ours.
   property int fillDelayMs: 60
   readonly property int sideMargin: metrics.space(18)
-  readonly property int badgeUnit: Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7))
+  readonly property int badgeUnit: metrics.badge(
+    Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
   readonly property int barHeight: Math.max(metrics.space(wantedHeight),
     badgeUnit + metrics.space(3) * 2)
-  // Zero means the badge only stays full while it counts down; `space` never
-  // rounds a positive number down to nothing, so anything else is at least a
-  // pixel of lean.
-  readonly property int trembleReach: wantedTremble > 0 ? metrics.space(wantedTremble) : 0
+  // Zero means no badge leans, and the sweep says the whole of the confirm
+  // window on its own; `space` never rounds a positive number down to
+  // nothing, so anything else is at least a pixel of lean.
+  readonly property int leanReach: wantedLean > 0 ? metrics.space(wantedLean) : 0
 
   // A typed badge label centred in its shape is centred by its *line box*,
   // and the line box is not centred on the capitals inside it - the letter
@@ -253,10 +259,10 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.pos !== undefined) root.wantedPosition = String(s.pos)
       if (s.h !== undefined) root.wantedHeight = Number(s.h)
-      if (s.tremble !== undefined) root.wantedTremble = Number(s.tremble)
-      if (s.tremble_ms !== undefined) root.trembleMs = Number(s.tremble_ms)
+      if (s.lean !== undefined) root.wantedLean = Number(s.lean)
       if (s.fill_delay_ms !== undefined) root.fillDelayMs = Number(s.fill_delay_ms)
       if (s.menu !== undefined) root.menu = s.menu
       if (s.wsprev !== undefined) root.wsprev = s.wsprev
@@ -327,6 +333,21 @@ Item {
   readonly property real hoverLit: 0.32
   readonly property real downLit: 0.50
 
+  // The same three states for the stencil style, and they run the other way.
+  // A shape already at full strength has nowhere brighter to go, so what a
+  // press changes there is which half of the badge is ink: at rest the fill
+  // is solid and the label is the hole in it, and under the thumb the fill
+  // drains while the label fills back in. The badge crosses from negative to
+  // positive, which is a change you see at a glance from a sofa where a
+  // brightening of a third is a change you have to be looking for.
+  //
+  // Not the three above inverted: a drained badge still has to read as a
+  // badge, so it keeps a sixth of its fill rather than going to nothing, and
+  // hover goes *up* to solid because a pointer is asking rather than firing.
+  readonly property real restSolid: 0.88
+  readonly property real hoverSolid: 1.0
+  readonly property real downSolid: 0.16
+
   // A pointer's way in, and the whole of it: laid over the thing it fires,
   // badge and words together, because a target picked out from a sofa wants to
   // be the size of the thing you are reading. Everywhere else on the strip a
@@ -374,13 +395,14 @@ Item {
     // fight a bar whose foreground is picked per wallpaper.
     property bool locked: false
     // Which way the press this badge is counting down to will move things:
-    // -1 leans left, +1 right, 0 trembles both ways because nothing on the
-    // bar says where this one would go. A drawing fact rather than a daemon
-    // one - it is the side of the strip the badge stands on.
+    // -1 leans left, +1 right, 0 stays put, because nothing on the bar says
+    // where this one would go and a direction picked to give it something to
+    // do would be a lie. A drawing fact rather than a daemon one - it is the
+    // side of the strip the badge stands on.
     property int lean: 0
     // How far it is leaning right now, in pixels. Left unrounded: the badge
     // is vector art and this only moves while it is moving, so whole pixels
-    // would buy no sharpness and cost the tremble its smoothness.
+    // would buy no sharpness and cost the lean its smoothness.
     property real leaned: 0
 
     readonly property bool down: badge.held || root.isDown(badge.name)
@@ -421,18 +443,35 @@ Item {
       : (badge.down ? root.downLit
                     : (badge.hovered ? root.hoverLit : root.restLit))
 
+    // What the stencil style presses with. Left at rest while a hold counts
+    // down for the same reason `lit` is: the sweep is saying how much longer,
+    // and a badge inverting under it would erase what the sweep announces.
+    readonly property real solidLit: badge.arming
+      ? root.restSolid
+      : (badge.down ? root.downSolid
+                    : (badge.hovered ? root.hoverSolid : root.restSolid))
+    // The label filling back into its own hole, on the way down only: it
+    // crosses with the fill, so the flip reads as one movement rather than as
+    // two things happening to one badge.
+    readonly property real inkLit: (badge.down && !badge.arming) ? 1.0 : 0.0
+
     implicitWidth: badge.art !== null
       ? Math.round(unit * badge.art.w / badge.art.h)
       : (wide ? Math.round(unit * 1.6) : unit)
     implicitHeight: unit
     opacity: (badge.locked && !badge.arming) ? 0.45 : 1
     // A button gives under a thumb, so the badge does. Not while it is
-    // counting down: the tremble owns the badge's movement then, and two
+    // counting down: the lean owns the badge's movement then, and two
     // reasons to move at once read as neither.
     scale: (badge.down && !badge.arming) ? 0.92 : 1
     // Leaning rather than moving: a transform, not `x`, because the badge is
     // laid out by a Row and an assigned x would fight it.
     transform: Translate { x: badge.leaned }
+
+    // Somewhere to lean means both a side to lean to and a reach to lean by.
+    // Without either the badge simply stays where it is, and the sweep says
+    // the confirm window by itself.
+    readonly property bool leans: root.leanReach > 0 && badge.lean !== 0
 
     Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
 
@@ -448,14 +487,19 @@ Item {
         // The tick: the ramp has just reached full and stays there. Filling a
         // second time said "again" where the gesture says "still" - it read
         // as a second, separate wait rather than as the same one about to
-        // end. What the confirm window gets instead is the badge straining in
-        // the direction the press is about to move things, which is what
-        // something about to happen looks like and says which way in the same
-        // breath.
+        // end. What the confirm window gets instead is the badge setting off
+        // the way the press is about to move things and arriving as it lands,
+        // which is what something about to happen looks like and says which
+        // way in the same breath.
         lap.stop()
         filling.swept = 1
-        if (root.trembleReach > 0 && root.trembleMs > 0) tremble.restart()
+        badge.leaned = 0
+        if (badge.leans) leaning.restart()
+        drain.restart()
       } else if (badge.arming) {
+        leaning.stop()
+        drain.stop()
+        badge.leaned = 0
         lapWait.duration = badge.lapWaitMs
         lapRamp.duration = badge.lapRampMs
         // Explicitly, before the pause rather than by the ramp's `from`: the
@@ -465,7 +509,8 @@ Item {
         lap.restart()
       } else {
         lap.stop()
-        tremble.stop()
+        leaning.stop()
+        drain.stop()
         filling.swept = 0
         badge.leaned = 0
       }
@@ -475,27 +520,46 @@ Item {
     onArmingChanged: badge.enterHold()
     onArmedChanged: badge.enterHold()
 
-    SequentialAnimation {
-      id: tremble
-      loops: Animation.Infinite
+    // The tick, said in one movement: the badge leans the way the press is
+    // about to move things and stays there. Which way is a fact, not a
+    // countdown, so it is stated once and then held - a tremble looping over
+    // the same window repeated it nine times, and small, fast and repeated is
+    // the shape the eye objects to most, next to the workspace strip it was
+    // shifting under.
+    NumberAnimation {
+      id: leaning
+      target: badge
+      property: "leaned"
+      from: 0
+      to: root.leanReach * badge.lean
+      // Not a setting: it is the same trade-off as the press and the colour
+      // above, which are 90ms for the same reason. Long enough to read as a
+      // movement rather than as a badge that was suddenly somewhere else,
+      // short enough to be over before the eye asks how long it will take.
+      // What is worth setting is how far it goes, which is `confirm_lean` -
+      // that is the part a sofa's distance argues with.
+      duration: 140
+      // Out of the gate and settling into the lean, the way a thing that has
+      // been pushed arrives: linear read as the start of a walk, and a walk
+      // is what the badge must not look like now that the fill is the clock.
+      easing.type: Easing.OutCubic
+    }
 
-      NumberAnimation {
-        target: badge
-        property: "leaned"
-        to: root.trembleReach * (badge.lean !== 0 ? badge.lean : 1)
-        duration: Math.max(1, Math.round(root.trembleMs / 2))
-        easing.type: Easing.InOutSine
-      }
-      NumberAnimation {
-        target: badge
-        property: "leaned"
-        // A badge that points somewhere only ever leans that way and comes
-        // back; one that points nowhere swings through centre to the other
-        // side, so it still reads as a tremble rather than as a nudge.
-        to: badge.lean !== 0 ? 0 : -root.trembleReach
-        duration: Math.max(1, Math.round(root.trembleMs / 2))
-        easing.type: Easing.InOutSine
-      }
+    // And the wait itself, carrying on where the fill left off: the sweep
+    // that filled runs back out over the confirm window, empty at the moment
+    // the press fires. It is the one channel that can say how much longer
+    // without moving anything - the badge is already leaning, and a lean that
+    // also travelled would be two statements laid over one another.
+    NumberAnimation {
+      id: drain
+      target: filling
+      property: "swept"
+      from: 1
+      to: 0
+      duration: Math.max(1, badge.lapMs)
+      // Linear because the sweep is the clock: eased, the badge would spend
+      // the last quarter of the wait looking as though it were already done.
+      easing.type: Easing.Linear
     }
 
     // The dimming waits with the fill and then walks off over what is left of
@@ -519,14 +583,21 @@ Item {
     BadgeArt {
       anchors.fill: parent
       drawn: badge.art
-      fill: Util.alpha(root.foreground, badge.lit)
-      ink: root.foreground
-      ringColor: root.foreground
+      fill: Util.alpha(root.foreground,
+                       root.stencil ? badge.solidLit : badge.lit)
+      ink: root.stencil
+        ? Util.alpha(root.foreground, badge.inkLit) : root.foreground
+      knockout: root.stencil
+      ringColor: root.stencil
+        ? Util.alpha(root.foreground, badge.inkLit) : root.foreground
       ringWidth: Math.max(1, metrics.space(1))
 
       // Long enough to be seen as a change, short enough that a tap still
       // reads as a tap rather than as a glow that arrives after the press.
       Behavior on fill { ColorAnimation { duration: 90 } }
+      // The label crosses on the same clock as the fill it is trading places
+      // with; two durations would show the badge as blank in between.
+      Behavior on ink { ColorAnimation { duration: 90 } }
     }
 
     // A counted-down hold fills the badge in from the left, the way anything
@@ -539,8 +610,10 @@ Item {
     //
     // It fills once and once only, over what is left of `hold_ms` once the
     // opening wait is out of the way (`lapWaitMs`). The confirm window that
-    // follows is the same wait continuing, so the badge stays full through it
-    // and trembles instead; see `onArmedChanged`.
+    // follows is the same wait continuing, so rather than fill a second time
+    // it runs this same sweep back out - full at the tick, empty as the press
+    // fires - while the badge leans the way it is about to move things; see
+    // `enterHold`.
     Item {
       id: filling
 
@@ -572,10 +645,14 @@ Item {
         width: badge.width
         drawn: badge.art
         // Over the badge's own fill, not instead of it: enough to read as
-        // filled, not so much that the label sinks into it.
-        fill: Util.alpha(root.foreground, 0.45)
-        ink: root.foreground
-        ringColor: root.foreground
+        // filled, not so much that the label sinks into it. A stencil badge
+        // is most of the way there already, so its sweep goes to solid - and
+        // its label stays a hole, which is what keeps the two in register as
+        // the window widens over them.
+        fill: Util.alpha(root.foreground, root.stencil ? 1.0 : 0.45)
+        ink: root.stencil ? "transparent" : root.foreground
+        knockout: root.stencil
+        ringColor: root.stencil ? "transparent" : root.foreground
         ringWidth: Math.max(1, metrics.space(1))
       }
     }
@@ -595,7 +672,9 @@ Item {
       // squeezed to the width at one shared size, not by stepping down a
       // size, which made a row of badges read as two type sizes.
       text: badge.label
-      color: root.foreground
+      // Typed into the same shape the drawn ones are punched out of, so on a
+      // stencil badge it is the bar showing through the letter.
+      color: root.stencil ? Color.bar.background : root.foreground
       font.family: buttonArt.family
       font.pixelSize: Math.round(badge.unit * 0.44)
       fontSizeMode: Text.HorizontalFit

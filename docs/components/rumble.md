@@ -21,7 +21,8 @@ Settings: `[rumble] enabled`, `strong`, `weak`, `duration_ms`.
 
 ## Rules
 
-- Nothing here decides *when* to buzz. The daemon does, from the binding and
-  from `[snap] rumble`.
+- Nothing here decides *when* to buzz. The daemon does, from the binding, from
+  `[snap] rumble` and from `[mode] rumble` - the mode switch, whose result is
+  across the room rather than under the thumb.
 - A new effect kind would be a second uploaded effect, not a re-upload per
   press.

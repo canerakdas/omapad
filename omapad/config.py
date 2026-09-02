@@ -103,14 +103,22 @@ def detect_profile(name, vid_pid):
     return "xbox"
 
 
+# The two ways a badge is drawn. `filled` washes the shape in the surface's
+# own colour and sets the label on top of it; `stencil` fills the shape with
+# the accent and punches the label through it. Named here because the config,
+# the menu row and the payload all have to agree on the words.
+BADGE_STYLES = ("filled", "stencil")
+
+
 # ---------------------------------------------------------------------------
 # The settings the pad itself can change.
 #
 # Everything else in this file is decided at a keyboard, which is the right
 # place for most of it. These four are not: which profile a pad takes and what
 # its badges print are exactly the questions someone has while holding the
-# thing and getting the wrong answer, and the motor is a preference you change
-# in the room you are sitting in. So they can be reached from `pad:` - a menu
+# thing and getting the wrong answer, how those badges are drawn is a question
+# you have while looking at them from a sofa, and the motor is a preference you
+# change in the room you are sitting in. So they can be reached from `pad:` - a menu
 # row, or a button - and what the pad chose is written to settings.toml.
 #
 # `attr` is where the value lives on Config once loaded, `table`/`key` where it
@@ -127,6 +135,13 @@ CHOSEN = {
         "attr": "layout_name", "table": "device", "key": "layout",
         "kind": "choice",
         "choices": ("auto",) + tuple(sorted(guide_module.LAYOUTS)),
+    },
+    # How the badges are drawn, which is the other half of what they print:
+    # the answer depends on how far away the screen is, so it is asked from
+    # where you are sitting rather than at a keyboard.
+    "badge_style": {
+        "attr": "ui_badge_style", "table": "ui", "key": "badge_style",
+        "kind": "choice", "choices": BADGE_STYLES,
     },
     "rumble": {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
@@ -303,6 +318,13 @@ def _load_toml(path):
 # to is the wrong side of that trade.
 APP_PAGE_TTL = 10.0
 APP_PAGE_LIMIT = 8
+
+# What a [profile.<name>] table may hold besides a held layer's own bindings.
+# A closed list, so a key that is neither this nor a [layers.*] name is a typo
+# rather than a setting nobody has implemented yet.
+PROFILE_KEYS = frozenset(
+    ("match", "bindings", "osk", "left_stick", "right_stick")
+)
 
 
 def _page_entry(profile, entry):
@@ -483,6 +505,10 @@ class Config:
             raise ConfigError("mode.start must be 'desktop' or 'game'")
         self.grab = bool(mode.get("grab", True))
         self.notify = bool(mode.get("notify", True))
+        # The switch is the one press whose result you may not be looking
+        # at, so it is felt as well as seen. `[rumble] enabled` still wins:
+        # this asks for a tick, it does not turn the motor on.
+        self.mode_rumble = bool(mode.get("rumble", True))
         # How often to ask whether the focused app has opened the pad. Focus
         # changes trigger the question anyway; this catches the app that opens
         # it a moment after it comes up, which is most of them.
@@ -688,6 +714,13 @@ class Config:
                             ("game_scale", self.ui_game_scale)):
             if value <= 0:
                 raise ConfigError("ui.%s must be greater than zero" % name)
+        # The shell cannot read this file, so which of the two a surface draws
+        # travels in its payload beside the scale.
+        self.ui_badge_style = str(ui.get("badge_style", "filled"))
+        if self.ui_badge_style not in BADGE_STYLES:
+            raise ConfigError(
+                "ui.badge_style must be one of %s" % ", ".join(BADGE_STYLES)
+            )
 
         osk = data.get("osk", {})
         self.osk_socket = osk.get("socket") or None
@@ -750,17 +783,14 @@ class Config:
         self.gamebar_height = int(gamebar.get("height", 32))
         if self.gamebar_height < 1:
             raise ConfigError("gamebar.height must be 1 or more")
-        # How far a badge leans while an announced hold counts down, in the
-        # same units as the height, and how long one lean-and-back takes. The
-        # tremble is the whole of what the confirm window looks like now, so
-        # both are worth being able to turn: nothing at all with 0, or big
-        # enough to catch the corner of your eye across a room.
-        self.gamebar_tremble = int(gamebar.get("confirm_tremble", 2))
-        if self.gamebar_tremble < 0:
-            raise ConfigError("gamebar.confirm_tremble must be 0 or more")
-        self.gamebar_tremble_ms = int(gamebar.get("confirm_tremble_ms", 90))
-        if self.gamebar_tremble_ms < 1:
-            raise ConfigError("gamebar.confirm_tremble_ms must be 1 or more")
+        # How far a badge leans at the tick, in the same units as the height.
+        # Only the reach is a setting: the lean is one flick and then it
+        # stays, and how much longer is left is the sweep's to say. Nothing at
+        # all with 0, or big enough to catch the corner of your eye across a
+        # room.
+        self.gamebar_lean = int(gamebar.get("confirm_lean", 2))
+        if self.gamebar_lean < 0:
+            raise ConfigError("gamebar.confirm_lean must be 0 or more")
         # How long a badge sits dimmed before it starts filling. A hold that
         # begins to fill on contact flickers under a shoulder tapped to walk
         # browser tabs, which is the commonest press these buttons take; a
@@ -774,6 +804,33 @@ class Config:
         # are. By action rather than by button, so rebinding carries the
         # omission with it.
         self.gamebar_omit = tuple(gamebar.get("omit", list(gamebar_module.COMMON)))
+        # Which regions of the pad the row of hints prints for - the face
+        # buttons by default, because they are the half of the pad that
+        # changes under you. See gamebar.HINTED for why the shoulders are not
+        # in it. Named by kind rather than by button so a widened list picks
+        # up every button in the region without naming any of them.
+        bar_kinds = gamebar.get("kinds", list(gamebar_module.HINTED))
+        if not isinstance(bar_kinds, (list, tuple)):
+            raise ConfigError("gamebar.kinds must be a list of button kinds")
+        if not bar_kinds:
+            raise ConfigError(
+                "gamebar.kinds must name at least one kind of button - the "
+                "bar has nowhere else to say what the pad does right now"
+            )
+        known = sorted(set(guide_module.KINDS.values()))
+        for kind in bar_kinds:
+            if kind not in known:
+                raise ConfigError(
+                    "gamebar.kinds: unknown kind %r (one of: %s)"
+                    % (kind, ", ".join(known))
+                )
+        self.gamebar_kinds = tuple(bar_kinds)
+        # Whether the hints are one word or the phrase the guide prints. The
+        # bar is glanced at over the top of a game and has three slots to say
+        # where you are in; the guide is the page you read. Turn it off for
+        # the long form in both places - a bar across a room, or a scheme
+        # whose bindings are hard to name in a word.
+        self.gamebar_brief = bool(gamebar.get("brief", True))
         # Whether a pointer may fire what a badge names. The bar was drawn for
         # a thumb, but game mode is the couch environment and not a hand-off:
         # the desktop is still there, and so is whatever pointer is on it. Off
@@ -893,6 +950,12 @@ class Config:
         # focused window by class and layers its own [bindings] over the shipped
         # ones. The resolution order becomes profile -> layer -> base, so an app
         # changes only the buttons it names and everything else keeps working.
+        #
+        # Its bindings are the app's scheme *at rest* and stop where a modifier
+        # starts (item 38): ZL + B closes the window in every app, whatever B
+        # is worth in the one in front. An app that wants a held layer's button
+        # too names the layer - [profile.<name>.window] - and that table is read
+        # in [bindings.window]'s place for as long as the app has focus.
         self.profiles = []
         for name, spec in (data.get("profile") or {}).items():
             if not isinstance(spec, dict):
@@ -909,11 +972,31 @@ class Config:
             bindings = spec.get("bindings") or {}
             if not isinstance(bindings, dict):
                 raise ConfigError("profile %r bindings must be a table" % name)
+            # Every other key is a held layer the app disagrees with. Unknown
+            # ones raise rather than being ignored, because the failure is
+            # otherwise silent: [profile.shell.windows] would simply never
+            # fire, and nothing on screen would say why.
+            layers = {}
+            for key, table in spec.items():
+                if key in PROFILE_KEYS:
+                    continue
+                if self.layer(key) is None:
+                    raise ConfigError(
+                        "profile %r: %r is neither a profile key (%s) nor a "
+                        "layer in [layers.*]"
+                        % (name, key, ", ".join(sorted(PROFILE_KEYS)))
+                    )
+                if not isinstance(table, dict):
+                    raise ConfigError(
+                        "profile %r layer %r must be a table" % (name, key)
+                    )
+                layers[key] = table
             self.profiles.append(
                 {
                     "name": name,
                     "match": [m.strip().lower() for m in matches],
                     "bindings": bindings,
+                    "layers": layers,
                     "osk": parse_app_page(name, spec.get("osk")),
                     # An app may also disagree about what a stick is for. Empty
                     # means "whatever the layer says", so a profile that only
@@ -956,21 +1039,38 @@ class Config:
     def binding_with_profile(self, profile, layer_name, button):
         """The binding a button has when a profile is active.
 
-        A profile overrides the base layer and the held layers it sits on top
-        of - an app can swap what a button does whether it is at rest or in the
-        window layer. It never reaches the implicit surfaces (osk, menu,
-        guide): a surface drawn on screen still outranks the app underneath.
-        Nor game mode: what is bound there is the short list the game does not
-        get, and an app underneath does not get to lengthen it.
-        A button a profile does not name falls through to the ordinary
+        `[bindings]` is the app's scheme at rest, so it overrides the base
+        layer and game mode, which is the same desktop with a bar on it. It
+        stops at a held layer (item 38): the modifier is the desktop's, not the
+        app's, so `ZL` + `B` closes the window whatever `B` is worth in the app
+        in front - which is also the only reading under which the guide's
+        window page, which knows nothing about profiles, tells the truth.
+        An app that wants a window op of its own says so by name, and
+        `[profile.<name>.window]` is read in `[bindings.window]`'s place.
+
+        It never reaches the implicit surfaces (osk, menu, guide) at all: a
+        surface drawn on screen still outranks the app underneath, and neither
+        a table nor a layer name can ask for one.
+        A button no profile table names falls through to the ordinary
         layer -> base resolution.
         """
-        if profile is not None and (
-            layer_name in ("base", "game") or self.layer(layer_name) is not None
-        ):
-            binding = profile["bindings"].get(button)
+        if profile is None:
+            return self.binding_for(layer_name, button)
+        if layer_name not in ("base", "game"):
+            held = (profile.get("layers") or {}).get(layer_name, {})
+            binding = held.get(button)
             if binding is not None:
                 return binding
+            binding = self.bindings.get(layer_name, {}).get(button)
+            layer = self.layer(layer_name)
+            if binding is not None or layer is None or not layer.fallthrough:
+                return binding
+            # A layer that falls through means "this button does what it does
+            # anywhere else", and under an app that is the app's own binding.
+            layer_name = "base"
+        binding = profile["bindings"].get(button)
+        if binding is not None:
+            return binding
         return self.binding_for(layer_name, button)
 
     def binding_for(self, layer_name, button):
@@ -1005,11 +1105,14 @@ class Config:
         desktop from the couch, and a thumb is worth different things there.
 
         A profile then has the last word, over the same layers its bindings
-        reach: what a stick is worth is an app's question as much as a
-        button's. Game mode's `focus` stick is the case that forced this - it
-        walks the focused app's own controls, and a browser scrolls whatever
-        holds the focus rather than what the pointer is over, so the wheel is
-        the better answer there and nowhere else.
+        reach - base and game mode, never a held one: what a stick is worth is
+        an app's question as much as a button's, but while `ZL` is down both
+        sticks belong to the window (item 38), so a browser's wheel does not
+        follow the modifier in and take resize / move with it. Game mode's
+        `focus` stick is the case that forced this - it walks the focused app's
+        own controls, and a browser scrolls whatever holds the focus rather
+        than what the pointer is over, so the wheel is the better answer there
+        and nowhere else.
         """
         layer = self.layer(layer_name)
         if layer is not None:
@@ -1021,9 +1124,7 @@ class Config:
             )
         else:
             roles = (self.left_stick, self.right_stick)
-        if profile is not None and (
-            layer_name in ("base", "game") or layer is not None
-        ):
+        if profile is not None and layer_name in ("base", "game"):
             roles = (
                 profile.get("left_stick") or roles[0],
                 profile.get("right_stick") or roles[1],

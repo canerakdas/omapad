@@ -33,8 +33,11 @@ osk.sock  menu.sock  guide.sock  mapping.sock  gamebar.sock  status.sock
 
 See [`../conventions/data.md`](../conventions/data.md). In short: field names
 are short and stable, every field is optional and additive, and everything the
-plugin needs - including the surface scale and the bar's own proportions - is
-in the payload, because the plugin cannot read the config.
+plugin needs - including the surface scale, the style its badges are drawn in
+and the bar's own proportions - is in the payload, because the plugin cannot
+read the config. `Daemon.scaled()` stamps the two that are true of every
+surface at once onto whatever a model returns, so no model has to remember
+them.
 
 ## Do not
 

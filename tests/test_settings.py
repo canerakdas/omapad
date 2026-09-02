@@ -186,5 +186,28 @@ class ActionTests(unittest.TestCase):
         self.assertIsNone(actions.parse("exec:true").state(ctx))
 
 
+class BadgeStyleTests(unittest.TestCase):
+    """The style is chosen from the sofa, so it is held to the same rules."""
+
+    def test_the_pad_can_ask_for_either_style(self):
+        for style in ("filled", "stencil"):
+            self.assertEqual(
+                config_module.setting_request("badge_style", style),
+                ("set", style),
+            )
+
+    def test_a_style_nothing_draws_is_named_rather_than_ignored(self):
+        with self.assertRaises(config_module.SettingError) as caught:
+            config_module.setting_request("badge_style", "outline")
+        self.assertIn("stencil", str(caught.exception))
+
+    def test_a_bad_style_in_the_config_names_the_key(self):
+        # `omapad check` has to say where the mistake is, not fail at the
+        # first badge someone looks at.
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"ui": {"badge_style": "outline"}})
+        self.assertIn("ui.badge_style", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

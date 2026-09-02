@@ -455,6 +455,8 @@ class Daemon:
         self.push_open_views()
         self.push_status_view()
         log.info("mode: %s", mode)
+        if self.config.mode_rumble:
+            self.rumble.pulse()
         if self.config.notify:
             self.session.notify(
                 "omapad",
@@ -1111,9 +1113,15 @@ class Daemon:
         return self.config.ui_scale
 
     def scaled(self, state):
-        """One surface payload, with the scale it should be drawn at."""
+        """One surface payload, stamped with how it should be drawn.
+
+        Both of these are settings the panel cannot read for itself, and both
+        are answers every surface needs, so they are stamped in one place
+        rather than remembered by six callers.
+        """
         if isinstance(state, dict):
             state["scale"] = self.view_scale()
+            state["badge"] = self.config.ui_badge_style
         return state
 
     def push_osk_view(self):
@@ -1395,6 +1403,12 @@ class Daemon:
             self.apply_layout()
         elif name == "layout":
             self.apply_layout()
+        elif name == "badge_style":
+            # The other thing that is true of every surface at once. Without
+            # this it waits out the heartbeat, and a menu row that ticks a
+            # second before the bar behind it changes reads as a press that
+            # did not take.
+            self.push_open_views()
         elif name in ("rumble", "rumble_strength"):
             # The effect is uploaded once per connection, so a strength that
             # changed only reaches the motor by replacing it.
@@ -1467,8 +1481,8 @@ class Daemon:
         """Redraw whatever is on screen, without waiting for the heartbeat.
 
         For the things that are true of every surface at once - the scale the
-        mode asks for - rather than for one surface's own state, which pushes
-        itself.
+        mode asks for, the style its badges are drawn in - rather than for one
+        surface's own state, which pushes itself.
         """
         if self.osk_open:
             self.push_osk_view()

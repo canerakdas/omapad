@@ -38,6 +38,27 @@ Lookups the daemon uses:
 | `profile_for(name, vid_pid)` | the controller profile at connect time |
 | `badge_layout(profile_name)` | which console's labels the badges print |
 
+## Application profiles
+
+`[profile.<name>]` matches the focused window by class (case-insensitive
+substring, first declared wins) and its `[bindings]` are read in front of the
+**base layer and game mode**. They stop there: a held layer keeps its own
+table, so `ZL` + `B` closes the window whatever the app in front does with `B`,
+and the guide's window page - which never asks about profiles - stays true.
+
+An app that wants a held layer's button says which layer, and the table is read
+in that layer's place:
+
+```toml
+[profile.myapp.window]
+X = { tap = "exec:my-window-thing", desc = "..." }
+```
+
+`PROFILE_KEYS` is what a profile table may hold besides a layer name
+(`match`, `bindings`, `osk`, `left_stick`, `right_stick`); anything else raises
+`ConfigError` at load, because a mistyped layer name would otherwise be a
+binding that silently never fires.
+
 ## Profiles and layouts
 
 `PROFILES` maps a profile name to its button table (`nintendo_pro`, `xbox`);

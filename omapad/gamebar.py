@@ -38,6 +38,20 @@ PREFERRED = (
 # Beyond this the row stops reading as a hint and starts reading as a list.
 MAX_ACTIONS = 3
 
+# Which regions of the pad the row of hints is about - by kind, the way the
+# guide groups them. The face buttons, and by default only them: they are the
+# half of the pad that changes under you. An application profile rewrites X and
+# Y, a layer rewrites all four, and what they mean where you are standing right
+# now is what three slots are worth spending on.
+#
+# A shoulder or a trigger carries the same job wherever the scheme goes - ZR
+# clicks, L and R walk the workspaces - so a slot spent on one says what the
+# pad already said the first time you pressed it, in place of something you did
+# not know. The two that walk the workspaces are drawn beside the workspaces
+# anyway, and the one that opens the menu on the left: widening this list is
+# about the row of hints and nothing else.
+HINTED = ("face",)
+
 # Gestures that mean the same thing wherever you are - confirm and go back, on
 # this scheme - teach nothing by being printed. The bar has three slots and
 # they are worth spending on what is different about where you are now.
@@ -225,18 +239,25 @@ class GameBarModel:
 
     def actions(self, resolve, available, exclude=(), omit=COMMON):
         rows = []
+        kinds = self.config.gamebar_kinds
         for button in PREFERRED:
             if len(rows) >= MAX_ACTIONS:
                 break
             if button in exclude:
                 continue
+            if guide.KINDS.get(button, "system") not in kinds:
+                continue  # not the half of the pad that changes; see HINTED
             if available is not None and button not in available:
                 continue
             if _tap_of(resolve(button)) in omit:
                 continue  # the same everywhere: printing it says nothing
             # The guide already turns a binding into words, and a hint that
-            # disagreed with the guide would be worse than no hint.
-            row = guide.button_row(button, resolve(button), self.layout)
+            # disagreed with the guide would be worse than no hint. It is
+            # asked for the short form of them: the guide is read from a page
+            # with the pad in your lap, the bar is glanced at over a game.
+            row = guide.button_row(
+                button, resolve(button), self.layout, self.config.gamebar_brief
+            )
             if row is not None:
                 # Added here rather than in `button_row`: the guide prints
                 # rows to be read, and only the bar has anything to press.
@@ -289,11 +310,12 @@ class GameBarModel:
             # How tall to stand. Sent rather than left to the plugin because
             # how far away the sofa is is a setting, not a shell constant.
             "h": self.config.gamebar_height,
-            # How far an armed badge leans, and how fast. Sent for the same
-            # reason the height is: it has to be seen from the sofa, and how
-            # far away that is only the user knows.
-            "tremble": self.config.gamebar_tremble,
-            "tremble_ms": self.config.gamebar_tremble_ms,
+            # How far an armed badge leans. Sent for the same reason the
+            # height is: it has to be seen from the sofa, and how far away
+            # that is only the user knows. How long the confirm window runs
+            # is not sent beside it - the badge already has it out of
+            # `holding`, and it is the sweep that spends it.
+            "lean": self.config.gamebar_lean,
             # And how long it waits before it starts filling, so a tap of the
             # same button does not flash a fill nobody was asking for.
             "fill_delay_ms": self.config.gamebar_fill_delay_ms,

@@ -41,6 +41,11 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+  // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
+  // field rather than a shell constant: the panel cannot read the config, and
+  // the answer changes from the menu while the surface is up.
+  property string badgeStyle: "filled"
+  readonly property bool stencil: root.badgeStyle === "stencil"
 
   Metrics {
     id: metrics
@@ -61,7 +66,8 @@ Item {
   readonly property int columnGap: metrics.space(28)
   readonly property int groupGap: metrics.space(14)
   readonly property int rowGap: metrics.space(5)
-  readonly property int badgeUnit: Math.max(metrics.space(22), metrics.font.body + metrics.space(8))
+  readonly property int badgeUnit: metrics.badge(
+    Math.max(metrics.space(22), metrics.font.body + metrics.space(8)))
   // A shoulder is drawn twice as wide as it is tall; every row indents past
   // that, so a column of badges lines its descriptions up whatever is in it.
   readonly property int badgeWide: Math.round(badgeUnit * 2)
@@ -118,6 +124,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.title !== undefined) root.title = s.title
       if (s.note !== undefined) root.note = s.note
       if (s.page !== undefined) root.page = s.page
@@ -181,10 +188,22 @@ Item {
       // No outline: a drawn button is read by its silhouette, and a line
       // around it read as a frame someone had put the button in. The fill
       // carries the shape on its own, which is why it is heavier than the
-      // tenth an outlined badge needed.
-      fill: Util.alpha(Color.menu.text, 0.18)
-      ink: Color.menu.text
-      ringColor: Util.alpha(Color.menu.text, 0.55)
+      // tenth an outlined badge needed - and it is the accent, because the
+      // badge is the one thing on the card the eye is hunting for. The label
+      // stays the card's own text: an accent readable as a heading is not
+      // always readable as a letter inside a badge.
+      // Filled washes the shape in the accent and sets the label on it in
+      // the card's own text. Stencil takes the accent to full strength and
+      // makes the label the hole in it, so the card shows through the letter
+      // and the badge carries from across a room.
+      fill: root.stencil ? Color.accent : Util.alpha(Color.accent, 0.30)
+      ink: root.stencil ? "transparent" : Color.menu.text
+      knockout: root.stencil
+      // The stick's rim is part of the drawing, not a border, so it is
+      // punched along with the label rather than left as a line on a solid
+      // badge.
+      ringColor: root.stencil
+        ? Color.menu.background : Util.alpha(Color.accent, 0.55)
       ringWidth: Math.max(1, metrics.space(1))
     }
 
@@ -209,7 +228,10 @@ Item {
       // a row of badges read as two type sizes, so every badge is set at
       // one size and only the labels that overrun are squeezed to the width.
       text: badge.label
-      color: Color.menu.text
+      // A label with no drawing behind it is typed into the same shape, so it
+      // is punched the same way: on a solid badge it is the card showing
+      // through, and on a washed one it is the card's text.
+      color: root.stencil ? Color.menu.background : Color.menu.text
       font.family: buttonArt.family
       font.pixelSize: metrics.font.bodySmall
       fontSizeMode: Text.HorizontalFit

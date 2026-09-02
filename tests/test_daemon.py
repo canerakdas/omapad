@@ -497,6 +497,21 @@ class RumbleTests(DaemonTestCase):
         self.release("A")
         self.assertEqual(self.device.played, [])
 
+    def test_switching_mode_ticks_the_pad_both_ways(self):
+        # The switch is the press whose result you may not be looking at, so
+        # it is felt going in and coming back out.
+        self.daemon.set_mode("game")
+        self.daemon.set_mode("desktop")
+        self.assertEqual(
+            self.device.played,
+            [self.daemon.rumble.effect_id] * 2,
+        )
+
+    def test_a_switch_can_be_left_silent(self):
+        self.config.mode_rumble = False
+        self.daemon.set_mode("game")
+        self.assertEqual(self.device.played, [])
+
     def test_a_pad_the_app_has_taken_neither_acts_nor_buzzes(self):
         self.daemon.handed_over = True
         self.press("Y")
@@ -1875,12 +1890,14 @@ class AppProfileTests(DaemonTestCase):
         # terminal too, and declared first it would answer these instead.
         self.config.profiles = []
 
-    def _add_profile(self, name="shell", match=("foot",), bindings=None):
+    def _add_profile(self, name="shell", match=("foot",), bindings=None,
+                     layers=None):
         self.config.profiles.append(
             {
                 "name": name,
                 "match": [m.lower() for m in match],
                 "bindings": bindings or {},
+                "layers": layers or {},
             }
         )
 
@@ -1927,15 +1944,39 @@ class AppProfileTests(DaemonTestCase):
         self.assertEqual(self.keyboard.chords, [((), keymap.resolve("ENTER"), True)])
         self.release("A")
 
-    def test_profile_overrides_the_window_layer_too(self):
-        self._add_profile(bindings={"A": "click:middle"})
+    def test_the_profile_stops_where_the_modifier_starts(self):
+        # Item 38: the app owns the face buttons at rest, the modifier is the
+        # desktop's. ZL + B closes the window whatever B is worth in the app
+        # in front, which is what the guide's window page has always said.
+        self._add_profile(bindings={"A": "click:middle",
+                                    "B": "key:CTRL+SHIFT+D"})
         self.daemon.set_active_profile("foot")
-        # Hold the window layer, then A should follow the profile, not the layer.
         self.press("ZL")
         self.assertEqual(self.daemon.current_layer, "window")
+        for button in ("A", "B"):
+            self.press(button)
+            self.release(button)
+        self.assertEqual(self.mouse.buttons, [])
+        self.assertEqual(
+            self.hypr.calls,
+            [
+                "hl.dsp.window.fullscreen({ mode = 'fullscreen' })",
+                "hl.dsp.window.close()",
+            ],
+        )
+        self.release("ZL")
+
+    def test_unless_it_names_the_layer_it_wants(self):
+        self._add_profile(layers={"window": {"A": "click:middle"}})
+        self.daemon.set_active_profile("foot")
+        self.press("ZL")
         self.press("A")
         self.assertEqual(self.mouse.buttons, [("middle", True)])
         self.release("A")
+        # The rest of the layer is untouched: only the button it names moves.
+        self.press("B")
+        self.release("B")
+        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
         self.release("ZL")
 
     def test_no_profile_means_the_ordinary_map(self):
@@ -2346,6 +2387,80 @@ class DiscordProfileTests(DaemonTestCase):
         )
 
 
+class YouTubeProfileTests(DaemonTestCase):
+    """The shipped [profile.youtube]: the television's two controls."""
+
+    WEBAPP = "chrome-www.youtube.com__-Default"
+
+    def chord(self, *names):
+        code = keymap.resolve(names[-1])
+        mods = tuple(keymap.resolve(name) for name in names[:-1])
+        return [(mods, code, True), (mods, code, False)]
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.set_active_profile(self.WEBAPP)
+
+    def test_x_plays_and_y_fills_the_screen(self):
+        # `k` rather than Space: Space scrolls the page whenever the player is
+        # not the focused element.
+        self.press("X")
+        self.release("X")
+        self.assertEqual(self.keyboard.chords, self.chord("K"))
+        self.keyboard.chords = []
+        self.press("Y")
+        self.release("Y")
+        self.assertEqual(self.keyboard.chords, self.chord("F"))
+
+    def test_a_and_b_are_left_alone_because_they_already_fit(self):
+        # Enter opens the thumbnail the stick walked to; Esc is how a browser
+        # leaves fullscreen, which is B going back in the player's own words.
+        for button, key in (("A", "ENTER"), ("B", "ESC")):
+            self.keyboard.chords = []
+            self.press(button)
+            self.release(button)
+            self.assertEqual(self.keyboard.chords, self.chord(key))
+
+    def test_the_stick_clicks_carry_the_search_and_the_way_back(self):
+        self.press("LSTICK")
+        self.release("LSTICK")
+        self.assertEqual(self.keyboard.chords, self.chord("SLASH"))
+        self.keyboard.chords = []
+        self.press("RSTICK")
+        self.release("RSTICK")
+        self.assertEqual(self.keyboard.chords, self.chord("ALT", "LEFT"))
+
+    def test_the_webapp_beats_the_browser_profile_to_the_class(self):
+        # 35's trap: a webapp class matches "chrome" as squarely as it matches
+        # its own host, and the first profile declared wins.
+        self.assertEqual(
+            self.config.profile_matching(self.WEBAPP)["name"], "youtube"
+        )
+        self.assertEqual(
+            self.config.profile_matching("chrome-youtube.com__-Default")["name"],
+            "youtube",
+        )
+
+    def test_youtube_music_is_not_youtube(self):
+        # None of these keys exist there, so the host is matched with its
+        # leading dash rather than as the bare word "youtube".
+        self.assertEqual(
+            self.config.profile_matching(
+                "chrome-music.youtube.com__-Default"
+            )["name"],
+            "browser",
+        )
+
+    def test_the_shoulders_stay_the_workspaces(self):
+        # A webapp has no tabs to walk, so the one thing [profile.browser]
+        # spends them on does not apply here.
+        self.press("L")
+        self.release("L")
+        self.assertEqual(
+            self.hypr.calls, ["hl.dsp.focus({ workspace = 'r-1' })"]
+        )
+
+
 class ShellProfileTests(DaemonTestCase):
     """The shipped [profile.shell]: the keys a shell is driven with."""
 
@@ -2358,28 +2473,36 @@ class ShellProfileTests(DaemonTestCase):
         super().setUp()
         self.daemon.set_active_profile("foot")
 
-    def test_y_deletes_on_the_way_down_so_it_repeats(self):
+    def test_x_deletes_on_the_way_down_so_it_repeats(self):
         # Written plain rather than as a tap/hold: a tap/hold binding waits for
         # the release before its key goes down, and the autorepeat is the whole
         # point of a Backspace button.
-        self.press("Y")
+        self.press("X")
         self.assertEqual(self.keyboard.chords, self.chord("BACKSPACE")[:1])
-        self.release("Y")
+        self.release("X")
         self.assertEqual(self.keyboard.chords, self.chord("BACKSPACE"))
 
-    def test_x_pastes_the_clipboard(self):
-        # X carries a hold, so the tap goes out on the way back up.
-        self.press("X")
+    def test_backspace_is_on_the_same_button_as_the_keyboards(self):
+        # The pattern's whole point, and the one pair of surfaces a command is
+        # typed across: the key must not move under the thumb when the
+        # on-screen keyboard opens over the prompt and closes again.
+        profile = self.config.profile_matching("foot")
+        self.assertEqual(profile["bindings"]["X"], "key:BACKSPACE")
+        self.assertEqual(self.config.binding_for("osk", "X"), "key:BACKSPACE")
+
+    def test_y_pastes_the_clipboard(self):
+        # Y carries a hold, so the tap goes out on the way back up.
+        self.press("Y")
         self.assertEqual(self.keyboard.chords, [])
-        self.release("X")
+        self.release("Y")
         self.assertEqual(self.keyboard.chords, self.chord("CTRL", "SHIFT", "V"))
 
-    def test_holding_x_interrupts(self):
-        self.press("X")
-        pressed_at = self.daemon.held["X"].pressed_at
+    def test_holding_y_interrupts(self):
+        self.press("Y")
+        pressed_at = self.daemon.held["Y"].pressed_at
         self.daemon.check_hold_timers(pressed_at + 1.0)
         self.assertEqual(self.keyboard.chords, self.chord("CTRL", "C"))
-        self.release("X")
+        self.release("Y")
 
     def test_the_left_stick_click_clears_the_screen(self):
         self.press("LSTICK")
@@ -2397,11 +2520,13 @@ class ShellProfileTests(DaemonTestCase):
             self.config.binding_for("window", "B"),
         )
 
-    def test_x_is_no_longer_a_middle_click_here(self):
-        # The price of the paste above: the middle click - and with it the
-        # PRIMARY selection - is not on X in a terminal any more.
-        self.press("X")
-        self.release("X")
+    def test_neither_face_button_is_a_click_here(self):
+        # The price of the two overrides above: X was the middle click - and
+        # with it the PRIMARY selection - and Y was the right click. Neither
+        # is reachable from the pad in a terminal any more.
+        for button in ("X", "Y"):
+            self.press(button)
+            self.release(button)
         self.assertEqual(self.mouse.buttons, [])
 
 
@@ -2422,11 +2547,62 @@ class ConfigProfileResolutionTests(unittest.TestCase):
         self.assertEqual(cfg.binding_with_profile(profile, "base", "A"), "click:middle")
         # base Y is untouched -> falls through to the shipped base binding
         self.assertIsNotNone(cfg.binding_with_profile(profile, "base", "Y"))
-        # A the window layer: profile still wins; Y stays the window layer's
+        # A in the window layer: the modifier is the desktop's, so the layer
+        # keeps its own binding and Y is untouched either way.
         self.assertEqual(
-            cfg.binding_with_profile(profile, "window", "A"), "click:middle"
+            cfg.binding_with_profile(profile, "window", "A"),
+            cfg.binding_for("window", "A"),
         )
         self.assertIsNotNone(cfg.binding_with_profile(profile, "window", "Y"))
+
+    def test_a_profile_may_name_a_held_layer_to_reach_it(self):
+        # The capability the rule above takes away, given back by name: an app
+        # that really does want a window op of its own says which layer.
+        data = config_module._load_toml(config_module.DEFAULT_CONFIG_PATH)
+        data["profile"] = {
+            "shell": {
+                "match": "foot",
+                "bindings": {"A": "click:middle"},
+                "window": {"A": "exec:tile-me"},
+            }
+        }
+        cfg = config_module.Config(data)
+        profile = cfg.profile_matching("foot")
+        self.assertEqual(
+            cfg.binding_with_profile(profile, "window", "A"), "exec:tile-me"
+        )
+        # And only the button it names: B still closes the window.
+        self.assertEqual(
+            cfg.binding_with_profile(profile, "window", "B"),
+            cfg.binding_for("window", "B"),
+        )
+
+    def test_a_profile_key_that_is_no_layer_is_named_at_load(self):
+        # Silent otherwise: [profile.shell.windows] would simply never fire.
+        with self.assertRaises(config_module.ConfigError):
+            config_module.Config(
+                {"profile": {"shell": {"match": "foot", "windows": {}}}}
+            )
+        with self.assertRaises(config_module.ConfigError):
+            config_module.Config(
+                {
+                    "layers": {"window": {"button": "ZL"}},
+                    "profile": {"shell": {"match": "foot", "window": "bad"}},
+                }
+            )
+
+    def test_a_profile_stick_stops_at_the_held_layer_too(self):
+        data = config_module._load_toml(config_module.DEFAULT_CONFIG_PATH)
+        data["profile"] = {
+            "browser": {"match": "chromium", "right_stick": "scroll"}
+        }
+        cfg = config_module.Config(data)
+        profile = cfg.profile_matching("chromium")
+        self.assertEqual(cfg.stick_roles("base", profile)[1], "scroll")
+        # ZL down: both sticks are the window's, wheel or no wheel.
+        self.assertEqual(
+            cfg.stick_roles("window", profile), cfg.stick_roles("window")
+        )
 
     def test_a_surface_is_never_overridden_by_a_profile(self):
         cfg = self._config()
@@ -2918,6 +3094,32 @@ class FocusStickTests(DaemonTestCase):
         self.hold(1.0, 0.01)
         self.assertEqual(self.taps(self.tab), 0)
         self.assertEqual(self.daemon._focus_held, {})
+
+
+class BadgeStyleTests(DaemonTestCase):
+    """How a badge is drawn is the daemon's answer, not the panel's."""
+
+    def test_a_payload_says_which_style_to_draw(self):
+        # The shell cannot read the config, so a surface that is never told
+        # draws the shipped style for the life of the session.
+        self.config.ui_badge_style = "stencil"
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["badge"], "stencil")
+
+    def test_the_shipped_style_travels_too(self):
+        # Not only the changed one: a panel started against an older daemon
+        # has to be able to tell the default from a missing field.
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["badge"], "filled")
+
+    def test_choosing_it_redraws_what_is_already_up(self):
+        # Otherwise the menu row ticks and the surface behind it keeps the old
+        # drawing until the heartbeat, which reads as a press that missed.
+        self.daemon.set_menu(True)
+        self.menu_client.sent.clear()
+        self.daemon.set_setting("badge_style", ("set", "stencil"))
+        self.assertTrue(self.menu_client.sent, "the menu should be redrawn")
+        self.assertEqual(self.menu_client.sent[-1]["badge"], "stencil")
 
 
 class SurfaceScaleTests(DaemonTestCase):

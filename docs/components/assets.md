@@ -72,6 +72,27 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
   badge falls back to typed text. `tests/test_assets.py` fails both when a
   label has no art and when the checked-in output no longer matches the
   generator.
+- **Whether the label is set on the shape or punched out of it is
+  `BadgeArt.qml`'s job, not the generator's.** `knockout` appends the label to
+  the shape's own path under an odd-even fill rule, so the letter becomes a
+  hole and whatever is behind the badge shows through it. The drawing is the
+  same one either way - which is what makes `[ui] badge_style` a look rather
+  than a second set of shapes to keep in step.
+- **Draw a shape's flat edges on whole units.** A badge is scaled by
+  `unit / h`, so an edge on a half unit lands mid-pixel at every badge size
+  there is and comes out grey rather than drawn - `Metrics.badge` can snap the
+  box, not the drawing inside it. What put the drawings off the grid was
+  Figma's own habit: a seven-unit box centred on a sixteen-unit axis has to
+  have `.5` edges, and a 2.4-unit stroke has `.2` ones. So features are drawn
+  **even** and the strokes around them **whole**, and
+  `tests/test_assets.py::ShapesSitOnTheGrid` fails when one is not. Curves are
+  exempt - only a straight run has a single coordinate to land badly.
+
+  It buys the flat edge, not the whole drawing: a coordinate is *painted*
+  crisply only where `unit / h` also makes it whole. That is every multiple of
+  five for the system pill's own rim (8 and 32 of 40), and `unit` a multiple of
+  16 for the D-pad's arms (10 and 22 of 32) - which is why the cross still
+  reads a shade softer than the pill it sits beside.
 - `CAP_RATIO`, `MIN_PADDING`, `MIN_SCALE`, `SAMPLES`, `SETTLE`, `CURVE_STEPS`
   are the generator's own trade-offs, not user settings - they are the sampling
   and fitting numbers behind a drawing nobody configures.

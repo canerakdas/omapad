@@ -18,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "assets"))
 
 import generate
+import svgpath
 
 from omapad import config, guide
 
@@ -47,6 +48,50 @@ class AssetsAreCurrent(unittest.TestCase):
         for kind, _, _, labels in generate.BUTTONS_TO_DRAW:
             for label in labels:
                 self.assertIn('"%s:%s"' % (kind, label), self.qml)
+
+
+class ShapesSitOnTheGrid(unittest.TestCase):
+    """A flat edge drawn on half a unit is grey at every badge size there is.
+
+    A badge is the shape scaled by `unit / h`, and `Metrics.badge` snaps the
+    unit so the box comes out whole - but nothing can snap what is inside the
+    drawing. An edge on 12.5 lands on a half pixel wherever a whole unit lands
+    on a whole one, and the shell paints it as a smear instead of a line. It
+    is what a seven-unit box centred on a sixteen-unit axis costs, so features
+    are drawn even and the strokes around them whole.
+
+    Curves are exempt: only a straight run parallel to an axis has a single
+    coordinate to land badly.
+    """
+
+    # Shorter than this and there is no edge to see, only the tangent where a
+    # corner leaves its arc.
+    SEEN = 1.5
+
+    def test_every_flat_edge_of_every_shape_is_on_a_whole_unit(self):
+        for name in sorted(os.listdir(generate.SHAPES)):
+            if not name.endswith(".svg"):
+                continue
+            shape = generate.Shape(os.path.join(generate.SHAPES, name))
+            data = list(shape.fills) + [path for path, _ in shape.strokes]
+            for edge in self.flat_edges(data):
+                axis, at, length = edge
+                self.assertAlmostEqual(
+                    at, round(at), places=6,
+                    msg="%s: a %.1f unit edge at %s=%g is off the grid"
+                        % (name, length, axis, at))
+
+    def flat_edges(self, paths):
+        """(axis, coordinate, length) for every straight run along an axis."""
+        for data in paths:
+            for poly in svgpath.flatten(data):
+                for i in range(len(poly)):
+                    (x0, y0) = poly[i]
+                    (x1, y1) = poly[(i + 1) % len(poly)]
+                    if abs(y1 - y0) < 1e-6 and abs(x1 - x0) > self.SEEN:
+                        yield ("y", y0, abs(x1 - x0))
+                    elif abs(x1 - x0) < 1e-6 and abs(y1 - y0) > self.SEEN:
+                        yield ("x", x0, abs(y1 - y0))
 
 
 class EveryBadgeIsDrawn(unittest.TestCase):
