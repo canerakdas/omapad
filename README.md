@@ -21,7 +21,8 @@ already been typed.
 
 ## Contents
 
-[Installation](#installation) · [Two modes](#two-modes-desktop-and-game) ·
+[Installation](#installation) · [Removal](#removal) ·
+[Two modes](#two-modes-desktop-and-game) ·
 [Handing the pad to a game](#handing-the-pad-to-a-game) · [Game bar](#game-bar) ·
 [The pointer and snap](#not-having-to-aim-the-pointer-and-snap) ·
 [Focus traversal](#inside-the-window-focus-traversal) ·
@@ -109,6 +110,34 @@ Checking it:
 omapad check                    # config + the connected pad
 systemctl --user status omapad
 journalctl --user -u omapad -f
+```
+
+## Removal
+
+To undo the install, in reverse order:
+
+```bash
+# The drawing half: the shell plugin. Remove it with the shell's own command
+# if one exists, otherwise delete the directory.
+rm -rf ~/.config/omarchy/plugins/canerakdas.omapad
+
+# The daemon half.
+systemctl --user disable --now omapad.service
+rm -f ~/.config/systemd/user/omapad.service
+systemctl --user daemon-reload
+rm -f ~/.local/bin/omapad
+```
+
+`~/.config/omapad/` and the uinput permissions are left in place unless you
+remove them: they are harmless without the daemon, and the group membership
+is yours to keep or revoke. To take those out too:
+
+```bash
+rm -rf ~/.config/omapad
+sudo rm /etc/udev/rules.d/99-omapad-uinput.rules \
+      /etc/modules-load.d/omapad-uinput.conf
+sudo udevadm control --reload-rules
+sudo gpasswd -d "$USER" input    # the new session after this has no input group
 ```
 
 ## Two modes: desktop and game
