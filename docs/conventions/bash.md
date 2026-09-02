@@ -1,7 +1,7 @@
 # Bash style guide
 
-Two files: `bin/omapad` and `install.sh`. See [`README.md`](README.md) for
-how MUST / SHOULD / MAY are meant here.
+Three files: `bin/omapad`, `install.sh` and `boot.sh`. See
+[`README.md`](README.md) for how MUST / SHOULD / MAY are meant here.
 
 ## 1 What shell is for here
 
@@ -51,7 +51,9 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omapad"  # ✅
 
 **4.1** NEVER run it from an agent session, and never as part of a change: it
 uses `sudo`, writes a udev rule and touches the user's systemd units. It is
-the user's to run.
+the user's to run. The same goes for `boot.sh`, which ends by `exec`ing it -
+test that one against a local clone with `OMAPAD_REPO` and `OMAPAD_DIR`
+instead.
 
 **4.2** Every step MUST be idempotent and safe to re-run. A step already done
 says so and moves on.

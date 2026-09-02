@@ -53,5 +53,5 @@ Each is a model in the daemon, a socket, and a panel that only draws.
 |---|---|---|
 | [Shell plugin](shell-plugin.md) | `shell-plugin/`, `manifest.json` | The plugin itself: entry points, shared pieces, hot reload. |
 | [Button art](assets.md) | `assets/` | The drawn buttons and the generator that turns them into badges. |
-| [Packaging](packaging.md) | `install.sh`, `systemd/`, `udev/`, `bin/` | Permissions, the user unit, running from the checkout. |
+| [Packaging](packaging.md) | `boot.sh`, `install.sh`, `systemd/`, `udev/`, `bin/` | Fetching, permissions, the user unit, running from the checkout. |
 | [Tests](tests.md) | `tests/` | Synthetic events into fake recorders; no hardware. |

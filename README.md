@@ -48,23 +48,31 @@ leave the pad to a game.
 
 ## Installation
 
-`manifest.json` sits at the root of the repo, so Omarchy can fetch the whole
-thing — daemon and surfaces are one checkout — in a single command:
+One command, from nothing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/canerakdas/omapad/main/boot.sh | bash
+```
+
+`boot.sh` clones the repo straight into
+`~/.config/omarchy/plugins/canerakdas.omapad` — `manifest.json` is at the root,
+so the checkout **is** the plugin, with no symlink — and hands over to
+`install.sh` for the parts that need permissions. It is forty lines; read it
+first if you would rather not pipe a script into a shell.
+
+Or use Omarchy's own plugin command, which is two steps:
 
 ```bash
 omarchy plugin add https://github.com/canerakdas/omapad.git
-```
-
-That clones it into `~/.config/omarchy/plugins/canerakdas.omapad` and offers to
-enable the plugin, which is the drawing half. The input half needs permissions
-and a service, and those need `sudo`, so run the installer where it landed:
-
-```bash
 ~/.config/omarchy/plugins/canerakdas.omapad/install.sh
 ```
 
-Or keep the checkout wherever you keep things, and let `install.sh` do the
-linking itself:
+`omarchy plugin add` clones, validates and enables the drawing half. Nothing in
+the plugin system can grant `/dev/uinput` or install a user service — there is
+no post-install hook — so the installer is still its own step.
+
+Or keep the checkout wherever you keep things, and let `install.sh` link it
+into the plugins directory:
 
 ```bash
 git clone https://github.com/canerakdas/omapad.git
@@ -84,6 +92,15 @@ What `install.sh` does:
    as `canerakdas.omapad`, and enables it. If you came through `omarchy plugin
    add`, the checkout is already there and this step only enables it.
 5. Installs and starts the `omapad.service` user service.
+
+Updating it — `omarchy plugin update` only pulls, so re-run the installer when
+the pull touched the service or the udev rule. It is idempotent, and re-running
+it always is the simpler rule:
+
+```bash
+omarchy plugin update canerakdas.omapad
+~/.config/omarchy/plugins/canerakdas.omapad/install.sh
+```
 
 Checking it:
 

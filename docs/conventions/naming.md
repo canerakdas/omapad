@@ -29,6 +29,7 @@ omapad/
                     shell-plugin/, so `omarchy plugin add` finds it
   README.md         the user-facing manual, authoritative
   LICENSE           MIT; the vendored font keeps its own OFL beside it
+  boot.sh           the one-command bootstrap: clone, then hand over
   install.sh        the only script that uses sudo
 ```
 
