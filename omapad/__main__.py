@@ -240,7 +240,7 @@ def _check_keyboards(config):
 
 
 def cmd_ctl(config, words):
-    from . import control
+    from . import control, paths
 
     if not words:
         print("usage: omapad ctl "
@@ -249,6 +249,9 @@ def cmd_ctl(config, words):
         return 2
     try:
         print(control.send(" ".join(words), config.control_socket))
+    except paths.RuntimeDirError as exc:
+        print("omapad: %s" % exc, file=sys.stderr)
+        return 1
     except (OSError, ConnectionRefusedError) as exc:
         print("omapad: no running daemon (%s)" % exc, file=sys.stderr)
         return 1

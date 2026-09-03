@@ -1,11 +1,13 @@
 # View socket - `omapad/viewsock.py`
 
-58 lines, and one of the two load-bearing boundaries in the project.
+69 lines, and one of the two load-bearing boundaries in the project.
 
 ## The contract
 
 The daemon connects, as a client, to a socket the **plugin** listens on:
-`$XDG_RUNTIME_DIR/omapad/<surface>.sock`. It pushes one JSON object per
+`$XDG_RUNTIME_DIR/omapad/<surface>.sock`, located by
+[`paths.socket_path`](paths.md) - the daemon streams state into whatever
+listens there, so the directory has to be one only this user can write to. It pushes one JSON object per
 line, one line per state change, and re-sends everything every
 `VIEW_HEARTBEAT` seconds.
 

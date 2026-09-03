@@ -10,6 +10,11 @@ omapad ctl press A
 omapad ctl status
 ```
 
+The path comes from [`paths.socket_path`](paths.md) unless the config names
+one: `press A` runs whatever that button is bound to, up to any `exec:`, and
+nothing on the socket is authenticated, so the directory it sits in - per-user
+and 0700 - is what stands in for that.
+
 It exists for three cases: a Hyprland keybind that summons a surface, a script,
 and a pad that has gone flat mid-menu. `Surfaces.qml` uses it too - the shell's
 summon lands on `omapad ctl <verb> open` rather than on the panel opening

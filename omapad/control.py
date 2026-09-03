@@ -11,6 +11,8 @@ checking state:
 import os
 import socket
 
+from . import paths
+
 
 class ControlServer:
     """Answer commands over one or more connections, in the shape hyprctl uses.
@@ -23,9 +25,14 @@ class ControlServer:
     """
 
     def __init__(self, path=None):
-        runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
-        self.path = path or os.path.join(runtime, "omapad", "control.sock")
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        # A path out of the config is the user's own choice and is taken as
+        # written. The default is ours, so it is ours to make private: this
+        # socket takes commands that reach every `exec:` a binding can run.
+        if path:
+            self.path = path
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        else:
+            self.path = paths.socket_path("control.sock", create=True)
         # A socket left behind by a killed daemon would block the bind.
         if os.path.exists(self.path):
             try:
@@ -133,8 +140,7 @@ class ControlServer:
 
 def send(command, path=None):
     """Client side: send one command, return the daemon's reply."""
-    runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
-    path = path or os.path.join(runtime, "omapad", "control.sock")
+    path = path or paths.socket_path("control.sock")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(2.0)
         sock.connect(path)

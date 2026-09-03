@@ -43,7 +43,12 @@ Item {
   property real bandFraction: 0.09
   property real uiScale: 1.0
 
-  readonly property string socketDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omapad"
+  // $XDG_RUNTIME_DIR is per-user and 0700, and that is the only thing
+  // keeping another user off this socket. Without it there is nowhere
+  // private to bind, so bind nowhere: a socket under /tmp is one anybody
+  // on the machine can plant first and read what this surface is sent.
+  readonly property string socketDir: Quickshell.env("XDG_RUNTIME_DIR")
+    ? Quickshell.env("XDG_RUNTIME_DIR") + "/omapad" : ""
 
   Metrics {
     id: metrics
@@ -132,7 +137,7 @@ Item {
   // omapad connects here and streams state; it reconnects on its own, so the
   // shell and the daemon can restart in either order.
   SocketServer {
-    active: true
+    active: root.socketDir !== ""
     path: root.socketDir + "/ripple.sock"
     handler: Socket {
       parser: SplitParser {

@@ -31,7 +31,12 @@ BarWidget {
   property bool live: false
 
   readonly property bool game: mode === "game"
-  readonly property string socketDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omapad"
+  // $XDG_RUNTIME_DIR is per-user and 0700, and that is the only thing
+  // keeping another user off this socket. Without it there is nowhere
+  // private to bind, so bind nowhere: a socket under /tmp is one anybody
+  // on the machine can plant first and read what this surface is sent.
+  readonly property string socketDir: Quickshell.env("XDG_RUNTIME_DIR")
+    ? Quickshell.env("XDG_RUNTIME_DIR") + "/omapad" : ""
 
   function applyState(text) {
     try {
@@ -61,7 +66,7 @@ BarWidget {
   }
 
   SocketServer {
-    active: true
+    active: root.socketDir !== ""
     path: root.socketDir + "/status.sock"
     handler: Socket {
       parser: SplitParser {

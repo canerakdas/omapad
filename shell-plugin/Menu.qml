@@ -32,7 +32,12 @@ Item {
   property int sel: 0
   property int depth: 0
 
-  readonly property string socketDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/omapad"
+  // $XDG_RUNTIME_DIR is per-user and 0700, and that is the only thing
+  // keeping another user off this socket. Without it there is nowhere
+  // private to bind, so bind nowhere: a socket under /tmp is one anybody
+  // on the machine can plant first and read what this surface is sent.
+  readonly property string socketDir: Quickshell.env("XDG_RUNTIME_DIR")
+    ? Quickshell.env("XDG_RUNTIME_DIR") + "/omapad" : ""
 
   // How big this surface draws, from the daemon: the desktop is read at a
   // keyboard and game mode from a sofa, so the scale follows the mode rather
@@ -139,7 +144,8 @@ Item {
   // same control socket `omapad ctl` uses - `menu up`, `menu select 3`,
   // `menu press`. Commands are fire-and-forget: the answer to every one
   // comes back as a fresh line on menu.sock, so there is nothing to wait for.
-  readonly property string controlSock: root.socketDir + "/control.sock"
+  readonly property string controlSock:
+    root.socketDir ? root.socketDir + "/control.sock" : ""
   property var commands: []
   // The shell holds one connection open and streams commands; the daemon
   // answers each line and keeps the connection, so a key never pays for a
@@ -264,7 +270,7 @@ Item {
   // omapad connects here and streams state; it reconnects on its own, so the
   // shell and the daemon can restart in either order.
   SocketServer {
-    active: true
+    active: root.socketDir !== ""
     path: root.socketDir + "/menu.sock"
     handler: Socket {
       parser: SplitParser {

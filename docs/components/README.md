@@ -14,6 +14,7 @@ socket between them.
 | [CLI](cli.md) | `omapad/__main__.py`, `bin/omapad` | `run`, `dump`, `check`, `ctl`. |
 | [Control socket](control.md) | `omapad/control.py` | Driving the daemon without the pad. |
 | [View socket](viewsock.md) | `omapad/viewsock.py` | Line-delimited JSON to the plugin, best-effort. |
+| [Socket directory](paths.md) | `omapad/paths.py` | Where the sockets live, and refusing one that is not private. |
 
 ## Talking to the hardware
 
