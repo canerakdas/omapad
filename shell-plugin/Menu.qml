@@ -141,19 +141,29 @@ Item {
   // comes back as a fresh line on menu.sock, so there is nothing to wait for.
   readonly property string controlSock: root.socketDir + "/control.sock"
   property var commands: []
-  // The daemon answers one command per connection and hangs up, so at most
-  // one command is in flight; the queue drains one connection at a time.
+  // The shell holds one connection open and streams commands; the daemon
+  // answers each line and keeps the connection, so a key never pays for a
+  // fresh connect-and-hang-up, and a held arrow's auto-repeat drains in one
+  // write instead of one round trip per press.
   property bool ctlDown: false
 
   Socket {
     id: ctl
     path: root.controlSock
     connected: false
+    parser: SplitParser {
+      splitMarker: "\n"
+      // Replies are status lines; they tell this surface nothing it does
+      // not already know. Reading them keeps the stream from growing.
+      onRead: function(line) {}
+    }
     onConnectionStateChanged: {
-      if (ctl.connected && root.commands.length > 0)
-        ctl.write(root.commands.shift() + "\n")
-      else if (!ctl.connected && !root.ctlDown && root.commands.length > 0)
-        root.pumpCommands()
+      if (ctl.connected) {
+        root.ctlDown = false
+        root.flushCommands()
+      } else if (root.commands.length > 0 && !root.ctlDown) {
+        ctl.connected = true
+      }
     }
     onError: {
       // The daemon is down or the socket has gone: keep the queue and try
@@ -170,20 +180,26 @@ Item {
     repeat: false
     onTriggered: {
       root.ctlDown = false
-      root.pumpCommands()
+      if (root.commands.length > 0 && !ctl.connected)
+        ctl.connected = true
     }
+  }
+
+  function flushCommands() {
+    if (!ctl.connected || root.commands.length === 0) return
+    // Batch: every queued command goes in one write. Auto-repeat queued this
+    // turn, so one write is one wakeup for the daemon, not one per press.
+    var joined = root.commands.join("\n") + "\n"
+    root.commands = []
+    ctl.write(joined)
   }
 
   function send(command) {
     root.commands.push(command)
-    root.pumpCommands()
-  }
-
-  function pumpCommands() {
-    if (root.commands.length === 0) return
-    if (ctl.connected) return  // one in flight; the queue drains on hang-up
-    if (root.ctlDown) return   // daemon down; the timer will retry
-    ctl.connected = true
+    if (ctl.connected)
+      root.flushCommands()
+    else
+      ctl.connected = true
   }
 
   // -- the pointer ----------------------------------------------------------

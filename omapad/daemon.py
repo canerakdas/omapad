@@ -2572,8 +2572,14 @@ class Daemon:
         interval = 1.0 / self.config.poll_hz
         last = time.monotonic()
         poller = select.poll()
+        # The control socket is one listening fd plus whatever connections
+        # the shell keeps open; watch them all, and refresh the registration
+        # whenever the set changes (connections open on demand, close on
+        # hang-up). Watching a stale fd is harmless but wastes a wakeup.
+        control_fds = ()
         control_fd = self.control.fileno() if self.control else None
         if control_fd is not None:
+            control_fds = (control_fd,)
             poller.register(control_fd, select.POLLIN)
         device_fd = None
         hypr_ev_fd = None
@@ -2594,6 +2600,23 @@ class Daemon:
                     poller.unregister(device_fd)
                 device_fd = self.device.fd
                 poller.register(device_fd, select.POLLIN)
+
+            if self.control is None:
+                if control_fds:
+                    for fd in control_fds:
+                        poller.unregister(fd)
+                    control_fds = ()
+            else:
+                want = (self.control.fileno(),) + tuple(self.control.open_fds())
+                if want != control_fds:
+                    for fd in control_fds:
+                        try:
+                            poller.unregister(fd)
+                        except (KeyError, OSError):
+                            pass
+                    for fd in want:
+                        poller.register(fd, select.POLLIN)
+                    control_fds = want
 
             # The keyboards on the desk are opened only while a surface of
             # ours is up: that is the whole scope of what they may drive, and
@@ -2636,7 +2659,7 @@ class Daemon:
                 continue
 
             for fd, _ in events:
-                if control_fd is not None and fd == control_fd:
+                if control_fds and fd in control_fds:
                     self.control.serve(self.handle_control)
                 elif self.device is not None and fd == self.device.fd:
                     self.drain_events()
