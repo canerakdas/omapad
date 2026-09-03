@@ -21,7 +21,7 @@
 set -euo pipefail
 
 REPO_URL="${OMAPAD_REPO:-https://github.com/canerakdas/omapad.git}"
-SHA="${OMAPAD_SHA:-d691f815fc8a76e1c73aa5091b94cf94be84d717}"
+SHA="${OMAPAD_SHA:-f37d0701f95983c7664261bd89d50204f129880d}"
 PLUGIN_ID="${OMAPAD_PLUGIN_ID:-canerakdas.omapad}"
 TARGET="${OMAPAD_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/$PLUGIN_ID}"
 
@@ -44,7 +44,7 @@ if [[ -d $TARGET/.git ]]; then
   # A checkout someone has edited is theirs: resetting it would throw their
   # work away. Pin the tree to the reviewed commit only when it is clean, and
   # stop with an explanation rather than guessing.
-  if ! git -C "$TARGET" diff --quiet; then
+  if ! git -C "$TARGET" diff --quiet || ! git -C "$TARGET" diff --cached --quiet; then
     fail "$TARGET has local changes; update it by hand."
   fi
   git -C "$TARGET" checkout --detach --force "$SHA" \
