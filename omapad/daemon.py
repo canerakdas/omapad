@@ -1256,6 +1256,18 @@ class Daemon:
             )
         ))
 
+    def menu_select(self, index):
+        """Jump the selection to one row - what a pointer hovering asks for.
+
+        `menu_command` walks the list one step at a time, which is the shape
+        of a D-pad press, not of a cursor. Nothing happens while the menu is
+        down, the same rule navigation follows.
+        """
+        if not self.menu_open:
+            return
+        self.menu.select(index)
+        self.push_menu_view()
+
     def menu_command(self, command):
         """Drive the menu. True when holding the button should keep firing."""
         if command == "toggle":
@@ -1669,13 +1681,23 @@ class Daemon:
             from .actions import MenuAction
 
             command = args[0]
-            if command in MenuAction.SIMPLE:
+            if command == "select" and len(args) > 1:
+                # The row a pointer is hovering names itself: `select 3` with
+                # no previous direction. Everything else the menu does lives
+                # in MenuAction.SIMPLE below.
+                try:
+                    index = int(args[1])
+                except ValueError:
+                    return "unknown menu command: select %s" % args[1]
+                self.menu_select(index)
+            elif command in MenuAction.SIMPLE:
                 self.menu_command(command)
-                return "menu=%s title=%s sel=%d" % (
-                    "open" if self.menu_open else "closed",
-                    self.menu.title, self.menu.index,
-                )
-            return "unknown menu command: %s" % command
+            else:
+                return "unknown menu command: %s" % command
+            return "menu=%s title=%s sel=%d" % (
+                "open" if self.menu_open else "closed",
+                self.menu.title, self.menu.index,
+            )
         if verb == "map" and args:
             command = args[0]
             if command in MappingAction.SIMPLE:

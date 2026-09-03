@@ -144,6 +144,32 @@ class NavigationTests(unittest.TestCase):
     def test_back_at_the_root_reports_there_is_nowhere_to_go(self):
         self.assertFalse(self.model.back())
 
+    def test_select_names_a_row_outright(self):
+        # The pointer hovers a row and names it; there is no direction to it.
+        self.model.select(3)
+        self.assertEqual(self.model.index, 3)
+
+    def test_select_clamps_instead_of_wrapping(self):
+        # A pointer is aiming somewhere; a selection that wraps across the
+        # fold reads as a mistake.
+        self.model.select(-1)
+        self.assertEqual(self.model.index, 0)
+        self.model.select(len(SAMPLE) + 10)
+        self.assertEqual(self.model.index, len(SAMPLE) - 1)
+
+    def test_select_works_inside_a_submenu(self):
+        self.model.move(1)
+        self.model.press()
+        self.model.select(1)
+        self.assertEqual(self.model.index, 1)
+        self.assertEqual(self.model.title, "Audio")
+
+    def test_select_on_an_empty_menu_is_safe(self):
+        model = MenuModel([])
+        model.select(3)
+        self.assertEqual(model.index, 0)
+        self.assertEqual(model.press(), ("none", None))
+
     def test_reset_climbs_all_the_way_out(self):
         self.model.move(1)
         self.model.press()

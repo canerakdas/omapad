@@ -1679,6 +1679,42 @@ class MenuTests(DaemonTestCase):
         self.daemon.menu_command("down")
         self.assertEqual(self.menu_client.sent, [])
 
+    def test_mouse_hover_names_a_row(self):
+        # A cursor points at a row outright; the daemon turns that into the
+        # selection, the same way every D-pad press lands in `menu.index`.
+        self.open_menu()
+        reply = self.daemon.handle_control("menu select 3")
+        self.assertIn("sel=3", reply)
+        self.assertEqual(self.daemon.menu.index, 3)
+        self.assertEqual(self.menu_client.sent[-1]["sel"], 3)
+
+    def test_mouse_hover_out_of_range_clamps(self):
+        self.open_menu()
+        self.daemon.handle_control("menu select 999")
+        self.assertEqual(self.daemon.menu.index, len(self.daemon.menu.items) - 1)
+
+    def test_mouse_hover_does_nothing_while_the_menu_is_down(self):
+        self.daemon.handle_control("menu select 2")
+        self.assertEqual(self.menu_client.sent, [])
+
+    def test_mouse_hover_takes_a_bad_index_without_guessing(self):
+        self.open_menu()
+        self.assertIn("select nonsense",
+                      self.daemon.handle_control("menu select nonsense"))
+        self.assertEqual(self.daemon.menu.index, 0)
+
+    def test_a_pointer_click_picks_the_row_it_lands_on(self):
+        # The panel sends the row and the press in one go, so a click cannot
+        # land on one row and pick another. The last root row is a leaf; the
+        # row right in front of the fold is the whole point of having a
+        # cursor.
+        self.open_menu()
+        self.daemon.handle_control("menu select %d"
+                                   % (len(self.daemon.menu.items) - 1))
+        self.daemon.handle_control("menu press")
+        self.assertEqual(self.session.spawned, ["omarchy-menu toggle"])
+        self.assertFalse(self.menu_client.sent[-1]["open"])
+
 
 class GuideTests(DaemonTestCase):
     def open_guide(self):

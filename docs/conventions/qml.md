@@ -181,10 +181,14 @@ exclusionMode: ExclusionMode.Ignore        // Normal only if it reserves space
 mask: Region {}                            // empty input region
 ```
 
-Two deliberate exceptions: the game bar is `WlrLayer.Top` with
-`ExclusionMode.Auto`, because it stands in for a real bar; the keyboard is
+Three deliberate exceptions:ther game bar is `WlrLayer.Top` with
+`ExclusionMode.Auto`, because it stands in for a real bar;ther keyboard is
 `ExclusionMode.Normal` with an `exclusiveZone` of its own height, so it does
-not cover what is being typed into.
+not cover what is being typed into;and the menu is the one surface someone
+also drives from the desk -ther Omarchy menu's own window rules
+(`WlrKeyboardFocus.Exclusive`, the whole surface as its input region,so a
+hover selects,a click picks,and a scrim click leaves). The pad,ther keys
+and the cursor all drive the same selection,over the same control socket.
 
 ## 8 Colour, size, glyphs
 

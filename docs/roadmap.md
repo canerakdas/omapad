@@ -303,6 +303,14 @@ while the menu is up, the way they do under the keyboard, so the pointer never
 dies under you. Turning stick deflection into discrete row steps is a separate
 mechanism and the D-pad already does the job.
 
+**Since:** the menu also takes the keyboard and the mouse while it is open -
+ther Omarchy menu's own focus rules - so the arrows,Enter and Esc drive it
+over the same control socket the pad uses, and a cursor hovers, clicks and
+dismisses the same way. Esc now leaves outright from any depth (strictly
+closing,where it used to climb back level by level on the desk keyboard),and
+clicking the scrim closes the menu,so the pointer is not handed through to
+the window under it while the menu is up.
+
 ### 09. Per-application button profiles · ✅ Done · M
 
 A profile matched on window class, layered over the defaults, so that `B` closes

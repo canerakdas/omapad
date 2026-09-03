@@ -3,14 +3,18 @@
 // A pure view, the same split the keyboard uses: omapad owns the entry tree,
 // the selection and the drill-down stack, and launches whatever is picked. One
 // JSON line per update arrives over a unix socket and this panel draws it.
+// What a person does with the desktop - arrow keys, Enter, a cursor - comes
+// back the other way over the same control socket a terminal would use, so
+// the pad and the desk drive the same selection.
 //
 // It is deliberately shaped like the Omarchy menu - centred card, a title line,
 // one column of rows, `›` where a row drills in - because that is the menu the
 // desktop already teaches, and a list is what a D-pad walks well.
 //
-// The surface takes no keyboard focus and carries an empty input region: the
-// pad drives it, so it must never swallow a click meant for the window under
-// the scrim.
+// Unlike the keyboard and the guide, which stay pad-only, this surface takes
+// the keyboard and the pointer while it is open, the way the Omarchy menu
+// does: Exclusive focus so the arrows reach it rather than the window under
+// the scrim, hover to select, a click to pick, a click outside to leave.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -48,6 +52,8 @@ Item {
   readonly property int detailRowHeight: Math.max(metrics.space(58), metrics.font.body + metrics.font.caption + metrics.spacing.rowPaddingX * 2)
   readonly property int rowSpacing: metrics.spacing.xs
   readonly property var selectedBorderSpec: Border.surfaceSpec("menu", "selected-border", Color.menu.selectedBorder, 0)
+  // How many rows PageUp and PageDown skip - the Omarchy menu's own step.
+  readonly property int keyPageStep: 6
 
   function rowHeightFor(item) {
     return item && item.d ? detailRowHeight : baseRowHeight
@@ -115,6 +121,130 @@ Item {
     list.positionViewAtIndex(root.sel, ListView.Contain)
   }
 
+  onOpenedChanged: {
+    if (root.opened) {
+      // The pad (or a summon) chose where the selection starts; a stationary
+      // cursor must not take it from there, and the surface needs the key
+      // focus the window rules give it.
+      root.pointerArm()
+      Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+    }
+  }
+
+  // -- the way back: what a person does with the keyboard and the mouse -----
+  //
+  // The pad drives the menu over its push socket below; a keyboard and a
+  // cursor have no such channel, and the selection still lives in the daemon.
+  // So this panel drives it instead, one short command per input over the
+  // same control socket `omapad ctl` uses - `menu up`, `menu select 3`,
+  // `menu press`. Commands are fire-and-forget: the answer to every one
+  // comes back as a fresh line on menu.sock, so there is nothing to wait for.
+  readonly property string controlSock: root.socketDir + "/control.sock"
+  property var commands: []
+  // The daemon answers one command per connection and hangs up, so at most
+  // one command is in flight; the queue drains one connection at a time.
+  property bool ctlDown: false
+
+  Socket {
+    id: ctl
+    path: root.controlSock
+    connected: false
+    onConnectionStateChanged: {
+      if (ctl.connected && root.commands.length > 0)
+        ctl.write(root.commands.shift() + "\n")
+      else if (!ctl.connected && !root.ctlDown && root.commands.length > 0)
+        root.pumpCommands()
+    }
+    onError: {
+      // The daemon is down or the socket has gone: keep the queue and try
+      // again in a moment rather than spinning on a connect that cannot
+      // succeed.
+      root.ctlDown = true
+      ctlRetry.restart()
+    }
+  }
+
+  Timer {
+    id: ctlRetry
+    interval: 500
+    repeat: false
+    onTriggered: {
+      root.ctlDown = false
+      root.pumpCommands()
+    }
+  }
+
+  function send(command) {
+    root.commands.push(command)
+    root.pumpCommands()
+  }
+
+  function pumpCommands() {
+    if (root.commands.length === 0) return
+    if (ctl.connected) return  // one in flight; the queue drains on hang-up
+    if (root.ctlDown) return   // daemon down; the timer will retry
+    ctl.connected = true
+  }
+
+  // -- the pointer ----------------------------------------------------------
+  //
+  // A cursor names the row it is over and the daemon makes it the selection.
+  // But a menu that opens with the cursor already on a row must not hand the
+  // selection to it - the pad put it somewhere on purpose - and a cursor that
+  // never moves (whose hover events are really delegates rebuilding under
+  // it) must never become one. So the first sample never selects, and
+  // samples count only once the cursor has actually travelled. Every keyboard
+  // move re-arms it, so the two drivers cannot fight over the selection.
+  property bool pointerPrimed: false
+  property bool pointerInitial: false
+  property real pointerX: 0
+  property real pointerY: 0
+
+  function pointerArm() {
+    root.pointerPrimed = false
+    root.pointerInitial = false
+    root.pointerX = 0
+    root.pointerY = 0
+  }
+
+  // The pointer itself moved the selection - a click - so the row under the
+  // cursor is the one the next sample may take.
+  function pointerAllowSample() {
+    root.pointerPrimed = false
+    root.pointerInitial = true
+    root.pointerX = 0
+    root.pointerY = 0
+  }
+
+  function pointerMoved(item, mouse) {
+    var point = item.mapToItem(card, mouse.x, mouse.y)
+    var first = !root.pointerPrimed
+    var moved = first
+      ? root.pointerInitial
+      : (Math.abs(point.x - root.pointerX) > 1
+        || Math.abs(point.y - root.pointerY) > 1)
+    if (first || moved) {
+      root.pointerX = point.x
+      root.pointerY = point.y
+    }
+    root.pointerPrimed = true
+    return moved
+  }
+
+  function pointerSelect(index, item, mouse) {
+    if (!root.pointerMoved(item, mouse)) return
+    if (index === root.sel) return
+    root.send("menu select " + index)
+  }
+
+  // A click is a decision, not a sample: it lands on the row it lands on,
+  // and the daemon is told the row and the press in one go.
+  function pointerActivate(index) {
+    root.send("menu select " + index)
+    root.send("menu press")
+    root.pointerAllowSample()
+  }
+
   // omapad connects here and streams state; it reconnects on its own, so the
   // shell and the daemon can restart in either order.
   SocketServer {
@@ -142,15 +272,26 @@ Item {
     color: "transparent"
     WlrLayershell.namespace: "omapad-menu"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // The Omarchy menu's own focus mode: while the menu is up the keyboard
+    // belongs to it, and a key reaches the window under the scrim only after
+    // it goes away. Arrows and Enter navigate, and the game behind gets
+    // nothing until the menu leaves.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     exclusionMode: ExclusionMode.Ignore
-    mask: Region {}
 
+    // This is the one omapad surface that takes the pointer: hover selects a
+    // row, a click picks one, a click on the scrim leaves. The keyboard and
+    // the guide still pass clicks through - they are pad-only by design.
     Rectangle {
       anchors.fill: parent
       color: Color.menu.scrim
       opacity: root.opened ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: 110 } }
+    }
+
+    MouseArea {
+      anchors.fill: parent
+      onClicked: root.send("menu close")
     }
 
     BorderSurface {
@@ -167,6 +308,67 @@ Item {
       radius: Style.cornerRadius
       opacity: root.opened ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: 110 } }
+
+      // Padding is not a dismissal: only the scrim is. A click on the card,
+      // or in the gap between rows, must not send the menu away.
+      MouseArea {
+        anchors.fill: parent
+        onClicked: {}
+      }
+
+      // Where the keyboard lands. Everything a key means goes to the daemon
+      // as a menu command, the same grammar the pad uses, so whichever hand
+      // is driving, the selection lives in one place. Left and Backspace
+      // climb one level at a time; Escape leaves outright, like the Omarchy
+      // menu. A held arrow auto-repeats and the menu walks.
+      Item {
+        id: keyCatcher
+        anchors.fill: parent
+        focus: true
+        Keys.priority: Keys.BeforeItem
+        Keys.onPressed: function(event) {
+          if (event.key === Qt.Key_Escape) {
+            root.send("menu close")
+            event.accepted = true
+          } else if (event.key === Qt.Key_Backspace || event.key
+              === Qt.Key_Left) {
+            root.send("menu back")
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Up) {
+            root.send("menu up")
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Down) {
+            root.send("menu down")
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_PageUp) {
+            root.send("menu select "
+              + Math.max(0, root.sel - root.keyPageStep))
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_PageDown) {
+            root.send("menu select " + Math.min(
+              root.items.length - 1, root.sel + root.keyPageStep))
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Home) {
+            root.send("menu select 0")
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_End) {
+            root.send("menu select " + Math.max(0, root.items.length - 1))
+            root.pointerArm()
+            event.accepted = true
+          } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+              || event.key === Qt.Key_Space || event.key === Qt.Key_Right) {
+            root.send("menu press")
+            root.pointerArm()
+            event.accepted = true
+          }
+        }
+      }
 
       Column {
         anchors.fill: parent
@@ -300,15 +502,35 @@ Item {
               anchors.rightMargin: Border.right(root.selectedBorderSpec) + metrics.space(8)
               anchors.verticalCenter: parent.verticalCenter
             }
+
+            // Hover names the row under the cursor, a click picks it - the
+            // daemon decides both, so this MouseArea only asks. The gate
+            // keeps the stationary cursor (and the cursor the menu opened
+            // under) from stealing a selection the pad chose.
+            MouseArea {
+              id: picker
+              anchors.fill: parent
+              hoverEnabled: true
+              cursorShape: Qt.PointingHandCursor
+              onEntered: root.pointerSelect(row.index, row, {
+                x: picker.mouseX,
+                y: picker.mouseY
+              })
+              onPositionChanged: function(mouse) {
+                root.pointerSelect(row.index, row, mouse)
+              }
+              onClicked: root.pointerActivate(row.index)
+            }
           }
         }
       }
     }
   }
 
-  // Pointing at menu rows produces no Wayland input at all - the selection
-  // moves over a socket - so the compositor would happily start the
-  // screensaver while the menu is open. Same inhibitor the keyboard binds.
+  // The pad that moves the selection produces no Wayland input at all -
+  // it travels over a socket - and a still pointer is no input either, so
+  // the compositor would happily start the screensaver while the menu is
+  // open. Same inhibitor the keyboard binds.
   IdleInhibitor {
     window: panel
     enabled: root.opened

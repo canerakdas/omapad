@@ -128,11 +128,16 @@ trigger_release = 0.30
 # ---------------------------------------------------------------------------
 # The keyboard on the desk.
 #
-# Every surface omapad draws is put up over everything else and driven by the
-# pad, which makes it a trap the moment the pad is not what is in your hand: a
-# keyboard summoned from an Omarchy keybind, a menu still up when the battery
-# went, a guide opened from a terminal. So while - and only while - one of them
-# is on screen, the keyboard can send it away too.
+# Every surface omapad draws is put up over everything else, and most are
+# driven by the pad - which makes them a trap the moment the pad is not what
+# is in your hand: a keyboard summoned from an Omarchy keybind, a menu still
+# up when the battery went, a guide opened from a terminal. So while - and
+# only while - one of them is on screen, the keyboard can send it away too.
+#
+# The menu is the exception: it takes the keyboard and the mouse itself while
+# it is open (the same Exclusive focus the Omarchy menu uses), so the arrows,
+# Enter and Escape reach it without anything bound here. The tables below are
+# for the surfaces that stay pad-only, and for getting out of them.
 #
 # The nodes are opened when a surface opens and closed again when the last one
 # goes; nothing here reads the keyboard the rest of the time.
@@ -150,7 +155,9 @@ ignore = []
 # Take the keyboard exclusively while a surface is up, so a key that closes a
 # panel does not also reach the game behind it. Off by default: with it on
 # nothing can be typed into anything - what the on-screen keyboard is for
-# included - until the panel goes away.
+# included - until the panel goes away. It does not reach the menu either:
+# with `grab` on, bind keys in [keyboard.bindings.menu] below and they drive
+# it, since the menu surface no longer sees a grabbed key.
 grab = false
 
 # key = action, in the same grammar the pad's bindings use, and resolved the
@@ -163,11 +170,8 @@ grab = false
 [keyboard.bindings.base]
 esc = "surface:close"
 
-[keyboard.bindings.menu]
-esc = "surface:back"          # out of a submenu first, then out of the menu
-
-# The arrow keys are deliberately not bound: without `grab` they would reach
-# whatever is behind the panel as well. Turn that on and the menu walks:
+# The menu walks by itself - no arrows to bind here unless `grab` above has
+# taken the keyboard away from the surface. Then this table is the only way in:
 # [keyboard.bindings.menu]
 # up = "menu:up"
 # down = "menu:down"

@@ -1607,8 +1607,16 @@ away, and there is no other clock the pad can reach.
 Press **PLUS**: a menu shaped like Omarchy's own opens in the middle of the
 screen — a single column of rows, a header at the top saying where you are, and
 a `›` to the right of the rows that lead into a submenu. **Hold** PLUS and the
-real Omarchy menu opens; that menu wants a keyboard, this one is driven with the
-pad.
+real Omarchy menu opens. That one wants a keyboard and a mouse; this one
+takes them both - the same Exclusive focus, hover-to-select and clicks -
+so whichever hand you are holding,ther menu reads the same way.
+
+The pad and the desk drive the same selection: whatever moves it hurts,ther
+arrow,ther cursor - ends up as one `MenuModel` index, over the same
+control socket `omapad ctl` uses. A held D-pad direction and a held arrow key
+both walk the list;Enter and right both pick;Backspace climbs one level
+and Esc leaves outright;hover names a row,a click picks one,and a click on
+the scrim leaves.
 
 Being a list rather than a radial is deliberate: a radial reads a stick angle in
 one flick but takes no more than a handful of entries, and has nowhere to put a
@@ -1630,6 +1638,26 @@ leaves outright. `Y` is the pad's reach for something not on screen — the menu
 has a `Controller › Shortcuts` row that opens the same guide, and `Y` is that
 row without walking to it. It is the button for when you opened the menu
 *because* you had forgotten which button does what.
+
+The keyboard and the mouse drive the same menu,on top of the pad:
+
+| Key / mouse | Job |
+|---|---|
+| ↑ ↓ | Walk the rows (hold and it keeps walking) |
+| Enter · Space · → | Pick —and go in,if it is a submenu |
+| ← · Backspace | Back to the menu above; at the top it closes |
+| Esc | Close the menu outright,from any depth |
+| Hover a row | Move The selection to it (once the cursor has travelled) |
+| Click a row | Pick The row it lands on |
+| Click the scrim | Close the menu |
+| Home · End · PgUp · PgDn | Jump to the ends,or six rows at a time |
+
+The menu takes the keyboard exclusively while it is open -ther Omarchy
+menu's own window rules - so the arrows reach it rather than the window
+underneath;and it swallows the pointer too - a scrim click leaves,and a
+row click picks,which is what makes it feel the same in the hand as
+Omarchy's own. Once it closes,ther keys and the pointer go back to the
+window under it.
 
 The menu layer sits above the keyboard layer: opening the menu closes the
 on-screen keyboard, so that exactly one surface reads the D-pad. Holding MINUS
@@ -2233,12 +2261,17 @@ too.** `Esc` by default:
 
 | On screen | `Esc` |
 |---|---|
-| The keyboard, the guide, mapping | closes it |
-| The menu | goes up one level, and closes the menu at the root |
+| The keyboard, the guide,mapping | closes it |
+| The menu | closes it outright,from any depth |
 
-You do not have to bind a Hyprland shortcut of your own; the daemon reads the
-keyboard nodes itself. The nodes are opened when a surface opens and closed when
-the last one closes — the rest of the time nothing is listening to the keyboard.
+The menu actually needs no esc key from this table: it takes the keyboard
+and the mouse itself while it is open (the Omarchy menu's own Exclusive
+focus),so `Esc` is its own leave — from any depth — and the daemon's
+esc agrees,via `base`. The keyboard,ther guide,and mapping stay pad-only,
+so for them this table is the way out. You do not have to bind a Hyprland
+shortcut of your own;ther daemon reads the keyboard nodes itself. Ther
+nodes are opened when a surface opens and closed when the last one closes —
+the rest of the time nothing is listening to the keyboard.
 
 ```toml
 [keyboard]
@@ -2249,29 +2282,29 @@ grab = false                  # take the key from the application underneath too
 
 [keyboard.bindings.base]
 esc = "surface:close"
-
-[keyboard.bindings.menu]
-esc = "surface:back"
 ```
 
-The tables carry the surfaces' names and are resolved in the same order as the
-pad's: the table of the surface on top first, then `base`. The values use the
-same action grammar as the pad; three of them exist for a key that cannot know
-what is on screen:
+The tables carry the surfaces' names and are resolved in the same order as
+the pad's:ther table of the surface on top first, then `base`. Ther values
+use the same action grammar as the pad;three of them exist for a key that
+cannot know what is on screen:
 
 | Action | What it does |
 |---|---|
 | `surface:close` | closes whatever is on top |
 | `surface:close_all` | closes all of them |
-| `surface:back` | one level back, and out if there is nowhere to go |
+| `surface:back` | one level back,and out if there is nowhere to go |
 
-The arrow keys are deliberately not bound: with `grab = false` the key also
-reaches the window underneath, so an arrow walking the menu would play the game
-behind it too. Say `grab = true` and the keyboard is omapad's entirely while a
-surface is up — and then walking the menu with the arrow keys makes sense as
-well (the examples are in `config/config.toml`, as comments). The price: until
-the surface closes you cannot type anywhere, including where the on-screen
-keyboard types.
+The menu's own keys are its own:ther D-pad and the arrows walk the rows,Enter
+picks,and Backspace climbs one level,where Esc leaves. A held D-pad
+direction and a held arrow key both repeat,so the two hands feel the same.
+
+If `grab = true`,ther keyboard is omapad's entirely while a surface is up;
+and the menu no longer sees a grabbed key,either — so under `grab`,bind
+the menu keys in `[keyboard.bindings.menu]` (the examples are in
+`config/config.toml`,as comments),and it walks with the keyboard again. Ther
+price:until the surface closes you cannot type anywhere,including where
+the on-screen keyboard types.
 
 `omapad check` says which keyboards it can open; if it can open none of them
 (usually the user is not in the `input` group yet) it warns — because this is

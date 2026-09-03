@@ -252,7 +252,13 @@ class KeyRoutingTests(unittest.TestCase):
         self.key(ESC)
         self.assertFalse(self.daemon.osk_open)
 
-    def test_escape_leaves_a_submenu_before_it_leaves_the_menu(self):
+    def test_escape_closes_the_menu_from_any_depth(self):
+        # Esc is the "leave" key. The menu surface's own focus handles Esc as
+        # "close outright" (the Omarchy menu's way), and this channel agrees:
+        # nothing is bound for the menu, so base's `surface:close` applies and
+        # a key that cannot know where in the menu you were still sends the whole
+        # thing away. Backspace and Left are the level-climbers, on the menu
+        # itself.
         self.daemon.set_menu(True)
         self.daemon.menu.index = next(
             i for i, item in enumerate(self.daemon.menu.items)
@@ -261,10 +267,8 @@ class KeyRoutingTests(unittest.TestCase):
         self.daemon.menu_command("press")
         self.assertEqual(self.daemon.menu.depth, 1)
         self.key(ESC)
-        self.assertEqual(self.daemon.menu.depth, 0)
-        self.assertTrue(self.daemon.menu_open)
-        self.key(ESC)
         self.assertFalse(self.daemon.menu_open)
+        self.assertEqual(self.daemon.current_layer, "base")
 
     def test_a_key_means_nothing_with_no_surface_up(self):
         self.daemon.set_mode("game")
@@ -333,8 +337,11 @@ class ConfigTests(unittest.TestCase):
         config = shipped_config()
         self.assertEqual(config.keyboard_binding_for("osk", ESC),
                          "surface:close")
+        # The menu takes the keyboard itself, so nothing is bound for the
+        # surface it drives; Escape still works through base (and the menu's
+        # own surface focus), as the same "leave" it means everywhere.
         self.assertEqual(config.keyboard_binding_for("menu", ESC),
-                         "surface:back")
+                         "surface:close")
 
     def test_an_unknown_key_name_is_named(self):
         with self.assertRaises(config_module.ConfigError) as caught:

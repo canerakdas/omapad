@@ -117,6 +117,24 @@ class MenuModel:
             return
         self.index = (self.index + step) % len(self.items)
 
+    def select(self, index):
+        """Jump the selection to one row, the way a pointer names it.
+
+        `move` walks the list one step at a time - the shape of a D-pad press
+        and of an arrow key - while a cursor points at a row outright. Out of
+        range clamps to the nearest row rather than wrapping: a pointer is
+        aiming somewhere, and a selection that wraps across the fold reads as
+        a mistake.
+        """
+        if not self.items:
+            return
+        if index <= 0:
+            self.index = 0
+        elif index >= len(self.items):
+            self.index = len(self.items) - 1
+        else:
+            self.index = index
+
     def press(self):
         """Act on the selected row.
 
