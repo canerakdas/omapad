@@ -732,13 +732,13 @@ update_hz = 30.0
 
 [chords]
 # Back + Start together opens the controller menu. Over a cloud session or a
-# game this is *the* door: everything else - the keyboard, the window ops, game
-# mode, the guide - is a row inside it.
+# game this is *the* door: everything else - the keyboard, the window ops, the
+# guide - is a row inside it.
 #
-# This used to be `mode:toggle`, which had three other homes and did not need a
-# chord: HOME held for 700ms toggles the mode in every layer, and the menu has
-# a `Game mode` row. The menu had none, and it is the one that has to be
-# reachable from inside a game.
+# This used to be `mode:toggle`, which did not need a chord: HOME held for 700ms
+# toggles the mode in every layer, in the menu and over a game alike. The menu
+# had no way in over a game, and it is the one that has to be reachable from
+# inside a game.
 "MINUS+PLUS" = "menu:toggle"
 
 # ---------------------------------------------------------------------------
@@ -1675,12 +1675,6 @@ label = "Display"
   icon = "󱄄"
   label = "Screensaver"
   action = "exec:omarchy-launch-screensaver force"
-
-[[menu.items]]
-icon = "󰊗"
-label = "Game mode"
-detail = "Bigger bar, bigger pointer"
-action = "mode:game"
 
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and

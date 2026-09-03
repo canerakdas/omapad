@@ -130,7 +130,6 @@ not the meaning, because the game bar prints only that word
 | Where | Was | Is | Rule |
 |---|---|---|---|
 | `YouTube` | The couch's television | Video | 2 |
-| `Game mode` | Hand the pad back to games | Bigger bar, bigger pointer | 9 |
 | `Fullscreen` | What a game hidden behind Steam needs | Make it fill the screen | 1 |
 | `Controller` | The pad in your hands | Speed, vibration, labels, mapping | 1, 5 |
 | `Vibration` | The tick under your thumb | On, off, and how hard | 1, 5 |

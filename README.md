@@ -154,8 +154,8 @@ sudo gpasswd -d "$USER" input    # the new session after this has no input group
   **everything works**: bindings, layers, profiles, the pointer. Not a
   restriction, a difference in presentation.
 
-Switching between them: **hold HOME for 0.7 s**, or pick `Game mode` in the
-controller menu. Every switch drops a notification **and ticks the motor** —
+Switching between them: **hold HOME for 0.7 s** — on the desktop, in the menu
+or over a game. Every switch drops a notification **and ticks the motor** —
 one tick each way, because the switch is the press whose result you may not be
 looking at: the bar is swapping itself out across the room while the pad is on
 your lap. Either answer can be turned off on its own:
@@ -224,8 +224,8 @@ are two of them.
 
 First: **the MINUS + PLUS chord, which opens the controller menu.** Two buttons
 at once is not an input any game binds, and this is the door — the keyboard, the
-window controls, game mode, the guide and the app launcher are all rows behind
-it. The moment the menu opens omapad takes the pad back (otherwise the D-pad
+window controls, the guide and the app launcher are all rows behind it. The
+moment the menu opens omapad takes the pad back (otherwise the D-pad
 would drive both the menu and the game), and lets go again when it closes.
 
 Second: **an announced hold that counts down** (`confirm_ms`).
