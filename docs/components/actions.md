@@ -11,7 +11,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 
 | Verb | Class | Does |
 |---|---|---|
-| `click:` | `ClickAction` | a mouse button through the virtual mouse |
+| `click:` | `ClickAction` | a mouse button through the virtual mouse, and the burst that says so ([`ripple.md`](ripple.md)) |
 | `key:` | `KeyAction` | a key or chord, through `keymap.parse_chord` |
 | `scroll:` | `ScrollAction` | a wheel notch |
 | `hypr:` | `HyprAction` | a Lua dispatcher over Hyprland's socket - see [`../conventions/lua.md`](../conventions/lua.md) |

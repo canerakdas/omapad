@@ -267,6 +267,10 @@ class ClickAction(Action):
 
     def press(self, ctx):
         ctx.mouse.button(self.button, True)
+        # After the click, never before it: the burst asks the compositor
+        # where the pointer is, and nothing the screen has to say about a
+        # click may stand between the trigger and the click itself.
+        ctx.daemon.show_ripple(self.button)
 
     def release(self, ctx):
         ctx.mouse.button(self.button, False)

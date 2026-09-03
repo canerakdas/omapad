@@ -45,6 +45,7 @@ Each is a model in the daemon, a socket, and a panel that only draws.
 | [Bindings guide](guide.md) | `guide.py` | `Guide.qml` | `guide.sock` |
 | [Game bar](gamebar.md) | `gamebar.py` | `GameBar.qml` | `gamebar.sock` |
 | [Mapping wizard](mapping.md) | `mapping.py` | `Mapping.qml` | `mapping.sock` |
+| [Click burst](ripple.md) | `ripple.py` | `Ripple.qml` | `ripple.sock` |
 | [Bar widget](status.md) | `daemon.status_state()` | `PadStatus.qml` | `status.sock` |
 
 ## Everything else

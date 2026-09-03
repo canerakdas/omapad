@@ -26,6 +26,7 @@ from .guide import GuideModel
 from .mapping import MappingModel, render as render_mapping
 from .menu import MenuError, MenuModel, build as build_menu
 from .osk import OskModel, badge_index
+from .ripple import RippleModel
 from .rumble import Rumble
 from . import xkb
 from .viewsock import ViewClient
@@ -155,6 +156,12 @@ class Daemon:
         self.pad_nodes = frozenset()
         self.focus_pid = None
         self._next_handover_check = 0.0
+
+        # What a click looks like. An event rather than a state, so there is
+        # no `_open` and no `_next_heartbeat` beside it: a burst that is over
+        # has nothing to repaint. See ripple.py.
+        self.ripple = RippleModel(config)
+        self.ripple_client = ViewClient("ripple.sock", config.ripple_socket)
 
         self.gamebar = GameBarModel(config)
         self.gamebar_client = ViewClient("gamebar.sock", config.gamebar_socket)
@@ -1124,6 +1131,21 @@ class Daemon:
             state["badge"] = self.config.ui_badge_style
         return state
 
+    def show_ripple(self, button):
+        """Draw where a click just landed. False when nothing was drawn.
+
+        Best-effort twice over - the compositor may not answer where the
+        pointer is, the plugin may not be up - and neither is a reason for the
+        click itself to have gone anywhere but through, which is why this is
+        called after the button is already down.
+        """
+        if not self.config.ripple_enabled:
+            return False
+        if not self.ripple.mark(button, self.hypr.cursor_position()):
+            return False
+        self.ripple_client.send(self.scaled(self.ripple.view_state()))
+        return True
+
     def push_osk_view(self):
         self._osk_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
         self.osk_client.send(self.scaled(self.osk.view_state(self.osk_open)))
@@ -1602,6 +1624,7 @@ class Daemon:
                 "| guide <toggle|open|close|next|prev> "
                 "| map <toggle|open|close|skip|back|restart|save|cancel> "
                 "| surface <close|close_all|back> "
+                "| ripple <left|right|middle> "
                 "| pad <setting>=<value> "
                 "| press <BUTTON> [tap|hold] "
                 "| mode <toggle|desktop|game> | status"
@@ -1703,6 +1726,14 @@ class Daemon:
                 return "unknown surface command: %s" % command
             self.surface_command(command)
             return "surface=%s" % (self.surface_top() or "none")
+        if verb == "ripple" and args:
+            # No binding can reach this surface - it answers the pointer, not
+            # the pad - so this is the only way to see one without clicking,
+            # which is what tuning `size` and `duration_ms` needs.
+            if not self.show_ripple(args[0]):
+                return "ripple: nothing drawn"
+            return "ripple %s at %d,%d" % (
+                self.ripple.button, self.ripple.x, self.ripple.y)
         if verb == "press" and args:
             # Where a click on the game bar lands, and a second door onto the
             # pad for a script or a keybind: the button is named in omapad's
@@ -2645,6 +2676,7 @@ class Daemon:
         self.status_client.close()
         self.set_gamebar(False)
         self.gamebar_client.close()
+        self.ripple_client.close()
         if self.control is not None:
             self.control.close()
         if self.hypr_ev is not None:

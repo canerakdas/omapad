@@ -1,10 +1,10 @@
 // The plugin's panel entry point.
 //
-// A plugin gets one panel entry point, and omapad draws five independent
+// A plugin gets one panel entry point, and omapad draws six independent
 // surfaces - the on-screen keyboard, the controller menu, the bindings guide,
-// the mapping screen and the game-mode bar - each fed by its own socket.
-// Mounting them here keeps them in one hot-reloading plugin directory instead
-// of five.
+// the mapping screen, the game-mode bar and the burst a click leaves at the
+// pointer - each fed by its own socket. Mounting them here keeps them in one
+// hot-reloading plugin directory instead of six.
 //
 // The shell's summon/hide/toggle contract lands on `open()`, `close()` and
 // `opened` below, so `omarchy-shell shell summon <id>` and an Omarchy keybind
@@ -24,6 +24,9 @@ Item {
   Guide { id: guide }
   Mapping { id: mapping }
   GameBar {}
+  // Not summonable and never opened: it answers a click rather than a
+  // button, and the daemon speaks to it one burst at a time.
+  Ripple {}
 
   // The surfaces a summon can name, keyed by omapad's own control verb. The
   // game bar is deliberately absent: it follows game mode rather than being

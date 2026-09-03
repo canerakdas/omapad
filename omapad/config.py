@@ -653,6 +653,27 @@ class Config:
         if self.cursor_apply not in ("game", "always"):
             raise ConfigError("cursor.apply must be 'game' or 'always'")
 
+        # The burst a click leaves behind. The pointer is the one thing on
+        # screen that cannot answer a press by itself - see ripple.py.
+        ripple = data.get("ripple", {})
+        self.ripple_enabled = bool(ripple.get("enabled", True))
+        # 0 means twice the pointer's own size, so the burst reads as
+        # something leaving the ring rather than as a second thing that
+        # happened near it. Written out, it is a diameter in logical pixels.
+        ripple_size = int(ripple.get("size", 0))
+        if ripple_size < 0:
+            raise ConfigError("ripple.size cannot be negative")
+        self.ripple_size = ripple_size or self.cursor_size * 2
+        self.ripple_duration = int(ripple.get("duration_ms", 260))
+        if self.ripple_duration <= 0:
+            raise ConfigError("ripple.duration_ms must be above zero")
+        # The ring's band, as a fraction of the size the way the cursor's own
+        # proportions are, so the burst looks like itself at any of them.
+        self.ripple_thickness = float(ripple.get("thickness", 0.09))
+        if not 0.0 < self.ripple_thickness <= 0.5:
+            raise ConfigError("ripple.thickness must be between 0 and 0.5")
+        self.ripple_socket = ripple.get("socket") or None
+
         # Walking the focus with the app's own keys (item: tab traversal).
         # Which key each step sends is config rather than code because the
         # answer is not the same everywhere - a list wants the arrows, a form

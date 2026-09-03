@@ -11,6 +11,7 @@ line, one line per state change, and re-sends everything every
 
 ```
 osk.sock  menu.sock  guide.sock  mapping.sock  gamebar.sock  status.sock
+ripple.sock
 ```
 
 - **`send` never raises.** It reconnects once on `EPIPE`/`ECONNRESET`/

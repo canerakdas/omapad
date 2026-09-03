@@ -233,6 +233,7 @@ class DaemonTestCase(unittest.TestCase):
         self.mapping_client = self.daemon.mapping_client = FakeViewClient()
         self.status_client = self.daemon.status_client = FakeViewClient()
         self.gamebar_client = self.daemon.gamebar_client = FakeViewClient()
+        self.ripple_client = self.daemon.ripple_client = FakeViewClient()
         # Also exercises the shutdown path, and closes the control socket.
         self.addCleanup(self.daemon.shutdown)
         self.device = FakeDevice(self.identity)
@@ -473,6 +474,26 @@ class ButtonTests(DaemonTestCase):
         self.assertEqual(self.mouse.buttons, [("right", True)])
         self.release("Y")
         self.assertEqual(self.mouse.buttons[-1], ("right", False))
+
+    def test_a_click_says_on_screen_where_it_landed(self):
+        # The pad's own answer to a click is nothing at all - the thumb is on
+        # a trigger that feels the same either way - so the screen has to
+        # give one. See ripple.py.
+        self.hypr.position = (640.0, 360.0)
+        self.press("Y")
+        state = self.ripple_client.sent[-1]
+        self.assertEqual(state["b"], "right")
+        self.assertEqual((state["x"], state["y"]), (640.0, 360.0))
+        self.assertEqual(state["n"], 1)
+        # Letting go is not a second click, and neither is it a burst.
+        self.release("Y")
+        self.assertEqual(len(self.ripple_client.sent), 1)
+
+    def test_a_burst_turned_off_leaves_the_click_alone(self):
+        self.daemon.config.ripple_enabled = False
+        self.press("Y")
+        self.assertEqual(self.mouse.buttons, [("right", True)])
+        self.assertEqual(self.ripple_client.sent, [])
 
     def test_dpad_holds_the_arrow_key(self):
         self.feed((li.EV_ABS, li.ABS_HAT0Y, -1))

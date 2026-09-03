@@ -1,6 +1,6 @@
 # Shell plugin - `shell-plugin/`
 
-An Omarchy shell plugin (Quickshell, QML) that draws five surfaces and one bar
+An Omarchy shell plugin (Quickshell, QML) that draws six surfaces and one bar
 widget. What is symlinked into
 `~/.config/omarchy/plugins/canerakdas.omapad` is the **checkout root**, not
 this folder - `manifest.json` lives at the root so `omarchy plugin add` installs
@@ -24,9 +24,9 @@ anybody asks for them.
 
 ## `Surfaces.qml`
 
-A plugin gets one panel entry point and omapad draws five independent
+A plugin gets one panel entry point and omapad draws six independent
 surfaces, so they are mounted here - one hot-reloading plugin directory
-instead of five.
+instead of six.
 
 The shell's summon/hide/toggle contract lands on `open()`, `close()` and
 `opened`, so `omarchy-shell shell summon canerakdas.omapad` and an
@@ -41,6 +41,8 @@ control verb and the obvious word for it (`keyboard` → `osk`). A summon with
 no payload means the menu - the door the pad's own button opens. The game bar
 is deliberately not summonable: it follows game mode, and
 `omapad ctl mode` is its door.
+`Ripple.qml` is not summonable either, and has no `opened`: it answers a click
+rather than a button.
 
 ## The surfaces
 
@@ -51,6 +53,7 @@ is deliberately not summonable: it follows game mode, and
 | `Guide.qml` | [`guide.md`](guide.md) |
 | `Mapping.qml` | [`mapping.md`](mapping.md) |
 | `GameBar.qml` | [`gamebar.md`](gamebar.md) |
+| `Ripple.qml` | [`ripple.md`](ripple.md) |
 | `PadStatus.qml` | [`status.md`](status.md) |
 
 ## Shared pieces
@@ -66,8 +69,8 @@ is deliberately not summonable: it follows game mode, and
 
   `metrics.badge(px)` is the other exception: a badge box has to be whole
   pixels on **both** sides, because BadgeArt scales the drawing by one factor
-  taken from the width. Every shape is 32 units tall but the system pill is 40
-  by 64, so the height is snapped up to a multiple of five - the smallest step
+  taken from the width. Every shape is 32 units tall but a system button is 40
+  by 48, so the height is snapped up to a multiple of five - the smallest step
   that keeps `unit * w / h` whole for all of them. Off the grid the pill's rim
   lands mid-pixel and is painted grey instead of drawn. Size a badge with this
   and nothing else.

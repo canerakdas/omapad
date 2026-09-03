@@ -556,6 +556,28 @@ shapes = "all"           # "pointer" = only the arrow changes, the rest comes
                          # index.theme)
 ```
 
+**A click shows where it landed.** A mouse answers a click three ways — the
+finger feels the switch, the hand is on the thing that moved, the arrow sits on
+what was hit — and a pad answers none of them: the thumb is on a trigger that
+feels the same whatever it did, and the ring looks identical before and after.
+So every click the pad makes leaves a burst at the pointer, and the half of the
+ring on the side of the button that was pressed is the solid one, so left and
+right differ by more than a colour. It is drawn in the theme's own colours like
+every other surface, on whichever monitor the pointer is on, and it works in
+desktop mode too — the click is just as silent there.
+
+```toml
+[ripple]
+enabled = true
+size = 0                 # the burst's diameter; 0 = twice [cursor] size, so it
+                         # reads as leaving the ring rather than beside it
+duration_ms = 260        # much longer and a double click draws over itself
+thickness = 0.09         # the ring's band, a fraction of the size
+```
+
+`omapad ctl ripple left` draws one without clicking, which is what tuning those
+two numbers wants.
+
 **Snap teleports the pointer instead of walking it.** `snap:right` puts the
 pointer in the middle of the window to the right and focuses it:
 
@@ -2167,6 +2189,7 @@ omapad ctl map open
 omapad ctl surface close     # close whichever is on top
 omapad ctl press A           # fire a button as if it had been tapped
 omapad ctl press ZL hold     # ...or the hold half of its binding
+omapad ctl ripple left       # draw the burst a click leaves, without clicking
 omapad ctl mode game
 omapad ctl status
 ```

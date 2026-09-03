@@ -367,6 +367,27 @@ shapes = "all"
 restore_theme = ""
 restore_size = 0
 
+[ripple]
+# What a click looks like. A mouse answers a click three ways - the finger
+# feels the switch, the hand is on the thing that moved, the arrow sits on
+# what was hit - and a pad answers none of them: the thumb is on a trigger
+# that feels the same whatever it did, and the pointer is a ring that looks
+# identical before and after. So every click the pad makes leaves a burst
+# behind at the pointer, with the half of it on the side of the button that
+# was pressed drawn solid, so left and right differ by more than a colour.
+#
+# It is drawn in the theme's own colours like every other surface: the accent
+# for the left button, the menu's foreground for the right.
+enabled = true
+size = 0                      # the burst's diameter in logical pixels. 0 is
+                              # twice [cursor] size, so it reads as leaving
+                              # the ring rather than happening beside it
+duration_ms = 260             # how long one burst lasts. Much longer and a
+                              # double click draws over itself
+thickness = 0.09              # the ring's band, as a fraction of the size the
+                              # way [cursor] thickness is
+# socket = ""                 # default: $XDG_RUNTIME_DIR/omapad/ripple.sock
+
 [snap]
 # Stop aiming. `snap:left|right|up|down` puts the pointer on the window that
 # way and focuses it, which is the console answer to the one thing a thumbstick

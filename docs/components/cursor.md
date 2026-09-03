@@ -47,6 +47,10 @@ Settings: `[cursor] enabled`, `size`, `color`, `outline`, `thickness`, `dot`,
 
 ## Rules
 
+- The ring never changes, which is what makes it findable and also what makes
+  it silent. What a click looks like is the other half of the same problem and
+  belongs to [`ripple.md`](ripple.md), which draws its burst around whatever
+  pointer is on screen.
 - The daemon restores the desktop's cursor on the way out of game mode and on
   shutdown (`desktop_cursor()`, `apply_cursor(restore=True)`). A left-behind
   ring is the most visible way this can fail.
