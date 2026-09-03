@@ -1,12 +1,2 @@
 __pycache__/
 *.pyc
-
-# What a take leaves behind. The scripts in demo/ are source; the recording,
-# the cue log and the captions built from it are output, and a 40MB mp4 does
-# not belong in a repository that installs from a checkout.
-demo/*.mp4
-demo/*.mp4.ts
-demo/*.log
-demo/captions.ass
-demo/cues.jsonl
-demo/go
