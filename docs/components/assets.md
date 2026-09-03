@@ -1,7 +1,8 @@
 # Button art - `assets/`
 
 The controller buttons omapad badges with - a face button, the shoulders,
-the triggers, a stick click, the D-pad, the system pills - drawn once and
+the triggers, a stick click, the D-pad, the small system buttons - drawn once
+and
 generated everywhere else.
 
 ```bash
@@ -16,7 +17,10 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/` | **The source.** Hand-drawn SVGs, one per control, unlabelled. Edit these. |
 | `shapes/dpad-*.svg` | The D-pad's drawn labels rather than controls: one arm of `dpad.svg` lit. |
 | `shapes/ps-*.svg` | What a PlayStation pad prints on its face buttons, set into `face.svg` the way a letter is. |
-| `shapes/sys-*.svg` | What every console prints on its small buttons, set into the system pill. One drawing serves two consoles: Menu on an Xbox pad and Options on a PlayStation one are the same three bars. |
+| `shapes/sys-*.svg` | What every console prints on its small buttons, set into `sys-round.svg` or `system.svg`. One drawing serves two consoles: Menu on an Xbox pad and Options on a PlayStation one are the same three bars - but not the same button, so the marks share a 48x40 grid and the silhouettes do not. |
+| `shapes/sys-round.svg` | The small round button, which is every one of them but PlayStation's Create and Options. |
+| `shapes/sys-guide.svg` | The Xbox button, drawn 36 of 40 against the 24 the rest get - it is larger than every other button on that pad, face buttons included. Nothing else earns it. |
+| `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
 | `truetype.py`, `svgpath.py`, `place.py` | Its parts. |
@@ -39,7 +43,7 @@ no surface falls back to a bordered rectangle:
 |---|---|
 | `BUTTONS_TO_DRAW` | a shape plus the labels punched into it |
 | `ICONS_TO_DRAW` | a label that is itself a drawing (a D-pad arm set into the cross) |
-| `BLANKS_TO_DRAW` | the shape only, for the system pill the shell types the word into |
+| `BLANKS_TO_DRAW` | the shape only, for the oblong the shell types the word into |
 
 ## The parts
 
@@ -78,6 +82,22 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
   hole and whatever is behind the badge shows through it. The drawing is the
   same one either way - which is what makes `[ui] badge_style` a look rather
   than a second set of shapes to keep in step.
+- **A drawn label is set at the same cap the letters are.** `MARK_CAPS` in
+  `generate.py` is the height each shape holds its marks to - 14 units on both
+  a 32-unit face button and a 40-unit system one, a shade over `CAP_RATIO`
+  because a circle or a triangle set to a letter's exact cap reads smaller
+  than the letter. `tests/test_assets.py::MarksStandAtOneHeight` fails when a
+  drawing drifts off it, which is the mistake that put four PlayStation
+  symbols on four different baselines in one row. A rule (`sys-minus.svg`) is
+  exempt and named in `MARK_CAP_EXEMPT`: a rule is two units tall whatever
+  else is.
+
+  The system cap reaches the shell as `ButtonArt.markCap`, because the game
+  bar's menu door draws the standard menu mark **outside** its badge and
+  scales it against the word beside it: the mark's ink is drawn to the word's
+  capitals, so `markCap` is what turns the word's height into the mark's
+  scale. Dividing by each mark's own ink instead is what once made that word
+  a sixth larger on a Switch than on an Xbox.
 - **Draw a shape's flat edges on whole units.** A badge is scaled by
   `unit / h`, so an edge on a half unit lands mid-pixel at every badge size
   there is and comes out grey rather than drawn - `Metrics.badge` can snap the

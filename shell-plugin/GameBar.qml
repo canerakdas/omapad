@@ -724,30 +724,43 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         spacing: metrics.space(16)
 
-        // One button, not a button and a caption: the pad's own mark and the
-        // word for what it opens sit inside a single system pill, stretched
-        // to hold both. A badge with a label beside it read as two things at
-        // the one end of the bar where there is only ever one.
+        // One button, not a button and a caption: the menu mark and the word
+        // for what it opens sit inside a single system pill, stretched to
+        // hold both. A badge with a label beside it read as two things at the
+        // one end of the bar where there is only ever one.
         Rectangle {
           id: door
 
-          readonly property var drawn:
-            root.menu ? buttonArt.find("system", root.menu.b) : null
+          // The standard menu mark, not the one this pad prints: Xbox's Menu
+          // and PlayStation's Options are the same three bars anyway, and a
+          // Switch prints a plus that would read as a different door. One
+          // face for the door on every pad; the button under the mark is
+          // still `name`, so the pill answers whichever thumb opens it.
+          readonly property var drawn: buttonArt.buttons["system:Menu"]
           // The button under the mark: the door is a badge like any other
           // here, so it answers a thumb and a pointer the same way.
           readonly property string name: root.menu ? String(root.menu.n || "") : ""
           readonly property bool down: doorClick.pressed || root.isDown(door.name)
 
-          // How much of a pixel one drawn unit is worth here. Rounded to a
-          // half, and never below one: the mark is the only drawing on the
-          // bar painted on its own rather than inside its badge, and a menu
-          // mark is three parallel bars - at 2.7 pixels each, two of them
-          // land one side of the pixel grid and the third the other, and the
-          // icon reads as broken rather than as soft. On a half the drawing's
-          // own whole units stay whole.
+          // How much of a pixel one drawn unit is worth here, from the word
+          // beside it: the mark is drawn so its ink stands exactly as tall as
+          // the word's capitals, which is what makes the pair one thing
+          // rather than an icon and a label that were sized separately.
+          //
+          // Rounded to a half, and never below one: the mark is the only
+          // drawing on the bar painted on its own rather than inside its
+          // badge, and a menu mark is three parallel bars - at 2.7 pixels
+          // each, two of them land one side of the pixel grid and the third
+          // the other, and the icon reads as broken rather than as soft. On a
+          // half the drawing's own whole units stay whole.
+          //
+          // Off the word's ink rather than off the pill's own height: the
+          // pill is sized by the badge grid, and the word is the part of the
+          // door that actually has to stay legible, so the mark follows the
+          // word wherever a theme or a scale moves it.
           readonly property real markScale: door.drawn
-            ? Math.max(0.5, Math.round(root.badgeUnit * buttonArt.capRatio
-                                       / door.drawn.mh * 2) / 2)
+            ? Math.max(0.5, Math.round(wordInk.tightBoundingRect.height
+                                       / buttonArt.markCap * 2) / 2)
             : 1
 
           anchors.verticalCenter: parent.verticalCenter
@@ -776,6 +789,23 @@ Item {
           Click {
             id: doorClick
             button: door.name
+          }
+
+          // Where the capitals sit inside a line set in the word's own font
+          // and size - and how tall they are, which is what the mark beside
+          // the word is drawn to. `root.capNudge` measures the same two
+          // things for a typed badge label, once, at the badge's size; the
+          // door sets its word in the session's font rather than the badge
+          // one, so it is measured again here.
+          //
+          // An H rather than the word, for the reason the probe up there uses
+          // one: an H is flat on the baseline, so its ink box is the cap box.
+          // MENU's own ink reaches below the baseline - the U overshoots it -
+          // and centring that box would tip the word a hair back up.
+          TextMetrics {
+            id: wordInk
+            font: word.font
+            text: "H"
           }
 
           Row {
@@ -814,25 +844,28 @@ Item {
               }
             }
 
-            // Fira Code, upper case, and exactly as tall as the mark beside
-            // it: the word is inside the button, so it is legend and not
-            // prose, and a legend a pixel taller than the mark it is next to
-            // reads as two things that were sized separately.
-            //
-            // Sized off the mark rather than off the badge, because the mark
-            // is snapped to whole pixels and the badge is not: matching the
-            // badge would put the two a pixel apart at most sizes. `capSize`
-            // over `capRatio` turns a cap height into a font size, both
-            // generated from what the drawn labels are punched at.
+            // Upper case, in the session's own face: the only text on the bar
+            // set in the badge font is inside a badge, and this word stands
+            // in open space on a pill. The mark beside it is drawn to the
+            // word's capitals, so the pair cannot come apart at any bar size
+            // or on any pad.
             Text {
-              anchors.verticalCenter: parent.verticalCenter
+              id: word
+              // Centred on the capitals, and on whole pixels. `verticalCenter`
+              // centres the *line box*, which carries a descender's worth of
+              // room under the word that MENU has nothing in - so the gap
+              // under the letters came out wider than the gap over them, and
+              // the word sat high in a pill that is only as tall as it is.
+              // The baseline and the ink around it are what say where the
+              // letters actually are; the line box only says where the font
+              // would put a `g`.
+              y: Math.round(door.height / 2 - word.baselineOffset
+                            - wordInk.tightBoundingRect.y
+                            - wordInk.tightBoundingRect.height / 2)
               text: "MENU"
               color: root.foreground
-              font.family: buttonArt.family
-              font.pixelSize: Math.round(
-                (door.drawn ? door.drawn.mh * door.markScale
-                            : root.badgeUnit * buttonArt.capRatio)
-                * buttonArt.capSize / buttonArt.capRatio)
+              font.family: metrics.font.family
+              font.pixelSize: metrics.font.body
               font.weight: Font.Medium
             }
           }

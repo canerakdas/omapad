@@ -15,7 +15,10 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/` | **The source.** Hand-drawn SVGs: one per control, plus the marks that go *into* them. Edit these. |
 | `shapes/dpad-*.svg` | The D-pad's drawn labels rather than controls of their own — the arm one direction lights inside `dpad.svg`. |
 | `shapes/ps-*.svg` | What a PlayStation pad prints on its face buttons, set into `face.svg` the way a letter is. |
-| `shapes/sys-*.svg` | What every console prints on its small buttons, set into `system.svg`. One drawing can serve two consoles: Menu on an Xbox pad and Options on a PlayStation one are the same three bars. |
+| `shapes/sys-*.svg` | What every console prints on its small buttons, drawn on a 48x40 grid so either silhouette can carry it. One drawing can serve two consoles: Menu on an Xbox pad and Options on a PlayStation one are the same three bars. |
+| `shapes/sys-round.svg` | The small **round** button — what every pad but one puts a mark on. |
+| `shapes/sys-guide.svg` | The **Xbox button**, drawn 36 units of 40 against the 24 the rest get, with `sys-nexus.svg` scaled to match it. |
+| `shapes/system.svg` | The **oblong** — PlayStation's Create and Options, and the bare shape the shell types a word into. |
 | `buttons/` | Generated: each shape with a label punched through it. |
 | `generate.py` | The generator. `truetype.py`, `svgpath.py` and `place.py` are its parts. |
 
@@ -63,8 +66,30 @@ drawn ones reads as a bug:
   sets one into the other exactly the way it sets `A` into a face button. The
   badge is filed under the label the daemon sends, and a surface paints the mark
   with the same ink it paints a letter with. A PlayStation face symbol and every
-  console's small buttons are the same arrangement: `face.svg` or `system.svg`
-  as the shape, a `ps-*` or `sys-*` mark as the label.
+  console's small buttons are the same arrangement: `face.svg`, `sys-round.svg`
+  or `system.svg` as the shape, a `ps-*` or `sys-*` mark as the label.
+
+  Which silhouette a small button gets is the pad's answer, not ours. Guide,
+  Home, View, Menu, Share, Capture, PS, Mute, − and + are **round** on every
+  pad that has them; only PlayStation's Create and Options are the oblong. One
+  shape for all of them drew the Xbox nexus as the same outline as Menu, which
+  is the pair a thumb tells apart by outline before it reads the mark.
+
+  Size is the pad's answer too, and only one button changes it: the Xbox
+  button is larger than everything else on that pad, face buttons included,
+  and is meant to be found without looking — `sys-guide.svg`, 36 units of 40
+  where the rest are 24. A Switch's Home and a DualSense's PS are not drawn
+  larger on the hardware, so they are not drawn larger here.
+
+  A mark is set to the height in `MARK_CAPS` - 14 units on a face button and
+  on a small system one, 21 on the larger Xbox button - and centred in its
+  shape, so a row of them stands on one baseline. That is a shade over the
+  `CAP_RATIO` the letters are punched at, because a circle or a triangle set
+  to a letter's exact cap reads smaller than the letter beside it. The system
+  one also reaches the shell as `ButtonArt.markCap`, since the game bar's
+  menu door draws the standard menu mark outside its badge and scales it to
+  match the word beside it.
+  `sys-minus.svg` is exempt: a rule is two units tall whatever else is.
 
   A mark is drawn as **non-overlapping contours**, with a ring's inside wound
   the other way round. The generator joins the whole label into one path, and
@@ -73,13 +98,14 @@ drawn ones reads as a bug:
   panes of the View mark are drawn as a pane and two edges rather than as two
   rectangles, one over the other.
 * **`BLANKS_TO_DRAW`** — the shape alone, for a control whose badge is a word.
-  Every system button is the same pill; MINUS, PLUS and HOME differ only in
-  what the shell types into it, so only the pill is generated. Its viewBox
-  carries the empty room above and below the pill (64×40 for a 64×24 pill),
-  which is how a badge line's worth of height comes out right without any
-  surface knowing that a system button is drawn shorter than a face button.
-  Nothing is written to `buttons/` for these: half a badge is not something to
-  hand a README.
+  A remapped button and a pad nobody here has a printing for both arrive as
+  text, and the oblong is the shape wide enough to hold one, so that is the
+  one generated. Its viewBox carries the empty room around it (48×40 for a
+  40×24 oblong), which is how a badge line's worth of height comes out right
+  without any surface knowing that a system button is drawn shorter than a
+  face button — and `sys-round.svg` shares that box, so a round badge and an
+  oblong one reserve the same width. Nothing is written to `buttons/` for
+  these: half a badge is not something to hand a README.
 
 ## Where the label goes
 

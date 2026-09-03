@@ -13,8 +13,9 @@
 // label already set into it in Fira Code - and takes its colours from the
 // theme rather than from any one console's palette, which would fight every
 // Omarchy theme but one. Every control the daemon names is drawn now, the
-// D-pad by the arm its direction lights and the system buttons by a pill the
-// text goes into, so nothing here falls back to a rectangle with a border.
+// D-pad by the arm its direction lights and the system buttons by the round
+// or oblong button the mark sits in, so nothing here falls back to a rectangle
+// with a border.
 //
 // Same window rules as the menu: overlay layer, no keyboard focus, empty input
 // region, so nothing underneath loses focus or a click.

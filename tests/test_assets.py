@@ -94,6 +94,64 @@ class ShapesSitOnTheGrid(unittest.TestCase):
                         yield ("x", x0, abs(y1 - y0))
 
 
+class MarksStandAtOneHeight(unittest.TestCase):
+    """A drawn label is a label, so it is set at the same cap the letters are.
+
+    Nothing else notices when one is not. Four PlayStation symbols drawn 16,
+    16, 14 and 13.1 units tall sat on four different baselines in the same
+    row, and the three bars an Xbox prints on Menu were drawn 10 where every
+    other system mark was 14 - which the game bar's menu door once divided by
+    to size the word beside it, so the same pill came out a sixth larger on a
+    Switch than on an Xbox. `generate.MARK_CAPS` is the height each shape
+    holds its marks to, `ButtonArt.markCap` is the system one handed to the
+    shell - the door draws the standard menu mark on its own grid and scales
+    it against the word's capitals by this - and this is what says the
+    drawings still agree with both.
+    """
+
+    def test_every_drawn_label_is_its_shape_s_cap_tall(self):
+        for _, _, _, base, overlay in generate.ICONS_TO_DRAW:
+            cap = generate.MARK_CAPS.get(base)
+            if cap is None or overlay in generate.MARK_CAP_EXEMPT:
+                continue
+            mark = generate.Shape(os.path.join(generate.SHAPES, overlay))
+            height = generate.ink_box("".join(mark.fills))[3]
+            self.assertAlmostEqual(
+                height, cap, places=3,
+                msg="%s is %.4f units tall on %s, which holds its marks to %g"
+                    % (overlay, height, base, cap))
+
+    def test_every_drawn_label_is_centred_in_its_shape(self):
+        """Off centre, a mark's two ends land on different subpixel phases.
+
+        A badge is the drawing scaled by `unit / h`, and only the box comes
+        out whole - so an edge inside it is painted at whatever fraction of a
+        pixel it lands on. Mirrored about the middle, the top edge and the
+        bottom one land on the *same* fraction and are painted alike. The
+        PlayStation triangle sat a unit and a half low and the mute mic a unit
+        high, and both read as one heavy end and one thin one.
+        """
+        for _, _, _, base, overlay in generate.ICONS_TO_DRAW:
+            if base not in generate.MARK_CAPS:
+                continue
+            shape = generate.Shape(os.path.join(generate.SHAPES, base))
+            mark = generate.Shape(os.path.join(generate.SHAPES, overlay))
+            x, y, width, height = generate.ink_box("".join(mark.fills))
+            for axis, low, size, span in (("x", x, width, shape.width),
+                                          ("y", y, height, shape.height)):
+                self.assertAlmostEqual(
+                    low + size / 2.0, span / 2.0, places=3,
+                    msg="%s sits at %s=%g in %s, whose middle is %g"
+                        % (overlay, axis, low + size / 2.0, base, span / 2.0))
+
+    def test_the_shell_is_told_the_system_cap(self):
+        """The door scales its mark against the word's cap height by this, so
+        a mark redrawn to another height has to reach the shell or it lands
+        the wrong size beside the word."""
+        _, qml = generate.build()
+        self.assertIn("markCap: %g" % generate.SYSTEM_MARK_CAP, qml)
+
+
 class EveryBadgeIsDrawn(unittest.TestCase):
     """Every label the daemon can print has to have a drawing behind it.
 

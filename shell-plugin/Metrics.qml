@@ -48,8 +48,8 @@ QtObject {
   // rim above all, land mid-pixel and come out grey rather than drawn.
   //
   // Every shape is 32 units tall against 32 or 64 wide except the system
-  // pill, 40 by 64, so five is the smallest step that keeps `unit * w / h`
-  // whole for all of them. A geometric identity of the drawings rather than a
+  // buttons, 40 by 48 - the round one and the oblong share a box - so five is
+  // the smallest step that keeps `unit * w / h` whole for all of them. A geometric identity of the drawings rather than a
   // setting - it changes when a shape is redrawn on another canvas, and
   // nowhere else.
   readonly property int badgeGrid: 5

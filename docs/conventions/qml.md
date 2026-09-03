@@ -205,6 +205,18 @@ colour it was drawn with.
 **8.4** `ButtonArt.qml` is **generated**. Edit `assets/shapes/` or a table in
 `assets/generate.py` and re-run it.
 
+**8.5** **Text set inside a button is centred on its capitals, never by
+`anchors.verticalCenter`.** That anchor centres the *line box*, and Fira Code's
+line box carries a descender's worth of room under the word — 0.046 em more
+below the capitals than above them — so an all-caps label sits high and the
+gap under it comes out about twice the gap over it. Measure instead: a
+`TextMetrics` on an **H** (flat on the baseline, so its ink box is the cap
+box) plus the item's `baselineOffset` say where the capitals are.
+`Guide.qml`, `Keyboard.qml` and `GameBar.qml` each carry a `capNudge` for
+their badge labels; `GameBar.qml`'s menu door measures its own because the
+mark beside its word is drawn to the word's capitals. Round the result: a
+letter on a half pixel is the blur antialiasing cannot help.
+
 ## 9 Reloading
 
 ```bash

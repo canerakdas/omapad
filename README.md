@@ -865,8 +865,11 @@ layout = "auto"     # nintendo | xbox | playstation
 
 Every one of those is **drawn** rather than typed — the PlayStation symbols and
 each console's small buttons are shapes in `assets/shapes/`, set into the same
-face circle and system pill the letters are set into. Nothing on a badge is a
-character the font happened to have.
+face circle the letters are set into and into the small button the pad actually
+has - round for all of them but PlayStation's Create and Options, which are the
+only oblong ones, and the Xbox button drawn larger than the rest because it is
+the one button a pad draws larger than everything else on it. Nothing on a
+badge is a character the font happened to have.
 
 `auto` follows the profile, which is right for the two the driver can tell
 apart. A PlayStation pad reports itself as an XInput device, so `auto` lands on
@@ -1793,7 +1796,8 @@ shoulders, sticks, system buttons), because while you are looking for the button
 you forgot, your finger is looking there too. A button is drawn **in its own
 shape** rather than as a letter: a face button is round, a shoulder is cut away
 at the corner your finger comes over, a trigger is the deeper one behind it, a
-stick is ringed, and the small buttons like MINUS / PLUS are lentils. Those
+stick is ringed, and the small buttons like MINUS / PLUS are the round ones a
+pad prints them on - or the oblong, for the two PlayStation draws that way. Those
 shapes are real drawings — `assets/shapes/`, with the label already set into
 them in Fira Code, see `assets/README.md`. A D-pad direction has no letter to
 set, so what is drawn into the cross is the arm that direction lights; a

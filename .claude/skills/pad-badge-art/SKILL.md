@@ -35,7 +35,10 @@ yesterday's button and nothing else complains.
 | `shapes/` | **the source** - hand-drawn, unlabelled, one per control |
 | `shapes/dpad-*.svg` | drawn *labels*, not controls: one arm of `dpad.svg` lit |
 | `shapes/ps-*.svg` | PlayStation face symbols, set into `face.svg` like a letter |
-| `shapes/sys-*.svg` | what consoles print on the small buttons. One drawing serves two: Xbox's Menu and PlayStation's Options are the same three bars |
+| `shapes/sys-*.svg` | what consoles print on the small buttons, on a 48x40 grid. One drawing serves two: Xbox's Menu and PlayStation's Options are the same three bars |
+| `shapes/sys-round.svg` | the small **round** button - every one of them but Create and Options |
+| `shapes/sys-guide.svg` | the **Xbox button** alone, 36 of 40 against the others' 24, with `sys-nexus.svg` drawn to match |
+| `shapes/system.svg` | the **oblong** - Create, Options, and the bare shape the shell types a word into |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
 | `generate.py` | the generator; `truetype.py`, `svgpath.py`, `place.py` its parts |
 
@@ -48,7 +51,7 @@ back to a bordered rectangle.
 |---|---|---|
 | `BUTTONS_TO_DRAW` | a shape with **text labels** punched into it | `(kind, side, shape.svg, (labels...))` |
 | `ICONS_TO_DRAW` | a label that is itself **a drawing** | `(kind, glyph, name, base.svg, overlay.svg)` |
-| `BLANKS_TO_DRAW` | the shape only, for a pill the shell types into | `(kind, side, shape.svg)` |
+| `BLANKS_TO_DRAW` | the shape only, for an oblong the shell types into | `(kind, side, shape.svg)` |
 
 ## Adding a pad that prints something new
 
@@ -66,6 +69,14 @@ shape behind it is the other half of the same drift.
 
 For a symbol, draw it on the **same grid as the shape it sits in** and
 **filled, not stroked** - the generator raises on both, so you will be told.
+
+Set it to **`MARK_CAPS[base]` units tall** - 14 on a face button and on a
+small system one, 21 on the Xbox button - centred in the shape. That is the
+height the letters are punched at plus a little overshoot, and
+`MarksStandAtOneHeight` fails when a drawing misses it. It is not cosmetic:
+the game bar's menu door scales the standard menu mark against the word
+beside it by `ButtonArt.markCap`, so a mark drawn short lands short beside
+the word no matter what the door's numbers say.
 
 ## Drawing a shape
 

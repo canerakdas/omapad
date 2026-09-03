@@ -49,10 +49,47 @@ QML = os.path.join(HERE, os.pardir, "shell-plugin", "ButtonArt.qml")
 # used 0.53 - a 17-unit cap on a 32-unit face button - which reads too big
 # once the badge has no outline to hold it: a letter that nearly touches the
 # silhouette leaves nothing to see the silhouette by, and the silhouette is
-# what says which control this is. Everything else follows this number: the
-# marks drawn instead of letters are set to the same height, and so is the
-# word inside the game bar's menu button, through `capRatio` in ButtonArt.
+# what says which control this is. Everything else follows this number: a
+# mark drawn instead of a letter is set a shade over it (`MARK_CAPS`), and so
+# is the word inside the game bar's menu button, through `capRatio` and
+# `markCap` in ButtonArt.
 CAP_RATIO = 0.42
+
+# How tall every mark drawn instead of a letter is set, in a system shape's
+# own units - 14 of the 40 a system shape is tall. One number rather than
+# whatever each drawing happened to measure, because the game bar's menu door
+# draws a mark on its own, outside the badge it belongs to, and has to size
+# the word beside it to match. Sizing that word off the mark's own ink made it
+# a sixth larger on a Switch (a 14-unit +) than on an Xbox (10-unit bars), so
+# the height is decided here and both the drawings and the door follow it.
+# `sys-nexus.svg` is the one exception, drawn 21 to match the larger button it
+# sits on - the same fraction of it - and `sys-minus.svg` is a rule, which is
+# 2 units tall whatever else is.
+SYSTEM_MARK_CAP = 14.0
+
+# And the same for a face button, which is 32 units tall rather than 40. Both
+# are a little over `CAP_RATIO` times their shape - 14 against the 13.44 a
+# capital is punched at - because a circle and a triangle set to a letter's
+# exact cap height read smaller than the letter beside them. Overshoot is
+# what a type designer would give them, and it is the same 14 either way only
+# because a face button and a system one happen to want it.
+FACE_MARK_CAP = 14.0
+
+# Which of those a mark drawn on each shape is held to. A shape absent from
+# here is one whose marks are not caps at all - the D-pad's arms are a lit
+# segment of the cross, and answer to the cross.
+MARK_CAPS = {
+    "face.svg": FACE_MARK_CAP,
+    "sys-round.svg": SYSTEM_MARK_CAP,
+    "system.svg": SYSTEM_MARK_CAP,
+    # The Xbox button is drawn 36 units against the small button's 24, and its
+    # mark is scaled with it rather than left rattling around inside it.
+    "sys-guide.svg": SYSTEM_MARK_CAP * 36 / 24,
+}
+
+# A rule is two units tall whatever else is. That is what a rule is, and
+# stretching it to a cap height would draw a slab.
+MARK_CAP_EXEMPT = ("sys-minus.svg",)
 
 # How much empty button has to be left around the label, in shape units. Only
 # the crowded shapes ever reach it - two characters inside a stick click - and
@@ -93,6 +130,20 @@ BUTTONS_TO_DRAW = (
 # marks happen to be characters. See `guide.LAYOUTS` for which label each
 # console prints; one drawing can answer to two of them, because Menu on an
 # Xbox pad and Options on a PlayStation one are the same three bars.
+#
+# The silhouette under the mark is a second question, and one pill was the
+# wrong answer to it: the button a pad prints Guide, Home, View, Menu, Share,
+# Capture, PS, Mute, - or + on is round on every pad that has one, and only
+# PlayStation's Create and Options are the oblong. Drawing all of them as the
+# oblong made the Xbox nexus the same outline as Menu - which is the one pair
+# a player picks apart by outline before reading the mark at all.
+#
+# Size is the same question again. A pad draws its small buttons alike, with
+# one exception: the Xbox button is larger than every other button on the pad,
+# face buttons included, and is meant to be found without looking. So it gets
+# a circle of its own - 36 of 40 against the 24 the rest are drawn at - and
+# `sys-nexus.svg` is drawn to match it. Home on a Switch and PS on a DualSense
+# are not drawn larger on the hardware, so they are not drawn larger here.
 ICONS_TO_DRAW = (
     ("dpad", u"\u25b2", "up", "dpad.svg", "dpad-up.svg"),
     ("dpad", u"\u25bc", "down", "dpad.svg", "dpad-down.svg"),
@@ -102,18 +153,18 @@ ICONS_TO_DRAW = (
     ("face", u"\u25cb", "ps-circle", "face.svg", "ps-circle.svg"),
     ("face", u"\u25a1", "ps-square", "face.svg", "ps-square.svg"),
     ("face", u"\u25b3", "ps-triangle", "face.svg", "ps-triangle.svg"),
-    ("system", u"\u2212", "minus", "system.svg", "sys-minus.svg"),
-    ("system", "+", "plus", "system.svg", "sys-plus.svg"),
-    ("system", "Home", "home", "system.svg", "sys-house.svg"),
-    ("system", "Capture", "capture", "system.svg", "sys-dot.svg"),
-    ("system", "Menu", "menu", "system.svg", "sys-bars.svg"),
-    ("system", "View", "view", "system.svg", "sys-panes.svg"),
-    ("system", "Guide", "guide", "system.svg", "sys-nexus.svg"),
-    ("system", "Share", "share", "system.svg", "sys-record.svg"),
+    ("system", u"\u2212", "minus", "sys-round.svg", "sys-minus.svg"),
+    ("system", "+", "plus", "sys-round.svg", "sys-plus.svg"),
+    ("system", "Home", "home", "sys-round.svg", "sys-house.svg"),
+    ("system", "Capture", "capture", "sys-round.svg", "sys-dot.svg"),
+    ("system", "Menu", "menu", "sys-round.svg", "sys-bars.svg"),
+    ("system", "View", "view", "sys-round.svg", "sys-panes.svg"),
+    ("system", "Guide", "guide", "sys-guide.svg", "sys-nexus.svg"),
+    ("system", "Share", "share", "sys-round.svg", "sys-record.svg"),
     ("system", "Options", "options", "system.svg", "sys-bars.svg"),
     ("system", "Create", "create", "system.svg", "sys-panes.svg"),
-    ("system", "PS", "ps", "system.svg", "sys-orb.svg"),
-    ("system", "Mute", "mute", "system.svg", "sys-mic.svg"),
+    ("system", "PS", "ps", "sys-round.svg", "sys-orb.svg"),
+    ("system", "Mute", "mute", "sys-round.svg", "sys-mic.svg"),
 )
 
 # Shapes with no label of their own, and none the generator could guess: what
@@ -321,6 +372,12 @@ QtObject {
   // what a mark drawn instead of a letter should measure too.
   readonly property real capRatio: %(cap_ratio).4f
 
+  // How tall a drawn mark stands in a system shape's own units. The game bar
+  // draws the menu door's mark outside its badge and sets the word beside it
+  // from this, so the two match on every pad rather than on whichever one the
+  // mark's own ink happened to round with.
+  readonly property real markCap: %(mark_cap)g
+
   readonly property var buttons: ({
 '''
     body = []
@@ -378,7 +435,8 @@ QtObject {
   }
 }
 '''
-    head = head % {"cap_size": CAP_RATIO * font_cap, "cap_ratio": CAP_RATIO}
+    head = head % {"cap_size": CAP_RATIO * font_cap, "cap_ratio": CAP_RATIO,
+                   "mark_cap": SYSTEM_MARK_CAP}
     return head + ",\n".join(body) + "\n" + tail + ",\n".join(shapes) + "\n" + foot
 
 
