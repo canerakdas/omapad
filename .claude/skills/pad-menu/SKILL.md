@@ -15,6 +15,11 @@ use **the same action grammar as a button binding**, so the menu reaches
 anything a button can - see
 [`../../../docs/conventions/bindings.md`](../../../docs/conventions/bindings.md).
 
+**What the row says is a second job**, with a standard of its own:
+[`../../../docs/conventions/writing.md`](../../../docs/conventions/writing.md),
+and the `pad-wording` skill. A row that does the right thing and reads as a
+riddle from the sofa is not finished.
+
 ## The one question to ask first
 
 **Does this belong on a sofa?** The menu is walked with a thumb from across a
@@ -35,17 +40,17 @@ An entry needs a `label`, and has **either** an `action` **or** nested `items`
 
 ```toml
 [[menu.items]]
-icon = ""                      # any glyph in the shell's font
-label = "Terminal"
-detail = "A prompt"             # the second line; optional
-action = "exec:omarchy-launch-terminal"
+icon = "󰀻"                      # any glyph in the shell's font
+label = "All apps"
+detail = "Everything installed"   # the second line; optional
+action = "exec:omarchy-menu toggle apps"
 ```
 
 | Field | What it does |
 |---|---|
 | `label` | required |
 | `icon` | a glyph the shell's font has |
-| `detail` | one line under the label - a sentence written once, so it cannot know anything live |
+| `detail` | one line under the label - written once, so it cannot know anything live. ~40 characters, says what happens: `pad-wording` |
 | `action` | the binding grammar, parsed at load |
 | `items` | a submenu; mutually exclusive with `action` |
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |

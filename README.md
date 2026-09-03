@@ -1661,7 +1661,7 @@ action = "exec:omarchy-launch-terminal"
 [[menu.items]]
 icon = ""
 label = "Audio"
-detail = "Drive volume and playback from here"   # a quieter second line under the label
+detail = "Volume and playback"   # a quieter second line under the label
 
   [[menu.items.items]]
   label = "Volume up"

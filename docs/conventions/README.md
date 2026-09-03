@@ -13,6 +13,7 @@ the tree.
 | [`data.md`](data.md) | TOML, the socket payloads, JSON manifest, SVG, unit and udev rule |
 | [`bindings.md`](bindings.md) | what each button means, and what a profile may take |
 | [`naming.md`](naming.md) | file names and folder structure, for every kind of file |
+| [`writing.md`](writing.md) | the words a user reads - menu rows, `desc` and `short`, CLI output |
 
 ## How to read a rule
 
@@ -42,6 +43,7 @@ time of writing:
 | Function docstrings | 51% in `omapad/`, where the name is not the whole answer |
 | Comment lines | 14% of `omapad/`, 8% of `tests/` and `assets/` |
 | `raise` sites starting with a capital | 0 of 84 |
+| British spellings in prose | 94, against 54 American - all of them API names |
 | QML files opening with a `//` header comment | 10 of 10 |
 | Odd indent in QML | 5 lines of 2 489 |
 | Bare assignments in a QML `applyState` | 0 (37 were fixed when this guide was written) |

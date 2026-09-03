@@ -1492,7 +1492,7 @@ repeat_rate_ms = 110          # then one row every this many ms
 [[menu.items]]
 icon = "󰀻"
 label = "Apps"
-detail = "Open something"
+detail = "Steam, chat, music, video"
 
   # Steam first: on a sofa it is what the menu is opened for. The URL form
   # works either way - it starts Steam in Big Picture when it is closed, and
@@ -1534,7 +1534,7 @@ detail = "Open something"
   [[menu.items.items]]
   icon = "󰗃"
   label = "YouTube"
-  detail = "The couch's television"
+  detail = "Video"
   action = "exec:omarchy-launch-or-focus youtube 'omarchy-launch-webapp https://www.youtube.com'"
 
   # What a couch might add next, and why neither is here: Battle.net
@@ -1585,7 +1585,7 @@ detail = "The window in front"
   [[menu.items.items]]
   icon = "󰊓"
   label = "Fullscreen"
-  detail = "What a game hidden behind Steam needs"
+  detail = "Make it fill the screen"
   action = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })"
 
   [[menu.items.items]]
@@ -1600,7 +1600,7 @@ detail = "The window in front"
 
   [[menu.items.items]]
   icon = "󰅗"
-  label = "Close the window in front"
+  label = "Close window"
   action = "hypr:hl.dsp.window.close()"
 
 [[menu.items]]
@@ -1662,12 +1662,13 @@ label = "Display"
   [[menu.items.items]]
   icon = "󰁌"
   label = "Scale up"
-  detail = "Bigger desktop, for the couch"
+  detail = "Bigger text and windows"
   action = "exec:omarchy-hyprland-monitor-scaling up"
 
   [[menu.items.items]]
   icon = "󰘕"
   label = "Scale down"
+  detail = "Smaller text, more on screen"
   action = "exec:omarchy-hyprland-monitor-scaling down"
 
   [[menu.items.items]]
@@ -1678,7 +1679,7 @@ label = "Display"
 [[menu.items]]
 icon = "󰊗"
 label = "Game mode"
-detail = "Hand the pad back to games"
+detail = "Bigger bar, bigger pointer"
 action = "mode:game"
 
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
@@ -1689,7 +1690,7 @@ action = "mode:game"
 [[menu.items]]
 icon = "󰊴"
 label = "Controller"
-detail = "The pad in your hands"
+detail = "Speed, vibration, labels, mapping"
 
   [[menu.items.items]]
   icon = ""
@@ -1710,7 +1711,7 @@ detail = "The pad in your hands"
   [[menu.items.items]]
   icon = "󰍽"
   label = "Speed"
-  detail = "How fast the two thumbs are"
+  detail = "How fast the sticks move"
 
     [[menu.items.items.items]]
     icon = "󰍽"
@@ -1781,7 +1782,7 @@ detail = "The pad in your hands"
   [[menu.items.items]]
   icon = "󰕦"
   label = "Vibration"
-  detail = "The tick under your thumb"
+  detail = "On, off, and how hard"
 
     [[menu.items.items.items]]
     label = "On"
@@ -1813,7 +1814,7 @@ detail = "The pad in your hands"
 
     [[menu.items.items.items]]
     label = "Follow the pad"
-    detail = "Whatever the profile prints"
+    detail = "What the pad reports it is"
     action = "pad:layout=auto"
     stay = true
 
@@ -1831,7 +1832,7 @@ detail = "The pad in your hands"
 
     [[menu.items.items.items]]
     label = "PlayStation"
-    detail = "The shapes, L1 and L2, Create and Options"
+    detail = "Shapes, L1 and L2, Create and Options"
     action = "pad:layout=playstation"
     stay = true
 
@@ -1848,13 +1849,13 @@ detail = "The pad in your hands"
 
     [[menu.items.items.items]]
     label = "Filled"
-    detail = "The label set on a washed shape"
+    detail = "Letter on a soft-filled shape"
     action = "pad:badge_style=filled"
     stay = true
 
     [[menu.items.items.items]]
     label = "Stencil"
-    detail = "The label punched through a solid one"
+    detail = "Letter punched out of a solid shape"
     action = "pad:badge_style=stencil"
     stay = true
 
@@ -1876,12 +1877,13 @@ detail = "The pad in your hands"
 
     [[menu.items.items.items]]
     label = "Nintendo Pro"
+    detail = "A Switch pad, or one in NS mode"
     action = "pad:profile=nintendo_pro"
     stay = true
 
     [[menu.items.items.items]]
     label = "Xbox"
-    detail = "The triggers arrive as axes"
+    detail = "An XInput pad - most of them"
     action = "pad:profile=xbox"
     stay = true
 

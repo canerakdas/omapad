@@ -43,6 +43,10 @@ open, title, clock, depth, sel, items: [ {l, i, d, sub, on?} ]
 
 `l` label, `i` icon, `d` detail, `sub` whether it drills in.
 
+What those strings may say is [`../conventions/writing.md`](../conventions/writing.md):
+the row is read from across a room by someone deciding whether to press it,
+so a `detail` says what happens rather than why the row exists.
+
 ## The panel
 
 `Menu.qml`. Centred card, title line, one column, `›` where a row drills in.
