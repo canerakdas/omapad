@@ -90,8 +90,11 @@ What `install.sh` does:
 1. Installs a udev rule giving the `input` group write access to `/dev/uinput`,
    and arranges for the `uinput` module to load at boot (**asks for sudo**).
    This is the only reason the daemon does not have to run as root.
-2. Copies the default config to `~/.config/omapad/config.toml` if there is
-   none there.
+2. Writes a commented stub at `~/.config/omapad/config.toml` if there is none
+   there, and keeps the one you have if there is. It is a stub rather than a
+   copy of the defaults on purpose: your file is merged *over* the shipped
+   one, so a copy would freeze today's defaults and shadow every later
+   improvement.
 3. Links the `omapad` command into `~/.local/bin`.
 4. Validates the manifest, links the checkout into `~/.config/omarchy/plugins/`
    as `canerakdas.omapad`, and enables it. If you came through `omarchy plugin
