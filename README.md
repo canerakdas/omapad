@@ -605,7 +605,8 @@ open menu, so you set them by feel. What you land on is written to
 [pointer]
 speed = 1100.0      # pixels per second at full deflection
 accel = 2.2         # the response curve: 1.0 linear, higher = finer near centre
-deadzone = 0.10
+left_deadzone = 0.10   # how much of each stick's travel does nothing
+right_deadzone = 0.18  # wider, because the right one ships scrolling
 
 [scroll]
 speed = 8.0         # wheel notches per second at full deflection
@@ -614,6 +615,25 @@ ramp = 3.0          # …and how much faster a stick held one way gets
 ramp_ms = 900       # after this long holding it. 1.0 = off
 natural = false     # true inverts the direction
 ```
+
+**How much of a stick does nothing** is the same argument at the other end of
+its travel, so the pad steps that too — **Controller › Dead zone** in the menu,
+or `pad:left_deadzone=up` and `pad:right_deadzone=down` on a button. Widen one
+when an untouched stick still creeps the pointer along; a worn pad rests a
+percent or two off centre. Narrow it when small corrections are swallowed and
+aiming feels like it starts late. A pointer that bolts for a corner rather than
+creeping is a different fault — the pad is lying about where its sticks rest,
+and `recenter` is what answers it.
+
+**One zone per stick, not per job.** The slop is in the hardware, so the right
+stick carries the same number whether it is scrolling the desktop or walking a
+game's controls in game mode — you fix the stick you are complaining about
+rather than looking up what it is currently doing. It ships wider than the left
+because it ships scrolling, where a page sliding away under a thumb that never
+asked costs more than a notch that arrives late; hand it `right_stick =
+"cursor"` and it is worth bringing down to the left one's. A config written
+against the old per-job keys (`deadzone` under `[pointer]` and `[scroll]`) is
+still read, each for the stick that ships in its role.
 
 Two different things get called acceleration and `[scroll]` has both. `accel` is
 the **response curve** — how far the stick is over, into how fast it goes.
@@ -918,6 +938,8 @@ restart — so every config change would close your Steam.
 | `pad:rumble_strength=up\|down\|<0..1>` | how hard it ticks |
 | `pad:pointer_speed=up\|down\|<200..4000>` | how fast the pointer aims |
 | `pad:scroll_speed=up\|down\|<1..40>` | how fast the wheel turns |
+| `pad:left_deadzone=up\|down\|<0..0.5>` | how much of the left stick does nothing |
+| `pad:right_deadzone=up\|down\|<0..0.5>` | the same, for the right one |
 | `snap:left\|right\|up\|down` | move the pointer to the window that way and focus it |
 | `snap:centre` | put the pointer in the middle of the window in front |
 | `focus:next\|prev` | walk the application's own controls (Tab / Shift+Tab) |
@@ -1675,6 +1697,7 @@ Everything about the pad itself is one row, because a controller is one thing:
 |---|---|
 | Shortcuts | the [bindings guide](#the-bindings-guide) — what every button does |
 | Speed | how fast the two thumbs are: pointer faster/slower, scroll faster/slower |
+| Dead zone | how much of each stick does nothing: left stick wider/narrower, right stick wider/narrower |
 | Vibration | the motor: on, off, stronger, weaker |
 | Button labels | [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
 | Button style | [how they are drawn](#how-the-badges-are-drawn): filled, or the label punched out of a solid shape |
@@ -1683,7 +1706,12 @@ Everything about the pad itself is one row, because a controller is one thing:
 
 What you look up is first, then what you feel, then what you set once and forget.
 The two speeds share one screen because they are the same decision made twice —
-and a submenu of two rows is not a place.
+and a submenu of two rows is not a place. The dead zones get their own screen
+rather than joining them, because they answer a different complaint — a stick
+that wanders on its own wants a wider zone, aim that starts late a narrower one
+— and because they are named for the two sticks rather than for the two jobs,
+which is what you are holding when you notice. Eight stepping rows on one
+screen is also a list nobody reads from a sofa.
 
 Everything but the guide is a setting rather than a command, and they
 are the ones that belong on the pad rather than in a file: which profile a pad
@@ -1694,11 +1722,12 @@ a thumb aims — is a preference about the room you are sitting in. So those
 rows leave the menu up, the one in force is ticked, and each vibration row ticks
 the motor as it lands — the number says nothing and the buzz says everything.
 
-The two speeds have no buzz to answer with, so they say the number instead: the
-row prints where it has got to (`9 notches a second`) and stops printing a new
-one at the end of its range. Both **repeat**, so you hold the button rather than
-pressing it eleven times, and the pointer keeps moving under the open menu —
-which is what makes a step something you feel rather than read.
+The speeds and the dead zones have no buzz to answer with, so they say the
+number instead: the row prints where it has got to (`9 notches a second`, `12%`)
+and stops printing a new one at the end of its range. They all **repeat**, so
+you hold the button rather than pressing it eleven times, and the pointer keeps
+moving under the open menu — which is what makes a step something you feel
+rather than read.
 
 What you pick is written to `~/.config/omapad/settings.toml` at the press, not
 at shutdown, and it is merged **over** `config.toml`:
@@ -2306,8 +2335,9 @@ If you are holding the stick while it connects, that axis is skipped
 pad and reconnect it. To take your own measurement, `omapad dump` prints the
 raw values.
 
-**The pointer drifts** — not enough dead zone on the sticks: raise
-`pointer.deadzone` (0.10 → 0.15).
+**The pointer drifts** — not enough dead zone on that stick: raise
+`pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller
+› Dead zone**, where you can watch the pointer settle as you step it.
 
 **Steam presses keys at startup** — a virtual keyboard that declares `BTN_*`
 codes gets a `js*` node from the kernel, and Steam, scanning for controllers at

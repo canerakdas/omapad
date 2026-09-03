@@ -64,7 +64,10 @@ hysteresis from `[device]`; the hat is `handle_hat()`.
 ## Sticks
 
 `stick_vector()` and `scroll_vector()` apply `apply_curve()` - deadzone plus an
-exponent - and then whichever role the layer gave the stick:
+exponent - and then whichever role the layer gave the stick. The deadzone comes
+from `config.stick_deadzone(stick)`, which is per stick rather than per role:
+the slop is in the hardware, so the right one carries the same zone scrolling
+the desktop as it does walking a game's controls. Roles:
 `cursor`, `scroll`, `resize`, `move`, `snap`, `focus` (`STICK_ROLES`). Each has
 its own emitter: `emit_cursor`, `emit_scroll` (with the ramp), `emit_window`,
 `snap_cursor`, `check_focus_stick`.

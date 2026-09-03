@@ -38,6 +38,13 @@
 #                                          which console's names the badges print
 #   pad:rumble=on|off|toggle               the motor
 #   pad:rumble_strength=up|down|<0..1>     how hard it ticks
+#   pad:pointer_speed=up|down|<200..4000>
+#                                          how fast the pointer aims
+#   pad:scroll_speed=up|down|<1..40>       how fast the wheel turns
+#   pad:left_deadzone=up|down|<0..0.5>     how much of the left stick does
+#                                          nothing
+#   pad:right_deadzone=up|down|<0..0.5>    the same, for the right one
+#
 #                                          Every `pad:` value also takes
 #                                          `next`/`prev` to step through what
 #                                          the setting holds, so one button can
@@ -231,7 +238,28 @@ right_stick = "focus"
 [pointer]
 speed = 1100.0                # pixels per second at full stick deflection
 accel = 2.2                   # response curve; 1.0 linear, higher = finer control near center
-deadzone = 0.10
+# How much of each stick's travel does nothing, as a fraction of it. The
+# question is asked of the stick rather than of what the stick is doing,
+# because the slop is in the hardware: the right one carries the same zone
+# whether it is scrolling the desktop or walking a game's controls in game
+# mode.
+#
+# Widen one when an untouched stick still creeps the pointer along - a worn pad
+# rests a percent or two off centre - and narrow it when small corrections are
+# swallowed and aiming feels like it starts late. Controller > Dead zone steps
+# both from the pad, with the pointer live under the open menu, which is the
+# only way to tell those two apart.
+#
+# The right one ships wider because it ships scrolling, where a page sliding
+# away under a thumb that never asked costs more than a notch that arrives
+# late. Hand it the aiming role below and it is worth bringing down to the
+# left one's.
+#
+# These were one number per *role* before - `deadzone` here and under [scroll] -
+# and a config that still sets those is read, each for the stick that ships in
+# its role.
+left_deadzone = 0.10
+right_deadzone = 0.18
 # Bear the pad that lies about its sticks. A Beitong KP20 in NS mode rests
 # every axis half a range off the centre it advertises and then uses only that
 # half (X spans -32767..0, Y spans 0..32767), so an untouched stick reads as a
@@ -273,7 +301,6 @@ duration_ms = 60              # short enough to read as a click, not a buzz.
 
 [scroll]
 speed = 8.0                   # wheel notches per second at full deflection
-deadzone = 0.18
 # Two different things get called acceleration, and both are here. This one is
 # the response curve - how far the stick is over, into how fast it goes. 1.0
 # is linear; higher gives finer control near the centre.
@@ -1686,6 +1713,46 @@ detail = "The pad in your hands"
     icon = "󰄼"
     label = "Scroll slower"
     action = "pad:scroll_speed=down"
+    repeat = true
+
+  # The other end of the same stick: how much of its travel does nothing. By
+  # stick rather than by what the stick is doing, because that is where the
+  # slop is - and because from the sofa the complaint is always about a stick
+  # you are holding, not about a role you would have to look up.
+  #
+  # A page of its own rather than four more rows on Speed: it answers a
+  # different complaint - a stick that wanders on its own wants a wider zone,
+  # aim that starts late a narrower one - and eight stepping rows on one screen
+  # is a list nobody reads from across a room. They repeat and print their
+  # percentage for the same reason the speeds do, and both sticks are live
+  # underneath, so the one you are complaining about answers while you step it.
+  [[menu.items.items]]
+  icon = "󰐾"
+  label = "Dead zone"
+  detail = "Stick travel that does nothing"
+
+    [[menu.items.items.items]]
+    icon = "󰸵"
+    label = "Left stick wider"
+    action = "pad:left_deadzone=up"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰸵"
+    label = "Left stick narrower"
+    action = "pad:left_deadzone=down"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰸷"
+    label = "Right stick wider"
+    action = "pad:right_deadzone=up"
+    repeat = true
+
+    [[menu.items.items.items]]
+    icon = "󰸷"
+    label = "Right stick narrower"
+    action = "pad:right_deadzone=down"
     repeat = true
 
   # Every row here ticks the motor as it lands, which is the only honest way to

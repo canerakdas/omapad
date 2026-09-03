@@ -2229,7 +2229,7 @@ class Daemon:
         return apply_curve(
             self.axes[code_x],
             self.axes[code_y],
-            self.config.pointer_deadzone,
+            self.config.stick_deadzone(stick),
             self.config.pointer_accel,
         )
 
@@ -2238,7 +2238,7 @@ class Daemon:
         return apply_curve(
             self.axes[code_x],
             self.axes[code_y],
-            self.config.scroll_deadzone,
+            self.config.stick_deadzone(stick),
             self.config.scroll_accel,
         )
 
@@ -2262,7 +2262,7 @@ class Daemon:
             return True  # a held direction still walking the focus
         if not self.sticks_live():
             return False
-        deadzone = min(self.config.pointer_deadzone, self.config.scroll_deadzone)
+        deadzone = min(self.config.left_deadzone, self.config.right_deadzone)
         return any(abs(value) > deadzone for value in self.axes.values())
 
     def tick(self, dt):

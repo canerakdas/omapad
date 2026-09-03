@@ -309,6 +309,22 @@ class PointerTests(DaemonTestCase):
         self.tick(1.0, steps=100)
         self.assertEqual(self.mouse.moves, [])
 
+    def test_each_stick_carries_its_own_dead_zone_into_any_role(self):
+        # The slop is in the hardware, so the zone follows the stick and not
+        # what the stick is doing: a right stick handed the aiming role keeps
+        # the wider zone it ships scrolling with until someone narrows it,
+        # while the same deflection on the left is past its own.
+        self.config.right_stick = "cursor"
+        self.config.left_deadzone = 0.10
+        self.config.right_deadzone = 0.60
+        self.feed((li.EV_ABS, li.ABS_RX, int(32767 * 0.5)))
+        self.tick(1.0, steps=100)
+        self.assertEqual(self.mouse.moves, [])
+        self.feed((li.EV_ABS, li.ABS_RX, 0),
+                  (li.EV_ABS, li.ABS_X, int(32767 * 0.5)))
+        self.tick(1.0, steps=100)
+        self.assertTrue(self.mouse.moves)
+
     def test_a_stick_that_rests_off_centre_does_not_drift(self):
         # The Beitong KP20 in NS mode: every axis rests half a range off the
         # advertised centre and uses only that half - X spans -32767..0. Read

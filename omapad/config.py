@@ -171,6 +171,39 @@ CHOSEN = {
         "kind": "number", "step": 100.0, "min": 200.0, "max": 4000.0,
         "unit": "pixels a second",
     },
+    # And how much of each stick does nothing, which is the same question
+    # asked of the other end of the travel: a pad whose sticks rest crooked
+    # walks the pointer off on its own until the zone is wide enough to
+    # swallow it, and a pad with tight sticks loses aim to a zone somebody
+    # else needed. One number per stick rather than per role, because the
+    # slop is in the hardware: the right stick has the same wear scrolling
+    # the desktop as it has walking a game's controls. Which of the two you
+    # are holding is answered by watching the pointer under the open menu,
+    # not by a number typed at a keyboard.
+    "left_deadzone": {
+        "attr": "left_deadzone", "table": "pointer", "key": "left_deadzone",
+        # A hundredth of the travel per step: the drift a pad shows is a
+        # couple of percent wide, so a coarser step walks past the setting
+        # that cures it. Half the travel is the ceiling - past that there is
+        # not enough stick left on the far side to aim with.
+        "kind": "number", "step": 0.01, "min": 0.0, "max": 0.50,
+        "unit": "%", "scale": 100,
+    },
+    "right_deadzone": {
+        "attr": "right_deadzone", "table": "pointer", "key": "right_deadzone",
+        "kind": "number", "step": 0.01, "min": 0.0, "max": 0.50,
+        "unit": "%", "scale": 100,
+    },
+}
+
+# What a setting used to be called. settings.toml is written by the menu
+# rather than by hand, so a file from an older build is not a typo to reject:
+# the dead zones moved from the role a stick was in to the stick itself, and a
+# value chosen from the sofa yesterday stays chosen. The next thing written
+# puts it back under the new name.
+SETTING_ALIASES = {
+    "pointer_deadzone": "left_deadzone",
+    "scroll_deadzone": "right_deadzone",
 }
 
 TRUE_WORDS = ("on", "true", "yes", "1")
@@ -545,7 +578,24 @@ class Config:
         pointer = data.get("pointer", {})
         self.pointer_speed = float(pointer.get("speed", 1100.0))
         self.pointer_accel = float(pointer.get("accel", 2.2))
-        self.pointer_deadzone = float(pointer.get("deadzone", 0.10))
+        # The dead zone belongs to the stick, not to what the stick is doing:
+        # the slop is in the hardware, and the right stick has the same wear
+        # walking a game's controls as it has scrolling the desktop. The right
+        # one ships wider because it ships in the `scroll` role, where a page
+        # sliding away under a thumb that never asked costs more than a notch
+        # that arrives late; give it the aiming role and it is worth bringing
+        # down to the left one's. A config that still names the zones the way
+        # the roles did is renamed on the way in - see `_renamed`.
+        self.left_deadzone = float(pointer.get("left_deadzone", 0.10))
+        self.right_deadzone = float(pointer.get("right_deadzone", 0.18))
+        # A whole stick of dead zone leaves nothing to aim with, and
+        # `apply_curve` divides by what is left of the travel, so 1.0 is a
+        # division by zero rather than a stick that does nothing.
+        for side in ("left", "right"):
+            if not 0.0 <= getattr(self, "%s_deadzone" % side) < 1.0:
+                raise ConfigError(
+                    "pointer.%s_deadzone must be 0 or more and under 1" % side
+                )
         self.precision_button = pointer.get("precision_button", "ZL") or None
         self.precision_factor = float(pointer.get("precision_factor", 0.28))
         self.poll_hz = max(30, int(pointer.get("poll_hz", 125)))
@@ -683,7 +733,6 @@ class Config:
 
         scroll = data.get("scroll", {})
         self.scroll_speed = float(scroll.get("speed", 8.0))
-        self.scroll_deadzone = float(scroll.get("deadzone", 0.18))
         self.scroll_accel = float(scroll.get("accel", 2.0))
         self.scroll_natural = bool(scroll.get("natural", False))
         # Two different things are called acceleration, and this file has both.
@@ -1096,6 +1145,17 @@ class Config:
             binding = self.keyboard_bindings.get("base", {}).get(code)
         return binding
 
+    def stick_deadzone(self, stick):
+        """How much of one stick's travel does nothing.
+
+        Asked of the stick rather than of the role it is in, so a right stick
+        that scrolls the desktop and walks a game's controls in game mode
+        carries the same slop into both - which is where the slop is.
+        """
+        if stick == "right":
+            return self.right_deadzone
+        return self.left_deadzone
+
     def stick_roles(self, layer_name, profile=None):
         """What a layer's sticks do, under the app in front of you.
 
@@ -1247,7 +1307,7 @@ def load(path=None, mapping=None, settings=None):
         if not os.path.exists(source):
             continue
         try:
-            data = _deep_merge(data, _load_toml(source))
+            data = _deep_merge(data, _renamed(_load_toml(source)))
         except tomllib.TOMLDecodeError as exc:
             raise ConfigError("%s: %s" % (source, exc)) from exc
     source = settings or settings_path()
@@ -1257,8 +1317,53 @@ def load(path=None, mapping=None, settings=None):
             chosen = _load_toml(source)
         except tomllib.TOMLDecodeError as exc:
             raise ConfigError("%s: %s" % (source, exc)) from exc
+        chosen = _migrate_settings(chosen)
         data = _deep_merge(data, _settings_data(chosen, source))
     return Config(data, chosen)
+
+
+def _renamed(data):
+    """Read a user's file that still names a setting the way an older one did.
+
+    Only the user's own sources go through this: the shipped defaults always
+    carry the current names, and they are merged *under* the user's, so a
+    fallback inside `Config` would never see the old key at all.
+
+    The dead zones are the case: they were one number per role - `deadzone`
+    under [pointer] for whatever was aiming, under [scroll] for whatever was
+    scrolling - and are now one per stick. Each old key answers for the stick
+    that ships in its role, and an explicit new one wins over it.
+    """
+    pointer = dict(data.get("pointer", {}))
+    legacy = (
+        ("left_deadzone", pointer.pop("deadzone", None)),
+        ("right_deadzone", data.get("scroll", {}).get("deadzone")),
+    )
+    if not any(value is not None for _, value in legacy):
+        return data
+    for key, value in legacy:
+        if value is not None:
+            pointer.setdefault(key, value)
+    data = dict(data)
+    data["pointer"] = pointer
+    if "scroll" in data:
+        scroll = dict(data["scroll"])
+        scroll.pop("deadzone", None)
+        data["scroll"] = scroll
+    return data
+
+
+def _migrate_settings(chosen):
+    """Rename what a settings.toml from an older build calls a setting.
+
+    A name that is still current wins over the one it replaced, so a file
+    holding both is not decided by which was read first.
+    """
+    for old, new in SETTING_ALIASES.items():
+        if old in chosen:
+            value = chosen.pop(old)
+            chosen.setdefault(new, value)
+    return chosen
 
 
 def _settings_data(chosen, source):

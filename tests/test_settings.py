@@ -99,6 +99,19 @@ class ApplyTests(unittest.TestCase):
                          shipped().pointer_speed + 100.0)
         self.assertEqual(self.set("pointer_speed", "40"), 200.0)  # clamped
 
+    def test_the_two_dead_zones_step_and_stop_short_of_the_whole_stick(self):
+        # Half the travel is as far as the ceiling goes: past it there is not
+        # enough stick left on the far side to aim with, and a whole one would
+        # divide apply_curve by nothing.
+        self.assertEqual(self.set("left_deadzone", "up"),
+                         round(shipped().left_deadzone + 0.01, 3))
+        self.assertEqual(self.config.stick_deadzone("left"),
+                         round(shipped().left_deadzone + 0.01, 3))
+        self.assertEqual(self.set("right_deadzone", "1"), 0.5)  # clamped
+        self.assertEqual(self.config.stick_deadzone("right"), 0.5)
+        self.assertEqual(self.set("left_deadzone", "0"), 0.0)
+        self.assertEqual(self.set("left_deadzone", "down"), 0.0)
+
     def test_a_stepping_row_says_where_the_number_is(self):
         self.set("scroll_speed", "9")
         self.assertEqual(
@@ -110,6 +123,7 @@ class ApplyTests(unittest.TestCase):
             "1100 pixels a second",
         )
         self.assertEqual(config_module.setting_text("rumble_strength", 0.2), "20%")
+        self.assertEqual(config_module.setting_text("left_deadzone", 0.1), "10%")
         # A choice or a switch is ticked instead, so it has nothing to add.
         self.assertEqual(config_module.setting_text("layout", "xbox"), "")
         self.assertEqual(config_module.setting_text("rumble", True), "")
@@ -154,6 +168,29 @@ class FileTests(unittest.TestCase):
         config = self.load_with('layout = "playstation"\n',
                                 user='[device]\nlayout = "nintendo"\n')
         self.assertEqual(config.layout_name, "playstation")
+
+    def test_a_dead_zone_that_leaves_no_stick_is_named(self):
+        # `apply_curve` divides by what is left of the travel, so this is the
+        # difference between `omapad check` naming the key and the daemon
+        # dividing by zero under a thumb.
+        for key in ("left_deadzone", "right_deadzone"):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                self.load_with("", user="[pointer]\n%s = 1.0\n" % key)
+            self.assertIn("pointer.%s" % key, str(caught.exception))
+
+    def test_a_dead_zone_written_under_its_old_name_still_answers(self):
+        # Both halves of the rename: a config file that still says what the
+        # role's zone was, and a settings.toml the menu wrote before the
+        # setting moved to the stick. Neither is a typo to reject - one is
+        # hand-written, the other was chosen from the sofa.
+        config = self.load_with(
+            "", user="[pointer]\ndeadzone = 0.2\n\n[scroll]\ndeadzone = 0.3\n"
+        )
+        self.assertEqual(config.stick_deadzone("left"), 0.2)
+        self.assertEqual(config.stick_deadzone("right"), 0.3)
+        config = self.load_with("pointer_deadzone = 0.25\n")
+        self.assertEqual(config.stick_deadzone("left"), 0.25)
+        self.assertEqual(config.chosen, {"left_deadzone": 0.25})
 
     def test_a_setting_that_does_not_exist_is_named(self):
         with self.assertRaises(config_module.ConfigError) as caught:

@@ -95,6 +95,12 @@ row, and `render_settings()` writes `settings.toml` back out.
 
 ## Traps
 
+- `_renamed()` and `SETTING_ALIASES` carry a user's file over a rename. The
+  shipped defaults always hold the current names and are merged *under* the
+  user's sources, so a fallback inside `Config` would never see an old key -
+  the rename has to happen to the user's data on the way in. The dead zones
+  are the case: one number per role (`deadzone` under `[pointer]` and
+  `[scroll]`) became one per stick.
 - `APP_PAGE_TTL` / `APP_PAGE_LIMIT` bound the keyboard page an app profile can
   lend; `parse_app_page` builds it.
 - `SURFACES` and `KEYBOARD_SURFACES` are the surface names in binding tables -
