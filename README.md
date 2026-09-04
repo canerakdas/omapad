@@ -215,11 +215,21 @@ There are four subtleties, and all four are handled:
   So it looks **sideways** as well — bounded by the cgroup: a terminal's parent
   is the compositor, and its siblings are every window on screen. A process
   outside the same cgroup is not the same application.
+- **The launchers are deeper than any count.** Measured: `steam → srt-bwrap →
+  pv-adverb → steamwebhelper` is already three, and a game adds the reaper and
+  wine's own wrapper below that. Counting generations found Steam from Steam's
+  own window and never from the game it started — so the pad stayed the
+  desktop's over a running game, which saw a keyboard and a mouse instead of a
+  controller. A longer count is not the repair: the same number applied to a
+  terminal reaches the compositor, whose children are every window on screen.
+  **The cgroup is the bound that fits** — systemd gives a launched application
+  its own scope, everything Steam starts stays inside Steam's, and the climb
+  ends exactly where the application does.
 
 ```toml
 [mode]
-handover_depth = 3       # generations in the family tree; Steam -> reaper -> wrapper -> game
-handover_siblings = true # whether siblings count too (required for Proton)
+handover_depth = 3       # how far *down*, and how far up with no cgroup to bound the climb
+handover_siblings = true # trust the cgroup as the edge of an application (required for Proton)
 ```
 
 **The sticks stop altogether.** Every role a stick carries is a desktop job —

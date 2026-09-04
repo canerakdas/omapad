@@ -23,6 +23,13 @@ and `/proc` shows who has.
 4. **The opener is not always above or below the window's process.** Under
    Proton it is `winedevice.exe`, wine's HID service, a *sibling*. So the walk
    goes sideways too, bounded by the cgroup.
+5. **The launchers are deeper than any count.** `steam -> srt-bwrap ->
+   pv-adverb -> steamwebhelper` is three before a game's own wrapper, so a
+   climb bounded by generations found Steam from Steam's window and never from
+   the game it started - the pad stayed ours over a running game. The cgroup
+   bounds the climb instead: it is exactly as long as the application is,
+   where a count is either too short for Proton or long enough to reach the
+   compositor from a terminal.
 
 ## Surface
 
@@ -31,7 +38,7 @@ and `/proc` shows who has.
 | `device_nodes(path)` | the event node and its `hidraw` siblings |
 | `holders(nodes, skip_pid, proc)` | which pids have any of them open |
 | `parent_of`, `children_of`, `cgroup_of` | the walk's steps, straight out of `/proc` |
-| `related(pid, depth, siblings)` | the process tree around the focused window |
+| `related(pid, depth, siblings)` | the process tree around the focused window - the cgroup bounds the climb, `depth` the descent |
 | `wants_pad(focus_pid, nodes, ...)` | the whole question, in one call |
 
 Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`,

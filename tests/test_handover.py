@@ -172,6 +172,47 @@ class FakeProcTests(unittest.TestCase):
             )
         )
 
+    def steam_shape(self, scope="/app.slice/steam.scope", above=None):
+        """Steam, and a game five launchers under it.
+
+        `steam -> reaper -> bwrap -> adverb -> wrapper -> game`, which is the
+        measured shape and deeper than any generation count worth setting.
+        `above` puts everything from the reaper up in another scope, the way
+        a launcher outside the application's own would sit.
+        """
+        self.process(5, parent=1, children=[10], holds=["/dev/input/event9"],
+                     cgroup=above or scope)
+        self.process(10, parent=5, children=[20], cgroup=above or scope)
+        self.process(20, parent=10, children=[30], cgroup=scope)
+        self.process(30, parent=20, children=[40], cgroup=scope)
+        self.process(40, parent=30, children=[50], cgroup=scope)
+        self.process(50, parent=40, cgroup=scope)
+        return 50
+
+    def test_the_scope_reaches_a_launcher_no_count_would(self):
+        # The bug this shape is named after: Steam's own window handed the pad
+        # over and the game it started did not, because Steam sits five up.
+        window = self.steam_shape()
+        self.assertTrue(
+            handover.wants_pad(window, {"/dev/input/event9"}, proc=self.root)
+        )
+
+    def test_and_stops_where_the_application_does(self):
+        # The climb ends at the first process outside the scope, however many
+        # generations are left: past it is the desktop, not the app.
+        window = self.steam_shape(above="/app.slice/somebody-else.scope")
+        self.assertFalse(
+            handover.wants_pad(window, {"/dev/input/event9"}, proc=self.root)
+        )
+
+    def test_with_the_cgroup_distrusted_the_count_bounds_it_again(self):
+        window = self.steam_shape()
+        self.assertFalse(
+            handover.wants_pad(
+                window, {"/dev/input/event9"}, proc=self.root, siblings=False
+            )
+        )
+
     def test_depth_bounds_how_far_the_launchers_reach(self):
         # Steam holds the pad all evening, and it sits four up from the game.
         self.process(5, parent=1, children=[10], holds=["/dev/input/event9"])

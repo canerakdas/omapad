@@ -211,16 +211,29 @@ rumble = true
 # Seconds between checks. Focus changes ask anyway; this catches the app that
 # opens the pad a moment after its window appears, which is most of them.
 handover_poll = 2.0
-# How far around the focused window's process to look. Steam -> reaper ->
-# wrapper -> game is three deep, which is where the default comes from; raising
-# it walks towards the session leader, and everything under that is every
-# window on the desktop.
+# How far *down* from the focused window's process to look, and how far up
+# when there is no cgroup to bound the climb (see below). Raising it walks
+# towards the session leader, and everything under that is every window on the
+# desktop, so raise it only on a machine that gives applications no scope of
+# their own.
 handover_depth = 3
-# Whether a process *beside* the focused one counts as the same app - same
-# cgroup, but neither its parent nor its child. Under Proton the process that
-# opens the pad is `winedevice.exe`, wine's HID service, which is a sibling of
-# the game rather than part of its line, so with this off a Proton game leaves
-# the pad driving the desktop's pointer over the top of it.
+# Whether the cgroup is trusted as the edge of an application. It is what
+# makes two things work, and both are Proton's.
+#
+# Sideways: the process that opens the pad under Proton is `winedevice.exe`,
+# wine's HID service, a sibling of the game rather than part of its line. With
+# this off, a Proton game leaves the pad driving the desktop's pointer over the
+# top of it.
+#
+# Upwards: the launchers between Steam and a game it starts are deeper than any
+# count - `steam -> srt-bwrap -> pv-adverb -> steamwebhelper` is three before
+# the game's own wrapper - so with this off the pad is handed over for Steam's
+# own window and not for the game, which is the same fault wearing a different
+# hat. systemd gives a launched application its own scope and everything Steam
+# starts stays inside it, so the climb ends where the application does.
+#
+# Turn it off only on a machine that puts unrelated windows in one cgroup;
+# there the boundary would mean nothing and `handover_depth` is the only bound.
 handover_siblings = true
 # Omarchy's bar is a desktop object: every widget on it opens a popup you
 # click, and from the couch there is no pointer worth clicking with. So game

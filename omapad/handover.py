@@ -33,6 +33,14 @@ Four details stop the simple version from working:
   of the game's process. So the walk goes sideways as well - bounded by the
   cgroup, since a terminal's siblings are the whole desktop. See `related`.
 
+- **And the launchers between Steam and the game are deeper than any count.**
+  `steam -> srt-bwrap -> pv-adverb -> steamwebhelper` is three before the
+  game's own wrapper, so a walk bounded by generations reached Steam from
+  Steam's window and never from the game it started: the pad stayed ours, the
+  grab kept it from the game, and every stick went on driving the desktop over
+  the top of it. The cgroup is the bound that fits, because systemd gives a
+  launched application its own scope and everything Steam starts stays in it.
+
 `EVIOCGRAB` blocks events, not opens, so all of this stays visible while
 omapad holds the pad: the app opens the device, gets nothing, and we notice
 and let go.
@@ -223,9 +231,13 @@ def _descend(start, levels, seen, proc, scope=None):
 def related(pid, proc=PROC, depth=3, siblings=True):
     """The focused window's process, its ancestors, and everything beside it.
 
-    Bounded above and below: a launcher three deep is a real shape (Steam ->
-    reaper -> wrapper -> game), a session leader eight deep is just `systemd`,
-    and walking to it would hand the pad over for every window on the desktop.
+    Bounded above by the cgroup and below by `depth`. Above it has to be the
+    cgroup: a launcher three deep was thought to be the shape (Steam ->
+    reaper -> wrapper -> game) and a game under Proton is half as deep again,
+    while a session leader eight deep is just `systemd` and walking to it
+    would hand the pad over for every window on the desktop. A count cannot
+    tell those apart and the scope does not have to - it ends where the
+    application ends, however many launchers that took.
 
     Sideways too, and that is not decoration. Under Proton the process that
     opens the pad is `winedevice.exe` - wine's own HID service - and it is a
@@ -242,20 +254,34 @@ def related(pid, proc=PROC, depth=3, siblings=True):
     read there is no step.
     """
     seen = {int(pid)}
+    scope = cgroup_of(pid, proc) if siblings else None
     ancestry = []
     walker = int(pid)
-    for _ in range(depth):
-        walker = parent_of(walker, proc)
-        if walker is None or walker == 1:
+    # The climb is bounded by the cgroup where there is one, and only by
+    # `depth` where there is not. Counting generations was the first answer
+    # and it cannot reach a game under Proton: measured here, `steam ->
+    # srt-bwrap -> pv-adverb -> steamwebhelper` is already three, and a game
+    # adds the reaper and wine's own wrapper below that. No count that reached
+    # it would be safe either - the same number applied to a terminal walks to
+    # the compositor, whose descendants are every window on the screen. The
+    # scope has no such problem: it is exactly as long as the application is.
+    while True:
+        if scope is None and len(ancestry) >= depth:
             break
-        ancestry.append(walker)
-        seen.add(walker)
+        parent = parent_of(walker, proc)
+        if parent is None or parent == 1:
+            break
+        if scope is not None and cgroup_of(parent, proc) != scope:
+            break
+        ancestry.append(parent)
+        seen.add(parent)
+        walker = parent
     # What hangs off the window's own process is the app whatever any cgroup
     # says. What hangs off its launchers is the app only while it is both
     # inside the same scope and inside the same neighbourhood, so the budget
-    # shrinks with every step up.
+    # shrinks with every step up - and runs out, which is what keeps a long
+    # climb from dragging a launcher's whole subtree in with it.
     _descend(int(pid), depth, seen, proc)
-    scope = cgroup_of(pid, proc) if siblings else None
     if scope:
         for height, start in enumerate(ancestry, 1):
             _descend(start, depth - height, seen, proc, scope)
