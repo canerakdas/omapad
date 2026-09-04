@@ -24,7 +24,7 @@ from . import snap as snap_module
 from .gamebar import GameBarModel
 from .guide import GuideModel
 from .mapping import MappingModel, render as render_mapping
-from .menu import MenuError, MenuModel, build as build_menu
+from .menu import MenuError, MenuModel, build as build_menu, listed
 from .osk import OskModel, badge_index
 from .ripple import RippleModel
 from .rumble import Rumble
@@ -1256,6 +1256,23 @@ class Daemon:
             )
         ))
 
+    def menu_fill(self, item):
+        """Read a listed row's submenu from its command, if it is one.
+
+        The command runs on the loop, which is what `menu.list_timeout_ms`
+        bounds: this press is waiting for it, and a device listing that has
+        wedged must be a stutter rather than a pad that has stopped answering.
+        A command that fails prints nothing, and an empty page says so.
+        """
+        if not item or not item.get("from"):
+            return
+        lines = self.session.capture(item["from"], self.config.menu_list_timeout)
+        try:
+            item["items"] = listed(item, lines, self.config.menu_list_limit)
+        except MenuError as exc:
+            # A page that will not build must not take the menu down with it.
+            log.error("menu: %s", exc)
+
     def menu_select(self, index):
         """Jump the selection to one row - what a pointer hovering asks for.
 
@@ -1297,8 +1314,17 @@ class Daemon:
                 self.set_menu(False)
                 return False
         elif command in ("press", "right"):
+            # A row that lists its submenu is read here, at the press. Caching
+            # it would defeat the point: the reason a row lists devices rather
+            # than naming them is that the answer changes while the daemon runs
+            # - a television is plugged in and an output appears.
+            self.menu_fill(model.current)
             kind, item = model.press()
-            if kind == "run" and item["repeat"]:
+            if kind == "run" and item["action"] is None:
+                # All a listing found was that it found nothing. The row is an
+                # answer rather than a choice, so the menu stays where it is.
+                pass
+            elif kind == "run" and item["repeat"]:
                 # A row you nudge rather than pick - volume, brightness. The
                 # menu stays where it is and the button keeps firing, the way
                 # a held volume key does; picking it once per step would mean
@@ -1311,6 +1337,8 @@ class Daemon:
                 # one and being thrown back to the desktop to see what it did
                 # is how you end up opening the menu once per thing you try.
                 self.fire_once(item["action"], "menu")
+                if item.get("listed"):
+                    model.choose(item)
             elif kind == "run":
                 # Otherwise the menu goes away before the entry fires: whatever
                 # it opens should not come up behind a scrim, and a command that

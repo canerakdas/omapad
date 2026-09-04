@@ -10,13 +10,31 @@ Same split as the keyboard: the tree, the selection and the drill-down stack
 live here, and the shell plugin is handed rows and an index and only draws
 them. Entries come from `[[menu.items]]` in the config and use the same action
 grammar as a button binding, so the menu can reach anything a button can.
+
+A row may also **list** its submenu instead of holding one: `from` is a command
+whose output is one row per line. Which audio outputs exist is not something a
+config file can know - the answer changes when a television is plugged in - and
+a menu that can only name what was written down cannot ask.
 """
 
+import re
+import shlex
 import time
 
 from . import actions
 
 ROOT_TITLE = "Go"
+
+# What a listed row's submenu says when its command finds nothing. A page with
+# no rows on it is a press in the dark: the menu opened, and the screen has
+# nothing to say about why.
+NOTHING_LISTED = "Nothing found"
+
+# The values a listed line carries, in the order the row's action takes them.
+# Numbered rather than one `%s` because the command a row runs often wants two
+# of them - a node id and a device name - and unnumbered fields could not say
+# which was which. A bare `%` is left alone, so `5%-` still steps a brightness.
+FIELD = re.compile(r"%([1-9])")
 
 
 class MenuError(ValueError):
@@ -28,7 +46,8 @@ def build(entries, where="menu.items"):
 
     Actions are parsed here rather than when an entry is picked, so a typo
     surfaces in `omapad check` instead of doing nothing at the moment you
-    press it.
+    press it. A row that lists its submenu (`from`) is checked the same way,
+    against the template each of its lines will run.
     """
     items = []
     for index, entry in enumerate(entries or []):
@@ -40,8 +59,16 @@ def build(entries, where="menu.items"):
             raise MenuError("%s needs a label" % path)
         children = entry.get("items")
         spec = entry.get("action")
+        source = entry.get("from")
         if children is not None and spec is not None:
             raise MenuError("%s has both an action and items" % path)
+        if source is not None:
+            if children is not None:
+                raise MenuError("%s both lists its rows and holds them" % path)
+            if spec is None:
+                raise MenuError("%s lists rows without saying what one runs" % path)
+            if not str(source).strip():
+                raise MenuError("%s: 'from' is empty" % path)
         item = {
             "label": label,
             "icon": str(entry.get("icon", "")),
@@ -58,12 +85,36 @@ def build(entries, where="menu.items"):
             # menu four times to try two of them. A repeating row already
             # stays, by the same argument.
             "stay": bool(entry.get("stay", False) or entry.get("repeat", False)),
+            # The command whose output becomes this row's submenu, and the
+            # action each of its lines runs. Held as written rather than
+            # parsed: the values are not known until the command has answered.
+            "from": None,
+            "template": None,
+            # What that submenu says when the command finds nothing.
+            "empty": str(entry.get("empty", "")).strip() or NOTHING_LISTED,
         }
-        if children is not None:
+        if source is not None or children is not None:
+            # Neither kind of submenu row is picked, so neither can nudge or
+            # stay: both are answers to what happens when a row *runs*.
             if item["repeat"]:
                 raise MenuError("%s: only an action row can repeat" % path)
             if item["stay"]:
                 raise MenuError("%s: only an action row can stay open" % path)
+        if source is not None:
+            # Parsed here and thrown away, for the reason every other action is
+            # parsed here: `omapad check` should name a row whose template is
+            # nonsense rather than a page of rows that do nothing.
+            try:
+                actions.parse(spec)
+            except actions.ActionError as exc:
+                raise MenuError("%s: %s" % (path, exc)) from exc
+            item["from"] = str(source).strip()
+            item["template"] = spec
+            # Not None, so the row reads as a submenu before it has been
+            # entered: what it holds is read at the press, and until then the
+            # only honest answer is that it drills in.
+            item["items"] = []
+        elif children is not None:
             item["items"] = build(children, path + ".items")
             if not item["items"]:
                 raise MenuError("%s opens an empty submenu" % path)
@@ -76,6 +127,84 @@ def build(entries, where="menu.items"):
             raise MenuError("%s needs an action or items" % path)
         items.append(item)
     return items
+
+
+def listed(item, lines, limit):
+    """The rows a listing command just printed, as `item`'s submenu.
+
+    One row per line, tab-separated: the label, then the values the row's
+    template takes as `%1` to `%9`. A label that begins with `*` is the one in
+    force and is ticked - the mark `pactl` and `wpctl` already put beside the
+    current device - and the mark itself is not drawn.
+
+    **Every value is quoted as it goes in.** A device names itself from its own
+    USB descriptor, which is to say from somewhere outside this machine, and
+    the action it lands in is usually a shell command: unquoted, a speaker
+    called `x; rm -rf ~` would be one.
+
+    A line whose action will not parse is dropped rather than raised on: the
+    rest of the list is still worth drawing, and a page that opens empty says
+    so in its own words.
+    """
+    rows = []
+    for line in lines:
+        fields = line.split("\t")
+        label = fields[0].strip()
+        on = label.startswith("*")
+        if on:
+            label = label[1:].strip()
+        if not label:
+            continue
+        values = [field.strip() for field in fields[1:]]
+        try:
+            action = actions.parse(_filled(item["template"], values))
+        except actions.ActionError:
+            continue
+        rows.append(_listed_row(item, label, action, on))
+        if len(rows) >= limit:
+            break
+    if not rows:
+        # The command's answer rather than a choice: no action, so picking it
+        # does nothing and the menu stays where it is.
+        rows.append(_listed_row(item, item["empty"], None, None))
+    return rows
+
+
+def _listed_row(item, label, action, on):
+    return {
+        "label": label,
+        # No icon: what a device is called is the whole of the row, and a glyph
+        # repeated down a list of them says nothing about any of it.
+        "icon": "",
+        "detail": "",
+        "items": None,
+        "action": action,
+        "repeat": False,
+        # Picking one and being thrown out to the desktop would mean reopening
+        # the menu to hear whether it was the right one.
+        "stay": True,
+        "from": None,
+        "template": None,
+        "empty": item["empty"],
+        # Which one the listing marked, and what the tick follows once a row
+        # here has been picked. A listed row is the one kind that knows its own
+        # answer: the daemon cannot ask a device anything.
+        "on": on,
+        "listed": True,
+    }
+
+
+def _filled(template, values):
+    """`%1` to `%9` replaced by the values a listing line carried, quoted."""
+    def value(match):
+        index = int(match.group(1)) - 1
+        # A value the line did not carry leaves nothing behind rather than an
+        # empty argument: a line one field short is a listing that has gone
+        # wrong, and the row it makes is dropped for failing to parse.
+        if index >= len(values) or not values[index]:
+            return ""
+        return shlex.quote(values[index])
+    return FIELD.sub(value, template)
 
 
 class MenuModel:
@@ -152,6 +281,18 @@ class MenuModel:
             return ("enter", item)
         return ("run", item)
 
+    def choose(self, item):
+        """Move the tick to the row just picked, on the level it sits on.
+
+        A listed row's tick came from the listing, and the command it runs is
+        let go of rather than waited for - so re-reading the listing here would
+        race the thing this press has only just started. The press is the
+        answer until the page is entered again and the command asked afresh.
+        """
+        for other in self.items:
+            if other.get("listed") and other["action"] is not None:
+                other["on"] = other is item
+
     def back(self):
         """Leave the current submenu. False when there is nothing above it."""
         if not self.stack:
@@ -188,7 +329,12 @@ class MenuModel:
                 "d": item["detail"],
                 "sub": item["items"] is not None,
             }
-            if item["action"] is not None:
+            if item.get("on") is not None:
+                # A listed row knows its own answer: the daemon can ask a
+                # setting what it holds, but not a device whether it is the one
+                # the sound is going to.
+                row["on"] = bool(item["on"])
+            elif item["action"] is not None:
                 if state is not None:
                     answer = state(item["action"])
                     if answer is not None:

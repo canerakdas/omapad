@@ -55,6 +55,7 @@ action = "exec:omarchy-menu toggle apps"
 | `items` | a submenu; mutually exclusive with `action` |
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |
 | `stay` | one press, menu stays up. What a row that changes a setting the menu itself prints needs |
+| `from` | a command whose output **is** the submenu, read at the press. With `action` as the template each line runs, and `empty` for what the page says when it finds nothing |
 
 `repeat` implies `stay`. Both are rejected on a submenu row - `MenuError` says
 which path.
@@ -75,6 +76,36 @@ A number cannot be ticked - every step is equally "not the case" - so those
 rows print where they have got to instead (`9 notches a second`), and `value`
 replaces the row's own `detail`. If a setting you add should tick or print,
 it needs to be in `CHOSEN`; see the `pad-setting` skill.
+
+## Rows you cannot write down
+
+Which speakers are in the room is not something a config file knows: plug a
+television in and there is one more. A row that could only name what was
+written down would be pointing at whatever was there the day it was written, so
+that row **lists** instead:
+
+```toml
+[[menu.items.items]]
+label = "Output"
+detail = "Speakers, headphones, the TV"
+empty = "No outputs found"                            # if it prints nothing
+action = "exec:omarchy-audio-output-set-default %1 %2"
+from = "..."     # prints: label \t %1 \t %2, one row per line
+```
+
+- The command runs **every time the row is entered** - that is the point of it.
+  It runs on the event loop, so `[menu] list_timeout_ms` is the pause a press
+  may take; keep the command to one that answers quickly.
+- A label that starts with `*` is **ticked** - the mark `pactl` and `wpctl`
+  already print beside the current device. Without it the page is a list of
+  guesses.
+- Values are quoted as they go in, so a device that names itself from its own
+  USB descriptor cannot become a second command. Write the command so each
+  value is one argument.
+- Picking a listed row keeps the menu up and moves the tick, so two of them can
+  be tried without reopening anything.
+- `empty` is a user-facing line like any other: `pad-wording`, not a stack
+  trace.
 
 ## Launching something
 

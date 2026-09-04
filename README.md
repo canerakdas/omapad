@@ -1734,11 +1734,44 @@ and a row can decide something at the moment it is pressed. (A TOML value in
 single quotes is a literal string, which is what keeps the double quotes
 inside it readable.)
 
+### Rows that list what is plugged in
+
+Some answers are not in a config file. Which speakers are in the room changes
+when a television is plugged in, and a row that could only name what was
+written down would be pointing at whatever was there when you wrote it. So a
+row can **list** its submenu instead of holding one:
+
+```toml
+[[menu.items.items]]
+icon = "󰓃"
+label = "Output"
+detail = "Speakers, headphones, the TV"
+empty = "No outputs found"                            # if it prints nothing
+action = "exec:omarchy-audio-output-set-default %1 %2"
+from = "..."     # a command; one line per row
+```
+
+`from` is a shell command, run when the row is entered — every time, so a
+television plugged in a moment ago is on the list. Each line it prints is one
+row, tab separated: **the label**, then the values `action` takes as `%1` to
+`%9`. A label that starts with `*` is the one **in force** and is ticked — the
+mark `pactl` and `wpctl` already print beside the current device. The values
+are quoted as they go in, so a device that names itself with a space or a
+semicolon stays a name rather than becoming a second command.
+
+Picking a row here keeps the menu up and moves the tick to it, because
+choosing an output you cannot hear yet and being thrown back to the desktop
+means opening the menu again to try the other one.
+
+Two settings bound it: `[menu] list_timeout_ms` is how long the press may wait
+for the command (it runs while the menu is open, so it is the pad's own pause),
+and `[menu] list_limit` is how many of its lines reach the page.
+
 The tree that ships is nine rows deep at the top, grouped so that the ones you
 reach for from a sofa are the ones nearest the opening selection: **Apps** (Steam
 Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
 installed) · Keyboard · **Windows** ·
-**Audio** (volume, playback) · **Display** (brightness, scale, screensaver) · Game
+**Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) · Game
 mode · **Controller** · **System** (lock, suspend, log out, restart, power off) ·
 Omarchy menu. What you open, then what is on screen, then the room, then the pad,
 then the machine — and last, on its own, the way out into the Omarchy menu, which

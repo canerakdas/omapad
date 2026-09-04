@@ -1491,6 +1491,13 @@ title = "Go"                  # header shown at the top level
 clock = "%A %H:%M"
 repeat_delay_ms = 400         # hold up/down this long before the list walks
 repeat_rate_ms = 110          # then one row every this many ms
+# A row can list its own submenu instead of holding one: `from` is a command,
+# and every line it prints becomes a row (see the audio outputs below). The
+# command runs when the row is entered, with the press waiting on it, so this
+# is how long the pad may pause for one. Raise it for a listing that is slow to
+# answer; lower it and a slow one comes up empty instead of holding the menu.
+list_timeout_ms = 1000
+list_limit = 24               # and how many of its lines reach the page
 # socket = "/run/user/1000/omapad/menu.sock"   # defaults to $XDG_RUNTIME_DIR
 
 [[menu.items]]
@@ -1627,6 +1634,70 @@ label = "Audio"
   icon = "󰝟"
   label = "Mute"
   action = "exec:omarchy-audio-output-volume mute-toggle"
+
+  # Which speakers and which microphone - the two rows a television asks for.
+  # Plug one in and there is a second output in the room; the desktop asks you
+  # to pick it from a list, and from a sofa that list is behind a keyboard and
+  # a pointer. The same press has to reach it.
+  #
+  # A page of their own rather than two more rows beside Mute: this submenu was
+  # answering three questions at once - how loud, where the sound goes, and
+  # what is playing - and only the middle one is set when the room changes
+  # rather than while you are sitting in it. So it goes a level down, where a
+  # rare answer belongs, and what is pressed from the sofa keeps the top.
+  [[menu.items.items]]
+  icon = "󰋋"
+  label = "Devices"
+  detail = "Speakers and microphones"
+
+    # Neither row can be written down here, because what is plugged in is not
+    # something a config file knows. `from` is a command, and each line it
+    # prints is a row: the label, then the values `action` takes as `%1` and
+    # `%2`, tab separated. A label starting with `*` is the one in force and is
+    # ticked - the mark `pactl` and `wpctl` already put beside the current
+    # device. Values are quoted as they go in, so a device that names itself
+    # with a space or a semicolon stays a name rather than becoming a second
+    # command.
+    #
+    # The outputs are the ones Omarchy's own switcher offers: a sink whose only
+    # ports are unplugged is left out, and so is the physical sink a speaker
+    # tuning fronts - picking that one would bypass the tuning rather than send
+    # the sound anywhere new.
+    [[menu.items.items.items]]
+    icon = "󰓃"
+    label = "Output"
+    detail = "Speakers, headphones, the TV"
+    empty = "No outputs found"
+    action = "exec:omarchy-audio-output-set-default %1 %2"
+    from = '''
+      fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
+      pactl -f json list sinks |
+        jq -r --arg cur "$(pactl get-default-sink)" --arg fronted "$fronted" '
+          .[] | select($fronted == "" or .name != $fronted)
+              | select((.ports | length == 0)
+                       or ([.ports[]? | .availability != "not available"] | any))
+              | (if .name == $cur then "* " else "" end) + (.description // .name)
+                + "\t" + (.index | tostring) + "\t" + .name'
+    '''
+
+    # The inputs are every source that is not a monitor - a monitor is what the
+    # speakers are already playing, not something anybody speaks into. No
+    # availability filter here, unlike the outputs above: a built-in microphone
+    # reports its jack as unplugged and is still the microphone in use, so
+    # filtering on it would hide the row that is ticked.
+    [[menu.items.items.items]]
+    icon = "󰍬"
+    label = "Microphone"
+    detail = "Built-in, headset, webcam"
+    empty = "No microphones found"
+    action = "exec:omarchy-audio-input-set-default %1 %2"
+    from = '''
+      pactl -f json list sources |
+        jq -r --arg cur "$(pactl get-default-source)" '
+          .[] | select(.properties["device.class"] != "monitor")
+              | (if .name == $cur then "* " else "" end) + (.description // .name)
+                + "\t" + (.index | tostring) + "\t" + .name'
+    '''
 
   [[menu.items.items]]
   icon = "󰐊"

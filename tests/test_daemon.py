@@ -1716,6 +1716,76 @@ class MenuTests(DaemonTestCase):
         self.assertFalse(self.menu_client.sent[-1]["open"])
 
 
+class ListedMenuTests(DaemonTestCase):
+    """A row whose submenu is a command's output - the audio devices."""
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.set_menu(True)
+        self.session.lines = [
+            "* Speakers\t1\tanalog-out",
+            "Television\t7\thdmi-out",
+        ]
+
+    def enter(self, *labels):
+        for label in labels:
+            for index, item in enumerate(self.daemon.menu.items):
+                if item["label"] == label:
+                    self.daemon.menu.index = index
+                    break
+            else:
+                raise AssertionError("no menu row labelled %r" % label)
+            self.daemon.menu_command("press")
+
+    def test_the_devices_are_read_when_the_row_is_entered(self):
+        # Not at load: which outputs exist changes while the daemon runs, and
+        # the answer a television adds is the whole reason for the row.
+        self.enter("Audio", "Devices")
+        self.assertEqual(self.session.captured, [])
+        self.enter("Output")
+        self.assertEqual(len(self.session.captured), 1)
+        self.assertIn("pactl", self.session.captured[0])
+        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+                         ["Speakers", "Television"])
+        self.assertEqual([row["on"] for row in self.menu_client.sent[-1]["items"]],
+                         [True, False])
+
+    def test_it_is_asked_again_every_time_the_row_is_entered(self):
+        self.enter("Audio", "Devices", "Output")
+        self.daemon.menu_command("back")
+        self.session.lines.append("Headphones\t9\tusb-out")
+        self.enter("Output")
+        self.assertEqual(len(self.session.captured), 2)
+        self.assertEqual(len(self.menu_client.sent[-1]["items"]), 3)
+
+    def test_picking_a_device_runs_the_row_and_keeps_the_menu_up(self):
+        self.enter("Audio", "Devices", "Output")
+        self.daemon.menu_command("down")
+        self.daemon.menu_command("press")
+        self.assertEqual(self.session.spawned,
+                         ["omarchy-audio-output-set-default 7 hdmi-out"])
+        self.assertTrue(self.daemon.menu_open)
+        # The tick follows the press: the command that moves the sound was let
+        # go of, so asking again here would race it.
+        self.assertEqual([row["on"] for row in self.menu_client.sent[-1]["items"]],
+                         [False, True])
+
+    def test_a_listing_that_finds_nothing_says_so_and_runs_nothing(self):
+        self.session.lines = []
+        self.enter("Audio", "Devices", "Output")
+        rows = self.menu_client.sent[-1]["items"]
+        self.assertEqual([row["l"] for row in rows], ["No outputs found"])
+        self.daemon.menu_command("press")
+        self.assertEqual(self.session.spawned, [])
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_the_microphones_are_a_listing_of_their_own(self):
+        self.enter("Audio", "Devices", "Microphone")
+        self.daemon.menu_command("press")
+        self.assertEqual(self.session.spawned,
+                         ["omarchy-audio-input-set-default 1 analog-out"])
+
+
 class GuideTests(DaemonTestCase):
     def open_guide(self):
         self.daemon.set_guide(True)

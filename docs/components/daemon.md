@@ -31,7 +31,12 @@ preferences:
 
 **Nothing in the loop may block.** Anything that shells out or waits belongs
 in a thread that posts back through a queue the loop learns about by reading
-one byte off a self-pipe registered with `poll()`. See roadmap item 29 and
+one byte off a self-pipe registered with `poll()`. Two things break that rule
+on purpose, both reading a command a *press* is waiting for: the keyboard page
+a profile lends an app, and a menu row that lists its submenu
+(`menu_fill`). Each is bounded by a timeout so a wedged command is a stutter
+rather than a pad that has stopped answering, and each wants the thread the day
+its command is slower than `pactl`. See roadmap item 29 and
 `../../../tries/omapad-assist-removed-2026-08-31/` for how that was wired
 when the shelved assistant needed it.
 

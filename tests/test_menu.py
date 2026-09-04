@@ -8,7 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import actions, config as config_module
-from omapad.menu import MenuError, MenuModel, ROOT_TITLE, build
+from omapad.menu import MenuError, MenuModel, ROOT_TITLE, build, listed
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -23,6 +23,16 @@ SAMPLE = [
     {"label": "Volume up", "repeat": True, "action": "exec:true"},
     {"label": "Xbox labels", "stay": True, "action": "pad:layout=xbox"},
 ]
+
+
+LISTED = {
+    "label": "Output",
+    "icon": "S",
+    "detail": "Speakers, headphones, the TV",
+    "empty": "No outputs found",
+    "action": "exec:set-output %1 %2",
+    "from": "list-outputs",
+}
 
 
 class BuildTests(unittest.TestCase):
@@ -79,6 +89,36 @@ class BuildTests(unittest.TestCase):
             build([{"label": "Bad", "action": "nonsense:x"}])
         self.assertIn("menu.items[0]", str(caught.exception))
 
+    def test_a_listed_row_holds_its_command_and_reads_as_a_submenu(self):
+        # It drills in before anything has been read: what is plugged in is
+        # not known until the row is entered.
+        item = build([LISTED])[0]
+        self.assertEqual(item["from"], "list-outputs")
+        self.assertEqual(item["template"], "exec:set-output %1 %2")
+        self.assertEqual(item["items"], [])
+        self.assertIsNone(item["action"])
+
+    def test_a_listed_row_needs_something_for_its_lines_to_run(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "Output", "from": "list-outputs"}])
+
+    def test_a_listed_row_cannot_also_hold_its_rows(self):
+        with self.assertRaises(MenuError):
+            build([dict(LISTED, items=[{"label": "One", "action": "exec:true"}])])
+
+    def test_a_listed_row_is_still_a_submenu_and_cannot_repeat(self):
+        with self.assertRaises(MenuError):
+            build([dict(LISTED, repeat=True)])
+
+    def test_a_bad_template_names_the_row(self):
+        with self.assertRaises(MenuError) as caught:
+            build([dict(LISTED, action="nonsense:%1")])
+        self.assertIn("menu.items[0]", str(caught.exception))
+
+    def test_a_row_says_what_an_empty_listing_looks_like(self):
+        self.assertEqual(build([LISTED])[0]["empty"], "No outputs found")
+        self.assertTrue(build([dict(LISTED, empty=None)])[0]["empty"])
+
     def test_the_shipped_menu_builds(self):
         missing = os.path.join(tempfile.gettempdir(),
                                "omapad-no-such-config")
@@ -102,6 +142,61 @@ class BuildTests(unittest.TestCase):
             labels[:4], ["Steam", "Discord", "Spotify", "YouTube"]
         )
         self.assertEqual(labels[-1], "All apps")
+
+
+class ListedTests(unittest.TestCase):
+    """The rows a listing command prints, and what they run."""
+
+    def setUp(self):
+        self.item = build([LISTED])[0]
+
+    def rows(self, lines, limit=8):
+        return listed(self.item, lines, limit)
+
+    def test_a_line_becomes_a_row_that_runs_the_template(self):
+        row = self.rows(["Television\t7\thdmi-out"])[0]
+        self.assertEqual(row["label"], "Television")
+        self.assertEqual(row["action"].command, "set-output 7 hdmi-out")
+
+    def test_the_mark_pactl_prints_is_the_tick_and_is_not_drawn(self):
+        rows = self.rows(["* Speakers\t1\tanalog", "Television\t7\thdmi-out"])
+        self.assertEqual([row["label"] for row in rows], ["Speakers", "Television"])
+        self.assertEqual([row["on"] for row in rows], [True, False])
+
+    def test_a_value_cannot_become_a_second_command(self):
+        # A device names itself from its own descriptor, which is to say from
+        # outside this machine, and the name lands in a shell command.
+        row = self.rows(["Rogue\t7\thdmi; rm -rf ~"])[0]
+        self.assertEqual(row["action"].command, "set-output 7 'hdmi; rm -rf ~'")
+
+    def test_a_missing_value_leaves_the_argument_empty(self):
+        self.assertEqual(self.rows(["Speakers\t1"])[0]["action"].command,
+                         "set-output 1")
+
+    def test_a_row_picked_here_keeps_the_menu_up(self):
+        # Choosing an output and being thrown out means reopening the menu to
+        # hear whether it was the right one.
+        self.assertTrue(self.rows(["Speakers\t1\tanalog"])[0]["stay"])
+
+    def test_the_listing_is_capped(self):
+        lines = ["Sink %d\t%d\tname%d" % (n, n, n) for n in range(20)]
+        self.assertEqual(len(self.rows(lines, limit=4)), 4)
+
+    def test_a_line_with_no_label_is_dropped(self):
+        self.assertEqual(
+            self.rows(["\t1\tanalog", "Speakers\t1\tanalog"])[0]["label"],
+            "Speakers")
+
+    def test_nothing_found_says_so_and_does_nothing(self):
+        # A page that opens with no rows on it is a press in the dark.
+        row = self.rows([])[0]
+        self.assertEqual(row["label"], "No outputs found")
+        self.assertIsNone(row["action"])
+
+    def test_a_line_whose_action_will_not_parse_is_dropped(self):
+        item = build([dict(LISTED, action="exec:%1")])[0]
+        rows = listed(item, ["Empty\t", "Speakers\tanalog"], 8)
+        self.assertEqual([row["label"] for row in rows], ["Speakers"])
 
 
 class NavigationTests(unittest.TestCase):
@@ -178,6 +273,19 @@ class NavigationTests(unittest.TestCase):
         self.assertEqual(self.model.index, 0)
         self.assertEqual(self.model.title, ROOT_TITLE)
 
+    def test_choosing_a_listed_row_moves_the_tick_to_it(self):
+        # The command that changes the output is let go of rather than waited
+        # for, so re-reading the listing here would race it. The press is the
+        # answer until the page is entered again.
+        item = build([LISTED])[0]
+        item["items"] = listed(item, ["* Speakers\t1\ta", "Television\t7\tb"], 8)
+        model = MenuModel([item])
+        model.press()
+        model.move(1)
+        picked = model.current
+        model.choose(picked)
+        self.assertEqual([row["on"] for row in model.items], [False, True])
+
     def test_an_empty_menu_navigates_without_raising(self):
         model = MenuModel([])
         model.move(1)
@@ -198,6 +306,24 @@ class ViewTests(unittest.TestCase):
         self.assertEqual([row["l"] for row in state["items"]],
                          ["Terminal", "Audio", "Game mode", "Volume up",
                           "Xbox labels"])
+
+    def test_a_listed_row_is_ticked_by_the_listing_that_made_it(self):
+        item = build([LISTED])[0]
+        item["items"] = listed(item, ["* Speakers\t1\ta", "Television\t7\tb"], 8)
+        model = MenuModel([item])
+        self.assertTrue(model.view_state(True)["items"][0]["sub"])
+        model.press()
+        rows = model.view_state(True)["items"]
+        self.assertEqual([row["on"] for row in rows], [True, False])
+
+    def test_a_row_a_listing_could_not_fill_is_neither_ticked_nor_untidy(self):
+        item = build([LISTED])[0]
+        item["items"] = listed(item, [], 8)
+        model = MenuModel([item])
+        model.press()
+        row = model.view_state(True)["items"][0]
+        self.assertEqual(row["l"], "No outputs found")
+        self.assertNotIn("on", row)
 
     def test_only_submenu_rows_are_flagged_as_drilling_in(self):
         rows = self.model.view_state(True)["items"]

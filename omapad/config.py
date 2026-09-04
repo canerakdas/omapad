@@ -834,6 +834,19 @@ class Config:
         self.menu_clock = menu.get("clock", "%A %H:%M")
         self.menu_repeat_delay = float(menu.get("repeat_delay_ms", 400)) / 1000.0
         self.menu_repeat_rate = float(menu.get("repeat_rate_ms", 110)) / 1000.0
+        # How long a row that lists its submenu may keep the press waiting.
+        # The command runs on the event loop, so this is the pad's own pause:
+        # long enough for a device listing to answer, short enough that one
+        # which has wedged is a stutter rather than a pad that has stopped.
+        self.menu_list_timeout = float(menu.get("list_timeout_ms", 1000)) / 1000.0
+        if self.menu_list_timeout <= 0:
+            raise ConfigError("menu.list_timeout_ms must be more than 0")
+        # And how many of its lines reach the page. A listing is a command's
+        # output, so a broken one can print a log file; the menu is walked one
+        # row at a time with a thumb and has nowhere to put a hundred of them.
+        self.menu_list_limit = int(menu.get("list_limit", 24))
+        if self.menu_list_limit < 1:
+            raise ConfigError("menu.list_limit must be 1 or more")
 
         guide = data.get("guide", {})
         self.guide_socket = guide.get("socket") or None

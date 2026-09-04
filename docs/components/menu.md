@@ -13,11 +13,42 @@ everywhere else.
 `build(entries)` normalises `[[menu.items]]` into a tree. **Actions are parsed
 here, not when a row is picked**, so a typo surfaces in `omapad check`
 instead of doing nothing at the press. An entry needs a `label`,and may have
-either an `action` or nested `items` - never both. `MenuError` says which.
+either an `action` or nested `items` - never both. `MenuError` says which. A
+row that carries `from` is the one place the two meet: the action is the
+template its listed rows run.
 
 
 Entries use the same action grammar as a button binding, so the menu reaches
 anything a button can.
+
+## Rows that list what is plugged in
+
+A row may **list** its submenu rather than hold one. `from` is a command and
+`action` is the template each of its lines runs; `build()` parses that template
+the way it parses any other action, so a nonsense one still fails `omapad
+check`. Which audio outputs exist is not something a config file can know - the
+answer changes when a television is plugged in - and a menu that can only name
+what was written down cannot ask.
+
+`listed(item, lines, limit)` turns the command's output into the rows. One row
+per line, tab separated: the label, then the values the template takes as `%1`
+to `%9`. A label beginning with `*` is the one in force and is ticked - the
+mark `pactl` and `wpctl` already put beside the current device - and the mark
+is not drawn. **Every value is quoted as it goes in**: a device names itself
+from its own USB descriptor, and the action it lands in is usually a shell
+command. A line whose action will not parse is dropped; a page with no rows
+left says so in the row's own `empty` words rather than opening blank.
+
+The daemon reads it at the press (`menu_fill`), not at load and not from a
+cache: the reason the row lists devices instead of naming them is that the
+answer moves. The command runs on the event loop, so `[menu] list_timeout_ms`
+is how long a press may wait for it and `list_limit` is how many lines reach
+the page.
+
+Picking a listed row keeps the menu up and `choose()` moves the tick to it. The
+command it runs is let go of rather than waited for, so re-reading the listing
+there would race the thing the press has only just started; the press is the
+answer until the page is entered again.
 
 
 
@@ -38,6 +69,9 @@ as a mistake.
 - `state(action)` answers "is this already the case?" - the row is ticked
   (`on`). That is the whole difference between a list of choices and a list of
   guesses.
+- a **listed** row answers for itself: its `on` came from the listing that
+  made it, since the daemon can ask a setting what it holds but not a device
+  whether the sound is going to it.
 - `value(action)` answers the other half for a row that steps a number,and
   replaces the row's own `detail`,which is a sentence written once and cannot
   know. Ticking cannot say it: every step of a number is equally "not the
@@ -94,4 +128,4 @@ is what "close on a scrim click" means - until it goes away.
 
 
 Settings: `[menu] title`, `clock`, `repeat_delay_ms`, `repeat_rate_ms`,
-`socket`, `[[menu.items]]`, `[bindings.menu]`.
+`list_timeout_ms`, `list_limit`, `socket`, `[[menu.items]]`, `[bindings.menu]`.
