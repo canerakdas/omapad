@@ -34,7 +34,8 @@ and `/proc` shows who has.
 | `related(pid, depth, siblings)` | the process tree around the focused window |
 | `wants_pad(focus_pid, nodes, ...)` | the whole question, in one call |
 
-Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`.
+Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`,
+and `handover` on any `[profile.<name>]`.
 
 ## Rules
 
@@ -89,11 +90,27 @@ way in. Nothing ships with that on.
 opt out. Nothing ships with that on either - in a game ZL is aim, and ZL + A
 would put the window full-screen mid-fight.
 
-## What this does not answer
+## The app that opens the pad without being a game
 
-**An app that is not a game but opens the pad anyway.** Discord polls the
-Gamepad API for its own keybinds, so it counts as having the pad for as long as
-it is focused, and its profile - the voice panel on the face buttons - stands
-aside with everything else. The honest fix is not a binding flag but a handover
-*ignore list* by window class: some applications should never be handed the pad
-at all. Not built.
+Discord polls the Gamepad API for its own keybinds, so `/proc` sees it holding
+the pad for as long as it is focused and hands it over: the voice panel on the
+face buttons stands aside, and the sticks stop pointing at the window those
+bindings exist to aim at. No amount of looking at `/proc` fixes that, because
+what is being asked is not *has this app opened the pad* but *does holding
+this app's pad mean driving this app*, and that is a fact about the
+application.
+
+So the profile says it - `handover = false` on a `[profile.<name>]` table, the
+place an application is already named by class:
+
+```toml
+[profile.discord]
+match = ["discord", "vesktop", "webcord", "legcord", "armcord"]
+handover = false
+```
+
+`daemon.update_handover()` asks the active profile before it asks `/proc`, and
+`seed_active_window()` swaps the profile in *before* it asks about the pad -
+the other way round, a refusal would land a window late. Only for an
+application nobody plays through: a game with this on is a game the pad cannot
+reach.

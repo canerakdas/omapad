@@ -994,6 +994,15 @@ CAPTURE = "menu:close"
 # table is read in [bindings.window]'s place while it has focus. Any other key
 # in a profile table is a typo, and `omapad check` says so.
 #
+# `handover = false` says the pad is never handed to this application, however
+# many of its files it has open. The usual answer - has the focused app opened
+# the pad? - is right for anything that opens one in order to be played with,
+# and wrong for anything that opens one for another reason: Discord polls the
+# Gamepad API for its own keybinds, and taken at its word it costs the pointer
+# for as long as it is focused. /proc cannot tell the two apart, so the
+# profile says which this one is. Only write it for an application you never
+# play through; a game that lands here is a game the pad cannot reach.
+#
 # The browser is the pilot for the shoulders (item 18). L and R are its tab
 # switcher as much as they are our workspace switcher, so inside it a tap goes
 # to the app and only a deliberate hold takes the workspace: `confirm = true`
@@ -1062,6 +1071,12 @@ confirm_ms = 800
 
 [profile.discord]
 match = ["discord", "vesktop", "webcord", "legcord", "armcord"]
+# Discord opens the pad, and never to be played with: it polls the Gamepad API
+# so its own keybinds can answer a controller. Left to /proc that reads as a
+# game - every binding below stands aside and the sticks stop pointing - so
+# the pointer died in the one window where the bindings above are a panel you
+# aim at the rest of the time.
+handover = false
 
 [profile.discord.bindings]
 A = { tap = "key:CTRL+SHIFT+M", desc = "Mute the microphone", hold = "key:ENTER", hold_desc = "Enter" }

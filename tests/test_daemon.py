@@ -816,6 +816,44 @@ class HandoverTests(DaemonTestCase):
         self.tick(1.0, steps=100)
         self.assertTrue(any(dx for dx, _ in self.mouse.moves))
 
+    def test_a_profile_may_refuse_the_pad_outright(self):
+        # An application that opens the pad without being played with -
+        # Discord polls the Gamepad API for its own keybinds - is a fact
+        # /proc cannot see, so the profile says it instead.
+        with unittest.mock.patch.object(daemon_module.handover, "wants_pad",
+                                        return_value=True):
+            self.daemon.focus_pid = 4321
+            self.daemon.update_handover(force=True)
+            self.assertTrue(self.daemon.handed_over)
+            self.daemon.active_profile = {"name": "discord", "handover": False}
+            self.daemon.update_handover(force=True)
+        self.assertFalse(self.daemon.handed_over)
+        self.assertTrue(self.device.grabbed)
+        self.assertTrue(self.daemon.sticks_live())
+
+    def test_the_profile_is_swapped_before_the_pad_is_asked_about(self):
+        # The other way round, every focus change answered for the window
+        # that had just left - and the refusal would land a window late.
+        # A class whose profile does *not* refuse the pad: one that did would
+        # short-circuit the question this is about.
+        self.hypr.answers["activewindow"] = {
+            "class": "foot", "title": "", "pid": 77,
+        }
+        seen = []
+        real = self.daemon.set_active_profile
+
+        def record(window_class):
+            real(window_class)
+            seen.append(("profile", window_class))
+
+        self.daemon.set_active_profile = record
+        with unittest.mock.patch.object(
+            daemon_module.handover, "wants_pad",
+            side_effect=lambda *a, **k: seen.append(("asked", None)) or False,
+        ):
+            self.daemon.seed_active_window()
+        self.assertEqual([step for step, _ in seen], ["profile", "asked"])
+
     def test_a_summon_that_says_nothing_still_reaches_past(self):
         # `reaches_past = false` on PLUS and MINUS is the shipped config's
         # choice, not the rule: a summon nobody has ruled on is still what an
@@ -2228,6 +2266,34 @@ class AppPageConfigTests(unittest.TestCase):
         )
 
 
+class ProfileHandoverConfigTests(unittest.TestCase):
+    """`handover` on a [profile.<name>] table."""
+
+    def test_a_profile_may_refuse_the_hand_off(self):
+        config = config_module.Config(
+            {"profile": {"chat": {"match": "chat", "handover": False}}}
+        )
+        self.assertFalse(config.profile_matching("chat")["handover"])
+
+    def test_and_every_other_profile_still_takes_it(self):
+        config = config_module.Config({"profile": {"chat": {"match": "chat"}}})
+        self.assertTrue(config.profile_matching("chat")["handover"])
+
+    def test_a_value_that_is_not_a_yes_or_a_no_is_named_at_load(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config(
+                {"profile": {"chat": {"match": "chat", "handover": "never"}}}
+            )
+        self.assertIn("handover", str(caught.exception))
+        self.assertIn("chat", str(caught.exception))
+
+    def test_the_shipped_discord_profile_keeps_the_pointer(self):
+        # Discord is the reason the key exists: it opens the pad to read its
+        # own keybinds, and taking that at face value costs the pointer for
+        # as long as it is focused.
+        self.assertFalse(shipped_config().profile_matching("discord")["handover"])
+
+
 class ConfigTests(unittest.TestCase):
     def test_every_shipped_binding_parses(self):
         from omapad import actions
@@ -2275,13 +2341,14 @@ class AppProfileTests(DaemonTestCase):
         self.config.profiles = []
 
     def _add_profile(self, name="shell", match=("foot",), bindings=None,
-                     layers=None):
+                     layers=None, handover=True):
         self.config.profiles.append(
             {
                 "name": name,
                 "match": [m.lower() for m in match],
                 "bindings": bindings or {},
                 "layers": layers or {},
+                "handover": handover,
             }
         )
 

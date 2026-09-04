@@ -356,7 +356,7 @@ APP_PAGE_LIMIT = 8
 # A closed list, so a key that is neither this nor a [layers.*] name is a typo
 # rather than a setting nobody has implemented yet.
 PROFILE_KEYS = frozenset(
-    ("match", "bindings", "osk", "left_stick", "right_stick")
+    ("match", "bindings", "osk", "left_stick", "right_stick", "handover")
 )
 
 
@@ -1060,6 +1060,20 @@ class Config:
             bindings = spec.get("bindings") or {}
             if not isinstance(bindings, dict):
                 raise ConfigError("profile %r bindings must be a table" % name)
+            # Whether this application may be handed the pad at all. The
+            # question is normally answered by /proc - has the focused app
+            # opened the pad - and that answer is right for anything that
+            # opens one in order to be played with. It is wrong for an
+            # application that opens the pad for some other reason: Discord
+            # polls the Gamepad API for its own keybinds, and taking it at
+            # its word costs the pointer for as long as it is focused. The
+            # class is already named here, so this is where the exception
+            # belongs.
+            handed = spec.get("handover", True)
+            if not isinstance(handed, bool):
+                raise ConfigError(
+                    "profile %r handover must be true or false" % name
+                )
             # Every other key is a held layer the app disagrees with. Unknown
             # ones raise rather than being ignored, because the failure is
             # otherwise silent: [profile.shell.windows] would simply never
@@ -1085,6 +1099,7 @@ class Config:
                     "match": [m.strip().lower() for m in matches],
                     "bindings": bindings,
                     "layers": layers,
+                    "handover": handed,
                     "osk": parse_app_page(name, spec.get("osk")),
                     # An app may also disagree about what a stick is for. Empty
                     # means "whatever the layer says", so a profile that only

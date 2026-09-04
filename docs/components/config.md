@@ -55,7 +55,10 @@ X = { tap = "exec:my-window-thing", desc = "..." }
 ```
 
 `PROFILE_KEYS` is what a profile table may hold besides a layer name
-(`match`, `bindings`, `osk`, `left_stick`, `right_stick`); anything else raises
+(`match`, `bindings`, `osk`, `left_stick`, `right_stick`, `handover`);
+`handover = false` keeps the pad from ever being handed to this application,
+which is the answer for one that opens a pad without being played through -
+see [handover](handover.md). Anything else raises
 `ConfigError` at load, because a mistyped layer name would otherwise be a
 binding that silently never fires.
 

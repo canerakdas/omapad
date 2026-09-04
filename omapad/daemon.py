@@ -473,9 +473,18 @@ class Daemon:
     # -- handing the pad to whatever is in front ---------------------------
 
     def update_handover(self, force=False):
-        """Ask whether the focused window's process has opened the pad."""
+        """Ask whether the focused window's process has opened the pad.
+
+        Unless its profile has already said no. `handover = false` is the
+        answer for an application that opens the pad without being played
+        with - /proc cannot tell those apart, and it should not try: whether
+        holding this window's pad means driving this window is a fact about
+        the application, and the profile is where an application is named.
+        """
         self._next_handover_check = time.monotonic() + self.config.handover_poll
         if self.device is None:
+            wanted = False
+        elif self.active_profile and not self.active_profile["handover"]:
             wanted = False
         else:
             wanted = handover.wants_pad(
@@ -893,12 +902,16 @@ class Daemon:
         if not isinstance(info, dict):
             return
         self.focus_pid = info.get("pid") or None
-        self.update_handover()
         if info.get("class"):
             self.set_focus(
                 str(info["class"]).strip(),
                 str(info.get("title") or "").strip(),
             )
+        # Asked after the class and not before it: a profile may refuse the
+        # hand-off outright, and the profile is what set_focus swaps in. The
+        # other way round, every focus change answered for the window that
+        # had just left.
+        self.update_handover()
 
     def _drain_hypr_events(self):
         """Read the Hyprland event stream. False means the socket died."""

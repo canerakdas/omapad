@@ -1118,6 +1118,14 @@ Profiles behave in three ways:
   the guide is up, those always win — what you can see outranks the application
   underneath. A profile touches none of those three surfaces.
 
+A profile may also refuse the hand-off, with `handover = false`. The pad is
+normally given to the focused application when that application has opened it,
+which is right for anything you open a pad *to play*; it is wrong for one that
+opens a pad for some other reason, and `/proc` cannot tell those apart. Discord
+polls the Gamepad API for its own keybinds, so this is what keeps the pointer
+alive in it. Do not write it on anything you play through — a game with this on
+is a game the pad never reaches.
+
 A profile may also say what a **stick** is for, with the same `left_stick` /
 `right_stick` roles a layer takes (`cursor`, `scroll`, `resize`, `move`, `snap`,
 `focus`, `none`). It has the last word at rest and in game mode, on the same
@@ -1378,6 +1386,7 @@ become the voice panel:
 ```toml
 [profile.discord]
 match = ["discord", "vesktop", "webcord", "legcord", "armcord"]
+handover = false   # it opens the pad for its own keybinds, not to be played
 
 [profile.discord.bindings]
 A = { tap = "key:CTRL+SHIFT+M", desc = "Mute the microphone", hold = "key:ENTER", hold_desc = "Enter" }
@@ -1416,6 +1425,13 @@ because the context menu is how Discord replies to and reacts to a message.
 None of it reaches the window layer: `ZL` + `A`, `B`, `X`, `Y` and the left
 stick are fullscreen, **close the window**, float, pop out and pin here exactly
 as they are anywhere else.
+
+`handover = false` is the other half of it. Discord polls the Gamepad API for
+its own keybinds, so it counts as having opened the pad for as long as it is
+focused — and taken at face value that hands it the pad, which stands every
+binding above aside and stops the sticks pointing at the window they exist to
+aim at. It is the one shipped profile that says this, and the reason the key
+exists.
 
 `match` is a substring, so `"discord"` covers Canary and PTB as well; the forks
 are named separately because their class is their own. These are Discord's own
