@@ -38,9 +38,10 @@ See [`../conventions/data.md`](../conventions/data.md). In short: field names
 are short and stable, every field is optional and additive, and everything the
 plugin needs - including the surface scale, the style its badges are drawn in
 and the bar's own proportions - is in the payload, because the plugin cannot
-read the config. `Daemon.scaled()` stamps the two that are true of every
-surface at once onto whatever a model returns, so no model has to remember
-them.
+read the config. `Daemon.scaled()` stamps the three that are nobody's own
+state onto whatever a model returns, so no model has to remember them: `scale`,
+`badge`, and `bar` for whether omapad's own bar is holding a strip of the
+screen - which is what tells a scrim where to stop.
 
 ## Do not
 

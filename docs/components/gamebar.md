@@ -25,6 +25,20 @@ than printing a row of buttons that do nothing. The bar is the only way to see
 that layer, since pressing buttons to find out is exactly what game mode stops
 working.
 
+The workspace strip answers to the same rule. It is drawn where a button walks
+it and nowhere else: `view_state` sends an empty `workspaces` list when
+`workspace_walkers` finds none, and the panel draws no strip for one. A
+surface of ours takes the shoulders while it is up - inside the menu they pick
+and go back - so under the menu, the guide or the mapping wizard the numbers
+go with the badges that flanked them. A row of numbers no press steps through
+is the one thing this bar promised never to print.
+
+A surface is a layer, so opening one rewrites every hint. A press repaints the
+bar on its way out of `handle_button`, but `omapad ctl menu open` and a shell
+keybind have no press behind them: `Daemon.relabel_gamebar()` is what the four
+`set_<surface>` calls use instead, or the bar would answer for the desktop
+underneath for up to a heartbeat.
+
 ## The half that changes
 
 The row on the right is the **face buttons** (`[gamebar] kinds`, `["face"]`).
@@ -130,7 +144,9 @@ counting down and over how long, so the bar walks it back to full exactly as
 the hold completes - and, past the tick, how long the sweep has to run back
 out, which is why the lean needs no duration of its own. `pressed` says which
 buttons are down. `click` is carried for the
-same reason the geometry is.
+same reason the geometry is. `workspaces` is **empty where no button walks
+them** - that is how the daemon says to draw no strip at all, rather than the
+1-5 the panel otherwise fills in.
 
 ## The panel
 
@@ -140,7 +156,9 @@ bar changing its mind, and draws workspaces the way `omarchy.workspaces` does,
 down to the dot the focused one becomes. `WlrLayer.Top` with
 `ExclusionMode.Auto`: windows sit under it rather than behind it, and a
 full-screen game covers it, which is the right outcome and needs no special
-case.
+case. Our own scrims do not: the menu, the guide and the mapping wizard stand
+off the strip it reserved rather than dimming the row of hints that answers
+them - see [`../conventions/qml.md`](../conventions/qml.md) §7.
 
 `restLit` / `hoverLit` / `downLit` are how lit a pressable thing is at rest,
 under a pointer, and while it is down - from a thumb or from that pointer,

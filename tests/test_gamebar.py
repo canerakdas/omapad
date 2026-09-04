@@ -296,9 +296,30 @@ class ViewTests(unittest.TestCase):
         self.model.set_workspaces(
             [{"id": 1, "name": "1", "windows": 2},
              {"id": 2, "name": "2", "windows": 0}], 2)
-        state = self.view({})
+        state = self.view({
+            "L": "hypr:hl.dsp.focus({ workspace = 'r-1' })",
+            "R": "hypr:hl.dsp.focus({ workspace = 'r+1' })",
+        })
         self.assertEqual(state["active"], 2)
         self.assertEqual([w["name"] for w in state["workspaces"]], ["1", "2"])
+
+    def test_and_nowhere_no_button_walks_them(self):
+        # The menu and the guide take the shoulders while they are up, so the
+        # strip under one of them steps nowhere. A row of numbers that answers
+        # no press is exactly what this bar promised not to print.
+        self.model.set_workspaces([{"id": 1, "name": "1", "windows": 2}], 1)
+        self.assertEqual(self.view({"A": "menu:press"})["workspaces"], [])
+
+    def test_a_step_behind_a_hold_still_draws_them(self):
+        # Locked is still walkable - the browser profile puts tabs on the
+        # shoulders and the workspace behind the announced hold - and a strip
+        # that vanished there would take the readout with it.
+        self.model.set_workspaces([{"id": 1, "name": "1", "windows": 2}], 1)
+        state = self.view({
+            "L": {"tap": "key:CTRL+SHIFT+TAB",
+                  "hold": "hypr:hl.dsp.focus({ workspace = 'r-1' })"},
+        })
+        self.assertEqual([w["name"] for w in state["workspaces"]], ["1"])
 
     def test_the_buttons_that_walk_workspaces_are_drawn_beside_them(self):
         # Next to what they move rather than in the row of hints: a button

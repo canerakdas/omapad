@@ -299,7 +299,13 @@ class GameBarModel:
             # on the desktop the bar is drawn over - and a badge saying what a
             # button does is the obvious thing to click.
             "click": self.config.gamebar_click,
-            "workspaces": self.workspaces,
+            # Only where a button walks them. The strip is a control that
+            # doubles as a readout, not the other way round: with nothing
+            # beside it to step through it - the menu and the guide take the
+            # shoulders while they are up, and a layer may spend them on
+            # something else - it is a row of numbers that answers no press,
+            # which is the one thing this bar promised never to print.
+            "workspaces": self.workspaces if walkers else [],
             "active": self.active_workspace,
             "actions": actions,
             # Which edge to sit on. "auto" means the plugin follows Omarchy's

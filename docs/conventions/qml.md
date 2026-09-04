@@ -177,7 +177,7 @@ A surface MUST NOT steal focus or a click from the window underneath:
 WlrLayershell.namespace: "omapad-<surface>"
 WlrLayershell.layer: WlrLayer.Overlay      // Top for the game bar
 WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-exclusionMode: ExclusionMode.Ignore        // Normal only if it reserves space
+exclusionMode: ExclusionMode.Ignore        // Normal to reserve or dodge a strip
 mask: Region {}                            // empty input region
 ```
 
@@ -189,6 +189,15 @@ also drives from the desk -ther Omarchy menu's own window rules
 (`WlrKeyboardFocus.Exclusive`, the whole surface as its input region,so a
 hover selects,a click picks,and a scrim click leaves). The pad,ther keys
 and the cursor all drive the same selection,over the same control socket.
+
+A surface that draws a scrim - the menu, the guide, the mapping
+wizard - turns `ExclusionMode.Normal` on while `bar` says omapad's own bar is
+up, so the compositor hands it what is left of the screen rather than the
+whole of it. The scrim dims the desktop the surface stands in front of, and
+the bar is not that desktop: while one of them is up it is printing what *its*
+face buttons do, and a legend read through a scrim is the last thing on screen
+that should go dark. Omarchy's bar is not stood off - it is the desktop, and
+dimming it is what the Omarchy menu does too.
 
 ## 8 Colour, size, glyphs
 

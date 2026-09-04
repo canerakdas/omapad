@@ -53,6 +53,11 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+
+  // Whether omapad's own bar is holding a strip of the screen under this.
+  // The scrim dims the desktop, and the bar is not the desktop: it prints
+  // what the face buttons do in the surface on top of it. See `Menu.qml`.
+  property bool overBar: false
   // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
@@ -105,6 +110,7 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.badge !== undefined) root.badgeStyle = String(s.badge)
+      if (s.bar !== undefined) root.overBar = !!s.bar
       // `root.` on every one of these: a bare name resolves against the whole
       // QML scope chain and can land on something read-only, and the throw
       // that follows takes every assignment after it with it.
@@ -254,7 +260,9 @@ Item {
     WlrLayershell.namespace: "omapad-mapping"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Ignore
+    // The bar keeps its strip rather than being dimmed under this - see
+    // `Menu.qml`, which carries the argument for all three scrims.
+    exclusionMode: root.overBar ? ExclusionMode.Normal : ExclusionMode.Ignore
     mask: Region {}
 
     Rectangle {

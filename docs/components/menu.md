@@ -103,6 +103,14 @@ read as one family). Overlay layer, `Exclusive` keyboard focus,and the whole
 screen as its input region -the Omarchy menu's own window rules. While it is
 open the keyboard and the pointer drive it,on top of the pad
 
+The one departure from those rules is the game bar. `bar` in the payload says
+it is up, and the window turns `ExclusionMode.Normal` on and takes what is
+left of the screen rather than all of it, so the scrim stops where the strip
+starts. The bar is printing what A, B and X do *in this menu*: dimming it dims
+the menu's own legend, and covering it stops a click on a badge reaching the
+menu that badge is about. `Guide.qml` and `Mapping.qml` stand off it the same
+way.
+
 | Input | Job |
 |---|---|
 | Pad D-pad / arrows | Walk the rows (both hold and keep walking) |

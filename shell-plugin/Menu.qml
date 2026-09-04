@@ -44,6 +44,13 @@ Item {
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
 
+  // Whether omapad's own bar is holding a strip of the screen under this.
+  // The scrim dims the desktop the menu stands in front of, and the bar is
+  // not that desktop: while the menu is up it prints what A, B and X do *in
+  // the menu*. A legend read through a scrim is the last thing that should go
+  // dark, so the window steps out of the strip rather than covering it.
+  property bool overBar: false
+
   Metrics {
     id: metrics
     scale: root.uiScale
@@ -110,6 +117,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.bar !== undefined) root.overBar = !!s.bar
       if (s.items !== undefined && root.fresh("items", s.items))
         root.items = s.items
       if (s.title !== undefined) root.title = s.title
@@ -299,7 +307,11 @@ Item {
     // it goes away. Arrows and Enter navigate, and the game behind gets
     // nothing until the menu leaves.
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-    exclusionMode: ExclusionMode.Ignore
+    // Ignore, except where our own bar is up: `Normal` with the zero
+    // exclusive zone it defaults to asks for what is left once every bar has
+    // taken its strip, so the scrim stops where the game bar starts instead
+    // of dimming the row of hints that answers this menu.
+    exclusionMode: root.overBar ? ExclusionMode.Normal : ExclusionMode.Ignore
 
     // This is the one omapad surface that takes the pointer: hover selects a
     // row, a click picks one, a click on the scrim leaves. The keyboard and

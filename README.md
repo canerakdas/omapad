@@ -420,6 +420,20 @@ do, saying which one you just pressed is the same sentence finished. That is
 what a `filled` badge does; a `stencil` one inverts instead — see [how the
 badges are drawn](#how-the-badges-are-drawn).
 
+**And nothing of ours dims it.** The menu, the guide and the mapping screen
+dim the desktop they stand in front of — but the bar is not that desktop.
+While one of them is up it is printing what *that* screen's face buttons do,
+which is the moment the row is worth the most, so they stop where the bar
+starts instead of covering it. It stays as bright, and as clickable, as it is
+over a game.
+
+What it says there changes with them, badges and workspaces alike. Inside the
+menu the shoulders pick and go back rather than walking workspaces, so **the
+workspace strip goes away with the badges that flanked it** — it is drawn
+where a button walks it and nowhere else. The same holds for a layer of your
+own that spends the shoulders on something else: numbers you cannot step
+through are the one thing this bar will not print.
+
 **And you can click them.** Game mode is the couch environment, not a hand-off:
 the desktop is still under the bar and the mouse is still on the desk. Clicking
 a badge fires exactly the binding the press would — the same layer, the same

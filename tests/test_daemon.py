@@ -3265,6 +3265,78 @@ class BadgeStyleTests(DaemonTestCase):
         self.assertEqual(self.menu_client.sent[-1]["badge"], "stencil")
 
 
+class BarFollowsTheSurfaceTests(DaemonTestCase):
+    """A surface is a layer, and every hint on the bar belongs to one."""
+
+    def bar(self):
+        return self.gamebar_client.sent[-1]
+
+    def in_game_mode(self):
+        self.config.gamebar_enabled = True
+        self.daemon.set_mode("game")
+
+    def test_a_menu_opened_with_no_press_behind_it_repaints_the_bar(self):
+        # A press repaints the bar on its way out of `handle_button`, but
+        # `omapad ctl menu open` and a shell keybind have none - so without
+        # this the bar answers for the desktop under the menu for two seconds.
+        self.in_game_mode()
+        self.daemon.set_menu(True)
+        self.assertEqual([row["n"] for row in self.bar()["actions"]],
+                         ["A", "B", "X"])
+
+    def test_and_the_strip_goes_with_the_buttons_that_walked_it(self):
+        # The menu owns the shoulders while it is up, so nothing steps
+        # through the workspaces from inside it.
+        self.in_game_mode()
+        self.daemon.gamebar.set_workspaces(
+            [{"id": 1, "name": "1", "windows": 1}], 1)
+        self.daemon.push_gamebar_view()
+        self.assertTrue(self.bar()["workspaces"], "the game layer walks them")
+        self.assertIsNotNone(self.bar()["wsprev"])
+        self.daemon.set_menu(True)
+        self.assertEqual(self.bar()["workspaces"], [])
+        self.assertIsNone(self.bar()["wsprev"])
+
+    def test_and_closing_it_brings_them_back(self):
+        self.in_game_mode()
+        self.daemon.gamebar.set_workspaces(
+            [{"id": 1, "name": "1", "windows": 1}], 1)
+        self.daemon.set_menu(True)
+        self.daemon.set_menu(False)
+        self.assertTrue(self.bar()["workspaces"])
+
+
+class ScrimOverTheBarTests(DaemonTestCase):
+    """A surface that dims the desktop must not dim omapad's own bar."""
+
+    def test_a_payload_says_whether_a_bar_is_holding_a_strip(self):
+        # The panel cannot see the bar - it is another window in the same
+        # shell - and the scrim it draws would cover the row of hints that
+        # says what its own face buttons do.
+        self.config.gamebar_enabled = True
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.assertTrue(self.menu_client.sent[-1]["bar"])
+
+    def test_and_says_so_where_there_is_none(self):
+        # False rather than absent: a panel that is never told keeps the last
+        # answer for the life of the session, and a menu standing off a strip
+        # no bar is holding ends in a band of desktop below it.
+        self.daemon.set_menu(True)
+        self.assertFalse(self.menu_client.sent[-1]["bar"])
+
+    def test_leaving_game_mode_redraws_the_menu_that_stayed_up(self):
+        # Desktop mode takes the bar away and leaves the menu where it is, so
+        # a menu told once would keep standing off a strip nothing holds.
+        self.config.gamebar_enabled = True
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.menu_client.sent[:] = []
+        self.daemon.set_mode("desktop")
+        self.assertTrue(self.menu_client.sent, "the menu should be redrawn")
+        self.assertFalse(self.menu_client.sent[-1]["bar"])
+
+
 class SurfaceScaleTests(DaemonTestCase):
     """Every surface is drawn at the scale the current mode reads at."""
 

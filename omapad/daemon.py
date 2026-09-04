@@ -508,6 +508,18 @@ class Daemon:
             ))
         )
 
+    def relabel_gamebar(self):
+        """Repaint the bar for a layer that changed with no press behind it.
+
+        Every hint on the bar belongs to the layer that is live, and a surface
+        is a layer: opening the menu rewrites all four face buttons. A press
+        repaints the bar itself (`handle_button`), but `omapad ctl` and a
+        shell keybind open a surface without one, and until the next heartbeat
+        the bar would be answering for the desktop underneath it.
+        """
+        if self.gamebar_open:
+            self.push_gamebar_view()
+
     def refresh_workspaces(self):
         """Ask Hyprland for the workspaces, and only while the bar is up.
 
@@ -1105,6 +1117,7 @@ class Daemon:
             self.osk.reset_mods()
         self.push_osk_view()
         self.apply_grab()
+        self.relabel_gamebar()
         log.info("osk: %s", "open" if opened else "closed")
 
     def view_scale(self):
@@ -1122,13 +1135,20 @@ class Daemon:
     def scaled(self, state):
         """One surface payload, stamped with how it should be drawn.
 
-        Both of these are settings the panel cannot read for itself, and both
-        are answers every surface needs, so they are stamped in one place
+        None of these is one surface's own state - they are the scale, the
+        style its badges take and what else is standing on the screen - and
+        none of them can be read by a panel, so they are stamped in one place
         rather than remembered by six callers.
         """
         if isinstance(state, dict):
             state["scale"] = self.view_scale()
             state["badge"] = self.config.ui_badge_style
+            # Whether our own bar is holding a strip of the screen. A surface
+            # that dims the desktop behind it must not dim that strip: the bar
+            # is printing what the face buttons do *in the surface standing on
+            # top of it*, and a legend read through a scrim is the last thing
+            # on screen that should go dark.
+            state["bar"] = self.gamebar_open
         return state
 
     def show_ripple(self, button):
@@ -1246,6 +1266,7 @@ class Daemon:
             self.set_osk(False)
         self.push_menu_view()
         self.apply_grab()
+        self.relabel_gamebar()
         log.info("menu: %s", "open" if opened else "closed")
 
     def push_menu_view(self):
@@ -1383,6 +1404,7 @@ class Daemon:
             self.set_osk(False)
         self.push_guide_view()
         self.apply_grab()
+        self.relabel_gamebar()
         log.info("guide: %s", "open" if opened else "closed")
 
     def push_guide_view(self):
@@ -1527,6 +1549,7 @@ class Daemon:
         self._mapping_axis_hot = set()
         self.apply_grab()
         self.push_mapping_view()
+        self.relabel_gamebar()
         log.info("mapping: %s", "open" if opened else "closed")
 
     def status_state(self):

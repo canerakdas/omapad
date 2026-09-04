@@ -295,6 +295,10 @@ Item {
   // it is evaluated, and a new array is a model reset. As a property it is
   // one array that is rebuilt only when the workspaces themselves change.
   readonly property var workspaceIds: {
+    // Except where the daemon sends none, which is how it says no button
+    // walks them: the strip is a control before it is a readout, and one no
+    // press steps through is the row of numbers a menu is standing over.
+    if (root.workspaces.length === 0) return []
     var ids = [1, 2, 3, 4, 5]
     for (var i = 0; i < root.workspaces.length; i++) {
       var id = Number(root.workspaces[i].id)
