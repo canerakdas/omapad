@@ -501,6 +501,23 @@ class ButtonTests(DaemonTestCase):
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
         self.assertEqual(self.keyboard.chords[-1], ((), 103, False))
 
+    def test_a_pad_that_drops_out_mid_press_does_not_leave_the_key_down(self):
+        # The 2.4GHz dongle disappearing is a disconnect with no release
+        # behind it. The key would stay down on the virtual keyboard, and the
+        # compositor repeats a held key: one press of A typing Enter forever.
+        self.press("A")
+        self.assertEqual(self.keyboard.chords, [((), keymap.resolve("ENTER"), True)])
+        self.daemon.disconnect()
+        self.assertEqual(self.keyboard.chords[-1], ((), keymap.resolve("ENTER"), False))
+        self.assertEqual(self.keyboard.released, 1)
+        self.assertEqual(self.daemon.held, {})
+
+    def test_a_pad_that_drops_out_mid_click_does_not_leave_the_button_down(self):
+        self.press("Y")
+        self.daemon.disconnect()
+        self.assertEqual(self.mouse.buttons[-1], ("right", False))
+        self.assertEqual(self.mouse.released, 1)
+
     def test_shoulder_switches_workspace_once_per_press(self):
         self.press("R")
         self.release("R")

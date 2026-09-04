@@ -372,6 +372,12 @@ class Daemon:
             self.rumble.detach()
             self.device.close()
             self.device = None
+        # A dongle that drops out mid-press never sends the release, and the
+        # virtual keyboard advertises EV_REP: a key left down is auto-repeated
+        # by the compositor for as long as the daemon lives. So a pad going
+        # away lets go of everything it was holding, exactly as a mode switch
+        # does - reset_state only forgets what the pad itself was doing.
+        self.release_everything()
         self.reset_state()
         self.push_status_view()
 
