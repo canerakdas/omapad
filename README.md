@@ -300,12 +300,8 @@ puts the same confirmed hold on the same two buttons.
 
 `omapad ctl status` says which it is: `pad=ours` / `pad=app`.
 
-You can also take Omarchy's bar away when game mode starts:
-
-```toml
-[mode]
-hide_bar_in_game = true
-```
+Game mode also takes Omarchy's bar away, and puts
+[omapad's own](#game-bar) in its place.
 
 It does that with `omarchy toggle bar off` — the bar parks off screen and the
 shell is not restarted. It comes back on the way out, **and on the way down
@@ -315,6 +311,17 @@ desktop. On a machine with no Omarchy it is skipped quietly.
 The reason: every widget on that bar opens a popup you click, and in game mode
 the pad is in the game — so the whole bar is out of reach. A fullscreen game
 should have the screen to itself.
+
+To keep the desktop bar in game mode instead:
+
+```toml
+[mode]
+hide_bar_in_game = false
+```
+
+Both bars reserve their own strip, so that leaves the one you cannot reach
+above the one you can. Turn `[gamebar] enabled` off in the same pass for a
+game mode that changes what the sticks do and nothing you can see.
 
 ### A game that opens behind Steam Big Picture
 
@@ -350,8 +357,8 @@ the `ZL` window layer.
 
 ### Game bar
 
-Hiding the bar leaves the screen empty; this is what takes its place. Turned on
-with `[gamebar] enabled`, and shown in game mode only:
+Hiding the bar leaves the screen empty; this is what takes its place. On by
+default for that reason, and shown in game mode only:
 
 | Where | What is there |
 |---|---|
@@ -504,7 +511,7 @@ there anyway.
 
 ```toml
 [gamebar]
-enabled = true
+enabled = false             # a game mode with nothing of ours on screen
 ```
 
 Everything on the bar comes from the base layer; you do not have to bind
@@ -1777,9 +1784,11 @@ Picking a row here keeps the menu up and moves the tick to it, because
 choosing an output you cannot hear yet and being thrown back to the desktop
 means opening the menu again to try the other one.
 
-Two settings bound it: `[menu] list_timeout_ms` is how long the press may wait
-for the command (it runs while the menu is open, so it is the pad's own pause),
-and `[menu] list_limit` is how many of its lines reach the page.
+The press does not wait for the command. The page opens the moment the row is
+entered and the devices appear when the answer does, which for a page entered
+before means the devices it listed last until the fresh ones land. Two settings
+bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
+is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
 The tree that ships is nine rows deep at the top, grouped so that the ones you
 reach for from a sofa are the ones nearest the opening selection: **Apps** (Steam

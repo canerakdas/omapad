@@ -8,6 +8,11 @@ it is shaped by the one rule the desktop bar cannot follow: **every widget on
 Omarchy's bar opens a popup you click, and in game mode there is no pointer to
 click with.**
 
+`[gamebar] enabled` and `[mode] hide_bar_in_game` are one decision defaulted
+twice: both on. Off separately they give you a game mode with no bar at all,
+or with two - the one you cannot reach above the one you can - so a config
+that turns one off usually means to turn the other off with it.
+
 So it shows three things, and none of them was a control:
 
 - the menu, and which button opens it - a door is only worth drawing if you can

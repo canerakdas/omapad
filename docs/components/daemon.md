@@ -31,14 +31,26 @@ preferences:
 
 **Nothing in the loop may block.** Anything that shells out or waits belongs
 in a thread that posts back through a queue the loop learns about by reading
-one byte off a self-pipe registered with `poll()`. Two things break that rule
-on purpose, both reading a command a *press* is waiting for: the keyboard page
-a profile lends an app, and a menu row that lists its submenu
-(`menu_fill`). Each is bounded by a timeout so a wedged command is a stutter
-rather than a pad that has stopped answering, and each wants the thread the day
-its command is slower than `pactl`. See roadmap item 29 and
-`../../../tries/omapad-assist-removed-2026-08-31/` for how that was wired
-when the shelved assistant needed it.
+one byte off a self-pipe registered with `poll()`.
+
+`submit_command(command, done, timeout)` is that thread
+([`actions.Commands`](actions.md)): it hands the command over and calls
+`done(lines)` on the loop when the answer lands, so `done` may touch any state
+and push any view. `drain_commands()` is the loop's end of the pipe. False
+back from a submit means there is no worker - a daemon that could not make a
+pipe - and the caller reads it on the loop instead, which is slower rather
+than broken.
+
+Two callers use it, both reading a command a *press* would otherwise wait for:
+the keyboard page a profile lends an app (`refill_osk_app_page`) and a menu row
+that lists its submenu (`menu_fill`). Both answer the press first and take the
+answer when it comes: the page opens on what it held last, and the rows land
+in the list the model is already drawing. Each still carries a timeout, which
+is now the floor under the *thread* rather than under the pad.
+
+**Talking to Hyprland is not shelling out.** `hypr.query()` goes down the IPC
+socket in well under a millisecond; spawning `hyprctl` for the same answer
+costs tens, and nothing on the loop may do it.
 
 ## Buttons
 

@@ -6,6 +6,7 @@ is replaced by recorders, so these run without /dev/uinput.
 """
 
 import os
+import select
 import sys
 import tempfile
 import shutil
@@ -222,6 +223,13 @@ class DaemonTestCase(unittest.TestCase):
         self.keyboard = self.daemon.keyboard
         self.hypr = self.daemon.hypr = FakeHypr()
         self.session = self.daemon.session = FakeSession()
+        # The worker was built with the real session, and a thread that runs
+        # shell commands has no place in a suite that needs no machine. With
+        # none, every caller reads its command on the loop instead - against
+        # the fake session, which is what these tests are about. The worker's
+        # own half is CommandWorkerTests.
+        self.daemon.commands.close()
+        self.daemon.commands = None
         self.daemon.ctx.hypr = self.hypr
         self.daemon.ctx.session = self.session
         self.osk_client = self.daemon.osk_client = FakeViewClient()
@@ -1059,8 +1067,20 @@ class BarInGameModeTests(DaemonTestCase):
     def bar_calls(self):
         return [c for c in self.session.spawned if "toggle bar" in c]
 
-    def test_off_by_default_nothing_touches_the_users_bar(self):
+    def test_the_two_bars_are_one_decision_defaulted_twice(self):
+        # Game mode that hid Omarchy's bar and drew nothing back left a blank
+        # screen with no way out; game mode that hid neither was a mode you
+        # could not see. Both ship on, and they ship on together.
+        shipped = shipped_config()
+        self.assertTrue(shipped.hide_bar_in_game)
+        self.assertTrue(shipped.gamebar_enabled)
+
+    def test_turning_it_off_leaves_the_users_bar_alone(self):
+        # A config that says not to must not reach for the bar in either
+        # direction - not on the way in, and not on the way back out.
+        self.config.hide_bar_in_game = False
         self.daemon.set_mode("game")
+        self.daemon.set_mode("desktop")
         self.assertEqual(self.bar_calls(), [])
 
     def test_game_mode_hides_it_and_desktop_puts_it_back(self):
@@ -1801,6 +1821,183 @@ class ListedMenuTests(DaemonTestCase):
         self.daemon.menu_command("press")
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-input-set-default 1 analog-out"])
+
+
+class FakeCommands:
+    """The worker as a queue the test empties by hand.
+
+    The command is run at the submit, so `session.captured` says what was
+    asked for; the answer waits in `drain` until the test calls
+    `drain_commands`, which is the beat between the press and the fill that
+    the real worker puts there.
+    """
+
+    def __init__(self, session):
+        self.session = session
+        self.submitted = []
+        self.answers = []
+        self.closed = False
+
+    def submit(self, key, command, timeout=2.0):
+        self.submitted.append((command, timeout))
+        self.answers.append((key, self.session.capture(command, timeout)))
+
+    def drain(self):
+        found, self.answers = self.answers, []
+        return found
+
+    def close(self):
+        self.closed = True
+
+
+class CommandWorkerTests(unittest.TestCase):
+    """The thread the shell commands a surface asks for are run on."""
+
+    def worker(self):
+        read_fd, write_fd = os.pipe()
+        os.set_blocking(read_fd, False)
+        self.addCleanup(os.close, read_fd)
+        worker = actions.Commands(actions.Session(), wake=write_fd)
+        self.addCleanup(worker.close)
+        return worker, read_fd
+
+    def answer(self, worker, read_fd):
+        """Wait for the byte, then take what it announced."""
+        ready = select.select([read_fd], [], [], 5.0)[0]
+        self.assertTrue(ready, "the worker never woke the loop")
+        os.read(read_fd, 4096)
+        return worker.drain()
+
+    def test_the_answer_comes_back_under_the_key_it_was_asked_with(self):
+        worker, read_fd = self.worker()
+        worker.submit(7, "printf 'one\\ntwo\\n'")
+        self.assertEqual(self.answer(worker, read_fd), [(7, ["one", "two"])])
+
+    def test_a_command_that_hangs_is_given_up_on_rather_than_waited_out(self):
+        # The whole point of the thread: the loop is not what is waiting.
+        worker, read_fd = self.worker()
+        worker.submit(1, "sleep 30", timeout=0.2)
+        self.assertEqual(self.answer(worker, read_fd), [(1, [])])
+
+    def test_a_command_that_fails_answers_empty_rather_than_dying(self):
+        worker, read_fd = self.worker()
+        worker.submit(1, "exit 3")
+        self.assertEqual(self.answer(worker, read_fd), [(1, [])])
+        worker.submit(2, "printf 'still here\\n'")
+        self.assertEqual(self.answer(worker, read_fd), [(2, ["still here"])])
+
+
+class ListedMenuWorkerTests(DaemonTestCase):
+    """A listed page filled from the worker rather than on the loop."""
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.set_menu(True)
+        self.session.lines = [
+            "* Speakers\t1\tanalog-out",
+            "Television\t7\thdmi-out",
+        ]
+
+    def enter(self, *labels):
+        for label in labels:
+            for index, item in enumerate(self.daemon.menu.items):
+                if item["label"] == label:
+                    self.daemon.menu.index = index
+                    break
+            else:
+                raise AssertionError("no menu row labelled %r" % label)
+            self.daemon.menu_command("press")
+
+    def test_the_press_enters_the_page_before_the_answer_arrives(self):
+        self.enter("Audio", "Devices", "Output")
+        self.assertEqual(len(self.commands.submitted), 1)
+        self.assertIn("pactl", self.commands.submitted[0][0])
+        self.assertEqual(self.commands.submitted[0][1],
+                         self.config.menu_list_timeout)
+        # In the page, drawing nothing yet: the pad answered the press.
+        self.assertEqual(self.daemon.menu.title, "Output")
+        self.assertEqual(self.menu_client.sent[-1]["items"], [])
+        self.daemon.drain_commands()
+        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+                         ["Speakers", "Television"])
+
+    def test_the_rows_land_in_the_list_the_model_is_drawing(self):
+        # In place rather than bound afresh: `press` took the list itself, so
+        # a new one would fill a page nobody is looking at.
+        self.enter("Audio", "Devices", "Output")
+        self.daemon.drain_commands()
+        self.assertEqual([item["label"] for item in self.daemon.menu.items],
+                         ["Speakers", "Television"])
+        self.daemon.menu_command("down")
+        self.daemon.menu_command("press")
+        self.assertEqual(self.session.spawned,
+                         ["omarchy-audio-output-set-default 7 hdmi-out"])
+
+    def test_a_page_entered_again_keeps_its_rows_until_the_fresh_ones_land(self):
+        self.enter("Audio", "Devices", "Output")
+        self.daemon.drain_commands()
+        self.daemon.menu_command("back")
+        self.session.lines.append("Headphones\t9\tusb-out")
+        self.enter("Output")
+        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+                         ["Speakers", "Television"])
+        self.daemon.drain_commands()
+        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+                         ["Speakers", "Television", "Headphones"])
+
+
+class AppPageWorkerTests(DaemonTestCase):
+    """The keyboard page a profile lends, read off the loop."""
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.config.profiles = [
+            {
+                "name": "shell",
+                "match": ["foot"],
+                "bindings": {},
+                "osk": {
+                    "label": "Term",
+                    "keys": [{"label": "Paste", "text": "Paste"}],
+                    "from": "history",
+                    "ttl": 10.0,
+                    "limit": 8,
+                },
+            },
+        ]
+        self.daemon.set_active_profile("foot")
+        self.session.lines = ["git status"]
+
+    def page_actions(self):
+        self.daemon.osk.set_layer("app")
+        return [key["action"] for key in self.daemon.osk.rows[0]]
+
+    def test_the_keyboard_opens_on_its_own_keys_and_fills_after(self):
+        self.daemon.set_osk(True)
+        self.assertEqual(self.commands.submitted, [("history", 2.0)])
+        self.assertEqual(self.page_actions(), ["text:Paste"])
+        self.daemon.drain_commands()
+        self.assertEqual(self.page_actions(), ["text:Paste", "text:git status"])
+
+    def test_the_page_is_asked_for_once_while_the_reading_is_in_flight(self):
+        self.daemon.set_osk(True)
+        self.daemon.set_osk(False)
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 1)
+        self.daemon.drain_commands()
+        # And again once the answer has landed and its ttl has run out.
+        self.daemon._osk_page_cache = None
+        self.daemon.set_osk(False)
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 2)
+
+    def test_an_answer_for_an_app_no_longer_in_front_is_dropped(self):
+        self.daemon.set_osk(True)
+        self.daemon.set_active_profile("chromium")
+        self.daemon.drain_commands()
+        self.assertIsNone(self.daemon._osk_page_cache)
 
 
 class GuideTests(DaemonTestCase):

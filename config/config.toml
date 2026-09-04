@@ -218,11 +218,14 @@ handover_depth = 3
 # the pad driving the desktop's pointer over the top of it.
 handover_siblings = true
 # Omarchy's bar is a desktop object: every widget on it opens a popup you
-# click, and from the couch there is no pointer worth clicking with. With this
-# on, game mode parks it off-screen (`omarchy toggle bar`, no shell restart)
-# and omapad's own bar takes its place. It is put back on the way out, and at
-# shutdown too, so a daemon that dies there does not leave you without one.
-hide_bar_in_game = false
+# click, and from the couch there is no pointer worth clicking with. So game
+# mode parks it off-screen (`omarchy toggle bar`, no shell restart) and
+# omapad's own bar takes its place - see [gamebar]. It is put back on the way
+# out, and at shutdown too, so a daemon that dies there does not leave you
+# without one. On a machine with no Omarchy the whole thing is skipped
+# quietly. Turn it off to keep the desktop bar in game mode; both reserve
+# their own strip, so you get the one you cannot reach above the one you can.
+hide_bar_in_game = true
 # What the sticks do in game mode. Empty means "the same as on the desktop",
 # which is the answer for the left one: the pointer is the pointer wherever you
 # are sitting.
@@ -566,7 +569,12 @@ CAPSLOCK = { action = "LEFTSHIFT+RIGHTSHIFT" }
 # right now, resolved through exactly the path a press takes. Hold the window
 # trigger and the hints become that layer's. The bar goes away while the pad is
 # handed to an app, since none of it would answer then.
-enabled = false
+#
+# On by default, because `hide_bar_in_game` is: game mode that took the bar
+# away and put nothing back would leave the screen with no way to read where
+# you are, or to remember the way out. Turn both off together for a game mode
+# that changes what the sticks do and nothing you can see.
+enabled = true
 # The bar has three slots on the right and they are worth spending on what is
 # different about where you are. A gesture that means the same wherever you are
 # - confirm, go back - teaches nothing by being repeated, so it is left off.
@@ -1493,9 +1501,10 @@ repeat_delay_ms = 400         # hold up/down this long before the list walks
 repeat_rate_ms = 110          # then one row every this many ms
 # A row can list its own submenu instead of holding one: `from` is a command,
 # and every line it prints becomes a row (see the audio outputs below). The
-# command runs when the row is entered, with the press waiting on it, so this
-# is how long the pad may pause for one. Raise it for a listing that is slow to
-# answer; lower it and a slow one comes up empty instead of holding the menu.
+# command runs when the row is entered, off to one side: the page opens at once
+# and the rows appear when the answer does. This is how long that answer may
+# take before the page is called empty. Raise it for a listing that is slow;
+# lower it and a slow one settles on empty sooner.
 list_timeout_ms = 1000
 list_limit = 24               # and how many of its lines reach the page
 # socket = "/run/user/1000/omapad/menu.sock"   # defaults to $XDG_RUNTIME_DIR

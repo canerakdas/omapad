@@ -4,10 +4,12 @@ import glob
 import json
 import logging
 import os
+import queue
 import shlex
 import shutil
 import socket
 import subprocess
+import threading
 
 from . import keymap
 
@@ -107,9 +109,10 @@ class Session:
         """Run a shell command and return the non-empty lines it printed.
 
         Not `spawn`: this one is read from rather than let go of, so it is
-        neither detached nor given a scope of its own. It runs on the event
-        loop, which is what the timeout is for - a command that hangs must not
-        take the pad down with it.
+        neither detached nor given a scope of its own. It blocks for as long
+        as the command takes, which is why callers reach it through
+        `Commands` rather than from the loop; the timeout is the floor under
+        that - a command that hangs must not hold the thread for ever.
         """
         try:
             result = subprocess.run(
@@ -133,6 +136,94 @@ class Session:
             )
         except OSError:
             pass
+
+
+class Commands:
+    """The thread that runs the shell commands a surface asks for.
+
+    `Session.capture` waits on a subprocess, and every caller of it sits on
+    the event loop: a listing that wedges is a pad that answers nothing until
+    the timeout runs out. The waiting moves here, and the answer comes back
+    through a queue the loop hears about from one byte down `wake` - so a
+    finished command lands on screen at once rather than at the next idle
+    poll.
+
+    One command at a time, in the order they were asked for. Two of them are
+    a menu page and a keyboard page, neither of which is opened often enough
+    to want a pool, and a queue keeps a slow one from being outrun by the
+    press after it.
+    """
+
+    def __init__(self, session, wake=None):
+        self.session = session
+        self.wake = wake
+        self.jobs = queue.Queue()
+        self.results = queue.Queue()
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, name="omapad-commands")
+        self._thread.daemon = True
+        self._thread.start()
+
+    # -- the loop's side ---------------------------------------------------
+
+    def submit(self, key, command, timeout=2.0):
+        """Queue one command. `key` comes back beside whatever it printed."""
+        self.jobs.put((key, command, timeout))
+
+    def drain(self):
+        """Every (key, lines) that has finished since the last call."""
+        found = []
+        while True:
+            try:
+                found.append(self.results.get_nowait())
+            except queue.Empty:
+                return found
+
+    def close(self):
+        self._running = False
+        self.jobs.put(None)
+
+    # -- the thread's side -------------------------------------------------
+
+    def _loop(self):
+        try:
+            self._work()
+        finally:
+            # Closed here rather than in `close`, so the only thread that can
+            # write to it is the only one that can take it away: a number
+            # closed under this one could be handed straight back out and
+            # given a byte meant for the loop.
+            if self.wake is not None:
+                try:
+                    os.close(self.wake)
+                except OSError:
+                    pass
+                self.wake = None
+
+    def _work(self):
+        while self._running:
+            job = self.jobs.get()
+            if job is None:
+                return
+            key, command, timeout = job
+            try:
+                lines = self.session.capture(command, timeout)
+            except Exception:  # noqa: BLE001
+                # `capture` already answers its own failures with an empty
+                # list. Anything left is a bug, and a thread that dies of one
+                # would be every later page silently never filling - so it is
+                # logged and answered empty, the same as a command that failed.
+                log.exception("command %r died", command)
+                lines = []
+            self.results.put((key, lines))
+            if self.wake is None:
+                continue
+            try:
+                os.write(self.wake, b"a")
+            except OSError:
+                # A closed pipe costs a late answer, not a lost one: the loop
+                # still drains at its next wake-up.
+                pass
 
 
 class Hypr:

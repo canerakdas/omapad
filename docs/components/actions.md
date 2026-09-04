@@ -56,12 +56,37 @@ socket by globbing the runtime directory, then
 `OMARCHY_BIN` is where Omarchy's own commands live; a binding that calls one
 goes through there rather than assuming `PATH`.
 
+`capture()` runs a command and hands back the non-empty lines it printed. It
+blocks for as long as the command takes, so callers reach it through
+`Commands` rather than from the loop.
+
+## `Commands`
+
+The thread the shell commands a surface asks for are run on. `submit(key,
+command, timeout)` queues one, the thread runs `Session.capture`, and the
+answer waits in `drain()` as `(key, lines)` - with one byte written down
+`wake`, so the daemon's `poll()` returns at once instead of holding the answer
+until the idle timeout. One command at a time and in order: two of them are a
+menu page and a keyboard page, and a queue keeps a slow one from being outrun
+by the press after it.
+
+A command that fails, times out or raises answers with an empty list. The
+thread must not die of one - that would be every later page silently never
+filling.
+
+The daemon's half is `submit_command()` / `drain_commands()`, which put a
+callback behind the key; see [`daemon.md`](daemon.md).
+
 ## `Hypr`
 
 The Hyprland IPC client: one socket per request, the reply read back for the
-callers that need it (`hyprctl clients` for snap, `monitors` for which
-workspaces are visible). Failure is a `None` and a log line - the daemon runs
-with no compositor.
+callers that need it (`clients` for snap, `monitors` for which workspaces are
+visible, `workspaces` and `activewindow` for the bar and the profile).
+Failure is a `None` and a log line - the daemon runs with no compositor.
+
+**`query()` is how the daemon asks, never `hyprctl`.** The answer comes back
+in well under a millisecond where a fork and an exec cost tens, and every
+caller is on the loop.
 
 ## Rules
 

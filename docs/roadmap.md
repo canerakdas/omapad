@@ -1701,11 +1701,12 @@ the filter hid the row that was ticked. The inputs are every source that is not
 a monitor instead, a monitor being what the speakers are already playing rather
 than anything anybody speaks into.
 
-**A press waits for the command**, which is the one thing here that breaks the
-loop's own rule, so `[menu] list_timeout_ms` bounds it: a device listing that
-has wedged must be a stutter rather than a pad that has stopped answering. The
-honest version of this runs in a thread and opens the page when the answer
-arrives - worth doing the day a listing is slower than `pactl`.
+**A press no longer waits for the command.** It did at first, which was the one
+thing here that broke the loop's own rule, and `[menu] list_timeout_ms` was all
+that stood between a wedged listing and a pad that had stopped answering. The
+honest version was written afterwards: `actions.Commands` runs the command on a
+thread, the press enters the page at once, and the rows land in it when the
+answer does. The timeout is still there, now as the floor under the thread.
 
 **They are a page of their own, and that was the second thing asked for.**
 Beside `Mute` and `Play / pause` the two rows read as an odd third thing, and

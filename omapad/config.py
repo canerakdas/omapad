@@ -562,8 +562,10 @@ class Config:
         # popup you click. In game mode the pad is the game's, so none of it
         # can be reached - and a full-screen game is better off with the
         # screen. `omarchy toggle bar` parks it off-screen without restarting
-        # the shell, and it is put back on the way out and at shutdown.
-        self.hide_bar_in_game = bool(mode.get("hide_bar_in_game", False))
+        # the shell, and it is put back on the way out and at shutdown. On by
+        # default with `gamebar.enabled`: the bar that replaces it is only
+        # worth drawing where the desktop one has gone.
+        self.hide_bar_in_game = bool(mode.get("hide_bar_in_game", True))
         # What the sticks do in game mode, where an empty string means "the
         # same as on the desktop". It lives in [mode] rather than a
         # [layers.game] because game mode is not held by a button, and a layer
@@ -834,10 +836,10 @@ class Config:
         self.menu_clock = menu.get("clock", "%A %H:%M")
         self.menu_repeat_delay = float(menu.get("repeat_delay_ms", 400)) / 1000.0
         self.menu_repeat_rate = float(menu.get("repeat_rate_ms", 110)) / 1000.0
-        # How long a row that lists its submenu may keep the press waiting.
-        # The command runs on the event loop, so this is the pad's own pause:
-        # long enough for a device listing to answer, short enough that one
-        # which has wedged is a stutter rather than a pad that has stopped.
+        # How long the worker waits on a row that lists its submenu before
+        # calling the listing empty. The press does not wait on it - the page
+        # opens and the rows land when they land - so this is how late an
+        # answer may be and still be worth drawing, not the pad's own pause.
         self.menu_list_timeout = float(menu.get("list_timeout_ms", 1000)) / 1000.0
         if self.menu_list_timeout <= 0:
             raise ConfigError("menu.list_timeout_ms must be more than 0")
@@ -855,7 +857,10 @@ class Config:
         self.status_socket = data.get("status", {}).get("socket") or None
 
         gamebar = data.get("gamebar", {})
-        self.gamebar_enabled = bool(gamebar.get("enabled", False))
+        # The other half of `mode.hide_bar_in_game`, and on for the same
+        # reason: game mode takes the desktop bar away, and a couch with
+        # nothing on screen has no way to read where it is or how to get back.
+        self.gamebar_enabled = bool(gamebar.get("enabled", True))
         self.gamebar_socket = gamebar.get("socket") or None
         # "auto" follows Omarchy's own `bar.position`, which the plugin
         # already watches for transparency; "top"/"bottom" pin it.

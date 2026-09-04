@@ -41,9 +41,11 @@ left says so in the row's own `empty` words rather than opening blank.
 
 The daemon reads it at the press (`menu_fill`), not at load and not from a
 cache: the reason the row lists devices instead of naming them is that the
-answer moves. The command runs on the event loop, so `[menu] list_timeout_ms`
-is how long a press may wait for it and `list_limit` is how many lines reach
-the page.
+answer moves. The command runs off the loop, so the press enters the page at
+once and the rows land in it when the answer does - a page entered before
+keeps the rows it held until then, rather than blinking empty. `[menu]
+list_timeout_ms` is how long the worker waits before calling the listing
+empty, and `list_limit` is how many lines reach the page.
 
 Picking a listed row keeps the menu up and `choose()` moves the tick to it. The
 command it runs is let go of rather than waited for, so re-reading the listing

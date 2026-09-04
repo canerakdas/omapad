@@ -6,7 +6,6 @@ import logging
 import os
 import select
 import socket
-import subprocess
 import time
 
 from . import actions, keymap, linux_input as li
@@ -115,6 +114,24 @@ class Daemon:
             log.warning("control socket unavailable: %s", exc)
             self.control = None
 
+        # Every shell command a surface asks for is run off the loop, and the
+        # answer comes back down this pipe: `submit_command` hands out the
+        # key, `drain_commands` gives the answer to whoever asked for it.
+        self._command_wake = None
+        self._command_jobs = {}
+        self._command_seq = 0
+        self.commands = None
+        try:
+            read_fd, write_fd = os.pipe()
+            os.set_blocking(read_fd, False)
+            self._command_wake = read_fd
+            self.commands = actions.Commands(self.session, wake=write_fd)
+        except OSError as exc:
+            # No worker is still a working daemon: the callers fall back to
+            # reading their command on the loop, which is where it was.
+            log.warning("command worker unavailable: %s", exc)
+            self.commands = None
+
         self.osk = OskModel(config.osk_layout,
                             overrides=config.osk_key_overrides,
                             badge_align=config.osk_badge_align)
@@ -126,6 +143,9 @@ class Daemon:
         # What the focused app's keyboard page last held, and until when:
         # (profile name, expiry, entries). Dropped whenever focus moves.
         self._osk_page_cache = None
+        # Which profile's page has a command in flight, so opening the
+        # keyboard twice while a slow history file is read asks once.
+        self._osk_page_job = None
 
         try:
             items = build_menu(config.menu_items)
@@ -256,6 +276,39 @@ class Daemon:
                 self.chord_buttons |= buttons
             except actions.ActionError as exc:
                 log.error("bad chord %s: %s", "+".join(sorted(buttons)), exc)
+
+    # -- shell commands off the loop ---------------------------------------
+
+    def submit_command(self, command, done, timeout=2.0):
+        """Run a shell command in the worker; `done(lines)` when it answers.
+
+        False when there is no worker to run it, and the caller reads it on
+        the loop instead - a daemon that could not make a pipe is slower, not
+        broken. `done` is called on the loop, so it may touch any state and
+        push any view.
+        """
+        if self.commands is None:
+            return False
+        self._command_seq += 1
+        self._command_jobs[self._command_seq] = done
+        self.commands.submit(self._command_seq, command, timeout)
+        return True
+
+    def drain_commands(self):
+        """Give every finished command's answer to whoever asked for it."""
+        if self._command_wake is not None:
+            try:
+                # One byte per answer, and the queue is what carries them;
+                # this only has to empty the pipe.
+                os.read(self._command_wake, 4096)
+            except OSError:
+                pass
+        if self.commands is None:
+            return
+        for key, lines in self.commands.drain():
+            done = self._command_jobs.pop(key, None)
+            if done is not None:
+                done(lines)
 
     # -- device ------------------------------------------------------------
 
@@ -529,22 +582,16 @@ class Daemon:
     def refresh_workspaces(self):
         """Ask Hyprland for the workspaces, and only while the bar is up.
 
-        A query per workspace event would spawn hyprctl for a strip nobody is
-        looking at the rest of the time, so the list is read when the bar
-        opens and when one is created or destroyed; a plain switch carries the
-        name it switched to, and needs no query at all.
+        Over the IPC socket rather than by spawning hyprctl: the answer comes
+        back in well under a millisecond where a fork and an exec cost tens,
+        and this runs on the loop. The list is still read only when the bar
+        opens and when a workspace is created or destroyed - a plain switch
+        carries the name it switched to, and needs no query at all.
         """
         rows, active = [], self.gamebar.active_workspace
         for command, into in (("workspaces", "list"), ("activeworkspace", "one")):
-            try:
-                result = subprocess.run(
-                    ["hyprctl", command, "-j"],
-                    env=self.session.env,
-                    capture_output=True, text=True, timeout=2.0,
-                )
-                data = json.loads(result.stdout)
-            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-                log.debug("could not read %s: %s", command, exc)
+            data = self.hypr.query(command)
+            if data is None:
                 continue
             if into == "one" and isinstance(data, dict):
                 # By id, the way Omarchy's own widget matches: a workspace can
@@ -832,21 +879,7 @@ class Daemon:
         Called once on connect and again on reconnect, because subscribing to
         the event socket does not replay the current state.
         """
-        try:
-            result = subprocess.run(
-                ["hyprctl", "activewindow", "-j"],
-                env=self.session.env,
-                capture_output=True,
-                text=True,
-                timeout=2.0,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            log.debug("could not seed the active window: %s", exc)
-            return
-        try:
-            info = json.loads(result.stdout)
-        except ValueError:
-            return
+        info = self.hypr.query("activewindow")
         if not isinstance(info, dict):
             return
         self.focus_pid = info.get("pid") or None
@@ -987,23 +1020,62 @@ class Daemon:
 
         Kept for the page's own ttl: opening the keyboard twice to type two
         commands should not re-read a history file that nothing has written to
-        in between, and the command runs on the event loop.
+        in between. Past the ttl the command runs off the loop, so this
+        answers with what the page held last and the fresh reading replaces it
+        when it lands - a shell history that is slow to read must not be a
+        keyboard that is slow to appear.
         """
-        now = time.monotonic()
         cached = self._osk_page_cache
-        if cached and cached[0] == self.active_profile_name and now < cached[1]:
+        if (cached is not None and cached[0] == self.active_profile_name
+                and time.monotonic() < cached[1]):
             return cached[2]
+        if not page["from"]:
+            # Nothing to read: the page is its own keys, and there is no
+            # reading for the ttl to be about.
+            return self.osk_page_entries(page, [])
+        self.refill_osk_app_page(page)
+        # Read again rather than trusting `cached`: with no worker the reading
+        # happened inside that call, and the answer it just filed is the fresh
+        # one this asked for.
+        cached = self._osk_page_cache
+        if cached is not None and cached[0] == self.active_profile_name:
+            return cached[2]
+        return self.osk_page_entries(page, [])
+
+    def osk_page_entries(self, page, lines):
+        """The page's own keys, then whatever its command printed."""
         entries = list(page["keys"])
-        if page["from"]:
-            entries += [
-                {"label": line, "text": line}
-                for line in self.session.capture(page["from"])
-            ]
-        entries = entries[: page["limit"]]
-        self._osk_page_cache = (
-            self.active_profile_name, now + page["ttl"], entries
-        )
-        return entries
+        entries += [{"label": line, "text": line} for line in lines]
+        return entries[: page["limit"]]
+
+    def refill_osk_app_page(self, page):
+        """Read the page's command in the worker and hand it the answer.
+
+        One reading in flight per profile: the keyboard can be opened and
+        closed faster than a history file is read, and a queue of the same
+        command would land the same answer several times over.
+        """
+        name = self.active_profile_name
+        if self._osk_page_job == name:
+            return
+
+        def fill(lines):
+            if self._osk_page_job == name:
+                self._osk_page_job = None
+            if name != self.active_profile_name:
+                return  # the app in front changed while the command ran
+            entries = self.osk_page_entries(page, lines)
+            self._osk_page_cache = (
+                name, time.monotonic() + page["ttl"], entries
+            )
+            self.osk.set_app_page(page["label"], entries)
+            if self.osk_open:
+                self.push_osk_view()
+
+        self._osk_page_job = name
+        if not self.submit_command(page["from"], fill):
+            self._osk_page_job = None
+            fill(self.session.capture(page["from"]))
 
     def refresh_osk_app_page(self):
         """Give the keyboard the page the app in front lends it, if it has one."""
@@ -1286,19 +1358,37 @@ class Daemon:
     def menu_fill(self, item):
         """Read a listed row's submenu from its command, if it is one.
 
-        The command runs on the loop, which is what `menu.list_timeout_ms`
-        bounds: this press is waiting for it, and a device listing that has
-        wedged must be a stutter rather than a pad that has stopped answering.
+        The command runs off the loop, so a device listing that has wedged is
+        a page that fills late rather than a pad that has stopped answering;
+        `menu.list_timeout_ms` is how long the worker waits before calling it
+        empty. The press enters the page either way and the rows land in it
+        when the answer does - which for a page entered before means the rows
+        it held last, rather than a blink of nothing.
+
         A command that fails prints nothing, and an empty page says so.
         """
         if not item or not item.get("from"):
             return
-        lines = self.session.capture(item["from"], self.config.menu_list_timeout)
-        try:
-            item["items"] = listed(item, lines, self.config.menu_list_limit)
-        except MenuError as exc:
-            # A page that will not build must not take the menu down with it.
-            log.error("menu: %s", exc)
+
+        def fill(lines):
+            try:
+                # In place: the model is already drawing this very list, and a
+                # fresh one bound here would be a page nobody is looking at.
+                item["items"][:] = listed(
+                    item, lines, self.config.menu_list_limit
+                )
+            except MenuError as exc:
+                # A page that will not build must not take the menu down.
+                log.error("menu: %s", exc)
+                return
+            self.push_menu_view()
+
+        if not self.submit_command(
+            item["from"], fill, self.config.menu_list_timeout
+        ):
+            fill(self.session.capture(
+                item["from"], self.config.menu_list_timeout
+            ))
 
     def menu_select(self, index):
         """Jump the selection to one row - what a pointer hovering asks for.
@@ -2638,6 +2728,12 @@ class Daemon:
         if control_fd is not None:
             control_fds = (control_fd,)
             poller.register(control_fd, select.POLLIN)
+        # The command worker writes a byte here whenever it has an answer, so
+        # a page that was waiting on a listing fills at once rather than at
+        # the end of the idle poll.
+        command_fd = self._command_wake
+        if command_fd is not None:
+            poller.register(command_fd, select.POLLIN)
         device_fd = None
         hypr_ev_fd = None
         key_fds = ()
@@ -2720,6 +2816,8 @@ class Daemon:
                     self.control.serve(self.handle_control)
                 elif self.device is not None and fd == self.device.fd:
                     self.drain_events()
+                elif command_fd is not None and fd == command_fd:
+                    self.drain_commands()
                 elif fd in key_fds:
                     self.drain_keys(fd)
                 elif self.hypr_ev is not None and fd == self.hypr_ev.fileno():
@@ -2759,6 +2857,19 @@ class Daemon:
     def shutdown(self):
         self.running = False
         self.release_everything()
+        if self.commands is not None:
+            # Told to stop rather than waited for: the thread is a daemon
+            # thread, and a command still running is one nobody is left to
+            # show the answer to.
+            self.commands.close()
+            self.commands = None
+        self._command_jobs.clear()
+        if self._command_wake is not None:
+            try:
+                os.close(self._command_wake)
+            except OSError:
+                pass
+            self._command_wake = None
         if self.device is not None:
             self.rumble.detach()
             self.device.close()

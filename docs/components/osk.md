@@ -36,6 +36,15 @@ It is built from what the profile handed over rather than written into a
 layout, so **how many pages the keyboard has is a property of the model** and
 the page-turn cell reads its name back out of it.
 
+The daemon fills it (`osk_app_entries`, `refill_osk_app_page`). A page with a
+`from` command is read when the keyboard opens and kept for its `ttl` -
+opening it twice to type two commands should not re-read a history file that
+nothing has written to in between. Past the ttl the command runs off the loop,
+so the keyboard opens on the page's own keys, or on what it held last, and
+takes the fresh reading when it lands: a shell history that is slow to read
+must not be a keyboard that is slow to appear. One reading in flight per
+profile, and an answer for an app that is no longer in front is dropped.
+
 ## `OskModel`
 
 `move_horizontal`/`move_vertical` walk, `set_layer`/`cycle_layer` turn the
