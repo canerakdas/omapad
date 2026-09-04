@@ -21,7 +21,7 @@
 set -euo pipefail
 
 REPO_URL="${OMAPAD_REPO:-https://github.com/canerakdas/omapad.git}"
-SHA="${OMAPAD_SHA:-5e45178c227322201e570a7b242c098f1d636d02}"
+SHA="${OMAPAD_SHA:-bc8b29e7ed71ede37a4cc6c48bd78de0399781bf}"
 PLUGIN_ID="${OMAPAD_PLUGIN_ID:-canerakdas.omapad}"
 TARGET="${OMAPAD_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/$PLUGIN_ID}"
 
