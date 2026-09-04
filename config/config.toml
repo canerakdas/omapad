@@ -1817,31 +1817,33 @@ detail = "Speed, vibration, labels, mapping"
   # is a list nobody reads from across a room. They repeat and print their
   # percentage for the same reason the speeds do, and both sticks are live
   # underneath, so the one you are complaining about answers while you step it.
+  #
+  # The four rows below carry no icon on purpose. The font's gamepad glyphs are
+  # all face buttons - a diamond of four circles - so a row saying "Left stick"
+  # was drawn with A, B, X and Y beside it. No glyph here means a stick, and a
+  # wrong picture from across a room is worse than none: the label already says
+  # which thumb it is.
   [[menu.items.items]]
   icon = "󰐾"
   label = "Dead zone"
   detail = "Stick travel that does nothing"
 
     [[menu.items.items.items]]
-    icon = "󰸵"
     label = "Left stick wider"
     action = "pad:left_deadzone=up"
     repeat = true
 
     [[menu.items.items.items]]
-    icon = "󰸵"
     label = "Left stick narrower"
     action = "pad:left_deadzone=down"
     repeat = true
 
     [[menu.items.items.items]]
-    icon = "󰸷"
     label = "Right stick wider"
     action = "pad:right_deadzone=up"
     repeat = true
 
     [[menu.items.items.items]]
-    icon = "󰸷"
     label = "Right stick narrower"
     action = "pad:right_deadzone=down"
     repeat = true
