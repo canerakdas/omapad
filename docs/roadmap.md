@@ -1721,9 +1721,45 @@ description elides. Left alone. It elides from the right, which is where the
 part that distinguishes one device from another is not, and widening the card
 for this would be the menu no longer measuring the same as the Omarchy one.
 
+### 41. The pointer that kept sliding across the game · ✅ Done · S
+
+Reported from the sofa, on the other machine: *I opened a game and it seemed to
+be taking mouse input the whole time; I could not use the pad's buttons because
+of it.*
+
+**Handing the pad over was only ever half done.** `handed_over` was asked in
+exactly one place - `allowed()` - and that place decides what a *press* may do.
+Nothing asked it about the sticks. `drain_events` went on storing the axes,
+`needs_tick` went on asking only whether a layer had given a stick a role, and
+`tick` -> `emit_cursor` went on moving the virtual mouse. So the buttons stood
+aside politely while the left stick drove the desktop's pointer across the game
+underneath.
+
+**The comment for `handover_siblings` had already written the symptom down** -
+"a Proton game leaves the pad driving the desktop's pointer over the top of it"
+- and filed it as what happens when the *detection* fails. It was also what
+happened when the detection worked. It went unseen from the couch because game
+mode turns both sticks off by default, and the report came from a desk.
+
+**A stick gets no `reaches_past`.** What buys a button its way past an app
+holding the pad is being a gesture the game does not ask for - a chord, an
+announced hold - and a stick pushed over is the one input every game does ask
+for. There is nothing to opt back in to, so `stick_roles()` returns
+`("none", "none")` and that is the whole of it. `surface_open()` is now the one
+question the grab, `allowed()` and the sticks all ask, so a surface takes the
+pad, the presses and the pointer back together: the keyboard is pointed at with
+a stick.
+
+**What it makes worse is the item that was already open.** An application that
+opens the pad without being a game - Discord polls the Gamepad API for its own
+keybinds - now loses the pointer as well as its bindings for as long as it is
+focused. The honest fix has not changed and is still not built: a handover
+ignore list by window class, so some applications are never handed the pad at
+all.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–40**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–41**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

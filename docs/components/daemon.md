@@ -89,6 +89,11 @@ the desktop as it does walking a game's controls. Roles:
 its own emitter: `emit_cursor`, `emit_scroll` (with the ramp), `emit_window`,
 `snap_cursor`, `check_focus_stick`.
 
+`stick_roles()` is where a role can be taken away, and being handed over takes
+all of them: a stick held over an app that has the pad would drive the pointer
+across it until the thumb came off. [handover](handover.md) says why they get
+no `reaches_past` to come back on.
+
 ## Mode, grab and handover
 
 - `set_mode()` switches desktop/game: it hides Omarchy's bar, raises the
@@ -96,10 +101,15 @@ its own emitter: `emit_cursor`, `emit_scroll` (with the ramp), `emit_window`,
 - `wants_grab()` / `apply_grab()` decide whether the pad is ours. The answer
   comes from `handover.wants_pad()` - does the focused window's process tree
   have the pad's node open - refreshed by `update_handover()`.
+- `surface_open()` is the one question all three of those ask - the grab,
+  `allowed()`, `stick_roles()` - so a surface takes the pad, the presses and
+  the sticks back together.
 - A chord and an announced hold reach past an app holding the pad, and an open
   surface takes it back until it closes. A summon does too unless its binding
   says `reaches_past = false`, which the shipped `PLUS` and `MINUS` do.
   `allowed()` is the one place that decides; [handover](handover.md) says why.
+  The sticks reach past nothing at all - `stick_roles()`, and handover says
+  why they get no say in it.
 
 ## Surfaces
 

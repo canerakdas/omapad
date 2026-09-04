@@ -789,6 +789,33 @@ class HandoverTests(DaemonTestCase):
         self.release("MINUS")
         self.assertFalse(self.daemon.osk_open)
 
+    def test_the_sticks_stop_driving_the_pointer(self):
+        # A stray press is over as soon as the thumb comes off; a stick left
+        # over is a pointer sliding across the game for as long as it is held,
+        # and an app reading that pointer has stopped reading the pad.
+        self.hand_over()
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        self.tick(1.0, steps=100)
+        self.assertEqual(self.mouse.moves, [])
+        self.assertFalse(self.daemon.sticks_live())
+
+    def test_and_start_again_when_the_pad_comes_back(self):
+        self.hand_over()
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        self.tick(1.0, steps=100)
+        self.hand_over(False)
+        self.tick(1.0, steps=100)
+        self.assertTrue(any(dx for dx, _ in self.mouse.moves))
+
+    def test_a_surface_takes_the_sticks_back_with_the_pad(self):
+        # The keyboard is pointed at with a stick, so a surface that takes the
+        # pad back has to take them too - the same rule the grab follows.
+        self.hand_over()
+        self.daemon.set_osk(True)
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        self.tick(1.0, steps=100)
+        self.assertTrue(any(dx for dx, _ in self.mouse.moves))
+
     def test_a_summon_that_says_nothing_still_reaches_past(self):
         # `reaches_past = false` on PLUS and MINUS is the shipped config's
         # choice, not the rule: a summon nobody has ruled on is still what an

@@ -203,6 +203,11 @@ rumble = true
 # the pad, and opening one takes it back for as long as it is up - otherwise
 # the D-pad would drive the menu and the game at once.
 #
+# The sticks stop dead there, and they get no way back: a press is over when
+# the thumb comes off, but a stick left over slides the pointer across the game
+# for as long as it is held, and an app reading a pointer has stopped reading
+# the pad.
+#
 # Seconds between checks. Focus changes ask anyway; this catches the app that
 # opens the pad a moment after its window appears, which is most of them.
 handover_poll = 2.0
@@ -282,6 +287,8 @@ recenter_limit = 0.90         # a rest farther than this from centre is a stick
 precision_button = ""
 precision_factor = 0.28
 poll_hz = 125
+# Both roles are off while the app in front has the pad, whatever is set here:
+# see [mode] handover_depth.
 left_stick = "cursor"         # cursor | scroll | snap | focus | none
 # "snap" turns a stick into a flick: push it over and the pointer jumps to the
 # window that way instead of walking there. See [snap].

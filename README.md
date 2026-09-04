@@ -222,6 +222,15 @@ handover_depth = 3       # generations in the family tree; Steam -> reaper -> wr
 handover_siblings = true # whether siblings count too (required for Proton)
 ```
 
+**The sticks stop altogether.** Every role a stick carries is a desktop job —
+the pointer, the wheel, moving a window — and a thumb resting on one while the
+game has the pad slides the pointer across it for as long as it is held. That
+is worse than a stray press, which is over when the thumb comes off, and an
+application reading the pointer has stopped reading the pad. Unlike the buttons
+they get no way back: what earns a button its way past is being a gesture the
+game does not ask for, and a stick pushed over is the one input every game
+does ask for.
+
 **What still gets through is a gesture the game does not ask for**, and there
 are two of them.
 

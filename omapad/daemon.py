@@ -445,6 +445,17 @@ class Daemon:
         except OSError as exc:
             log.warning("could not change grab state: %s", exc)
 
+    def surface_open(self):
+        """Is a surface of ours on screen?
+
+        The four are asked about together everywhere the pad is divided up -
+        the grab, what a press may do, what the sticks are worth - because
+        they say one thing between them: the pad is driving something of
+        ours, whatever the app in front has open.
+        """
+        return bool(self.mapping_open or self.osk_open or self.menu_open
+                    or self.guide_open)
+
     def wants_grab(self):
         """Should the pad be ours exclusively right now?
 
@@ -453,8 +464,7 @@ class Daemon:
         that is what makes a menu summonable over a running game. Otherwise the
         pad is ours unless the app in front has opened it for itself.
         """
-        if (self.mapping_open or self.osk_open or self.menu_open
-                or self.guide_open):
+        if self.surface_open():
             return True
         if not self.config.grab:
             return False
@@ -1944,11 +1954,32 @@ class Daemon:
                 entry[1] = now + rate
 
     def stick_roles(self):
+        """What the sticks are worth right now.
+
+        Nothing at all once the app in front has the pad. Every role a stick
+        can carry is a desktop job - a pointer, a wheel, a window - and a
+        thumb resting on the stick while a game, Steam or a stream holds the
+        pad lands on top of it as mouse movement nobody asked for. That is
+        worse than a stray press: it never stops, and an app reading the
+        pointer stops reading the pad. So the sticks stand aside with the
+        buttons, which `allowed()` already does.
+
+        Unlike a button they get no `reaches_past` to buy their way back.
+        What earns a button its way past is being a gesture the game does not
+        ask for - a chord, an announced hold - and a stick pushed over is the
+        one input every game does ask for.
+
+        A surface of ours takes the pad back while it is up, exactly as it
+        does for the grab, and takes the sticks with it: the keyboard is
+        pointed at with one.
+        """
+        if self.handed_over and not self.surface_open():
+            return ("none", "none")
         return self.config.stick_roles(self.current_layer, self.active_profile)
 
     def sticks_live(self):
         """Has either stick a role to integrate? Both are off in game mode
-        unless [mode] hands one back."""
+        unless [mode] hands one back, and off under an app holding the pad."""
         return any(role in STICK_ROLES for role in self.stick_roles())
 
     # -- input handling ----------------------------------------------------
@@ -2110,7 +2141,7 @@ class Daemon:
         """
         if not self.handed_over:
             return True
-        if self.osk_open or self.menu_open or self.guide_open or self.mapping_open:
+        if self.surface_open():
             return True  # what is on screen is what the pad is driving
         # A row picked on a surface fires *after* that surface is put away -
         # the menu closes first, so what it opens does not come up behind a

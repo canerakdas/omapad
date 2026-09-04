@@ -46,6 +46,21 @@ Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`.
   pad, and an open surface takes it back until it closes. That decision lives
   in `daemon.wants_grab()`, not here.
 
+## What the sticks do while the app has the pad
+
+Nothing. `daemon.stick_roles()` returns `("none", "none")` the moment the pad
+is handed over, so `sticks_live()` is false and the tick integrates nothing.
+The buttons are a question of which gesture reaches past; a stick is not, and
+the asymmetry is the point: a press ends when the thumb comes off, while a
+stick left over drives the pointer across the game for as long as it is held -
+and an app reading that pointer has stopped reading the pad. There is no
+`reaches_past` for a stick, because what buys a button its way past is being a
+gesture the game does not ask for, and a stick pushed over is the one input
+every game does ask for.
+
+An open surface takes them back with the pad, on the same condition the grab
+uses (`surface_open()`): the keyboard is pointed at with a stick.
+
 ## What still fires while the app has the pad
 
 `daemon.allowed()` owns this. What gets through is a gesture the game does not
