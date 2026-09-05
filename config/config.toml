@@ -194,6 +194,17 @@ esc = "surface:close"
 start = "desktop"
 grab = true                   # take the pad exclusively, so nothing else acts
                               # on the buttons omapad is already acting on
+# A grab taken while a button is down strands that button in whatever had the
+# pad: the kernel gives the events to whoever holds the grab, so the release
+# never arrives and the app goes on believing the button is held. Steam skips
+# every Guide press it reads as a chord, and a bumper it thinks is down makes
+# one of all of them - so the shoulder held to walk a workspace out of Steam
+# costs the Steam menu for the rest of the evening. So a grab waits for the pad
+# to be let go, and this is how many seconds it waits before taking it anyway.
+# The wait is bounded for the button that is never released - a dongle that
+# dropped mid-press - and while it lasts the app sees our presses too. 0 takes
+# the pad the moment it is wanted, which is where this used to be.
+grab_settle = 2.0
 notify = true                 # desktop notification on every mode switch
 # A tick on the motor at every mode switch too. The switch is the one press
 # whose result you may not be looking at - the pad is on your lap, the bar is

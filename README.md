@@ -293,6 +293,40 @@ reaches_past = true                                               # all of it
 B = { tap = "hypr:hl.dsp.window.close()", reaches_past = false }  # except this
 ```
 
+### The button held when the pad changes hands
+
+The grab is exclusive: while omapad holds the pad the kernel gives its events
+to omapad alone. So a grab taken **while a button is down** costs the app that
+had the pad the release of that button — it saw the press, it never sees the
+letting go, and it goes on believing the button is held for as long as it runs.
+
+That is the ordinary case rather than a rare one, because the gesture that
+takes the pad back is itself a held one. Hold `L` inside Big Picture to walk a
+workspace: the focus change lands first and the thumb comes off after it, so
+the release reaches omapad and Steam is left with a bumper down for ever.
+Measured, in Steam's own log — every Guide press after that reads
+
+```
+Guide button skipped due to chording
+```
+
+because a Guide press with a bumper down is a chord (Guide + LB), and the Steam
+menu never opens again for the rest of the session.
+
+So a grab waits for the pad to be let go before it takes it:
+
+```toml
+[mode]
+grab_settle = 2.0   # seconds a wanted grab waits for the hand to come off
+```
+
+While it waits the app sees our presses too, which is the trade: a press
+arriving twice is worth a great deal less than a button stuck down until the
+app is restarted. The wait is bounded for the button that is never released — a
+dongle that drops mid-press — and `0` takes the pad the moment it is wanted.
+Letting go of the pad never waits: an app that gets a release it never saw the
+press of ignores it.
+
 ### The workspace lock
 
 The hand-off asks the program itself and is right about the games it can see.

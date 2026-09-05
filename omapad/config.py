@@ -537,6 +537,14 @@ class Config:
         if self.start_mode not in ("desktop", "game"):
             raise ConfigError("mode.start must be 'desktop' or 'game'")
         self.grab = bool(mode.get("grab", True))
+        # A grab taken while a button is down never lets the app that had the
+        # pad see that button's release - evdev feeds the grabber alone - so a
+        # grab waits for the hand to come off the pad first. This is how long
+        # it waits before taking it anyway; the bound is for the button that is
+        # never let go. 0 takes the pad the moment it is wanted.
+        self.grab_settle = float(mode.get("grab_settle", 2.0))
+        if self.grab_settle < 0:
+            raise ConfigError("mode.grab_settle must be 0 or more")
         self.notify = bool(mode.get("notify", True))
         # The switch is the one press whose result you may not be looking
         # at, so it is felt as well as seen. `[rumble] enabled` still wins:

@@ -42,7 +42,7 @@ and `/proc` shows who has.
 | `wants_pad(focus_pid, nodes, ...)` | the whole question, in one call |
 
 Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`,
-and `handover` on any `[profile.<name>]`.
+`grab_settle`, and `handover` on any `[profile.<name>]`.
 
 ## Rules
 
@@ -53,6 +53,21 @@ and `handover` on any `[profile.<name>]`.
 - The answer is a hint, not a lock: a summon still works while an app holds the
   pad, and an open surface takes it back until it closes. That decision lives
   in `daemon.wants_grab()`, not here.
+
+## Taking the pad back without stranding a button
+
+The grab is exclusive, so a grab taken while a button is down keeps that
+button's release from the app that saw the press: it believes the button is
+held for as long as it runs. The gesture that takes the pad back is itself a
+held one - a shoulder held to walk a workspace out of Steam is let go *after*
+the focus change - so this is the ordinary case, not an edge of one. Measured
+in Steam's log: every Guide press afterwards is `Guide button skipped due to
+chording`, because a Guide press with a bumper down is a chord, and the Steam
+menu stops opening.
+
+`daemon.apply_grab()` therefore waits for `pad_settled()` - no button down, or
+`[mode] grab_settle` seconds gone by, which is the bound for the button that is
+never released. Only *taking* the pad waits; letting go of it never does.
 
 ## What the sticks do while the app has the pad
 

@@ -115,6 +115,9 @@ no `reaches_past` to come back on.
 - `wants_grab()` / `apply_grab()` decide whether the pad is ours. The answer
   comes from `handover.wants_pad()` - does the focused window's process tree
   have the pad's node open - refreshed by `update_handover()`.
+- `pad_settled()` is when a wanted grab may be taken: not while a button is
+  down, because the app that had the pad would never see that button's
+  release. `[mode] grab_settle` bounds the wait. See the trap below.
 - `surface_open()` is the one question all three of those ask - the grab,
   `allowed()`, `stick_roles()` - so a surface takes the pad, the presses and
   the sticks back together.
@@ -146,6 +149,14 @@ whichever surface is in front.
 
 ## Traps
 
+- **Never take the grab while a button is down.** The grab is exclusive, so
+  the app that had the pad sees the press and never the release, and holds the
+  button down for as long as it runs. It is the ordinary case: the shoulder
+  held to walk a workspace out of Steam is let go *after* the focus change
+  that takes the pad back, and Steam then reads every Guide press as a chord
+  (`Guide button skipped due to chording`) and opens nothing. `apply_grab()`
+  waits for `pad_settled()`; the release itself is what wakes it, in
+  `handle_button()`, and the loop catches the button that is never let go.
 - The order in `attach()` matters: the profile decides the badge layout, so
   `guide.layout` and `gamebar.layout` are set there and **nowhere else** may
   reach for a label table.

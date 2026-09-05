@@ -795,6 +795,42 @@ class HandoverTests(DaemonTestCase):
         self.hand_over(False)
         self.assertTrue(self.device.grabbed)
 
+    def test_the_grab_waits_for_a_button_the_app_is_still_holding(self):
+        # The shoulder held to walk a workspace out of Steam is let go after
+        # the focus change that takes the pad back. Grabbing on the change
+        # would keep that release from Steam, which then reads every Guide
+        # press as a chord and opens nothing.
+        self.hand_over()
+        self.press("L")
+        self.hand_over(False)
+        self.assertFalse(self.device.grabbed)
+        self.release("L")
+        self.assertTrue(self.device.grabbed)
+
+    def test_but_not_for_ever(self):
+        self.hand_over()
+        self.press("L")
+        self.hand_over(False)
+        # A button the kernel believes is held for ever - a dongle that
+        # dropped mid-press - must not cost the grab outright.
+        self.daemon._grab_wait = 0.0
+        self.daemon.apply_grab()
+        self.assertTrue(self.device.grabbed)
+
+    def test_and_not_at_all_when_the_wait_is_off(self):
+        self.config.grab_settle = 0.0
+        self.hand_over()
+        self.press("L")
+        self.hand_over(False)
+        self.assertTrue(self.device.grabbed)
+
+    def test_letting_go_of_the_pad_never_waits(self):
+        # An app that gets a release it never saw the press of ignores it, so
+        # only taking the pad has anything to strand.
+        self.press("L")
+        self.hand_over()
+        self.assertFalse(self.device.grabbed)
+
     def test_ordinary_bindings_stop_while_the_app_has_it(self):
         self.hand_over()
         self.press("A")

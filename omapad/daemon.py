@@ -204,6 +204,10 @@ class Daemon:
         self.pad_nodes = frozenset()
         self.focus_pid = None
         self._next_handover_check = 0.0
+        # When a wanted grab may be taken anyway. A grab taken while a button
+        # is down strands that button in whatever had the pad, so it waits for
+        # the hand to come off first - see `apply_grab`.
+        self._grab_wait = None
 
         # What a click looks like. An event rather than a state, so there is
         # no `_open` and no `_next_heartbeat` beside it: a burst that is over
@@ -479,15 +483,47 @@ class Daemon:
         self.push_status_view()
 
     def apply_grab(self):
+        """Take the pad, or let go of it - but wait for the hand to come off.
+
+        A grab taken while a button is down strands that button in every other
+        client: evdev feeds the grabber alone, so the release never reaches the
+        app that saw the press and it goes on believing the button is held.
+        That is the ordinary case rather than a rare one - the shoulder held to
+        walk a workspace out of Steam is let go *after* the focus change that
+        takes the pad back - and Steam then answered every Guide press with
+        "skipped due to chording" for the rest of the evening, because a Guide
+        press with a bumper down is a chord. Measured, in Steam's own log.
+
+        So a wanted grab stands aside until the pad is let go, and the app sees
+        both of us for that moment: a press arriving twice is worth a great
+        deal less than a button stuck down for as long as the app runs.
+        `grab_settle` bounds the wait, because a button the kernel believes is
+        held for ever - a dongle that dropped mid-press - must not cost the
+        grab outright. Letting go is never deferred: an app that gets a release
+        it never saw the press of ignores it.
+        """
         if self.device is None:
             return
         try:
             if self.wants_grab():
+                if not self.device.grabbed and not self.pad_settled():
+                    return
                 self.device.grab()
             else:
                 self.device.ungrab()
         except OSError as exc:
             log.warning("could not change grab state: %s", exc)
+        self._grab_wait = None
+
+    def pad_settled(self):
+        """Is the hand off the pad - or has the grab waited long enough?"""
+        if not self.pressed:
+            self._grab_wait = None
+            return True
+        now = time.monotonic()
+        if self._grab_wait is None:
+            self._grab_wait = now + self.config.grab_settle
+        return now >= self._grab_wait
 
     def surface_open(self):
         """Is a surface of ours on screen?
@@ -2200,6 +2236,10 @@ class Daemon:
         # that follows it. Sorted so an unchanged hand does not redraw the bar.
         self.gamebar.pressed = sorted(self.pressed)
         self.route_button(button, pressed)
+        # A grab that stood aside for a held button takes the pad the moment
+        # the hand comes off it, which is the whole of what it was waiting for.
+        if self._grab_wait is not None and not self.pressed:
+            self.apply_grab()
         # Every button event repaints the bar while it is up: what is down has
         # changed, and so may the layer that decides every hint on it. Presses
         # arrive at the speed of a thumb, and this is one JSON line.
@@ -3134,6 +3174,9 @@ class Daemon:
                     self.check_mapping_hold(now)
                     if now >= self._mapping_next_heartbeat:
                         self.push_mapping_view()
+                if self._grab_wait is not None and now >= self._grab_wait:
+                    # The button that is never let go - see `apply_grab`.
+                    self.apply_grab()
                 if now >= self._next_handover_check:
                     # Most apps open the pad a moment after they come up, not
                     # while they are still being mapped.
