@@ -36,6 +36,11 @@
 #   lock:on|off|toggle                     the workspace lock: the pad is the app
 #                                          in front's outright, and nothing of
 #                                          ours fires but the menu chord
+#   keep:on|off|toggle                     the same question the other way: the
+#                                          pad is ours over an app that has
+#                                          opened it and is not being played
+#                                          with - a cloud client's launcher
+#                                          screen reads no pad at all
 #   pad:profile=auto|nintendo_pro|xbox     which codes this pad is read with
 #   pad:layout=auto|nintendo|xbox|playstation
 #                                          which console's names the badges print
@@ -2078,6 +2083,20 @@ label = "Workspace lock"
 detail = "Every press goes to the game"
 action = "lock:toggle"
 when = ["game", "handed_over"]
+stay = true
+
+# Its pair, for the case the hand-off is right about and nobody can use. A
+# cloud client opens the pad as its page loads, so the launcher screen in front
+# of the stream - a web page, which reads no pad at all - is handed the pointer
+# and offers nothing to press it with; measured with GeForce NOW, whose session
+# then never starts. This takes the pad back, and keeps it until it is given up
+# again: offered while an app has it, and for as long as it is on.
+[[menu.items]]
+icon = ""
+label = "Keep the controller"
+detail = "Every press drives the desktop"
+action = "keep:toggle"
+when = ["handed_over", "kept"]
 stay = true
 
 [[menu.items]]

@@ -24,7 +24,7 @@ anything a button can.
 ## Rows that are not always there
 
 `when` on an entry is the states it is offered in - `game`, `handed_over`,
-`locked` from `menu.WHEN`, any one of them being enough; a row that says
+`locked`, `kept` from `menu.WHEN`, any one of them being enough; a row that says
 nothing is always there, which is nearly all of them. `build()` rejects a name
 that is not one of those, so `omapad check` says which row would never appear.
 

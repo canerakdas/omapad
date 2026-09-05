@@ -30,6 +30,11 @@ BarWidget {
   // is told otherwise. The widget is where that is said on the desktop - the
   // game bar has already got out of the way by then.
   property bool locked: false
+  // And the same state said the other way: the pad is ours over an app that
+  // has opened it. The widget is the only standing answer to which of the two
+  // is in force, and a kept pad looks exactly like an ordinary one until
+  // something says so.
+  property bool kept: false
   // Nothing has been heard from the daemon yet. An icon for a service that is
   // not running is worse than a gap, so the widget waits to be told.
   property bool live: false
@@ -50,6 +55,7 @@ BarWidget {
       if (s.pad !== undefined) root.pad = String(s.pad)
       if (s.profile !== undefined) root.profile = String(s.profile)
       if (s.locked !== undefined) root.locked = !!s.locked
+      if (s.kept !== undefined) root.kept = !!s.kept
       root.live = true
       silence.restart()
     } catch (e) {}
@@ -60,6 +66,7 @@ BarWidget {
     text += game ? " · game mode, the pad is the game's" : " · desktop mode"
     if (!game && profile !== "") text += " · " + profile + " profile"
     if (locked) text += " · workspace lock on"
+    if (kept) text += " · controller kept"
     return text + "\nLeft: menu · Right: switch mode"
   }
 
@@ -87,9 +94,10 @@ BarWidget {
     bar: root.bar
     // A gamepad, a gamepad in game mode, and a gamepad the lock has
     // given away - the same glyph the menu row carries, so the two say
-    // one thing.
+    // one thing. A kept pad keeps the plain glyph and is lit instead:
+    // it is the ordinary state, held on to over an app that wanted it.
     text: root.locked ? "󰌾" : root.game ? "󰒗" : ""
-    active: root.game || root.locked
+    active: root.game || root.locked || root.kept
     slotSize: Style.bar.statusSlot
     tooltipText: root.summary()
     onPressed: function (which) {

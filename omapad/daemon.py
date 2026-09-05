@@ -194,6 +194,13 @@ class Daemon:
         # lock that survived a restart would be a pad that does nothing for a
         # reason nobody remembers. See `set_locked`.
         self.locked = False
+        # And the same answer given the other way: the pad is ours over a
+        # window that has opened it and is not being played with - a cloud
+        # client's launcher screen, which reads no pad and is the only thing
+        # between you and the stream. Runtime state for the same reason the
+        # lock is, and exclusive with it: two overrides arguing about one pad
+        # is a state nobody could name. See `set_keeping`.
+        self.keeping = False
         self.pad_nodes = frozenset()
         self.focus_pid = None
         self._next_handover_check = 0.0
@@ -527,6 +534,11 @@ class Daemon:
             # misses, and for the profile that refuses a hand-off it turns
             # out to want.
             wanted = True
+        elif self.keeping:
+            # The other answer a person can give, and the one /proc cannot
+            # reach: the app has plainly opened the pad and is plainly doing
+            # nothing with it.
+            wanted = False
         elif self.active_profile and not self.active_profile["handover"]:
             wanted = False
         else:
@@ -568,6 +580,11 @@ class Daemon:
         if locked == self.locked:
             return
         self.locked = locked
+        if locked:
+            # The two overrides are one question with two answers, so the
+            # second one asked is the one that stands. Silently, because the
+            # notification below is already saying where the pad went.
+            self.keeping = False
         log.info("workspace lock: %s", "on" if locked else "off")
         self.update_handover(force=True)
         if self.config.notify:
@@ -575,6 +592,42 @@ class Daemon:
                 "omapad",
                 "Workspace lock on - unlock it from the menu" if locked
                 else "Workspace lock off",
+            )
+
+    def set_keeping(self, keeping):
+        """Keep the pad ours over an app that has opened it, or stop.
+
+        `set_locked`'s pair: the same question about the same window, answered
+        the other way, and so the same door - forced, because it has to hold
+        whatever the last walk of /proc decided.
+
+        What it is for is the app that opens the pad before there is anything
+        to play. A cloud client does it the moment its page loads, and the
+        screen in front of the stream is a web page that reads no pad at all:
+        the hand-off is correct about what the program did and wrong about
+        what the person is looking at, and the pointer that could press Play
+        has gone. Nothing announces itself, because from the pad's side
+        nothing happened.
+
+        The way back out needs no chord and no notification pointing at one -
+        keeping the pad means every binding fires, so the menu is a plain
+        press away. It does have to be found, though: the stream that starts
+        after Play does want the pad, and this stays on until it is turned
+        off.
+        """
+        keeping = bool(keeping)
+        if keeping == self.keeping:
+            return
+        self.keeping = keeping
+        if keeping:
+            self.locked = False
+        log.info("keep: %s", "on" if keeping else "off")
+        self.update_handover(force=True)
+        if self.config.notify:
+            self.session.notify(
+                "omapad",
+                "Controller kept - every press drives the desktop" if keeping
+                else "Controller no longer kept",
             )
 
     def apply_gamebar(self):
@@ -1465,6 +1518,8 @@ class Daemon:
             states.add("handed_over")
         if self.locked:
             states.add("locked")
+        if self.keeping:
+            states.add("kept")
         return frozenset(states)
 
     def push_menu_view(self):
@@ -1777,6 +1832,7 @@ class Daemon:
             "profile": self.active_profile_name or "",
             "handed_over": self.handed_over,
             "locked": self.locked,
+            "kept": self.keeping,
         }
 
     def push_open_views(self):
@@ -1906,6 +1962,7 @@ class Daemon:
                 "| surface <close|close_all|back> "
                 "| ripple <left|right|middle> "
                 "| pad <setting>=<value> | lock <on|off|toggle> "
+                "| keep <on|off|toggle> "
                 "| press <BUTTON> [tap|hold] "
                 "| mode <toggle|desktop|game> | status"
             )
@@ -1914,12 +1971,13 @@ class Daemon:
             return "ok"
         if verb == "status":
             return (
-                "mode=%s pad=%s lock=%s osk=%s menu=%s guide=%s map=%s "
-                "layer=%s device=%s"
+                "mode=%s pad=%s lock=%s keep=%s osk=%s menu=%s guide=%s "
+                "map=%s layer=%s device=%s"
                 % (
                     self.mode,
                     "app" if self.handed_over else "ours",
                     "on" if self.locked else "off",
+                    "on" if self.keeping else "off",
                     "open" if self.osk_open else "closed",
                     "open" if self.menu_open else "closed",
                     "open" if self.guide_open else "closed",
@@ -2057,6 +2115,23 @@ class Daemon:
                 self.set_locked(command == "on")
             return "lock=%s pad=%s" % (
                 "on" if self.locked else "off",
+                "app" if self.handed_over else "ours",
+            )
+        if verb == "keep" and args:
+            # The lock's other half, and the one with no button-shaped way in
+            # at all: nothing ships a chord for it, so this and the menu row
+            # are the two doors.
+            from .actions import KeepAction
+
+            command = args[0]
+            if command not in KeepAction.SIMPLE:
+                return "unknown keep command: %s" % command
+            if command == "toggle":
+                self.set_keeping(not self.keeping)
+            else:
+                self.set_keeping(command == "on")
+            return "keep=%s pad=%s" % (
+                "on" if self.keeping else "off",
                 "app" if self.handed_over else "ours",
             )
         if verb == "mode" and args and args[0] in ("toggle", "desktop", "game"):

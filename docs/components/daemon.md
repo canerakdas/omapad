@@ -129,6 +129,11 @@ no `reaches_past` to come back on.
   menu, and so the way back out. `chord_pending()` is the other half of it,
   and keeps a chord that can do nothing right now from making its buttons wait
   for their release. See [handover](handover.md).
+- `set_keeping()` is the same question answered the other way: the pad is ours
+  over an app that has opened it and is not being played with. The two are
+  exclusive - turning one on turns the other off - and this one needs no way
+  past `allowed()`, because keeping the pad is what makes every binding fire.
+  See [handover](handover.md).
 
 ## Surfaces
 

@@ -39,7 +39,8 @@ def build_parser():
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
         "press <BUTTON> [tap|hold], "
-        "lock <on|off|toggle>, mode <toggle|desktop|game>, status",
+        "lock <on|off|toggle>, keep <on|off|toggle>, "
+        "mode <toggle|desktop|game>, status",
     )
     return parser
 
@@ -283,7 +284,7 @@ def cmd_ctl(config, words):
 
     if not words:
         print("usage: omapad ctl "
-              "<osk|menu|guide|map|pad|lock|ripple|press|mode|status> [...]",
+              "<osk|menu|guide|map|pad|lock|keep|ripple|press|mode|status> [...]",
               file=sys.stderr)
         return 2
     try:

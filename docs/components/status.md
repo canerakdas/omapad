@@ -8,7 +8,7 @@ second bar of ours fighting it for the same screen edge.
 ## Payload - `status.sock`
 
 ```
-mode, connected, pad, profile, handed_over, locked
+mode, connected, pad, profile, handed_over, locked, kept
 ```
 
 Pushed on every change and re-sent on the heartbeat, so a shell restart
@@ -26,5 +26,10 @@ the bar already has a way of saying "look here". The workspace lock
 ([`handover.md`](handover.md)) wears the same colour and a padlock: it is the
 same statement, said harder, and nothing else on the desktop says it - the
 game bar has gone by then, because the pad is the app's.
+
+A **kept** pad keeps the plain gamepad glyph and is lit instead. It is the
+ordinary state - the pad is ours - held on to over a window that wanted it, and
+a glyph of its own would say something had changed about the pad when what
+changed is who was refused it. The tooltip names it.
 
 Settings: `[status] socket`.

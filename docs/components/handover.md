@@ -126,6 +126,43 @@ The lock is runtime state and is not written to `settings.toml`. A pad that
 did nothing at the next boot for a reason nobody remembers is worse than
 locking again.
 
+## Keeping the pad: the same question, the other way
+
+`/proc` can be right about the program and wrong about the screen. A cloud
+client opens the pad as its page loads, which is long before there is a game to
+play: the launcher in front of the stream is a web page that reads no pad at
+all, so the pointer that could press its **Play** button has been handed away
+and every binding stands aside for a window that is doing nothing with any of
+them. Nothing announces itself, because from the pad's side nothing happened -
+measured with GeForce NOW, whose session then never starts.
+
+`daemon.set_keeping(True)` - the **Keep the controller** menu row, `omapad ctl
+keep on`, or a `keep:` binding - pins `handed_over` **off** in the same place
+the lock pins it on, ahead of the profile and ahead of `/proc`. The grab comes
+back and every binding fires again over the window that claimed the pad.
+
+The two overrides are one question with two answers, so they are exclusive:
+turning either on turns the other off, silently, rather than leaving a pad
+with two people arguing over it.
+
+Three things fall out of the direction it points:
+
+- **It needs nothing in `allowed()`.** The lock has to be turned off through
+  the one gesture it still lets through, which is why the chord is the door and
+  why the notification names the menu. Keeping the pad makes every gesture work
+  again, so the way out is a plain press of whatever opens the menu.
+- **It stays on until it is turned off**, and that is a decision rather than an
+  oversight: the stream that starts after **Play** does want the pad. What
+  makes it safe is that the row cannot vanish underneath you - `when =
+  ["handed_over", "kept"]`, so it is offered while an app has the pad *and* for
+  as long as it is on.
+- **Nothing ships a chord for it.** A plain press is exactly what an app
+  holding the pad swallows, so a button for this would have to be a chord
+  (`KeepAction.claims_chord` is written for one), and the pad has no spare
+  chord worth spending on a row the menu already carries.
+
+Runtime state, like the lock, and for the same reason.
+
 ## The app that opens the pad without being a game
 
 Discord polls the Gamepad API for its own keybinds, so `/proc` sees it holding

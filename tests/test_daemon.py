@@ -1332,6 +1332,105 @@ class WorkspaceLockTests(DaemonTestCase):
             actions.parse("lock:sideways")
 
 
+class KeepingThePadTests(DaemonTestCase):
+    """The hand-off said by hand the other way: the app opened the pad and is
+    not being played with, so we keep it."""
+
+    def wanted(self):
+        """/proc says the focused window's tree has the pad open."""
+        return unittest.mock.patch.object(daemon_module.handover, "wants_pad",
+                                          return_value=True)
+
+    def test_it_takes_the_pad_back_from_an_app_that_has_opened_it(self):
+        # A cloud client opens the pad as its page loads, and the launcher
+        # screen in front of the stream reads no pad at all: /proc is right
+        # and there is still nothing to press.
+        with self.wanted():
+            self.daemon.focus_pid = 4321
+            self.daemon.update_handover(force=True)
+            self.assertTrue(self.daemon.handed_over)
+            self.daemon.set_keeping(True)
+        self.assertFalse(self.daemon.handed_over)
+        self.assertTrue(self.device.grabbed)
+
+    def test_and_the_next_walk_of_proc_does_not_hand_it_over_again(self):
+        with self.wanted():
+            self.daemon.set_keeping(True)
+            self.daemon.update_handover(force=True)
+        self.assertFalse(self.daemon.handed_over)
+
+    def test_turning_it_off_asks_the_program_again(self):
+        with self.wanted():
+            self.daemon.set_keeping(True)
+            self.daemon.set_keeping(False)
+        self.assertTrue(self.daemon.handed_over)
+
+    def test_the_two_overrides_cannot_both_be_on(self):
+        # One question with two answers: the second one asked is the one that
+        # stands, rather than two overrides arguing about one pad.
+        with self.wanted():
+            self.daemon.set_keeping(True)
+            self.daemon.set_locked(True)
+            self.assertFalse(self.daemon.keeping)
+            self.daemon.set_keeping(True)
+        self.assertFalse(self.daemon.locked)
+
+    def test_every_binding_fires_again(self):
+        # The whole point: with the pad ours there is nothing to reach past,
+        # so the menu is a plain press rather than a chord.
+        self.daemon.handed_over = True
+        self.assertFalse(self.daemon.allowed(actions.NoAction(), "base"))
+        with self.wanted():
+            self.daemon.set_keeping(True)
+        self.assertTrue(self.daemon.allowed(actions.NoAction(), "base"))
+
+    def menu_labels(self):
+        return [item["label"] for item in self.daemon.menu.items]
+
+    def test_the_row_is_offered_where_there_is_a_pad_to_keep(self):
+        # On a desktop the pad is already ours, and a row that changes nothing
+        # is a row that reads as broken.
+        self.daemon.set_menu(True)
+        self.assertNotIn("Keep the controller", self.menu_labels())
+        self.daemon.set_menu(False)
+        self.daemon.handed_over = True
+        self.daemon.set_menu(True)
+        self.assertIn("Keep the controller", self.menu_labels())
+
+    def test_the_row_stays_while_it_is_on(self):
+        # Otherwise turning it on takes away the only way of turning it off.
+        with self.wanted():
+            self.daemon.set_keeping(True)
+        self.daemon.set_menu(True)
+        self.assertIn("Keep the controller", self.menu_labels())
+
+    def test_the_row_ticks_while_it_is_on(self):
+        row = actions.parse("keep:toggle")
+        self.assertFalse(row.state(self.daemon.ctx))
+        row.press(self.daemon.ctx)
+        self.assertTrue(self.daemon.keeping)
+        self.assertTrue(row.state(self.daemon.ctx))
+        row.press(self.daemon.ctx)
+        self.assertFalse(self.daemon.keeping)
+
+    def test_the_bar_widget_is_told(self):
+        self.daemon.set_keeping(True)
+        self.assertTrue(self.daemon.status_state()["kept"])
+
+    def test_it_can_be_driven_without_the_pad(self):
+        self.assertIn("keep=on", self.daemon.handle_control("keep on"))
+        self.assertTrue(self.daemon.keeping)
+        self.assertIn("keep=off", self.daemon.handle_control("keep toggle"))
+        self.assertFalse(self.daemon.keeping)
+        self.assertIn("unknown keep command",
+                      self.daemon.handle_control("keep sideways"))
+        self.assertIn("keep=off", self.daemon.handle_control("status"))
+
+    def test_a_keep_that_is_not_a_word_is_named(self):
+        with self.assertRaises(actions.ActionError):
+            actions.parse("keep:sideways")
+
+
 class BadConfigTests(unittest.TestCase):
     def test_a_setting_written_into_a_bindings_table_is_named_not_crashed_on(self):
         # `hide_bar_in_game = true` one table too low is a plain typo, and

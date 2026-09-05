@@ -702,6 +702,67 @@ class LockAction(Action):
         return ctx.daemon.locked
 
 
+class KeepAction(Action):
+    """Keep the pad ours over an app that has opened it and cannot use it.
+
+        keep:on      the pad is the desktop's, whatever /proc says
+        keep:off     ask /proc again, which is the ordinary arrangement
+        keep:toggle  the two of them on one button or one row
+
+    `lock:`'s pair, answering the other half of the same question by hand, and
+    the two cannot both be on. The hand-off asks the program itself and is
+    right wherever opening the pad means being played with. A cloud client
+    opens it the moment its page loads, which is long before there is a game:
+    the screen in front of the stream is a web page that reads no pad at all,
+    and the pointer that could press its Play button has just been handed
+    away. Nothing on the pad does anything and nothing on screen says why -
+    measured with GeForce NOW, whose session never starts.
+
+    So a person says it instead, and every binding fires again over a window
+    that had already claimed the pad. It stays said until it is unsaid: the
+    stream that follows does want the pad, and this is the row that gives it
+    back. Nothing has to reach past anything to find that row - keeping the
+    pad means the menu is a plain press away again.
+
+    See `Daemon.set_keeping`.
+    """
+
+    SIMPLE = ("toggle", "on", "off")
+
+    def __init__(self, target):
+        if target not in self.SIMPLE:
+            raise ActionError("unknown keep: %r" % target)
+        self.target = target
+
+    def press(self, ctx):
+        if self.target == "toggle":
+            ctx.daemon.set_keeping(not ctx.daemon.keeping)
+        else:
+            ctx.daemon.set_keeping(self.target == "on")
+
+    def claims_chord(self, ctx):
+        """A keep chord fires only where there is a pad to take back.
+
+        The same bargain the lock's chord makes: over an app holding the pad
+        the grab is off, so the app sees both buttons whatever this does with
+        them, while on the desktop the pad is already ours and the chord would
+        only be taking two buttons away from what they do. Nothing ships one -
+        the row in the menu is the shipped way in - but a chord is what a
+        binding for this would have to be, since a plain press is exactly what
+        an app holding the pad swallows.
+        """
+        if self.target == "off":
+            return ctx.daemon.keeping
+        return ctx.daemon.handed_over and not ctx.daemon.keeping
+
+    def state(self, ctx):
+        """So the menu row ticks while it is on - the row is on screen at the
+        one moment the pad itself cannot say which way this went."""
+        if self.target == "off":
+            return not ctx.daemon.keeping
+        return ctx.daemon.keeping
+
+
 class ModeAction(Action):
     def __init__(self, target):
         if target not in ("toggle", "desktop", "game"):
@@ -727,6 +788,7 @@ PARSERS = {
     "exec": ExecAction,
     "mode": ModeAction,
     "lock": LockAction,
+    "keep": KeepAction,
     "pad": PadAction,
     "snap": SnapAction,
     "focus": FocusAction,

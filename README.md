@@ -325,6 +325,26 @@ finding the menu again to take it back. `omapad ctl lock
 on|off|toggle` is the same thing without a pad, and the bar widget wears a
 padlock while it is on.
 
+### Keeping the pad over an app that asked for it
+
+The hand-off can be right about the program and wrong about the screen. A cloud
+client opens the pad as its page loads, which is long before there is a game:
+the launcher in front of the stream is a web page that reads no pad at all, so
+the pointer that could press its **Play** button has already been handed away.
+Nothing on the pad does anything and nothing says why — measured with GeForce
+NOW, whose session then never starts.
+
+**Keep the controller** is the row that takes it back. Every binding fires
+again over a window that had already claimed the pad, so the menu is a plain
+press away rather than a chord — and it stays on until it is turned off,
+because the stream that starts after **Play** does want the pad. The row is
+offered while an app has the pad and for as long as it is on, so turning it on
+never takes away the way of turning it off. `omapad ctl keep on|off|toggle` is
+the same switch without a pad, and the bar widget lights up while it is on.
+
+It is the workspace lock's pair and the two cannot both be on: one question
+with two answers, and the second one asked is the one that stands.
+
 ### Cloud gaming and remote play
 
 GeForce NOW, Moonlight, Chiaki and xCloud open the pad the moment a session
@@ -1044,6 +1064,7 @@ restart — so every config change would close your Steam.
 | `guide:next\|prev` | turn the guide's page |
 | `mode:toggle\|desktop\|game` | switch mode |
 | `lock:on\|off\|toggle` | the workspace lock — the pad is the app in front's, outright |
+| `keep:on\|off\|toggle` | the same question the other way — the pad is ours over an app that opened it and is not being played with |
 | `pad:profile=auto\|nintendo_pro\|xbox` | which codes this pad is read with |
 | `pad:layout=auto\|nintendo\|xbox\|playstation` | which console's names the badges print |
 | `pad:rumble=on\|off\|toggle` | the motor |
@@ -1835,8 +1856,8 @@ action = "lock:toggle"
 
 `when` keeps a row out of the menu where it could do nothing useful. The states
 are `game` (game mode is on), `handed_over` (the app in front has taken the
-pad) and `locked` (the workspace lock is on); a row that says nothing is always
-there. They are read **when the menu opens** and stand until it closes, so no
+pad), `locked` (the workspace lock is on) and `kept` (the pad is being kept
+from an app that opened it); a row that says nothing is always there. They are read **when the menu opens** and stand until it closes, so no
 row appears or vanishes under the selection while a thumb is aiming at one.
 
 If you redefine the `items` list in your own config it replaces **the whole**
@@ -1903,12 +1924,12 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The tree that ships is nine rows deep at the top, grouped so that the ones you
+The tree that ships is ten rows deep at the top, grouped so that the ones you
 reach for from a sofa are the ones nearest the opening selection: **Apps** (Steam
 Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
 installed) · Keyboard · **Windows** ·
 **Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) ·
-**Controller** · **Workspace lock** · **System** (lock, suspend, log out, restart, power off) ·
+**Controller** · **Workspace lock** · **Keep the controller** · **System** (lock, suspend, log out, restart, power off) ·
 Omarchy menu. What you open, then what is on screen, then the room, then the pad,
 then the machine — and last, on its own, the way out into the Omarchy menu, which
 has everything else and wants a keyboard. The volume and brightness rows are
@@ -2396,6 +2417,7 @@ omapad ctl press ZL hold     # ...or the hold half of its binding
 omapad ctl ripple left       # draw the burst a click leaves, without clicking
 omapad ctl mode game
 omapad ctl lock toggle       # the workspace lock: the pad is the app in front's
+omapad ctl keep toggle       # ...and the other way: the pad is ours over an app
 omapad ctl status
 ```
 

@@ -35,7 +35,7 @@ NOTHING_LISTED = "Nothing found"
 # and something the person holding the pad can see for themselves - a row that
 # comes and goes for a reason nobody can point at is worse than a row that is
 # always there and sometimes does nothing.
-WHEN = ("game", "handed_over", "locked")
+WHEN = ("game", "handed_over", "locked", "kept")
 
 # The values a listed line carries, in the order the row's action takes them.
 # Numbered rather than one `%s` because the command a row runs often wants two
