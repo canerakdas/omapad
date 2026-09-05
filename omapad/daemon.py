@@ -399,6 +399,14 @@ class Daemon:
         the half-range recovers both: rest reads 0, and each end still reaches
         full speed. A pad that rests where it claims to is untouched by this,
         since both ends are then the same distance away.
+
+        What the half-range costs is what `recenter_limit` is guarding: the
+        nearer end is always `1 - |offset|` of the advertised half-range away,
+        so calibrating on a rest 0.84 out leaves a sixth of the range to cross
+        before the stick reads full - and every value past that sixth, the
+        true centre included, clamps to a full deflection the stick is never
+        let go of. A pad genuinely resting off centre sits at half a range
+        (0.50); anything much beyond that is a thumb, not a rest.
         """
         info = self.axis_info.get(code)
         if info is None:
@@ -407,10 +415,20 @@ class Daemon:
         if value is None:
             value = info.value
         offset = (value - info.center) / info.half_range
-        if not self.config.recenter or abs(offset) >= self.config.recenter_limit:
-            # Turned off, or a stick held at connect: centring on a held stick
-            # would freeze that direction, so take the pad at its word.
+        if not self.config.recenter:
             self.axis_scale[code] = (info.center, info.half_range)
+            return
+        if abs(offset) >= self.config.recenter_limit:
+            # A stick held at connect: centring on a held stick would freeze
+            # that direction, so take the pad at its word. Logged because the
+            # symptom of getting this wrong - an axis stuck at full travel -
+            # says nothing about calibration on its own.
+            self.axis_scale[code] = (info.center, info.half_range)
+            log.info(
+                "axis 0x%02x rests %+.2f off centre, past recenter_limit %.2f:"
+                " not calibrating, it reads as a stick held at connect",
+                code, offset, self.config.recenter_limit,
+            )
             return
         half = min(value - info.minimum, info.maximum - value)
         self.axis_scale[code] = (float(value), max(float(half), 1.0))

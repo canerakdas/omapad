@@ -89,6 +89,16 @@ the desktop as it does walking a game's controls. Roles:
 its own emitter: `emit_cursor`, `emit_scroll` (with the ramp), `emit_window`,
 `snap_cursor`, `check_focus_stick`.
 
+`calibrate_axis()` runs before any of that, once per axis at `attach()`, and
+re-bases the axis on where its stick actually rests (`pointer.recenter`). What
+it refuses matters as much as what it does: the half-range left over is always
+`1 - |offset|` of the advertised one, so calibrating on a stick held at connect
+leaves too little travel to ever reach full deflection *and* pins the stick's
+real centre to one end. `pointer.recenter_limit` (0.60) is the line, above the
+0.50 a pad that genuinely rests off centre sits at, and a refused calibration
+is logged - the symptom, an axis stuck at full travel, names no cause by
+itself.
+
 `stick_roles()` is where a role can be taken away, and being handed over takes
 all of them: a stick held over an app that has the pad would drive the pointer
 across it until the thumb came off. [handover](handover.md) says why they get

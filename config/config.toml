@@ -296,8 +296,17 @@ right_deadzone = 0.18
 # nearer advertised end as the half-range, so rest reads 0 and both ends still
 # reach full speed. A pad that rests where it says it does is unaffected.
 recenter = true
-recenter_limit = 0.90         # a rest farther than this from centre is a stick
-                              # someone is holding at connect; leave it alone
+recenter_limit = 0.60         # a rest farther than this from centre is a stick
+                              # someone is holding at connect; leave it alone.
+                              # It is also how much travel is left over, from
+                              # the other side: calibrating on a rest this far
+                              # out leaves only 1 - 0.60 of the range to reach
+                              # full deflection in, and everything past that -
+                              # the stick's true centre included - pins to the
+                              # end. A pad that really does rest off centre
+                              # rests at 0.50 (the KP20 above), so raising this
+                              # towards 1.0 mostly buys stuck sticks; lower it
+                              # if a pad still calibrates onto a held thumb.
 # Console-shaped scheme (item 07): the left trigger is right-click now, and the
 # precision slowdown was removed with it. Set a button here to bring it back.
 precision_button = ""

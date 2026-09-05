@@ -68,6 +68,11 @@ def _iow(typ, nr, size):
 
 EVIOCGID = _ior("E", 0x02, 8)  # struct input_id: bustype, vendor, product, version
 EVIOCGRAB = _iow("E", 0x90, 4)
+# The kernel's own answer to "what is down right now", as a bitmap one bit per
+# key code. KEY_MAX is 0x2ff, and the ioctl number carries the buffer length.
+KEY_MAX = 0x2FF
+KEY_BYTES = KEY_MAX // 8 + 1
+EVIOCGKEY = _ior("E", 0x18, KEY_BYTES)
 
 FF_RUMBLE = 0x50
 FF_MAX = 0x7F
@@ -236,6 +241,21 @@ class InputDevice:
     @property
     def grabbed(self):
         return self._grabbed
+
+    def held_keys(self):
+        """Which key codes the kernel has down at this moment.
+
+        Asked rather than read, and that is the whole point: a grabbed device
+        delivers its events to the grabber alone, so while the daemon holds
+        the pad this is the only question about a button anything else can
+        get an answer to.
+        """
+        bitmap = bytearray(KEY_BYTES)
+        fcntl.ioctl(self.fd, EVIOCGKEY, bitmap)
+        return [
+            code for code in range(KEY_BYTES * 8)
+            if bitmap[code // 8] >> (code % 8) & 1
+        ]
 
     def read_events(self):
         """Yield (type, code, value). Raises OSError when the device goes away."""

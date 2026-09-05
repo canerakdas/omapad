@@ -30,7 +30,9 @@ the old file.
 this is where a bad binding, a bad menu row or an out-of-range setting is
 named - `ConfigError`, `ActionError`, `MenuError`, `OverrideError`,
 `KeyParseError`. It also prints the pad it found, the profile it picked and
-the badge layout that follows.
+the badge layout that follows - and `held right now: L` when the kernel has a
+button down, which is worth reading before anything else on this ladder: a
+button already held explains a great deal of what comes below it.
 
 Remember the merge order when a value is not what the file says:
 `config/config.toml` → `~/.config/omapad/config.toml` →
@@ -41,8 +43,18 @@ typed. `check` prints what is in there for exactly this reason.
 ### 2. Is the daemon getting the buttons?
 
 `./bin/omapad dump` prints raw codes as you press. If nothing arrives, it is
-permissions or the device filter, not bindings.
+the running daemon, permissions or the device filter - not bindings.
 
+- **`dump` says the controller is already taken** → the daemon has it
+  exclusively, and a held pad reaches its holder alone. Worse than silence:
+  the daemon takes and drops the pad as the app in front is handed it, so a
+  button pressed inside one of those windows prints its `down` and never its
+  `up`, which reads exactly like a button stuck at the hardware. **Stop the
+  daemon before believing a single unpaired press**: `systemctl --user stop
+  omapad`, dump, then start it again. `./bin/omapad check` is the second
+  opinion and needs no such thing: it asks the kernel what is down right now,
+  which is answered through a grab, and prints `held right now: L` when
+  anything is.
 - `no permission on /dev/uinput` → run `./install.sh`, then **log out and back
   in**: `input` group membership only takes effect in a new session.
 - The pad is there but named oddly → the profile was picked from the device
@@ -139,6 +151,8 @@ pad open, and takes it back when it stops. `omapad ctl status` says
 
 | Symptom | Cause |
 |---|---|
+| One button reads `down` in `dump` and never `up` | `dump` is a partial witness while the daemon is running - see §2. `omapad check` says `held right now:` if the button really is stuck; stop the daemon and dump again before suspecting the hardware |
+| A page scrolls on its own, at full speed | an axis calibrated onto a stick that was held at connect: what travel is left over is `1 - |offset|` of the range, so the stick's real centre clamps to a full deflection and never comes back. The connect line in the journal says which axis and how far out; `pointer.recenter_limit` (0.60) is what refuses it |
 | Pointer drifts into a corner untouched | the pad lies about where its sticks rest. `recenter` calibrates at connect; holding a stick while it connects skips that axis. `dump` shows the raw values |
 | Pointer drifts a little | not enough dead zone on that stick - raise `[pointer] left_deadzone` (or `right_deadzone`) 0.10 → 0.15, or step it from Controller > Dead zone with the pointer live under the menu |
 | Steam presses keys at startup | a virtual keyboard declaring `BTN_*` gets a `js*` node and Steam reads it as a ghost pad. Ours declares none - check with `grep -A5 "omapad virtual keyboard" /proc/bus/input/devices`, there must be **no `js`** on `Handlers`. If it persists it is Steam seeing the real pad through `js0`: Settings → Controller → Desktop layout |

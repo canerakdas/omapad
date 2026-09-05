@@ -115,6 +115,33 @@ class TestFindDevice(unittest.TestCase):
         self.assertFalse(winner.closed)
 
 
+class TestHeldKeys(unittest.TestCase):
+    """The one question a grabbed pad still answers - see cmd_check."""
+
+    def held(self, codes):
+        device = li.InputDevice.__new__(li.InputDevice)
+        device.fd = 7
+
+        def ioctl(fd, request, buffer):
+            self.assertEqual((fd, request), (7, li.EVIOCGKEY))
+            for code in codes:
+                buffer[code // 8] |= 1 << (code % 8)
+            return 0
+
+        with mock.patch("omapad.linux_input.fcntl.ioctl", ioctl):
+            return device.held_keys()
+
+    def test_a_pad_on_the_table_holds_nothing(self):
+        self.assertEqual(self.held([]), [])
+
+    def test_every_bit_set_is_a_code_back(self):
+        # BTN_TL is the one this was written for: a shoulder reported down
+        # with nothing touching the pad.
+        self.assertEqual(self.held([0x136]), [0x136])
+        self.assertEqual(self.held([0x130, 0x136, 0x13E]),
+                         [0x130, 0x136, 0x13E])
+
+
 class TestMatchPatterns(unittest.TestCase):
     def test_auto_means_no_pattern(self):
         self.assertEqual(config_module._match_patterns("auto"), [])

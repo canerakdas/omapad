@@ -1,6 +1,7 @@
 """Command line entry point."""
 
 import argparse
+import errno
 import logging
 import select
 import signal
@@ -67,6 +68,24 @@ def cmd_dump(config):
         % (device.name, device.vid_pid, profile_name),
         flush=True,
     )
+    # A held controller reaches its holder alone, and the daemon takes and
+    # drops the pad as the app in front is handed it - so this prints nothing
+    # at all, or half a press: a button going down inside one of those windows
+    # and its release landing outside, reading exactly like a stuck button.
+    # Say so, because an empty screen otherwise reads as a dead pad.
+    try:
+        device.grab()
+        device.ungrab()
+    except OSError as exc:
+        if exc.errno != errno.EBUSY:
+            raise
+        print(
+            "the controller is already taken by something else - usually "
+            "omapad itself. Presses will be missed here, and a press caught "
+            "half way looks stuck. Stop it first: systemctl --user stop omapad",
+            file=sys.stderr,
+            flush=True,
+        )
     # Unbuffered, so events show up as they happen even when piped.
     hat = {"x": 0, "y": 0}
     poll_axes = {li.ABS_X: "LX", li.ABS_Y: "LY", li.ABS_RX: "RX", li.ABS_RY: "RY"}
@@ -172,7 +191,9 @@ def cmd_check(config):
             file=sys.stderr,
         )
     else:
-        profile_name, _, _ = config.profile_for(device.name, device.vid_pid)
+        profile_name, buttons, _ = config.profile_for(
+            device.name, device.vid_pid
+        )
         # The layout as well as the profile: badges printing the wrong pad's
         # letters is the sort of thing you look here to find out about.
         print(
@@ -180,6 +201,24 @@ def cmd_check(config):
             % (device.name, device.vid_pid, profile_name,
                config.badge_layout(profile_name))
         )
+        # Only when there is something to say: a hand on the pad is the usual
+        # reason, so this is not a problem and does not count as one. It is
+        # printed because the other reason is a button stuck at the hardware,
+        # and `dump` cannot see one - the daemon holds the pad, and asking is
+        # the only way through a grab.
+        try:
+            held = device.held_keys()
+        except OSError as exc:
+            held = []
+            log.debug("could not read the held buttons: %s", exc)
+        if held:
+            print(
+                "held right now: %s - with nothing touching the pad, that is "
+                "a stuck button"
+                % ", ".join(
+                    buttons.get(code, "0x%03x" % code) for code in held
+                )
+            )
         device.close()
     _check_settings(config)
     _check_keyboards(config)

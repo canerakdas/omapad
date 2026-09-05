@@ -2508,6 +2508,14 @@ rest.
 **`no permission on /dev/uinput`** — run `./install.sh`, then log out and back
 in (`input` group membership only takes effect in a new session).
 
+**A button acts as if it were held down** — ask the pad rather than watching
+it: `omapad check` prints `held right now: L` for anything the kernel has
+down, and with nothing touching the controller that is a stuck button. Do not
+read this off `omapad dump` — the daemon holds the controller exclusively and
+lets go of it whenever the app in front is handed the pad, so a press that
+starts inside one of those windows and ends outside prints its `down` and
+never its `up`, which looks identical. `dump` says as much when it starts.
+
 **The controller does not show up in games** — you are in desktop mode and the
 pad is grabbed exclusively. Hold HOME to switch to game mode, or set
 `mode.grab = false`.
@@ -2525,9 +2533,24 @@ INFO: axis 0x00 rests -0.50 off centre: neutral -16498, half-range 16269
 ```
 
 If you are holding the stick while it connects, that axis is skipped
-(`recenter_limit`), so no calibration goes crooked by accident — let go of the
-pad and reconnect it. To take your own measurement, `omapad dump` prints the
-raw values.
+(`recenter_limit`, 0.60), so no calibration goes crooked by accident — let go
+of the pad and reconnect it. A skip says so in the log too:
+
+```
+INFO: axis 0x04 rests -0.84 off centre, past recenter_limit 0.60: not
+calibrating, it reads as a stick held at connect
+```
+
+To take your own measurement, `omapad dump` prints the raw values.
+
+**A page scrolls on its own, at full speed, with the pad untouched** — the same
+fault one step further on. An axis calibrated onto a stick that was being held
+keeps only what travel is left over — a rest 0.84 out leaves a sixth of the
+range — and every reading past that, the stick's true centre included, pins to
+a full deflection the stick can never be let go of. Under `right_stick =
+"scroll"` that is a page running down for as long as the daemon lives. The
+limit above is what stops the calibration happening; if a pad still slips past
+it, lower `pointer.recenter_limit` and reconnect.
 
 **The pointer drifts** — not enough dead zone on that stick: raise
 `pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller

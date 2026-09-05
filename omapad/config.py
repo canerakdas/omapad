@@ -617,8 +617,16 @@ class Config:
         self.recenter = bool(pointer.get("recenter", True))
         # A resting value further than this fraction of the range from the
         # device centre is assumed to be a stick the user is holding at connect
-        # rather than the pad's true rest, and is left alone.
-        self.recenter_limit = float(pointer.get("recenter_limit", 0.90))
+        # rather than the pad's true rest, and is left alone. The far side of
+        # the same number is how much travel calibrating would leave: the
+        # nearer end is `1 - limit` of the advertised half-range away, so 0.60
+        # is also "never calibrate onto a rest that leaves under 40% of the
+        # range to reach full deflection with".
+        self.recenter_limit = float(pointer.get("recenter_limit", 0.60))
+        if not 0.0 < self.recenter_limit <= 1.0:
+            raise ConfigError(
+                "pointer.recenter_limit must be above 0 and at most 1"
+            )
 
         # A hold that announces itself before acting (see `confirm_ms` on a
         # binding) is backed out of with this button, wherever it is bound.

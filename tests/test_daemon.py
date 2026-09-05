@@ -372,6 +372,40 @@ class PointerTests(DaemonTestCase):
         center, half = self.daemon.axis_scale[li.ABS_X]
         self.assertEqual((center, half), (STICK_INFO.center, STICK_INFO.half_range))
 
+    def test_a_stick_nearly_held_at_connect_is_not_taken_for_the_rest_either(self):
+        # An Xbox Elite Series 2 connected with a thumb on the right stick:
+        # `axis 0x04 rests -0.84 off centre` was under the old 0.90 limit, so
+        # it calibrated - onto a neutral 0.84 out, with a sixth of the range
+        # left. Every later reading, the stick's real centre among them,
+        # clamped to a full deflection, and the scroll role it carries ran
+        # the page down for as long as the daemon lived.
+        self.daemon.disconnect()
+        self.device = FakeDevice(self.identity, rest={li.ABS_RY: -27516})
+        self.daemon.attach(self.device)
+        center, half = self.daemon.axis_scale[li.ABS_RY]
+        self.assertEqual((center, half), (STICK_INFO.center, STICK_INFO.half_range))
+
+        # And with the pad back at rest, nothing scrolls.
+        self.feed((li.EV_ABS, li.ABS_RY, 0))
+        self.tick(1.0, steps=100)
+        self.assertEqual(self.mouse.scrolls, [])
+
+    def test_a_stick_resting_a_little_off_centre_still_recentres(self):
+        # The common case the guard must not swallow: a worn stick a couple of
+        # percent off, and a KP20 at its half range, both still calibrate.
+        for rest in (-1200, -16379):
+            self.daemon.disconnect()
+            self.device = FakeDevice(self.identity, rest={li.ABS_X: rest})
+            self.daemon.attach(self.device)
+            center, half = self.daemon.axis_scale[li.ABS_X]
+            self.assertEqual(center, float(rest))
+            self.assertEqual(half, float(rest - STICK_INFO.minimum))
+
+    def test_a_limit_outside_its_range_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"pointer": {"recenter_limit": 0.0}})
+        self.assertIn("recenter_limit", str(caught.exception))
+
     def test_an_axis_with_no_report_yet_calibrates_on_its_first_value(self):
         # The node can exist before the pad's first packet lands, and then
         # absinfo reads 0 for an axis that in truth rests nowhere near it.
