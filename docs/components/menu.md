@@ -21,6 +21,24 @@ template its listed rows run.
 Entries use the same action grammar as a button binding, so the menu reaches
 anything a button can.
 
+## Rows that are not always there
+
+`when` on an entry is the states it is offered in - `game`, `handed_over`,
+`locked` from `menu.WHEN`, any one of them being enough; a row that says
+nothing is always there, which is nearly all of them. `build()` rejects a name
+that is not one of those, so `omapad check` says which row would never appear.
+
+`daemon.menu_conditions()` reads the states **when the menu opens** and
+`MenuModel.conditions` holds them until it closes: a row that came and went
+under the selection would move every row below it while a thumb was aiming at
+one. `MenuModel.visible()` filters a level as it is entered and hands back
+*the same list object* where nothing on that level asks anything - a listed
+submenu is filled in place after its page is entered, and a copy would be a
+page nobody is looking at.
+
+The row this exists for is the workspace lock ([`handover.md`](handover.md)):
+on a desktop there is nothing to lock the pad to.
+
 ## Rows that list what is plugged in
 
 A row may **list** its submenu rather than hold one. `from` is a command and

@@ -144,6 +144,46 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(labels[-1], "All apps")
 
 
+class WhenTests(unittest.TestCase):
+    """`when`: the states a row is offered in."""
+
+    TREE = [
+        {"label": "Terminal", "action": "exec:true"},
+        {"label": "Workspace lock", "action": "lock:toggle",
+         "when": ["game", "handed_over"]},
+        {"label": "Only locked", "action": "lock:off", "when": "locked"},
+    ]
+
+    def labels(self, *states):
+        model = MenuModel(build(self.TREE))
+        model.conditions = frozenset(states)
+        model.reset()
+        return [item["label"] for item in model.items]
+
+    def test_a_row_that_asks_for_nothing_is_always_there(self):
+        self.assertEqual(self.labels(), ["Terminal"])
+
+    def test_any_one_of_the_states_it_names_is_enough(self):
+        self.assertEqual(self.labels("game"), ["Terminal", "Workspace lock"])
+        self.assertEqual(self.labels("handed_over"), ["Terminal", "Workspace lock"])
+
+    def test_a_bare_string_is_one_state(self):
+        self.assertEqual(self.labels("locked"), ["Terminal", "Only locked"])
+
+    def test_a_state_nobody_has_is_named_at_build_time(self):
+        # Otherwise it is a row that never appears and nothing says why.
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "X", "action": "exec:true", "when": "sofa"}])
+        self.assertIn("sofa", str(caught.exception))
+
+    def test_a_level_nobody_asks_about_keeps_its_list(self):
+        # A listed submenu is filled in place after the page is entered, so a
+        # level that filters nothing must hand back the list itself.
+        model = MenuModel(build(self.TREE))
+        inner = build([{"label": "One", "action": "exec:true"}])
+        self.assertIs(model.visible(inner), inner)
+
+
 class ListedTests(unittest.TestCase):
     """The rows a listing command prints, and what they run."""
 

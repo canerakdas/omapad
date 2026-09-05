@@ -25,7 +25,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 | `snap:` | `SnapAction` | jump the pointer to the window next door |
 | `pad:` | `PadAction` | change one of the settings in `config.CHOSEN` |
 | `mode:` | `ModeAction` | desktop / game / toggle |
-| `lock:` | `LockAction` | the game lock - the pad is the app in front's outright ([`handover.md`](handover.md)) |
+| `lock:` | `LockAction` | the workspace lock - the pad is the app in front's outright ([`handover.md`](handover.md)) |
 | (empty) | `NoAction` | bound to nothing, on purpose |
 
 `ActionError` is what an unknown verb or a bad argument raises.

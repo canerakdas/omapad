@@ -143,6 +143,7 @@ not the meaning, because the game bar prints only that word
 | `Xbox` (profile) | The triggers arrive as axes | An XInput pad - most of them | 3 |
 | `Follow the pad` | Whatever the profile prints | What the pad reports it is | 3 |
 | `Close the window in front` (label) | - | `Close window` | 10, 11 |
+| `lock:` - the row, the guide page, the notification | Game lock | Workspace lock | 9, 13 |
 
 ## Checking it
 

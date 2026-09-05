@@ -56,6 +56,7 @@ action = "exec:omarchy-menu toggle apps"
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |
 | `stay` | one press, menu stays up. What a row that changes a setting the menu itself prints needs |
 | `from` | a command whose output **is** the submenu, read at the press. With `action` as the template each line runs, and `empty` for what the page says when it finds nothing |
+| `when` | the states the row is offered in - `game`, `handed_over`, `locked`, any one of them being enough. Read when the menu opens. For a row that could do nothing useful elsewhere: the workspace lock has nothing to lock to on a desktop |
 
 `repeat` implies `stay`. Both are rejected on a submenu row - `MenuError` says
 which path.

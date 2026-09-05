@@ -30,6 +30,13 @@ ROOT_TITLE = "Go"
 # nothing to say about why.
 NOTHING_LISTED = "Nothing found"
 
+# The states a row may ask to exist in (`when`). Short on purpose: each one
+# has to be something the daemon already knows without asking anything slow,
+# and something the person holding the pad can see for themselves - a row that
+# comes and goes for a reason nobody can point at is worse than a row that is
+# always there and sometimes does nothing.
+WHEN = ("game", "handed_over", "locked")
+
 # The values a listed line carries, in the order the row's action takes them.
 # Numbered rather than one `%s` because the command a row runs often wants two
 # of them - a node id and a device name - and unnumbered fields could not say
@@ -92,6 +99,9 @@ def build(entries, where="menu.items"):
             "template": None,
             # What that submenu says when the command finds nothing.
             "empty": str(entry.get("empty", "")).strip() or NOTHING_LISTED,
+            # The states this row is offered in, any of them being enough.
+            # Empty - which is almost every row - means always.
+            "when": _when(entry.get("when"), path),
         }
         if source is not None or children is not None:
             # Neither kind of submenu row is picked, so neither can nudge or
@@ -127,6 +137,29 @@ def build(entries, where="menu.items"):
             raise MenuError("%s needs an action or items" % path)
         items.append(item)
     return items
+
+
+def _when(spec, path):
+    """The states a row asks to exist in, as a tuple. Empty means always.
+
+    A name that is not one of `WHEN` is a typo, and `omapad check` should say
+    which row carries it rather than leaving a row that never appears.
+    """
+    if spec is None:
+        return ()
+    names = [spec] if isinstance(spec, str) else spec
+    if not isinstance(names, list):
+        raise MenuError("%s: 'when' is a state or a list of them" % path)
+    out = []
+    for name in names:
+        name = str(name).strip()
+        if name not in WHEN:
+            raise MenuError(
+                "%s: no such state %r (try %s)"
+                % (path, name, ", ".join(WHEN))
+            )
+        out.append(name)
+    return tuple(out)
 
 
 def listed(item, lines, limit):
@@ -186,6 +219,9 @@ def _listed_row(item, label, action, on):
         "from": None,
         "template": None,
         "empty": item["empty"],
+        # A listing answers what is plugged in, which is not a state a row can
+        # be written to wait for.
+        "when": (),
         # Which one the listing marked, and what the tick follows once a row
         # here has been picked. A listed row is the one kind that knows its own
         # answer: the daemon cannot ask a device anything.
@@ -220,9 +256,28 @@ class MenuModel:
         # selected, and its title. Going back restores the position you left,
         # which is what makes drilling in and out feel like one place.
         self.stack = []
-        self.items = self.root
+        # Which of `WHEN` are true, set by the daemon when the menu opens -
+        # once, not per draw: a row that appeared or vanished under the
+        # selection would move every row below it while a thumb was aiming at
+        # one.
+        self.conditions = frozenset()
+        self.items = self.visible(self.root)
         self.title = title
         self.index = 0
+
+    def visible(self, items):
+        """The rows of one level that are offered right now.
+
+        The same list object where no row on the level asks anything, which is
+        every level but one: a listed submenu is filled in place after the
+        page has been entered, and a copy here would be a page nobody is
+        looking at.
+        """
+        if not any(item["when"] for item in items):
+            return items
+        return [item for item in items
+                if not item["when"]
+                or self.conditions.intersection(item["when"])]
 
     @property
     def depth(self):
@@ -237,7 +292,7 @@ class MenuModel:
     def reset(self):
         """Back to the root level, the way a menu looks when it opens."""
         self.stack = []
-        self.items = self.root
+        self.items = self.visible(self.root)
         self.title = self.root_title
         self.index = 0
 
@@ -275,7 +330,7 @@ class MenuModel:
             return ("none", None)
         if item["items"] is not None:
             self.stack.append((self.items, self.index, self.title))
-            self.items = item["items"]
+            self.items = self.visible(item["items"])
             self.title = item["label"]
             self.index = 0
             return ("enter", item)

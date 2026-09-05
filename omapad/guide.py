@@ -184,12 +184,15 @@ MODE_TEXT = {
     "desktop": "Take the pad back", "game": "Hand the pad to games",
 }
 
-# The game lock, which has one name everywhere it is printed: the menu row,
-# this page and the notification all say "Game lock", because two names for
-# one thing is a puzzle handed to somebody holding a pad over a game.
+# The workspace lock, which has one name everywhere it is printed: the menu
+# row, this page and the notification all say "Workspace lock", because two
+# names for one thing is a puzzle handed to somebody holding a pad over a
+# game. It is named for what someone turns it on to stop - a held shoulder
+# walking the workspace away mid-fight - and not for the game, which owns
+# none of it.
 LOCK_TEXT = {
-    "toggle": "Game lock",
-    "on": "Game lock on", "off": "Game lock off",
+    "toggle": "Workspace lock",
+    "on": "Workspace lock on", "off": "Workspace lock off",
 }
 
 FOCUS_TEXT = {

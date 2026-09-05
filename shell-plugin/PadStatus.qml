@@ -26,7 +26,7 @@ BarWidget {
   property string mode: "desktop"
   property string pad: ""
   property string profile: ""
-  // The game lock, which is the one state a pressed button explains nothing
+  // The workspace lock, which is the one state a pressed button explains nothing
   // about: the pad answers the app in front and nothing else, until the menu
   // is told otherwise. The widget is where that is said on the desktop - the
   // game bar has already got out of the way by then.
@@ -60,7 +60,7 @@ BarWidget {
     var text = pad !== "" ? pad : "No controller"
     text += game ? " · game mode, the pad is the game's" : " · desktop mode"
     if (!game && profile !== "") text += " · " + profile + " profile"
-    if (locked) text += " · game lock on"
+    if (locked) text += " · workspace lock on"
     return text + "\nLeft: menu · Right: switch mode"
   }
 

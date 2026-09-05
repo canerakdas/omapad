@@ -553,13 +553,13 @@ class Daemon:
         if locked == self.locked:
             return
         self.locked = locked
-        log.info("game lock: %s", "on" if locked else "off")
+        log.info("workspace lock: %s", "on" if locked else "off")
         self.update_handover(force=True)
         if self.config.notify:
             self.session.notify(
                 "omapad",
-                "Game lock on - unlock it from the menu" if locked
-                else "Game lock off",
+                "Workspace lock on - unlock it from the menu" if locked
+                else "Workspace lock off",
             )
 
     def apply_gamebar(self):
@@ -619,6 +619,14 @@ class Daemon:
             return
         self.gamebar_open = opened
         if opened:
+            # The bar ours stands in for can come back without us - the flag
+            # it follows is a file anybody may flip, and the shell's watch on
+            # it is documented as missing changes that land together - and
+            # then the screen has two bars along one edge. Ours opening is the
+            # moment to say again which one the screen is meant to have; the
+            # command is the same one the mode switch spawns, and it names a
+            # flag rather than toggling, so saying it twice costs nothing.
+            self.apply_bar()
             self.refresh_workspaces()
             # Whatever is already down: the bar has to open showing the hand
             # that is on the pad, not an empty one it corrects at the next
@@ -1411,6 +1419,9 @@ class Daemon:
             return
         self.menu_open = opened
         if opened:
+            # What a row is allowed to ask about is read here, before the
+            # first level is built, and stands for as long as the menu is up.
+            self.menu.conditions = self.menu_conditions()
             # A menu always opens at its root: coming back to where you left
             # off is right inside one session of pointing at rows, and wrong
             # the next time you summon it.
@@ -1422,6 +1433,24 @@ class Daemon:
         self.apply_grab()
         self.relabel_gamebar()
         log.info("menu: %s", "open" if opened else "closed")
+
+    def menu_conditions(self):
+        """Which of the states a menu row may wait for are true right now.
+
+        The row this exists for is the workspace lock, which has nothing to
+        lock to on a desktop: offering it there is a way to hand the pad to a
+        terminal and then have to find the menu again to take it back. Game
+        mode is the couch, and a pad the app in front has already taken is a
+        game whether or not anyone switched modes - either is enough.
+        """
+        states = set()
+        if self.mode == "game":
+            states.add("game")
+        if self.handed_over:
+            states.add("handed_over")
+        if self.locked:
+            states.add("locked")
+        return frozenset(states)
 
     def push_menu_view(self):
         self._menu_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
@@ -2244,9 +2273,9 @@ class Daemon:
         that is not a summon at all - a left click in a stream - buys its way
         back.
 
-        The **game lock** is the end of all that while it is on: nothing but a
-        chord, because the chord is the menu and the menu is the only way to
-        turn it off again. See `set_locked`.
+        The **workspace lock** is the end of all that while it is on:
+        nothing but a chord, because the chord is the menu and the menu is the
+        only way to turn it off again. See `set_locked`.
         """
         if not self.handed_over:
             return True
@@ -2417,7 +2446,7 @@ class Daemon:
                     # happen, and it is made with a tick and a notification -
                     # both of which land on top of the game. So it is only
                     # made when the hold would actually be let through: while
-                    # the game lock is on it would not, and a countdown to
+                    # the workspace lock is on it would not, and a countdown to
                     # nothing is worse than silence. Asked every tick rather
                     # than once, so a hold that outlives the lock still
                     # announces itself.
@@ -2872,11 +2901,21 @@ class Daemon:
 
     # -- main loop ---------------------------------------------------------
 
-    def run(self):
+    def start(self):
+        """What a session that has never switched modes still has to do.
+
+        `[mode] start = "game"` has had no switch to hang any of this off. The
+        pointer is one half - it would stay the desktop's, and it is the one
+        thing that would show the mode - and the desktop bar is the other: it
+        would stay where it is, with ours opening under it, two bars along one
+        edge.
+        """
         self.prepare_cursor()
-        # A session configured to start in game mode has had no switch to hang
-        # the swap off, and the pointer is the one thing that would show it.
         self.apply_cursor()
+        self.apply_bar()
+
+    def run(self):
+        self.start()
         interval = 1.0 / self.config.poll_hz
         last = time.monotonic()
         poller = select.poll()

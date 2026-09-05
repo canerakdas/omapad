@@ -97,7 +97,7 @@ way in. Nothing ships with that on.
 opt out. Nothing ships with that on either - in a game ZL is aim, and ZL + A
 would put the window full-screen mid-fight.
 
-## The game lock: the question answered by hand
+## The workspace lock: the question answered by hand
 
 `/proc` is right about every game whose opening of the pad it can see, and
 that leaves two cases over. A game the walk misses gets nothing while the
@@ -107,7 +107,9 @@ puts a workspace on is two seconds of resting a thumb on a shoulder, which
 happens mid-fight.
 
 So a person can answer it instead. `daemon.set_locked(True)` - the `ZL+B` /
-`ZR+B` chords, the **Game lock** menu row, `omapad ctl lock on` - pins
+`ZR+B` chords, the **Workspace lock** menu row (offered in game mode or while
+the app in front has the pad; see `when` in [`menu.md`](menu.md)), `omapad ctl
+lock on` - pins
 `handed_over` on ahead of every other test in `update_handover()`, including a
 profile's `handover = false`, and `allowed()` then refuses everything but a
 chord. `check_hold_timers()` asks the same question before it *announces* a

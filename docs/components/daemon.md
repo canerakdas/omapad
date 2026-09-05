@@ -108,6 +108,10 @@ no `reaches_past` to come back on.
 
 - `set_mode()` switches desktop/game: it hides Omarchy's bar, raises the
   surface scale, swaps the cursor theme and opens the game bar.
+- `start()` is what a session that never switched modes still has to do - the
+  cursor and the desktop bar - and `apply_bar()` runs again whenever our own
+  bar opens, because the flag the desktop bar follows can be flipped by
+  anything. See [gamebar](gamebar.md).
 - `wants_grab()` / `apply_grab()` decide whether the pad is ours. The answer
   comes from `handover.wants_pad()` - does the focused window's process tree
   have the pad's node open - refreshed by `update_handover()`.
@@ -120,7 +124,7 @@ no `reaches_past` to come back on.
   `allowed()` is the one place that decides; [handover](handover.md) says why.
   The sticks reach past nothing at all - `stick_roles()`, and handover says
   why they get no say in it.
-- `set_locked()` is the game lock: the pad is the app in front's whatever
+- `set_locked()` is the workspace lock: the pad is the app in front's whatever
   `/proc` says, and `allowed()` then lets nothing through but a chord - the
   menu, and so the way back out. `chord_pending()` is the other half of it,
   and keeps a chord that can do nothing right now from making its buttons wait

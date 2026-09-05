@@ -292,7 +292,7 @@ reaches_past = true                                               # all of it
 B = { tap = "hypr:hl.dsp.window.close()", reaches_past = false }  # except this
 ```
 
-### The game lock
+### The workspace lock
 
 The hand-off asks the program itself and is right about the games it can see.
 Two things are left over, and the lock is the answer to both.
@@ -308,8 +308,8 @@ of omapad's fires any more. Not an announced hold, not a `reaches_past`
 binding, not a single-button summon. A hold it will not let through does not
 **announce** itself either — the tick and the notification are a promise that
 something is about to happen, and they land on top of the game. What is left is the MINUS + PLUS chord,
-which opens the menu, and **Game lock** is a row in it — that is the way back
-out, and the notification says so as it locks.
+which opens the menu, and **Workspace lock** is a row in it — that is the way
+back out, and the notification says so as it locks.
 
 The chord fires **only while the app in front already has the pad**. On the
 desktop `ZL + B` closes the window and `ZR` is a left click you can drag with,
@@ -317,7 +317,10 @@ and neither press is the lock's to take; over a game it costs nothing at all,
 because the grab is already off and the game sees both buttons anyway.
 
 The menu row is the same switch and ticks while the lock is on, so it locks a
-game the hand-off missed as well as unlocking one it did not. `omapad ctl lock
+game the hand-off missed as well as unlocking one it did not. It is offered in
+game mode and while the app in front has the pad, and nowhere else (`when`,
+below): on a desktop the lock would hand the pad to a terminal and leave you
+finding the menu again to take it back. `omapad ctl lock
 on|off|toggle` is the same thing without a pad, and the bar widget wears a
 padlock while it is on.
 
@@ -489,6 +492,11 @@ workspace strip goes away with the badges that flanked it** — it is drawn
 where a button walks it and nowhere else. The same holds for a layer of your
 own that spends the shoulders on something else: numbers you cannot step
 through are the one thing this bar will not print.
+
+If Omarchy's bar ever comes back **under** omapad's — its flag is a file
+anything can flip, and the shell can miss a change to it — the next time
+omapad's own bar opens says which one the screen should have, so a mode switch
+or a lock and unlock puts it right.
 
 **And you can click them.** Game mode is the couch environment, not a hand-off:
 the desktop is still under the bar and the mouse is still on the desk. Clicking
@@ -822,7 +830,7 @@ hold in every layer and every application —
 | PLUS | tap: **the controller menu**, hold: the Omarchy menu | toggle split |
 | MINUS | **the on-screen keyboard** | – |
 | MINUS + PLUS | **the controller menu** (a chord, everywhere, and the only way in over a game) | – |
-| ZL + B, ZR + B | **the game lock** — a chord, and only over an app that already has the pad | – |
+| ZL + B, ZR + B | **the workspace lock** — a chord, and only over an app that already has the pad | – |
 | HOME | tap: switch window, hold: **switch mode** | centre the window |
 | Left stick click | middle click | pin the window |
 | Right stick click | back (mouse 4) | the on-screen keyboard |
@@ -1031,7 +1039,7 @@ restart — so every config change would close your Steam.
 | `guide:toggle\|open\|close` | the bindings guide |
 | `guide:next\|prev` | turn the guide's page |
 | `mode:toggle\|desktop\|game` | switch mode |
-| `lock:on\|off\|toggle` | the game lock — the pad is the app in front's, outright |
+| `lock:on\|off\|toggle` | the workspace lock — the pad is the app in front's, outright |
 | `pad:profile=auto\|nintendo_pro\|xbox` | which codes this pad is read with |
 | `pad:layout=auto\|nintendo\|xbox\|playstation` | which console's names the badges print |
 | `pad:rumble=on\|off\|toggle` | the motor |
@@ -1106,8 +1114,8 @@ has to work wherever you are. A chord is also the one gesture that **always
 reaches past** an app holding the pad, whatever it runs — two buttons at once
 is not an input any game asks you for.
 
-The other two are [the game lock](#the-game-lock), and they are the exception
-to the price above: a chord whose action can do nothing right now does not take
+The other two are [the workspace lock](#the-workspace-lock), and they are the
+exception to the price above: a chord whose action can do nothing right now does not take
 the press, so `ZL` and `ZR` keep the window layer and the held left click on
 the desktop, where the lock has nothing to lock.
 
@@ -1798,7 +1806,18 @@ detail = "Volume and playback"   # a quieter second line under the label
 label = "Xbox labels"
 stay = true                  # keep the menu open, but fire once
 action = "pad:layout=xbox"   # and this row is ticked while it is in force
+
+[[menu.items]]
+label = "Workspace lock"
+when = ["game", "handed_over"]   # only offered in those states, any one is enough
+action = "lock:toggle"
 ```
+
+`when` keeps a row out of the menu where it could do nothing useful. The states
+are `game` (game mode is on), `handed_over` (the app in front has taken the
+pad) and `locked` (the workspace lock is on); a row that says nothing is always
+there. They are read **when the menu opens** and stand until it closes, so no
+row appears or vanishes under the selection while a thumb is aiming at one.
 
 If you redefine the `items` list in your own config it replaces **the whole**
 shipped tree rather than being merged row by row — your menu is your menu.
@@ -1869,7 +1888,7 @@ reach for from a sofa are the ones nearest the opening selection: **Apps** (Stea
 Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
 installed) · Keyboard · **Windows** ·
 **Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) ·
-**Controller** · **Game lock** · **System** (lock, suspend, log out, restart, power off) ·
+**Controller** · **Workspace lock** · **System** (lock, suspend, log out, restart, power off) ·
 Omarchy menu. What you open, then what is on screen, then the room, then the pad,
 then the machine — and last, on its own, the way out into the Omarchy menu, which
 has everything else and wants a keyboard. The volume and brightness rows are
@@ -2356,7 +2375,7 @@ omapad ctl press A           # fire a button as if it had been tapped
 omapad ctl press ZL hold     # ...or the hold half of its binding
 omapad ctl ripple left       # draw the burst a click leaves, without clicking
 omapad ctl mode game
-omapad ctl lock toggle       # the game lock: the pad is the app in front's
+omapad ctl lock toggle       # the workspace lock: the pad is the app in front's
 omapad ctl status
 ```
 

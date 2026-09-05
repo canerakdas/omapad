@@ -13,6 +13,15 @@ twice: both on. Off separately they give you a game mode with no bar at all,
 or with two - the one you cannot reach above the one you can - so a config
 that turns one off usually means to turn the other off with it.
 
+**Two bars along one edge is also what a stale flag looks like**, and that is
+why `set_gamebar()` re-runs `apply_bar()` every time ours opens. The desktop
+bar follows a file (`toggles/bar-off`) that anybody may flip, and the shell's
+own watch on it is documented as missing changes that land together - so the
+mode switch is not the last word on it. The command names the flag rather than
+toggling it, so saying it again costs a spawn and changes nothing when nothing
+has changed. `Daemon.start()` says it once at startup for the same reason:
+`[mode] start = "game"` has no switch to hang it on.
+
 So it shows three things, and none of them was a control:
 
 - the menu, and which button opens it - a door is only worth drawing if you can

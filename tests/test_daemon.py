@@ -1117,7 +1117,7 @@ class HandoverTests(DaemonTestCase):
         self.assertTrue(self.daemon.handed_over)
         self.assertFalse(self.daemon.osk_open)
 
-class GameLockTests(DaemonTestCase):
+class WorkspaceLockTests(DaemonTestCase):
     """The hand-off said by hand: the pad is the app's, and a chord is all
     that is left of ours."""
 
@@ -1278,25 +1278,37 @@ class GameLockTests(DaemonTestCase):
         row.press(self.daemon.ctx)
         self.assertFalse(self.daemon.locked)
 
-    def test_the_menu_row_is_the_way_back_out(self):
-        # The row the notification sends you to: it locks a game the walk
-        # missed, and unlocks the one the chord locked.
-        def pick_the_row():
-            self.daemon.set_menu(True)
-            for index, item in enumerate(self.daemon.menu.items):
-                if item["label"] == "Game lock":
-                    self.daemon.menu.index = index
-                    return
-            raise AssertionError("the shipped menu has no Game lock row")
+    def menu_labels(self):
+        return [item["label"] for item in self.daemon.menu.items]
 
+    def pick_the_row(self):
+        self.daemon.set_menu(True)
+        labels = self.menu_labels()
+        self.assertIn("Workspace lock", labels)
+        self.daemon.menu.index = labels.index("Workspace lock")
+
+    def test_the_row_is_not_offered_where_there_is_nothing_to_lock_to(self):
+        # On a desktop the lock would hand the pad to a terminal and leave you
+        # finding the menu again to take it back.
+        self.daemon.set_menu(True)
+        self.assertNotIn("Workspace lock", self.menu_labels())
+        self.daemon.set_menu(False)
+        self.daemon.handed_over = True
+        self.daemon.set_menu(True)
+        self.assertIn("Workspace lock", self.menu_labels())
+
+    def test_the_menu_row_is_the_way_back_out(self):
+        # Game mode is the couch, and the game the walk missed is exactly the
+        # one you are sitting in front of there.
+        self.daemon.set_mode("game")
         with self.unwanted():
-            pick_the_row()
+            self.pick_the_row()
             self.daemon.menu_command("press")
             self.assertTrue(self.daemon.locked)
             self.assertTrue(self.daemon.handed_over)
             # Locking puts every surface of ours away - the pad is the app's.
             self.assertFalse(self.daemon.menu_open)
-            pick_the_row()
+            self.pick_the_row()
             self.daemon.menu_command("press")
         self.assertFalse(self.daemon.locked)
         self.assertFalse(self.daemon.handed_over)
@@ -1392,7 +1404,10 @@ class BarInGameModeTests(DaemonTestCase):
         # game mode, which is why the direction is pinned here.
         self.config.hide_bar_in_game = True
         self.daemon.set_mode("game")
-        self.assertEqual(self.bar_calls(), ["omarchy toggle bar on"])
+        # Said once by the switch and again by our own bar opening: the
+        # command names a flag rather than toggling one, so what matters is
+        # which way every call points, not how many there are.
+        self.assertEqual(set(self.bar_calls()), {"omarchy toggle bar on"})
         self.daemon.set_mode("desktop")
         self.assertEqual(self.bar_calls()[-1], "omarchy toggle bar off")
 
@@ -1403,6 +1418,28 @@ class BarInGameModeTests(DaemonTestCase):
         self.daemon.set_mode("game")
         self.daemon.shutdown()
         self.assertEqual(self.bar_calls()[-1], "omarchy toggle bar off")
+
+    def test_ours_opening_says_again_which_bar_the_screen_should_have(self):
+        # The flag Omarchy's bar follows is a file anybody may flip, and the
+        # shell's own watch on it is documented as missing changes that land
+        # together. Either way the desktop bar comes back under ours and the
+        # screen has two along one edge, and nothing said otherwise until the
+        # next mode switch.
+        self.config.hide_bar_in_game = True
+        self.config.gamebar_enabled = True
+        self.daemon.set_mode("game")
+        self.session.spawned.clear()
+        self.daemon.set_locked(True)      # ours goes away with the pad
+        self.assertEqual(self.bar_calls(), [])
+        self.daemon.set_locked(False)     # and comes back saying it again
+        self.assertEqual(self.bar_calls(), ["omarchy toggle bar on"])
+
+    def test_a_session_that_starts_in_game_mode_hides_it_too(self):
+        # No switch to hang it on, and our own bar opens there regardless.
+        self.config.hide_bar_in_game = True
+        self.daemon.mode = "game"
+        self.daemon.start()
+        self.assertEqual(self.bar_calls()[-1], "omarchy toggle bar on")
 
     def test_a_machine_without_omarchy_is_not_a_daemon_that_stops(self):
         self.config.hide_bar_in_game = True

@@ -88,7 +88,7 @@ column, and must say what it cost.
 | HOME | tap: next window, hold: switch mode | no: the hold is the way back to the desktop |
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |
 | MINUS + PLUS | the menu, everywhere, past a game | no: it is the only door left over a cloud session |
-| ZL + B, ZR + B | the game lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |
+| ZL + B, ZR + B | the workspace lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |
 
 ## Saying what a binding means
 
