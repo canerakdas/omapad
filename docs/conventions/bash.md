@@ -38,7 +38,10 @@ and no shell is left under systemd.
 
 **3.1** Every knob is an environment variable with its default in place —
 the same rule the config file follows, so the value in the script is the
-default and not the decision:
+default and not the decision. The one exception is `OMAPAD_SHA` in `boot.sh`,
+which MUST stay empty: a commit written there cannot name the commit that
+contains it, so a default would put the release one commit behind the snapshot
+that was reviewed (see [`../components/packaging.md`](../components/packaging.md)):
 
 ```bash
 HEIGHT="${OMAPAD_OSK_HEIGHT:-320}"                     # ✅

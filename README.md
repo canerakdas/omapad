@@ -50,20 +50,22 @@ leave the pad to a game.
 
 ## Installation
 
-One command, from nothing:
+Two lines, from nothing:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/canerakdas/omapad/main/boot.sh | bash
+export OMAPAD_SHA=<the commit the release names>
+curl -fsSL "https://raw.githubusercontent.com/canerakdas/omapad/$OMAPAD_SHA/boot.sh" | bash
 ```
 
-`boot.sh` clones the repo straight into
+Every [release](https://github.com/canerakdas/omapad/releases) names the commit
+to put there. `boot.sh` clones the repo straight into
 `~/.config/omarchy/plugins/canerakdas.omapad` — `manifest.json` is at the root,
 so the checkout **is** the plugin, with no symlink — and hands over to
-`install.sh` for the parts that need permissions. It runs the **pinned review
-commit** stored inside itself (`OMAPAD_SHA`, set to the exact snapshot this
-boot.sh was published with) rather than a moving branch, so installing never
-executes code that was not reviewed. It is fifty lines; read it first if you
-would rather not pipe a script into a shell.
+`install.sh` for the parts that need permissions. The commit is named twice on
+purpose: in the URL it fixes the script you are piping into a shell, and in
+`OMAPAD_SHA` it fixes the tree that gets installed, so neither half can be a
+branch that moved after the release was reviewed. It is ninety lines; read it
+first if you would rather not pipe a script into a shell.
 
 Or use Omarchy's own plugin command, which is two steps:
 
@@ -102,10 +104,9 @@ What `install.sh` does:
 5. Installs and starts the `omapad.service` user service.
 
 Updating it — `omarchy plugin update` only pulls, so re-run the installer when
-the pull touched the service or the udev rule. Because `boot.sh` is pinned to
-a reviewed commit, the way to update is to re-run **this** `boot.sh` (it
-fetches the new release's commit and checks it out) or, after a `git pull`,
-the installer:
+the pull touched the service or the udev rule. Because an install is the
+commit you named, the way to update is to re-run those two lines with the
+commit the new release names, or, after a `git pull`, the installer:
 
 ```bash
 omarchy plugin update canerakdas.omapad

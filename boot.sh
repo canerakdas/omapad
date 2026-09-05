@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# One command from nothing to a working omapad:
+# One command from nothing to a working omapad - two lines, taken from the
+# release being installed:
 #
-#   curl -fsSL https://raw.githubusercontent.com/canerakdas/omapad/main/boot.sh | bash
+#   export OMAPAD_SHA=<the 40-character commit that release names>
+#   curl -fsSL "https://raw.githubusercontent.com/canerakdas/omapad/$OMAPAD_SHA/boot.sh" | bash
 #
 # It only fetches and hands over. The checkout lands *inside* the Omarchy
 # plugins directory, so the clone itself is the plugin - manifest.json is at
@@ -13,15 +15,21 @@
 # grant /dev/uinput or install a user service, which is why this exists rather
 # than the plugin installing itself.
 #
-# The commit the installer runs is pinned: OMAPAD_SHA names the exact snapshot
-# this boot.sh was published with, and the code is checked out at that commit
-# before anything from the remote repository executes. Overriding it - say, to
-# track a private fork - is possible but deliberate: the override must be a
-# full 40-character commit SHA, never a branch name.
+# The commit to install is named from outside, and that is the whole point. A
+# default SHA written into this file can never name the commit that contains
+# it, so carrying one cost a commit per release whose only job was to move the
+# pin: the submitted snapshot, the attested snapshot and the branch tip were
+# then three different objects, and a reviewer could check none of them against
+# another. Naming it in OMAPAD_SHA leaves this file identical from release to
+# release, and the release notes carry both halves - the SHA in the URL fixes
+# the script that runs, the SHA in the environment fixes the tree it installs.
 set -euo pipefail
 
 REPO_URL="${OMAPAD_REPO:-https://github.com/canerakdas/omapad.git}"
-SHA="${OMAPAD_SHA:-0bcf0a3ca7c0cc2777ca3d67189bb6ba9e17cd8e}"
+# The one knob with no default in place (conventions/bash.md 3.1): a default
+# here would be this file choosing which snapshot to trust, which is the one
+# decision it cannot make honestly.
+SHA="${OMAPAD_SHA:-}"
 PLUGIN_ID="${OMAPAD_PLUGIN_ID:-canerakdas.omapad}"
 TARGET="${OMAPAD_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins/$PLUGIN_ID}"
 
@@ -31,6 +39,10 @@ fail() { printf '\033[31m==> %s\033[0m\n' "$*" >&2; exit 1; }
 # A branch or tag name can move after this boot.sh is reviewed: what was
 # reviewed is a snapshot, so only a snapshot may run. Requiring the full
 # 40-character SHA up front is what keeps the rest of the script honest.
+if [[ -z $SHA ]]; then
+  fail "OMAPAD_SHA is not set; each release names the commit to install: https://github.com/canerakdas/omapad/releases"
+fi
+
 if ! [[ $SHA =~ ^[0-9a-f]{40}$ ]]; then
   fail "OMAPAD_SHA must be a full 40-character commit SHA, got: $SHA"
 fi

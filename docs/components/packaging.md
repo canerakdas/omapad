@@ -40,7 +40,8 @@ manifest first), and install the user unit with the checkout path baked in.
 
 ## `boot.sh`
 
-The one command a stranger runs: `curl -fsSL .../boot.sh | bash`. It fetches
+The two lines a stranger runs: `export OMAPAD_SHA=<commit>`, then `curl -fsSL
+.../$OMAPAD_SHA/boot.sh | bash`. It fetches
 and hands over, nothing else - it clones into
 `~/.config/omarchy/plugins/canerakdas.omapad`, so the checkout is the plugin
 itself, then `exec`s that checkout's `install.sh`.
@@ -51,15 +52,22 @@ pulls. Neither can grant `/dev/uinput` or install a user service, so without
 this the first install is always two commands.
 
 Where it fetches from is settings, defaulted in place - `OMAPAD_REPO`,
-`OMAPAD_SHA`, `OMAPAD_PLUGIN_ID`, `OMAPAD_DIR` - which is also how it is
-tested against a local clone without touching the machine.
+`OMAPAD_PLUGIN_ID`, `OMAPAD_DIR` - which is also how it is tested against a
+local clone without touching the machine. `OMAPAD_SHA` is the exception with no
+default: the commit to install is **named from outside**, because a default
+written into `boot.sh` cannot name the commit that contains it. Carrying one
+cost a "move the pin" commit per release, which left the submitted snapshot,
+the attested snapshot and the branch tip as three different objects - the
+mismatch a marketplace review reports, rather than anything wrong with the
+code.
 
 It refuses rather than guesses: a target that exists but is not a checkout is
 left alone, an update stops rather than reset a checkout someone has edited,
-and `OMAPAD_SHA` must be a full 40-character commit SHA, never a branch name.
-What runs is the **pinned review commit**: the snapshot in `OMAPAD_SHA` (kept
-in step with every release) is checked out in detached mode and verified
-against `HEAD` before anything from the remote executes, so a branch moving
-after a review can never change what an install runs.
+and `OMAPAD_SHA` must be set and a full 40-character commit SHA, never a branch
+name. That commit is checked out in detached mode and verified against `HEAD`
+before anything from the remote executes, so a branch moving after a review can
+never change what an install runs. `tests/test_packaging.py` is what keeps the
+pin from creeping back and the manifest's version in step with
+`omapad.__version__`.
 
 See [`../conventions/bash.md`](../conventions/bash.md) for how to change it.
