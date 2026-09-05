@@ -461,16 +461,19 @@ nothing by being repeated, and on the shipped scheme that is exactly A and B —
 so the moment an application profile takes one of them for something of its
 own, it starts being printed.
 
-**And only the face buttons are printed at all** (`[gamebar] kinds`). They are
-the half of the pad that changes under you: a profile rewrites X and Y, a layer
-rewrites all four. A shoulder or a trigger means the same thing wherever the
-scheme goes — RT clicks, LB and RB walk the workspaces — so a slot spent on one
-repeats what the pad told you the first time you pressed it. Nothing is lost by
-leaving them off this row: the two that walk the workspaces are drawn beside the
-workspaces, and the one that opens the menu stands on the left. Name the regions
-you want back — `kinds = ["face", "trigger"]`, out of `face`, `bumper`,
-`trigger`, `dpad`, `stick`, `system` — and they are offered in the order the
-thumbs reach them.
+**And only the half of the pad that changes is printed at all**
+(`[gamebar] kinds`, `["face", "stick"]`) — the face buttons and the two stick
+clicks, which are exactly the four an application profile has to spend. A
+shoulder or a trigger means the same thing wherever the scheme goes — RT
+clicks, LB and RB walk the workspaces — so a slot spent on one repeats what the
+pad told you the first time you pressed it. Nothing is lost by leaving them off
+this row: the two that walk the workspaces are drawn beside the workspaces, and
+the one that opens the menu stands on the left. Name the regions you want back
+— `kinds = ["face", "stick", "trigger"]`, out of `face`, `bumper`, `trigger`,
+`dpad`, `stick`, `system` — and they are offered in the order the thumbs reach
+them. Four buttons into three slots means one falls off, thumbs-first, so L3
+is it — the cheapest of the four wherever it is spent, and the guide is where
+the whole scheme is read.
 
 **Every badge lights up while its button is down** — the pill on the left, the
 two beside the workspaces, the hints on the right. The bar is the only thing on
@@ -547,16 +550,16 @@ text colour is picked against the wallpaper.
 | `[gamebar] confirm_fill_delay_ms` | how long the badge sits still before it starts filling, so a shoulder flicked to walk browser tabs does not flash a fill nobody asked for. The wait comes out of the ramp rather than off the end, so the badge is still exactly full at the tick; 0 fills from the press |
 | `[gamebar] click` | whether a pointer can fire what a badge names; `false` leaves the bar a readout that swallows no clicks |
 | `[gamebar] brief` | one word per hint (the default) or the guide's full phrase; see [the words above](#game-bar) |
-| `[gamebar] kinds` | which regions of the pad the hints are about; `["face"]` — the half that changes under you |
+| `[gamebar] kinds` | which regions of the pad the hints are about; `["face", "stick"]` — the half that changes under you, and a profile's whole budget |
 
 Both waits themselves are `[confirm] hold_ms` and `[confirm] confirm_ms`, and a
 binding takes them by saying `confirm = true` rather than naming its own
 numbers.
 
 At most **three actions** stand on the right, and they **do not lie**: they are
-the face buttons really bound in the layer that is live right now, resolved
-through exactly the path a press takes — `[gamebar] kinds` is what widens that
-to the rest of the pad. Gestures that mean the same thing everywhere (confirm,
+the face buttons and stick clicks really bound in the layer that is live right
+now, resolved through exactly the path a press takes — `[gamebar] kinds` is what
+widens that to the rest of the pad. Gestures that mean the same thing everywhere (confirm,
 back) are left unwritten — `[gamebar] omit`. The list is **by
 action**, not by button: move Enter to another button and the omission follows
 it; give A something else to do and A starts being shown. Hold the window layer
@@ -1587,6 +1590,7 @@ right_stick = "scroll"
 X = "key:BACKSPACE"
 Y = { tap = "key:CTRL+SHIFT+V", desc = "Paste", hold = "key:CTRL+C", hold_desc = "Interrupt" }
 LSTICK = { tap = "key:CTRL+L", desc = "Clear the screen" }
+RSTICK = { tap = "key:CTRL+SHIFT+C", desc = "Copy" }
 ```
 
 | Button | In a terminal | Otherwise |
@@ -1595,6 +1599,7 @@ LSTICK = { tap = "key:CTRL+L", desc = "Clear the screen" }
 | Y | **paste** (`Ctrl+Shift+V`) | right click |
 | Y **held** | **`Ctrl+C`** — interrupt | – |
 | Left stick click | **clear the screen** (`Ctrl+L`) | middle click |
+| Right stick click | **copy** (`Ctrl+Shift+C`) | back click |
 | Right stick | **the wheel** — the scrollback | game mode walks the focus |
 
 Every key here is the **shell's own** rather than an emulator's, so the one
@@ -1650,14 +1655,28 @@ for. That is the same exception `[profile.browser]` makes for the opposite
 reason — there the focus keys go somewhere real but not where the pointer is,
 here they go somewhere actively wrong.
 
+**`R3` copies, and it is what makes the paste a round trip.** Selecting is the
+one half of this a pointer on a sofa still does well — `ZR` drags a selection
+the way a mouse would — and until this binding the only way to put one back
+was the middle click the profile had already spent. `Ctrl+Shift+C` rather than
+`Ctrl+C` because a terminal's copy is the shifted one in all five, and because
+the unshifted one is the interrupt on `Y`'s hold. The button is the last cheap
+one a terminal has: `R3` is the back click everywhere else, and no terminal
+answers a back click at all.
+
 What is **left alone**: `A` is Enter, `B` is Esc, `ZR` is the left click, and
 the D-pad is the arrows the line editor and the history are walked with.
 
 What the profile **spends**: `X` and the left stick were the pad's two middle
 clicks, so a terminal now has none — text selected with a mouse but never
-copied is no longer reachable from the pad. That is the price of a paste that
-works with the clipboard everything else on this desktop uses. `Y` was the
-right click, which is the one this profile is happiest to lose.
+copied is unreachable from the pad, which is exactly what `R3` gives back, on
+the clipboard rather than in PRIMARY. `Y` was the right click, which is the one
+this profile is happiest to lose, and `R3` was the back click, which a terminal
+never had a use for.
+
+That is the whole budget: four buttons, and the game bar has three slots for
+them — *Backspace*, *Paste*, *Copy*, with `Ctrl+L` left to the guide, since
+`A` and `B` keep their meaning here and are not printed.
 
 ### Rumble
 

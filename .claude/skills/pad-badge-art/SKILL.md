@@ -39,6 +39,7 @@ yesterday's button and nothing else complains.
 | `shapes/sys-round.svg` | the small **round** button - every one of them but Create and Options |
 | `shapes/sys-guide.svg` | the **Xbox button** alone, 36 of 40 against the others' 24, with `sys-nexus.svg` drawn to match |
 | `shapes/system.svg` | the **oblong** - Create, Options, and the bare shape the shell types a word into |
+| `shapes/stick.svg` | the **stick from above** - 56x40, a pill inside its own rim, wide because `L3` is two characters. The rim is fill, not a stroke |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
 | `generate.py` | the generator; `truetype.py`, `svgpath.py`, `place.py` its parts |
 
@@ -80,6 +81,21 @@ the word no matter what the door's numbers say.
 
 ## Drawing a shape
 
+- **Everything is fill. `Shape` raises on a stroke.** A stroke's weight is in
+  pixels, not in the shape's units, so it stays a hairline on a badge twice
+  the size and disappears entirely in the stencil style, where the surface
+  paints the shape solid. A line that is part of the drawing is drawn as one:
+  `stick.svg`'s rim is three subpaths, wound the opposite way in turn so the
+  same annulus comes out under either fill rule.
+- **The shape has to carry its label at the full cap.** `fit` will shrink a
+  label rather than fail, and a shipped shape that makes it do so is the wrong
+  shape for that many characters - `LabelsStandAtOneHeight` is what says so.
+  The stick is the worked example: two characters would not stand full height
+  in a circle, so the circle became a pill.
+- **A new canvas has to divide `Metrics.badgeGrid`** (5): `grid * w / h` whole,
+  or every badge of that shape lands a fraction of a pixel off its own box and
+  the flat edges in it come out grey. 32x32, 64x32, 48x40 and 56x40 do;
+  44x32 does not. `ShapesFitTheBadgeGrid` is what says so.
 - Figma's output dialect is what `svgpath.py` parses: `M C H V L Z` plus `A`
   for a circle, absolute or relative. Nothing round-trips - flattening is to
   polygons because placement rasterises the shape.

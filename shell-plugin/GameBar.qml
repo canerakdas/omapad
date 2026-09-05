@@ -580,10 +580,11 @@ Item {
       }
     }
 
-    // Filled in the text's own colour, at the weight the guide gives it: the
-    // silhouette is what says which button this is, and a line around it read
-    // as a frame rather than as part of the drawing. The stick's rim is not
-    // that line - it is the drawing - so it keeps its own colour.
+    // Filled in the text's own colour and never outlined: the silhouette is
+    // what says which button this is, and a line around it read as a frame
+    // rather than as part of the drawing. The rim of a stick is not that line
+    // - it is drawn into the shape, so it takes the shape's own colour and
+    // needs nothing here.
     BadgeArt {
       anchors.fill: parent
       drawn: badge.art
@@ -592,9 +593,6 @@ Item {
       ink: root.stencil
         ? Util.alpha(root.foreground, badge.inkLit) : root.foreground
       knockout: root.stencil
-      ringColor: root.stencil
-        ? Util.alpha(root.foreground, badge.inkLit) : root.foreground
-      ringWidth: Math.max(1, metrics.space(1))
 
       // Long enough to be seen as a change, short enough that a tap still
       // reads as a tap rather than as a glow that arrives after the press.
@@ -656,8 +654,6 @@ Item {
         fill: Util.alpha(root.foreground, root.stencil ? 1.0 : 0.45)
         ink: root.stencil ? "transparent" : root.foreground
         knockout: root.stencil
-        ringColor: root.stencil ? "transparent" : root.foreground
-        ringWidth: Math.max(1, metrics.space(1))
       }
     }
 

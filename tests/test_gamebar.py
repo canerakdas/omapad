@@ -213,14 +213,27 @@ class ViewTests(unittest.TestCase):
         })
         self.assertEqual(state["actions"][0]["d"], "Mute")
 
-    def test_the_row_is_the_face_buttons_because_they_are_what_changes(self):
+    def test_the_row_is_the_half_of_the_pad_that_changes_under_you(self):
         # A shoulder or a trigger carries the same job wherever the scheme
         # goes, so a slot spent on one repeats what the pad said the first
-        # time you pressed it. The face buttons are what a profile rewrites
-        # under you, which is what three slots are worth spending on.
+        # time you pressed it. What a profile rewrites is the face buttons and
+        # the stick clicks - the four it has to spend - and that is what three
+        # slots are worth spending on.
         state = self.view({"ZR": "click:left", "HOME": "mode:toggle",
-                           "X": "key:SUPER+SPACE"})
-        self.assertEqual([row["b"] for row in state["actions"]], ["X"])
+                           "X": "key:SUPER+SPACE", "RSTICK": "key:CTRL+SHIFT+C"})
+        self.assertEqual([row["b"] for row in state["actions"]], ["X", "R3"])
+
+    def test_a_profile_that_spends_all_four_loses_the_last_to_the_count(self):
+        # Three slots and four buttons, in PREFERRED's order - thumbs-first,
+        # so L3 is the one that falls off. It is the right one to lose: L3 is
+        # the cheapest of the four wherever it is spent, and the guide is where
+        # the whole scheme is read. This is the shipped [profile.shell].
+        state = self.view({
+            "A": "key:ENTER", "B": "key:ESC",
+            "X": "key:BACKSPACE", "Y": "key:CTRL+SHIFT+V",
+            "RSTICK": "key:CTRL+SHIFT+C", "LSTICK": "key:CTRL+L",
+        })
+        self.assertEqual([row["b"] for row in state["actions"]], ["X", "Y", "R3"])
 
     def test_another_region_of_the_pad_is_one_setting_away(self):
         wider = gamebar.GameBarModel(build({

@@ -39,18 +39,23 @@ PREFERRED = (
 MAX_ACTIONS = 3
 
 # Which regions of the pad the row of hints is about - by kind, the way the
-# guide groups them. The face buttons, and by default only them: they are the
-# half of the pad that changes under you. An application profile rewrites X and
-# Y, a layer rewrites all four, and what they mean where you are standing right
-# now is what three slots are worth spending on.
+# guide groups them. The half of the pad that changes under you, which is the
+# face buttons *and the stick clicks*: an application profile has four things
+# to spend and those are X, Y, L3 and R3, so a row that named only the face
+# buttons printed two of a profile's four and hid the other two.
 #
-# A shoulder or a trigger carries the same job wherever the scheme goes - ZR
-# clicks, L and R walk the workspaces - so a slot spent on one says what the
-# pad already said the first time you pressed it, in place of something you did
-# not know. The two that walk the workspaces are drawn beside the workspaces
-# anyway, and the one that opens the menu on the left: widening this list is
-# about the row of hints and nothing else.
-HINTED = ("face",)
+# A shoulder or a trigger is the case this list is still keeping out: ZR
+# clicks, L and R walk the workspaces, wherever the scheme goes - so a slot
+# spent on one says what the pad already said the first time you pressed it, in
+# place of something you did not know. The two that walk the workspaces are
+# drawn beside the workspaces anyway, and the one that opens the menu on the
+# left: widening this list is about the row of hints and nothing else.
+#
+# Four buttons into MAX_ACTIONS slots means one falls off, in PREFERRED's
+# order - thumbs-first, so L3 is it. That is the right one to lose: L3 is the
+# cheapest of the four wherever it is spent, the click a profile reaches for
+# once X, Y and R3 are gone. The guide is where the whole scheme is read.
+HINTED = ("face", "stick")
 
 # Gestures that mean the same thing wherever you are - confirm and go back, on
 # this scheme - teach nothing by being printed. The bar has three slots and

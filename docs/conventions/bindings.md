@@ -119,10 +119,14 @@ The bar never prints a gesture that means the same wherever you are
 being printed the moment a profile takes them under rule 2. That is the rule
 above enforced by what you can see.
 
-The row is the **face buttons and nothing else** (`[gamebar] kinds`), for the
-same reason: they are the half of the pad a profile rewrites, so a profile's X
-and Y are exactly what the bar has to say. A shoulder means the same thing
-wherever the scheme goes, and repeating it costs one of three slots.
+The row is the **half of the pad that changes under you** (`[gamebar] kinds`,
+`["face", "stick"]`), for the same reason: a profile's whole budget is X, Y and
+the two stick clicks, so those four are exactly what the bar has to say. A
+shoulder means the same thing wherever the scheme goes, and repeating it costs
+one of three slots. Four into three means one falls off in `PREFERRED`'s order
+- thumbs-first, so L3 goes - and that is the right one to lose, since L3 is the
+cheapest of the four wherever it is spent. The guide is where the whole scheme
+is read.
 
 ## Writing a profile for an application
 
@@ -171,7 +175,7 @@ undocumented exception is a rule nobody keeps.
 | `[profile.discord]` | 1 - A and B are mute and deafen | Rule 2's exception: they are the app's most-pressed controls and its worst targets. Enter and Esc are on the holds. |
 | `[bindings.osk]` | 3 - Y is Space, a second Do | A keyboard has no reach; Space is the second-most-needed key on it. |
 | `[profile.youtube]` | 3 - Y is fullscreen, a second Do | The reach is the search box, which needs the on-screen keyboard anyway, so it moves to L3. Fullscreen is pressed on every video and is the pointer's worst target: a corner icon behind an overlay that hides itself. |
-| `[profile.shell]` | 3 - Y is paste, a second Do | A terminal's right-click menu is two entries in kitty and ghostty and nothing at all in foot and alacritty. |
+| `[profile.shell]` | 3 - Y is paste, a second Do | A terminal's right-click menu is two entries in kitty and ghostty and nothing at all in foot and alacritty. The reach a terminal does have - the scrollback - is the stick's, and R3 is its copy. |
 | `[bindings.guide]` | 1 and 4 - every button closes | The guide is read, not used: it has one job, turning the page, and everything else is a way out of a surface you opened by mistake. |
 | `[bindings.window]` | A is fullscreen, not Enter | The layer acts on a window rather than on a selection, and fullscreen is the affirmative one. B still closes, X still acts, Y still moves it elsewhere. |
 | `[chords]` `ZL+B` / `ZR+B` | ZL and ZR are never a profile's to take | A chord is not a binding of either button, and this one claims the press **only while the app in front already has the pad** - where the grab is off and the game sees both buttons whatever omapad does. On the desktop `ZL` + B still closes the window and `ZR` is still a left click you can drag with. |

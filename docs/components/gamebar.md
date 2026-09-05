@@ -55,20 +55,30 @@ underneath for up to a heartbeat.
 
 ## The half that changes
 
-The row on the right is the **face buttons** (`[gamebar] kinds`, `["face"]`).
-They are what an application profile rewrites - X is the app's own verb, Y
-reaches for what is not on screen - and a layer rewrites all four, so what they
-mean where you are standing right now is what three slots are worth spending
-on.
+The row on the right is the **face buttons and the stick clicks**
+(`[gamebar] kinds`, `["face", "stick"]`). They are what an application profile
+rewrites - X is the app's own verb, Y reaches for what is not on screen, and L3
+and R3 are the rest of its four - and a layer rewrites all of them, so what
+they mean where you are standing right now is what three slots are worth
+spending on. Naming only `face` printed two of a profile's four and hid the
+other two, which is why `[profile.shell]`'s copy on R3 was invisible on the one
+surface whose job is to say what the pad does.
 
-A shoulder or a trigger carries the same job wherever the scheme goes: `ZR`
-clicks, `L` and `R` walk the workspaces. A slot spent on one repeats what the
-pad told you the first time you pressed it, in place of something you did not
-know yet - and neither is lost by being left out here, since the workspace
+A shoulder or a trigger is the case still left out: `ZR` clicks, `L` and `R`
+walk the workspaces, wherever the scheme goes. A slot spent on one repeats what
+the pad told you the first time you pressed it, in place of something you did
+not know yet - and neither is lost by being left out here, since the workspace
 walkers are drawn beside the workspaces and the menu's opener stands on the
 left. `kinds` names regions rather than buttons - `face`, `bumper`, `trigger`,
 `dpad`, `stick`, `system`, the same grouping the guide reads by - so widening
 it picks up every button in the region and the order stays `PREFERRED`'s.
+
+Four buttons into `MAX_ACTIONS` slots means one falls off, and `PREFERRED` is
+thumbs-first, so L3 is it. That is the right one to lose: L3 is the cheapest of
+the four wherever it is spent - the click a profile reaches for once X, Y and
+R3 are gone - and the guide is where the whole scheme is read. In a terminal
+the row comes to *Backspace*, *Paste*, *Copy*, and `Ctrl+L` is the one left to
+the guide.
 
 ## One word per hint
 
@@ -137,7 +147,8 @@ anything to press.
 
 `PREFERRED` is the order buttons are offered in, thumbs-first: face buttons,
 then shoulders, then the rest. `HINTED` is which of those regions the row is
-allowed to print at all - `("face",)`, the default behind `[gamebar] kinds`.
+allowed to print at all - `("face", "stick")`, the default behind
+`[gamebar] kinds`: the four a profile has to spend.
 `MAX_ACTIONS` (3) is where a row stops reading as a hint and starts reading as
 a list. `COMMON` is what is not worth printing (`key:ENTER`, `key:ESC`). A button already drawn somewhere on the bar is never
 drawn twice: one printed in two places reads as two different things you can

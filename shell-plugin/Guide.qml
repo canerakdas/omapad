@@ -206,12 +206,6 @@ Item {
       fill: root.stencil ? Color.accent : Util.alpha(Color.accent, 0.30)
       ink: root.stencil ? "transparent" : Color.menu.text
       knockout: root.stencil
-      // The stick's rim is part of the drawing, not a border, so it is
-      // punched along with the label rather than left as a line on a solid
-      // badge.
-      ringColor: root.stencil
-        ? Color.menu.background : Util.alpha(Color.accent, 0.55)
-      ringWidth: Math.max(1, metrics.space(1))
     }
 
     // Typed only where the drawing has no label of its own - a remapped

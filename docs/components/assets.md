@@ -21,6 +21,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/sys-round.svg` | The small round button, which is every one of them but PlayStation's Create and Options. |
 | `shapes/sys-guide.svg` | The Xbox button, drawn 36 of 40 against the 24 the rest get - it is larger than every other button on that pad, face buttons included. Nothing else earns it. |
 | `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
+| `shapes/stick.svg` | The stick, seen from above: a pill inside its own rim, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. The rim is three subpaths of the same fill, not a stroke. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
 | `truetype.py`, `svgpath.py`, `place.py` | Its parts. |
@@ -103,16 +104,40 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
   there is and comes out grey rather than drawn - `Metrics.badge` can snap the
   box, not the drawing inside it. What put the drawings off the grid was
   Figma's own habit: a seven-unit box centred on a sixteen-unit axis has to
-  have `.5` edges, and a 2.4-unit stroke has `.2` ones. So features are drawn
-  **even** and the strokes around them **whole**, and
+  have `.5` edges. So features are drawn **even**, and
   `tests/test_assets.py::ShapesSitOnTheGrid` fails when one is not. Curves are
   exempt - only a straight run has a single coordinate to land badly.
+
+- **Draw on a canvas `Metrics.badgeGrid` divides.** A surface reserves a badge
+  `unit` tall and `round(unit * w / h)` wide, and BadgeArt scales the drawing
+  by that rounded width - so a shape whose aspect the unit does not divide
+  stands a fraction of a pixel off its own box, and every flat edge in it is
+  painted grey. `Metrics.badge` snaps the unit up to the grid, and the grid is
+  five because 32-by-32, 64-by-32, 48-by-40 and 56-by-40 all divide it. The
+  stick was drawn 44 by 32 first, which needs a unit divisible by eight and
+  would have made every stick badge on the pad slightly soft with nothing to
+  say so; `tests/test_assets.py::ShapesFitTheBadgeGrid` is what says it now.
 
   It buys the flat edge, not the whole drawing: a coordinate is *painted*
   crisply only where `unit / h` also makes it whole. That is every multiple of
   five for the system pill's own rim (8 and 32 of 40), and `unit` a multiple of
   16 for the D-pad's arms (10 and 22 of 32) - which is why the cross still
   reads a shade softer than the pill it sits beside.
+- **A drawing is fill, never a stroke**, and `Shape` raises on one. A stroke's
+  weight is in pixels rather than in the shape's units, so a line drawn as one
+  stays a hairline on a badge twice the size, and where a surface paints the
+  shape solid - the stencil badge style - it has nowhere left to be. The rim
+  of a stick was a stroked circle for exactly as long as it took somebody to
+  turn stencil on and find the stick had no rim; it is an annulus in the same
+  fill now, three subpaths wound the opposite way in turn so the same shape
+  comes out under either fill rule, two units thick at every size.
+- **A shape has to carry its own label at the full cap.** `fit` shrinks a
+  label in 4% steps until it clears `MIN_PADDING`, which is the right answer
+  for a shape it is handed and the wrong one for a shape that ships: `L3` came
+  out at 12.39 units inside a 26-unit circle where every other badge is set at
+  13.44, with a quarter of a unit of air, and the badge is the only place that
+  showed. Draw the shape for what it carries -
+  `tests/test_assets.py::LabelsStandAtOneHeight` is what says one still does.
 - `CAP_RATIO`, `MIN_PADDING`, `MIN_SCALE`, `SAMPLES`, `SETTLE`, `CURVE_STEPS`
   are the generator's own trade-offs, not user settings - they are the sampling
   and fitting numbers behind a drawing nobody configures.

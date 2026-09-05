@@ -187,9 +187,6 @@ Item {
       strokeWidth: Math.max(1, metrics.space(2))
       ink: root.stencil ? "transparent" : Color.accent
       knockout: root.stencil
-      ringColor: root.stencil
-        ? Color.menu.background : Util.alpha(Color.accent, 0.65)
-      ringWidth: Math.max(1, metrics.space(2))
     }
 
     // Only where the drawing carries no label of its own - the system pill,

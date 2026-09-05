@@ -91,9 +91,10 @@ MARK_CAPS = {
 # stretching it to a cap height would draw a slab.
 MARK_CAP_EXEMPT = ("sys-minus.svg",)
 
-# How much empty button has to be left around the label, in shape units. Only
-# the crowded shapes ever reach it - two characters inside a stick click - and
-# they are shrunk until they clear it.
+# How much empty button has to be left around the label, in shape units. No
+# shipped shape reaches it any more: the one that did was the stick click,
+# whose `L3` is two characters, and the answer was to draw the shape for what
+# it carries rather than to keep shrinking the letters.
 MIN_PADDING = 1.0
 
 # How far the label is allowed to shrink before the shape is simply the wrong
@@ -112,7 +113,11 @@ BUTTONS_TO_DRAW = (
     ("trigger", "l", "trigger-left.svg", ("ZL", "LT", "L2")),
     ("trigger", "r", "trigger-right.svg", ("ZR", "RT", "R2")),
     # A stick carries two badges: the click, which the pad prints as L3/R3,
-    # and the stick itself, which the guide names by the side it is on.
+    # and the stick itself, which the guide names by the side it is on. It is
+    # drawn wide because of the first of those: `L3` is two characters, and a
+    # circle the size of a face button will not hold two at the cap the rest
+    # of the pad is set at. The rim is the stick seen from above, and it is
+    # part of the fill - see `Shape`.
     ("stick", "l", "stick.svg", ("L3", "L")),
     ("stick", "r", "stick.svg", ("R3", "R")),
 )
@@ -180,17 +185,24 @@ ELEMENT = re.compile(r"<(svg|path|circle|rect)\b([^>]*)>")
 
 
 class Shape(object):
-    """One hand-drawn button: what is filled, and what is only stroked."""
+    """One hand-drawn button: everything it fills.
+
+    Fill and nothing else, because a badge is the drawing scaled to whatever
+    box the surface gave it and a stroke is not: its weight is in pixels, so a
+    line drawn as one stays a hairline on a badge twice the size and vanishes
+    entirely where the surface paints the shape solid. The rim of a stick is
+    the case that taught this - see `stick.svg`, where it is an annulus in the
+    same fill, two units thick at every size and in both badge styles.
+    """
 
     def __init__(self, path):
         with open(path) as handle:
             text = handle.read()
         self.name = os.path.basename(path)
         self.fills = []
-        self.strokes = []
-        # Figma writes `fill="none"` on the root and lets it inherit, so a
-        # circle that only carries a stroke - the ring around a stick click -
-        # is not filled even though SVG's own default fill is black.
+        # Figma writes `fill="none"` on the root and lets it inherit, so an
+        # element that carries no fill of its own is not filled even though
+        # SVG's own default fill is black.
         inherited = "black"
         for tag, attrs in ELEMENT.findall(text):
             attrs = dict(ATTR.findall(attrs))
@@ -217,7 +229,10 @@ class Shape(object):
             if fill and fill != "none":
                 self.fills.append(data)
             elif attrs.get("stroke", "none") != "none":
-                self.strokes.append((data, float(attrs.get("stroke-width", 1))))
+                raise ValueError(
+                    "%s: a stroke does not scale with the badge - draw the "
+                    "line as fill, the way stick.svg draws its rim"
+                    % self.name)
         if not self.fills:
             raise ValueError("%s: nothing filled to punch a label through"
                              % self.name)
@@ -259,8 +274,10 @@ def fit(font, shape, text):
     """Place `text` in `shape`: the paths, and how they were sized.
 
     The size starts from the cap height the examples used and comes down only
-    as far as the shape makes it - a stick click is a small circle and `L3` is
-    two characters wide, so that one really does have to shrink.
+    as far as the shape makes it. Nothing shipped comes down at all: a shape
+    that will not carry its own label at the cap every other badge is set at
+    is the wrong shape for that many characters, and `MIN_SCALE` is where the
+    generator says so instead of shipping something unreadable.
     """
     mask = place.shape_mask(shape.fills, shape.width, shape.height)
     field = place.distance_field(mask)
@@ -293,9 +310,6 @@ def svg_file(shape, label_paths_data):
     lines.append('<path fill-rule="evenodd" clip-rule="evenodd" d="%s"'
                  ' fill="white"/>'
                  % "".join(shape.fills + label_paths_data))
-    for data, width in shape.strokes:
-        lines.append('<path d="%s" stroke="white" stroke-width="%g"'
-                     ' fill="none"/>' % (data, width))
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
 
@@ -304,9 +318,6 @@ def entry(shape, label):
     """One badge for the shell: the shape, and the label already set into it."""
     made = {"w": shape.width, "h": shape.height,
             "shape": "".join(shape.fills), "label": label}
-    if shape.strokes:
-        made["ring"] = "".join(data for data, _ in shape.strokes)
-        made["ringWidth"] = shape.strokes[0][1]
     if label:
         # Where the label's own ink sits, in the shape's units. A surface that
         # wants the mark and not the button it is drawn on - the game bar's
@@ -386,9 +397,6 @@ QtObject {
         fields = ['w: %g' % made["w"], 'h: %g' % made["h"],
                   'shape: "%s"' % made["shape"],
                   'label: "%s"' % made["label"]]
-        if made.get("ring"):
-            fields.append('ring: "%s"' % made["ring"])
-            fields.append('ringWidth: %g' % made["ringWidth"])
         if "mx" in made:
             fields.extend('%s: %g' % (name, made[name])
                           for name in ("mx", "my", "mw", "mh"))
@@ -405,9 +413,6 @@ QtObject {
         made = bare[key]
         fields = ['w: %g' % made["w"], 'h: %g' % made["h"],
                   'shape: "%s"' % made["shape"]]
-        if made.get("ring"):
-            fields.append('ring: "%s"' % made["ring"])
-            fields.append('ringWidth: %g' % made["ringWidth"])
         shapes.append('    "%s": { %s }' % (key, ", ".join(fields)))
     foot = '''  })
 
@@ -468,9 +473,7 @@ def build(report=None):
     for kind, label, name, base, overlay in ICONS_TO_DRAW:
         shape = Shape(os.path.join(SHAPES, base))
         mark = Shape(os.path.join(SHAPES, overlay))
-        if mark.strokes:
-            raise ValueError("%s: a drawn label is filled, not stroked"
-                             % mark.name)
+        # Filled rather than stroked is `Shape`'s own rule now, and it raises.
         if (mark.width, mark.height) != (shape.width, shape.height):
             raise ValueError("%s: drawn on a different grid from %s"
                              % (mark.name, shape.name))

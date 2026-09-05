@@ -2952,7 +2952,7 @@ class BrowserProfileTests(DaemonTestCase):
 
     def test_outside_the_browser_they_are_mouse_buttons_again(self):
         # A window no profile names: the terminal would not do, since
-        # [profile.shell] spends X on the paste and the left stick on Ctrl+L.
+        # [profile.shell] spends X on Backspace and both stick clicks on keys.
         self.daemon.set_active_profile("kate")
         self.press("X")
         self.assertEqual(self.mouse.buttons, [("middle", True)])
@@ -3234,6 +3234,15 @@ class ShellProfileTests(DaemonTestCase):
         self.release("LSTICK")
         self.assertEqual(self.keyboard.chords, self.chord("CTRL", "L"))
 
+    def test_the_right_stick_click_copies(self):
+        # The shifted one: Ctrl+C is the interrupt in all five emulators, and
+        # here it is already on Y's hold.
+        self.press("RSTICK")
+        self.release("RSTICK")
+        self.assertEqual(self.keyboard.chords, self.chord("CTRL", "SHIFT", "C"))
+        # And it is a key rather than the back click it is everywhere else.
+        self.assertEqual(self.mouse.buttons, [])
+
     def test_b_is_left_alone_so_the_window_layer_can_still_close(self):
         # The reason Ctrl+C is not on B: a profile reaches into the held
         # layers, so binding B here would take ZL + B - close the window -
@@ -3245,10 +3254,11 @@ class ShellProfileTests(DaemonTestCase):
             self.config.binding_for("window", "B"),
         )
 
-    def test_neither_face_button_is_a_click_here(self):
-        # The price of the two overrides above: X was the middle click - and
-        # with it the PRIMARY selection - and Y was the right click. Neither
-        # is reachable from the pad in a terminal any more.
+    def test_no_face_button_is_a_click_here(self):
+        # The price of the overrides above: X was the middle click - and with
+        # it the PRIMARY selection - and Y was the right click. Neither is
+        # reachable from the pad in a terminal any more, which is what R3's
+        # copy gives back, on the clipboard rather than in PRIMARY.
         for button in ("X", "Y"):
             self.press(button)
             self.release(button)

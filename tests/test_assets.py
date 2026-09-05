@@ -11,6 +11,7 @@ with no shape behind it falls back to typed text.
 """
 
 import os
+import re
 import sys
 import unittest
 
@@ -19,6 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, "assets"))
 
 import generate
 import svgpath
+import truetype
 
 from omapad import config, guide
 
@@ -58,7 +60,7 @@ class ShapesSitOnTheGrid(unittest.TestCase):
     drawing. An edge on 12.5 lands on a half pixel wherever a whole unit lands
     on a whole one, and the shell paints it as a smear instead of a line. It
     is what a seven-unit box centred on a sixteen-unit axis costs, so features
-    are drawn even and the strokes around them whole.
+    are drawn even.
 
     Curves are exempt: only a straight run parallel to an axis has a single
     coordinate to land badly.
@@ -73,8 +75,7 @@ class ShapesSitOnTheGrid(unittest.TestCase):
             if not name.endswith(".svg"):
                 continue
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
-            data = list(shape.fills) + [path for path, _ in shape.strokes]
-            for edge in self.flat_edges(data):
+            for edge in self.flat_edges(shape.fills):
                 axis, at, length = edge
                 self.assertAlmostEqual(
                     at, round(at), places=6,
@@ -92,6 +93,68 @@ class ShapesSitOnTheGrid(unittest.TestCase):
                         yield ("y", y0, abs(x1 - x0))
                     elif abs(x1 - x0) < 1e-6 and abs(y1 - y0) > self.SEEN:
                         yield ("x", x0, abs(y1 - y0))
+
+
+class ShapesFitTheBadgeGrid(unittest.TestCase):
+    """`Metrics.badgeGrid` has to divide every shape's aspect, or none does.
+
+    A badge is the drawing scaled by one factor taken from the *width*, so the
+    box a surface reserves has to be whole pixels on both sides: the surface
+    rounds `unit * w / h` and BadgeArt then scales by that rounded width, and
+    a drawing whose aspect the unit does not divide stands a fraction of a
+    pixel off its own box - every flat edge in it painted grey rather than
+    drawn. `Metrics.badge` snaps the unit up to the grid so the division comes
+    out whole; the grid can only do that for the aspects it was chosen for.
+
+    Nothing else notices. The stick was redrawn 44 by 32 to make room for two
+    characters, which wants a unit divisible by eight where every other shape
+    wants five, and the only symptom would have been a slightly soft badge.
+    It is 56 by 40 for this reason and no other.
+    """
+
+    def test_the_grid_divides_every_shape_s_aspect(self):
+        metrics = os.path.join(ROOT, "shell-plugin", "Metrics.qml")
+        with open(metrics) as handle:
+            found = re.search(r"badgeGrid:\s*(\d+)", handle.read())
+        self.assertIsNotNone(found, "Metrics.qml no longer names a badgeGrid")
+        grid = int(found.group(1))
+        for name in sorted(os.listdir(generate.SHAPES)):
+            if not name.endswith(".svg"):
+                continue
+            shape = generate.Shape(os.path.join(generate.SHAPES, name))
+            self.assertEqual(
+                (grid * shape.width) % shape.height, 0,
+                "%s is %g by %g, whose aspect a %d-unit grid does not divide: "
+                "a badge of it lands off its own box"
+                % (name, shape.width, shape.height, grid))
+
+
+class LabelsStandAtOneHeight(unittest.TestCase):
+    """A shape too small for its label shrinks the letters, and says nothing.
+
+    `fit` comes down in 4% steps until the label clears `MIN_PADDING`, which
+    is the right thing to do with a shape it is handed - but a shipped shape
+    that needs it is the wrong shape for what it carries, and the badge is
+    the only place that shows. `L3` was punched at 12.39 units inside a
+    26-unit circle where every other badge is set at 13.44, with a quarter of
+    a unit to spare, so the two characters ran edge to edge while an `A` beside
+    them sat in three units of air. The answer was to draw the stick wide, and
+    this is what says a shape has not quietly gone back to shrinking its label.
+    """
+
+    def test_every_drawn_label_is_punched_at_the_full_cap(self):
+        font = truetype.Font(generate.FONT)
+        for kind, _, filename, labels in generate.BUTTONS_TO_DRAW:
+            shape = generate.Shape(os.path.join(generate.SHAPES, filename))
+            full = generate.CAP_RATIO * shape.height
+            for label in labels:
+                _, size, _, _, _ = generate.fit(font, shape, label)
+                cap = size * font.cap_height / font.units_per_em
+                self.assertAlmostEqual(
+                    cap, full, places=3,
+                    msg="%s is punched at %.2f on %s, where a label stands "
+                        "%.2f: the shape is too small for %d characters"
+                        % (label, cap, shape.name, full, len(label)))
 
 
 class MarksStandAtOneHeight(unittest.TestCase):

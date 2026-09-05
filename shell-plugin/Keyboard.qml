@@ -141,8 +141,6 @@ Item {
       fill: root.stencil ? badge.ink : badge.fill
       ink: root.stencil ? "transparent" : badge.ink
       knockout: root.stencil
-      ringColor: root.stencil ? badge.fill : badge.ink
-      ringWidth: Math.max(1, metrics.space(1))
     }
 
     // Typed only where the drawing carries no label of its own: the system

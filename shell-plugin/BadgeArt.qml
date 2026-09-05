@@ -23,17 +23,11 @@ import QtQuick.Shapes
 Item {
   id: art
 
-  // One entry out of ButtonArt: { w, h, shape, label?, ring?, ringWidth? }.
+  // One entry out of ButtonArt: { w, h, shape, label? }.
   property var drawn: null
   property color fill: "transparent"
   property color stroke: "transparent"
   property color ink: "white"
-  // The ring a stick click carries is part of the drawing - the rim of the
-  // stick, seen from above - and not a border around the badge, so it has a
-  // colour and a weight of its own. A surface that wants no outline can drop
-  // the stroke and keep the rim; left alone, both follow the stroke.
-  property color ringColor: art.stroke
-  property real ringWidth: art.strokeWidth
   // In badge pixels. Divided back out below, or the same outline would come
   // out twice as heavy on a bumper as on a face button. Set once and left
   // alone: the only surface that outlines a badge at all is the mapping
@@ -68,23 +62,17 @@ Item {
       strokeWidth: art.factor > 0 ? art.strokeWidth / art.factor : 0
       // Odd-even so a second subpath subtracts rather than adding: inside the
       // shape is one crossing, inside a letter two, and inside the counter of
-      // an A three - which is the counter drawn back in, for free.
+      // an A three - which is the counter drawn back in, for free. It is what
+      // the rim of a stick is drawn with too: three subpaths, wound the
+      // opposite way in turn, so the same annulus comes out under either rule
+      // and the rim scales with the badge instead of staying a hairline on a
+      // big one and disappearing where the shape is painted solid.
       fillRule: art.knockout ? ShapePath.OddEvenFill : ShapePath.WindingFill
       PathSvg { path: art.drawn ? art.drawn.shape : "" }
       PathSvg {
         path: (art.knockout && art.drawn && art.drawn.label)
           ? art.drawn.label : ""
       }
-    }
-
-    // The ring a stick click is drawn with: the stick, seen from above,
-    // pressed in. Only that shape carries one.
-    ShapePath {
-      fillColor: "transparent"
-      strokeColor: (art.drawn && art.drawn.ring) ? art.ringColor : "transparent"
-      strokeWidth: (art.drawn && art.drawn.ring && art.factor > 0)
-        ? art.ringWidth / art.factor : 0
-      PathSvg { path: (art.drawn && art.drawn.ring) ? art.drawn.ring : "" }
     }
 
     // The label, already set where the shape is roomiest - a shoulder is cut
