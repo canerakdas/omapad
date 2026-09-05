@@ -13,6 +13,7 @@ the tree.
 | [`data.md`](data.md) | TOML, the socket payloads, JSON manifest, SVG, unit and udev rule |
 | [`bindings.md`](bindings.md) | what each button means, and what a profile may take |
 | [`naming.md`](naming.md) | file names and folder structure, for every kind of file |
+| [`skills.md`](skills.md) | `.claude/skills/` — 7 files |
 | [`writing.md`](writing.md) | the words a user reads - menu rows, `desc` and `short`, CLI output |
 
 ## How to read a rule

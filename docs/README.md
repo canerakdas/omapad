@@ -9,7 +9,7 @@ whoever is changing the code.
 | [`roadmap.md`](roadmap.md) | Planned work, with per-item confidence. |
 | [`conventions/`](conventions/) | How to write in each language this project uses, and how files and folders are named. |
 | [`components/`](components/) | One document per component: what it owns, what it may assume, what breaks it. |
-| [`../.claude/skills/`](../.claude/skills/) | One skill per recurring job that spans several files and fails silently: bindings, surfaces, settings, menu rows, wording, badge art, diagnosis. |
+| [`../.claude/skills/`](../.claude/skills/) | One skill per recurring job that spans several files and fails silently: bindings, surfaces, settings, menu rows, wording, badge art, diagnosis. Adding one: [`conventions/skills.md`](conventions/skills.md). |
 
 ## Conventions
 
@@ -23,6 +23,7 @@ whoever is changing the code.
 | [`conventions/bindings.md`](conventions/bindings.md) | What each button on the pad means, and what a layer or an application profile may take from it. |
 | [`conventions/naming.md`](conventions/naming.md) | File naming and folder structure, for every kind of file in the tree. |
 | [`conventions/writing.md`](conventions/writing.md) | The words a user reads: menu labels and details, `desc` and `short`, CLI output. |
+| [`conventions/skills.md`](conventions/skills.md) | The skills themselves: when a job earns one, how it is named, and the three sentences its description is made of. |
 
 ## Components
 

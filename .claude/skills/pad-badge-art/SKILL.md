@@ -1,6 +1,6 @@
 ---
 name: pad-badge-art
-description: Change the drawn controller buttons omapad badges with - the SVG shapes in assets/shapes/ and the generated assets/buttons/*.svg and shell-plugin/ButtonArt.qml. Use when adding support for a pad whose buttons print something new, when a badge shows typed text instead of a drawing, when tests/test_assets.py fails, or when asked to redraw a button shape.
+description: Change the controller buttons omapad draws - the SVG shapes in assets/shapes/ and the generated assets/buttons/*.svg and shell-plugin/ButtonArt.qml. Use when adding support for a pad whose buttons print something new, when a badge shows typed text instead of a drawing, when tests/test_assets.py fails, or when asked to redraw a button shape. Owns the shape sources and the generator.
 ---
 
 # Button art

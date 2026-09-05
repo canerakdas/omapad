@@ -50,7 +50,7 @@ omapad/
 | Vendored asset | beside what loads it | the upstream filename, unchanged, with its licence file next to it | `shell-plugin/fonts/FiraCode-Medium.ttf`, `OFL.txt` |
 | Manifest / unit / rule | where the tool that reads it demands | the name that tool demands, never a name of ours | `manifest.json`, `omapad.service` |
 | Documentation | `docs/` | `kebab-case.md`, one component per file | `docs/components/linux-input.md` |
-| Skill | `.claude/skills/<name>/` | `kebab-case` folder naming the job, always `SKILL.md` inside it | `.claude/skills/pad-bindings/SKILL.md` |
+| Skill | `.claude/skills/<name>/` | `pad-<job>`, `kebab-case`, naming the job rather than the component; always `SKILL.md` inside it, and `name:` in its frontmatter repeats the folder name. The rest of the rules are [`skills.md`](skills.md) | `.claude/skills/pad-bindings/SKILL.md` |
 
 ## Names that have to agree across the tree
 
