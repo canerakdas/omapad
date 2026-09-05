@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "canerakdas.omapad",
   "name": "Omapad",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Caner Akdas",
   "description": "The surfaces omapad draws: an on-screen keyboard, the controller menu, the bindings guide, the mapping wizard, the game-mode bar and the burst a click leaves at the pointer, plus a bar widget for what the pad is doing. Summon a surface with {\"surface\":\"osk|menu|guide|map\"}. Draws nothing on its own: every surface is a view onto the omapad daemon, so run install.sh from this checkout to install it.",
   "kinds": [
