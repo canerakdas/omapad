@@ -315,15 +315,10 @@ Item {
     return false
   }
 
-  SocketServer {
-    active: root.socketDir !== ""
-    path: root.socketDir + "/gamebar.sock"
-    handler: Socket {
-      parser: SplitParser {
-        splitMarker: "\n"
-        onRead: line => root.applyState(line)
-      }
-    }
+  SurfaceSocket {
+    dir: root.socketDir
+    name: "gamebar.sock"
+    onLine: text => root.applyState(text)
   }
 
   IpcHandler {

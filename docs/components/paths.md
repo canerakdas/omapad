@@ -43,7 +43,18 @@ treats as "this plumbing is unavailable" rather than as a reason to stop
 | `control.py` (`ControlServer`) | Refuses to bind; the daemon logs it and runs on, unscriptable. |
 | `control.py` (`send`) | `omapad ctl` prints the reason instead of connecting. |
 | `viewsock.py` (`ViewClient`) | `path` is `None`, `connect()` is `False`, `send` still never raises. |
-| `shell-plugin/*.qml` | `socketDir` is `""` and the `SocketServer` is not `active`: the surface binds nowhere rather than somewhere public. |
+| `shell-plugin/*.qml` | `socketDir` is `""`, so `SurfaceSocket` never binds and never retries: the surface binds nowhere rather than somewhere public. |
+
+## Who makes it
+
+`Daemon.__init__`, with `socket_dir(create=True)`, before it binds anything.
+The plugin only ever binds *into* the directory - Quickshell cannot make one -
+and at login the shell is there first, because Hyprland execs it the moment
+the compositor is up while this service is still starting Python. Made as a
+side effect of `ControlServer` it was made too late, and sometimes not at all:
+`[control] socket` can point somewhere else entirely. The plugin retries until
+the directory appears (`shell-plugin/SurfaceSocket.qml`); this is the half
+that makes the retry end.
 
 A socket path written in the config is the **user's own choice** and is taken
 as written - `[control] socket`, `[osk] socket` and the rest skip these checks.

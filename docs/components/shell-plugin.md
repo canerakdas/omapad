@@ -58,6 +58,17 @@ rather than a button.
 
 ## Shared pieces
 
+- **`SurfaceSocket.qml`** - the listening half of a surface: the
+  `SocketServer` on `root.socketDir + "/<name>.sock"`, its newline
+  `SplitParser`, and the retry that makes the start order stop mattering. The
+  directory belongs to the daemon and the shell is up before it, so the first
+  bind fails - and Quickshell answers that by dropping `active` to false and
+  never trying again, which leaves every surface here dead for the session
+  with one warning in a log nobody reads. It is the bug a fresh boot has and a
+  `rescanPlugins` hides, because by the second bind the daemon has long since
+  made the directory. The retry doubles from 250 ms to a minute, so a machine
+  where omapad is not running does not fill the shell's log either. Use this,
+  never a bare `SocketServer`.
 - **`Metrics.qml`** - the shell's measurements at omapad's own scale. Every
   surface here is read from twice the distance an Omarchy menu is, and the
   shell has one scale for the whole session, so this multiplies it per surface

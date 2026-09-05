@@ -16,6 +16,13 @@ osk.sock  menu.sock  guide.sock  mapping.sock  gamebar.sock  status.sock
 ripple.sock
 ```
 
+- **Either end may be up first, and neither waits.** The directory is the
+  daemon's to make and the sockets are the plugin's to bind, so at login the
+  plugin binds into a directory that is not there yet - Hyprland execs the
+  shell the moment the compositor is up, while the service is still starting
+  Python. Quickshell gives up after one failed bind, so the listening side's
+  retry lives in `shell-plugin/SurfaceSocket.qml`; this side's is `connect()`
+  on every `send`, plus the heartbeat.
 - **`send` never raises.** It reconnects once on `EPIPE`/`ECONNRESET`/
   `ENOTCONN` - the shell restarting is normal, a theme change does it - and
   otherwise returns `False`.

@@ -110,8 +110,9 @@ Nine steps. Follow `menu.py` / `Menu.qml` as the smallest complete example.
    do to the surface must be reachable here, so it can be driven without a pad.
 7. **`shell-plugin/<Panel>.qml`** - named for what the user sees
    (`Keyboard.qml` draws `osk.py`), but listening on the **daemon's** socket
-   name (`osk.sock`). Follow qml.md §3's file order, §7's window rules, and
-   never hardcode a colour or hand-draw a button.
+   name (`osk.sock`), through `SurfaceSocket` and never a bare `SocketServer`
+   - qml.md §6.1 says why. Follow qml.md §3's file order, §7's window rules,
+   and never hardcode a colour or hand-draw a button.
 8. **Mount it in `Surfaces.qml`** - the child item, plus `summonable`,
    `surfaceNames` and `opened` if it can be summoned. `open()`/`close()` shell
    out to `omapad ctl`; a panel that opens itself is a bug.

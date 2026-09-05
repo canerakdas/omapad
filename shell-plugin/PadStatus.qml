@@ -14,7 +14,6 @@
 // and the bar already has a way of saying "look here".
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
@@ -72,15 +71,10 @@ BarWidget {
     onTriggered: root.live = false
   }
 
-  SocketServer {
-    active: root.socketDir !== ""
-    path: root.socketDir + "/status.sock"
-    handler: Socket {
-      parser: SplitParser {
-        splitMarker: "\n"
-        onRead: line => root.applyState(line)
-      }
-    }
+  SurfaceSocket {
+    dir: root.socketDir
+    name: "status.sock"
+    onLine: text => root.applyState(text)
   }
 
   visible: live && connected

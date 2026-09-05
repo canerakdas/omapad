@@ -147,17 +147,12 @@ Item {
     } catch (e) {}
   }
 
-  // omapad connects here and streams state; it reconnects on its own, so the
-  // shell and the daemon can restart in either order.
-  SocketServer {
-    active: root.socketDir !== ""
-    path: root.socketDir + "/guide.sock"
-    handler: Socket {
-      parser: SplitParser {
-        splitMarker: "\n"
-        onRead: line => root.applyState(line)
-      }
-    }
+  // omapad connects here and streams state; both ends keep trying, so the
+  // shell and the daemon can start or restart in either order.
+  SurfaceSocket {
+    dir: root.socketDir
+    name: "guide.sock"
+    onLine: text => root.applyState(text)
   }
 
   IpcHandler {

@@ -56,7 +56,7 @@ Item {
 
   function applyState(text) { ... }                                        // 6
 
-  SocketServer { ... }                                                     // 7
+  SurfaceSocket { ... }                                                    // 7
   IpcHandler { ... }                                                       // 8
   PanelWindow { ... }                                                      // 9
 }
@@ -162,9 +162,17 @@ the hold.
 
 ## 6 Sockets
 
-**6.1** One `SocketServer` per surface, on `root.socketDir + "/<name>.sock"`,
-with `SplitParser { splitMarker: "\n" }`. The name is the daemon's, not the
-panel's: `Keyboard.qml` listens on `osk.sock`.
+**6.1** One `SurfaceSocket` per surface - `dir: root.socketDir`, `name` the
+daemon's own socket file, `onLine` into `applyState`. The name is the
+daemon's, not the panel's: `Keyboard.qml` listens on `osk.sock`.
+
+Never a bare `SocketServer`. The directory the sockets live in belongs to the
+daemon and the shell is usually up before it, so the first bind lands in a
+directory that is not there yet - and Quickshell answers a failed bind by
+dropping `active` to false and never trying again. The surface would then be
+dead for the whole session, with one warning in a log nobody is reading.
+`SurfaceSocket` is that retry, and it is why every panel can say the shell and
+the daemon start in either order.
 
 **6.2** Each panel also exposes `IpcHandler` with `open`, `close`, `state`,
 `socket` and `ping`, so a surface can be inspected without the daemon.

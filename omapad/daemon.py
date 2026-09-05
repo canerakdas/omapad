@@ -25,6 +25,7 @@ from .guide import GuideModel
 from .mapping import MappingModel, render as render_mapping
 from .menu import MenuError, MenuModel, build as build_menu, listed
 from .osk import OskModel, badge_index
+from . import paths
 from .ripple import RippleModel
 from .rumble import Rumble
 from . import xkb
@@ -106,6 +107,20 @@ class Daemon:
         self.rumble = Rumble(config)
         self.mode = config.start_mode
         self.running = True
+
+        # The plugin binds its view sockets in this directory, and at login
+        # the shell is up before us: Hyprland execs it the moment the
+        # compositor is there, while this service is still starting Python.
+        # Making the directory here rather than as a side effect of the
+        # control socket means the plugin's next retry finds somewhere to bind
+        # even when the control socket was pointed somewhere else or could not
+        # be bound at all.
+        try:
+            paths.socket_dir(create=True)
+        except (OSError, paths.RuntimeDirError) as exc:
+            # The same best-effort the views themselves get: a daemon with
+            # nowhere to draw still drives the desktop.
+            log.warning("socket directory unavailable: %s", exc)
 
         try:
             self.control = ControlServer(config.control_socket)

@@ -4106,5 +4106,44 @@ class SettingTests(DaemonTestCase):
                              self.daemon.pad_profile))
 
 
+class SocketDirectoryTests(unittest.TestCase):
+    """The directory the plugin binds in is made by whoever starts first.
+
+    The shell is usually that: Hyprland execs it the moment the compositor is
+    there, while omapad.service is still starting Python. Quickshell's bind
+    into a directory that is not there fails once and gives up, so the daemon
+    makes the directory whatever else it does - including when the control
+    socket was pointed somewhere else entirely.
+    """
+
+    def setUp(self):
+        self._real_mouse = daemon_module.VirtualMouse
+        self._real_keyboard = daemon_module.VirtualKeyboard
+        daemon_module.VirtualMouse = lambda *a, **k: FakeMouse()
+        daemon_module.VirtualKeyboard = lambda *a, **k: FakeKeyboard()
+        self.runtime = tempfile.mkdtemp(prefix="omapad-runtime-")
+        self.saved = os.environ.get("XDG_RUNTIME_DIR")
+        os.environ["XDG_RUNTIME_DIR"] = self.runtime
+        self.addCleanup(self._restore)
+
+    def _restore(self):
+        daemon_module.VirtualMouse = self._real_mouse
+        daemon_module.VirtualKeyboard = self._real_keyboard
+        if self.saved is None:
+            os.environ.pop("XDG_RUNTIME_DIR", None)
+        else:
+            os.environ["XDG_RUNTIME_DIR"] = self.saved
+        shutil.rmtree(self.runtime, ignore_errors=True)
+
+    def test_the_daemon_makes_the_socket_directory(self):
+        config = shipped_config()
+        config.notify = False
+        config.control_socket = os.path.join(
+            tempfile.mkdtemp(prefix="omapad-test-"), "control.sock"
+        )
+        daemon_module.Daemon(config)
+        self.assertTrue(os.path.isdir(os.path.join(self.runtime, "omapad")))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -211,17 +211,12 @@ Item {
     } catch (e) {}
   }
 
-  // omapad connects here and streams state; it reconnects on its own, so the
-  // shell and the daemon can restart in either order.
-  SocketServer {
-    active: root.socketDir !== ""
-    path: root.socketDir + "/osk.sock"
-    handler: Socket {
-      parser: SplitParser {
-        splitMarker: "\n"
-        onRead: line => root.applyState(line)
-      }
-    }
+  // omapad connects here and streams state; both ends keep trying, so the
+  // shell and the daemon can start or restart in either order.
+  SurfaceSocket {
+    dir: root.socketDir
+    name: "osk.sock"
+    onLine: text => root.applyState(text)
   }
 
   // Kept so the keyboard can also be summoned or inspected without the daemon.
