@@ -184,6 +184,14 @@ MODE_TEXT = {
     "desktop": "Take the pad back", "game": "Hand the pad to games",
 }
 
+# The game lock, which has one name everywhere it is printed: the menu row,
+# this page and the notification all say "Game lock", because two names for
+# one thing is a puzzle handed to somebody holding a pad over a game.
+LOCK_TEXT = {
+    "toggle": "Game lock",
+    "on": "Game lock on", "off": "Game lock off",
+}
+
 FOCUS_TEXT = {
     "next": "Next control", "prev": "Previous control",
     "up": "Focus up", "down": "Focus down",
@@ -352,6 +360,8 @@ def describe(spec):
         return _describe_pad(argument)
     if kind == "mode":
         return MODE_TEXT.get(argument, _sentence(argument))
+    if kind == "lock":
+        return LOCK_TEXT.get(argument, _sentence(argument))
     if kind == "snap":
         return SNAP_TEXT.get(argument, _sentence("snap " + argument))
     if kind == "focus":

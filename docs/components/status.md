@@ -8,7 +8,7 @@ second bar of ours fighting it for the same screen edge.
 ## Payload - `status.sock`
 
 ```
-mode, connected, pad, profile, handed_over
+mode, connected, pad, profile, handed_over, locked
 ```
 
 Pushed on every change and re-sent on the heartbeat, so a shell restart
@@ -22,6 +22,9 @@ with it**.
 
 Game mode is drawn in the bar's own urgent colour rather than a colour of ours,
 because it is the state where a pressed button does nothing on the desktop and
-the bar already has a way of saying "look here".
+the bar already has a way of saying "look here". The game lock
+([`handover.md`](handover.md)) wears the same colour and a padlock: it is the
+same statement, said harder, and nothing else on the desktop says it - the
+game bar has gone by then, because the pad is the app's.
 
 Settings: `[status] socket`.

@@ -323,6 +323,15 @@ class Action:
     def release(self, ctx):
         pass
 
+    def claims_chord(self, ctx):
+        """Whether a chord may take the press for this action right now.
+
+        Yes for everything but the lock. A chord costs both its buttons their
+        own jobs - `ZL` + B closes the window in every layer - so an action
+        that could do nothing at this moment must not spend them.
+        """
+        return True
+
     def state(self, ctx):
         """Whether what this action would do is already the case.
 
@@ -641,6 +650,58 @@ class PadAction(Action):
         return setting_text(self.setting, ctx.daemon.config.setting(self.setting))
 
 
+class LockAction(Action):
+    """Give the pad to the app in front outright, and stand aside.
+
+        lock:on      the app has it, and nothing of ours fires but the menu
+        lock:off     ask /proc again, which is the ordinary arrangement
+        lock:toggle  the two of them on one button or one row
+
+    The hand-off is automatic and asks the program itself, which is right
+    about every game whose opening of the pad /proc can see. This is the same
+    answer given by hand, for the two things that question cannot settle: a
+    game the walk misses, which then gets nothing while the pad drives the
+    desktop over the top of it, and a game that has the pad and is still
+    being interrupted - an announced hold is deliberate at a desk and a
+    shoulder rested on for a second and a half mid-fight is not.
+
+    Locked, the only thing left is a chord, which is the menu and so the way
+    back out. See `Daemon.set_locked` and `Daemon.allowed`.
+    """
+
+    SIMPLE = ("toggle", "on", "off")
+
+    def __init__(self, target):
+        if target not in self.SIMPLE:
+            raise ActionError("unknown lock: %r" % target)
+        self.target = target
+
+    def press(self, ctx):
+        if self.target == "toggle":
+            ctx.daemon.set_locked(not ctx.daemon.locked)
+        else:
+            ctx.daemon.set_locked(self.target == "on")
+
+    def claims_chord(self, ctx):
+        """A lock chord fires only over an app that already has the pad.
+
+        There it costs nothing: the grab is off, so the app sees both buttons
+        whatever this does with them. On the desktop the same chord would take
+        `ZL` + B away from closing a window, and locking the pad to the
+        terminal in front of you is not what that press meant.
+        """
+        if self.target == "off":
+            return ctx.daemon.locked
+        return ctx.daemon.handed_over and not ctx.daemon.locked
+
+    def state(self, ctx):
+        """So the menu row ticks while the lock is on - the tick is the only
+        thing on screen that says so."""
+        if self.target == "off":
+            return not ctx.daemon.locked
+        return ctx.daemon.locked
+
+
 class ModeAction(Action):
     def __init__(self, target):
         if target not in ("toggle", "desktop", "game"):
@@ -665,6 +726,7 @@ PARSERS = {
     "hypr": HyprAction,
     "exec": ExecAction,
     "mode": ModeAction,
+    "lock": LockAction,
     "pad": PadAction,
     "snap": SnapAction,
     "focus": FocusAction,

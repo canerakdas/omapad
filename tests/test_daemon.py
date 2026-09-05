@@ -1083,6 +1083,209 @@ class HandoverTests(DaemonTestCase):
         self.assertTrue(self.daemon.handed_over)
         self.assertFalse(self.daemon.osk_open)
 
+class GameLockTests(DaemonTestCase):
+    """The hand-off said by hand: the pad is the app's, and a chord is all
+    that is left of ours."""
+
+    def unwanted(self):
+        """No holder in the focused window's tree, whoever asks."""
+        return unittest.mock.patch.object(daemon_module.handover, "wants_pad",
+                                          return_value=False)
+
+    def test_it_gives_the_pad_to_the_app_in_front(self):
+        # The case /proc cannot answer: a game whose opening of the pad the
+        # walk misses gets nothing, while the pad drives the desktop over it.
+        with self.unwanted():
+            self.daemon.focus_pid = 4321
+            self.daemon.set_locked(True)
+        self.assertTrue(self.daemon.handed_over)
+        self.assertFalse(self.device.grabbed)
+
+    def test_and_the_next_walk_of_proc_does_not_take_it_back(self):
+        with self.unwanted():
+            self.daemon.set_locked(True)
+            self.daemon.update_handover(force=True)
+        self.assertTrue(self.daemon.handed_over)
+
+    def test_it_outranks_a_profile_that_refuses_the_hand_off(self):
+        # `handover = false` is a fact about an application; the lock is a
+        # person saying otherwise about this moment, which wins.
+        self.daemon.active_profile = {"name": "discord", "handover": False}
+        with self.unwanted():
+            self.daemon.set_locked(True)
+        self.assertTrue(self.daemon.handed_over)
+
+    def test_unlocking_asks_the_program_again(self):
+        with self.unwanted():
+            self.daemon.set_locked(True)
+            self.daemon.set_locked(False)
+        self.assertFalse(self.daemon.handed_over)
+        self.assertTrue(self.device.grabbed)
+
+    def test_an_announced_hold_stops_reaching_past_it(self):
+        # Steam's profile puts a workspace behind a shoulder held and
+        # confirmed. That is deliberate at a desk and it is also a shoulder
+        # rested on for four seconds, which happens mid-fight.
+        self.daemon.set_active_profile("steam")
+        self.daemon.handed_over = True
+        self.press("R")
+        pressed_at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(pressed_at + 2.1)
+        self.daemon.check_hold_timers(pressed_at + 4.1)
+        self.assertEqual(self.hypr.calls,
+                         ["hl.dsp.focus({ workspace = 'r+1' })"])
+        self.release("R")
+        self.hypr.calls = []
+        self.daemon.locked = True
+        self.press("R")
+        pressed_at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(pressed_at + 2.1)
+        self.daemon.check_hold_timers(pressed_at + 4.1)
+        self.assertEqual(self.hypr.calls, [])
+
+    def test_and_it_does_not_announce_what_it_will_not_let_through(self):
+        # The announcement is a tick and a notification, both of which land on
+        # top of the game. A countdown to nothing is worse than silence.
+        self.daemon.set_active_profile("steam")
+        self.daemon.handed_over = True
+        self.daemon.locked = True
+        self.config.notify = True
+        self.press("R")
+        pressed_at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(pressed_at + 2.1)
+        self.assertEqual(self.session.notifications, [])
+        self.assertEqual(self.device.played, [])
+        self.assertIsNone(self.daemon.gamebar.holding)
+        # And a hold that outlives the lock still announces itself.
+        self.daemon.locked = False
+        self.daemon.check_hold_timers(pressed_at + 2.2)
+        self.assertEqual(len(self.session.notifications), 1)
+
+    def test_and_so_does_a_binding_that_bought_its_way_past(self):
+        self.config.profiles.insert(0, {
+            "name": "pretend", "match": ["pretendapp"],
+            "bindings": {"X": {"tap": "click:left", "reaches_past": True}},
+        })
+        self.daemon.set_active_profile("pretendapp")
+        self.daemon.handed_over = True
+        self.press("X")
+        self.release("X")
+        self.assertTrue(self.mouse.buttons)
+        self.mouse.buttons = []
+        self.daemon.locked = True
+        self.press("X")
+        self.release("X")
+        self.assertEqual(self.mouse.buttons, [])
+
+    def test_the_menu_chord_is_the_way_back_out(self):
+        # The lock names the menu in what it says, so the menu has to answer.
+        self.daemon.handed_over = True
+        self.daemon.locked = True
+        self.press("MINUS")
+        self.press("PLUS")
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_and_the_menu_it_opens_still_drives(self):
+        self.daemon.handed_over = True
+        self.daemon.locked = True
+        self.daemon.set_menu(True)
+        before = self.daemon.menu.index
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
+        self.assertNotEqual(self.daemon.menu.index, before)
+
+    def test_a_trigger_and_b_locks_over_a_game(self):
+        for trigger in ("ZR", "ZL"):
+            self.daemon.locked = False
+            self.daemon.handed_over = True
+            self.press(trigger)
+            self.press("B")
+            self.assertTrue(self.daemon.locked, trigger)
+            self.release("B")
+            self.release(trigger)
+
+    def test_but_leaves_the_same_two_buttons_alone_on_the_desktop(self):
+        # ZL + B closes the window in every layer and every profile, and that
+        # press is not the lock's to take.
+        self.press("ZL")
+        self.press("B")
+        self.release("B")
+        self.release("ZL")
+        self.assertFalse(self.daemon.locked)
+        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
+
+    def test_and_leaves_the_right_trigger_a_click_that_can_drag(self):
+        # A chord member cannot fire on the way down, so a live lock chord on
+        # ZR would cost the desktop its held left click.
+        self.press("ZR")
+        self.assertEqual(self.mouse.buttons, [("left", True)])
+
+    def test_the_chord_does_not_fire_twice_over(self):
+        self.daemon.handed_over = True
+        self.daemon.locked = True
+        self.config.notify = True
+        self.press("ZR")
+        self.press("B")
+        self.assertEqual(self.session.notifications, [])
+
+    def test_it_says_where_the_way_out_is(self):
+        self.config.notify = True
+        self.daemon.handed_over = True
+        self.daemon.set_locked(True)
+        self.assertIn("menu", self.session.notifications[-1][1])
+
+    def test_the_row_ticks_while_it_is_on(self):
+        # The tick is the only thing on screen that says the lock is on.
+        row = actions.parse("lock:toggle")
+        self.assertFalse(row.state(self.daemon.ctx))
+        self.daemon.handed_over = True
+        row.press(self.daemon.ctx)
+        self.assertTrue(self.daemon.locked)
+        self.assertTrue(row.state(self.daemon.ctx))
+        row.press(self.daemon.ctx)
+        self.assertFalse(self.daemon.locked)
+
+    def test_the_menu_row_is_the_way_back_out(self):
+        # The row the notification sends you to: it locks a game the walk
+        # missed, and unlocks the one the chord locked.
+        def pick_the_row():
+            self.daemon.set_menu(True)
+            for index, item in enumerate(self.daemon.menu.items):
+                if item["label"] == "Game lock":
+                    self.daemon.menu.index = index
+                    return
+            raise AssertionError("the shipped menu has no Game lock row")
+
+        with self.unwanted():
+            pick_the_row()
+            self.daemon.menu_command("press")
+            self.assertTrue(self.daemon.locked)
+            self.assertTrue(self.daemon.handed_over)
+            # Locking puts every surface of ours away - the pad is the app's.
+            self.assertFalse(self.daemon.menu_open)
+            pick_the_row()
+            self.daemon.menu_command("press")
+        self.assertFalse(self.daemon.locked)
+        self.assertFalse(self.daemon.handed_over)
+        self.assertTrue(self.daemon.menu_open, "unlocking leaves the menu up")
+
+    def test_the_bar_widget_is_told(self):
+        self.daemon.handed_over = True
+        self.daemon.set_locked(True)
+        self.assertTrue(self.daemon.status_state()["locked"])
+
+    def test_it_can_be_driven_without_the_pad(self):
+        self.assertIn("lock=on", self.daemon.handle_control("lock on"))
+        self.assertTrue(self.daemon.locked)
+        self.assertIn("lock=off", self.daemon.handle_control("lock toggle"))
+        self.assertFalse(self.daemon.locked)
+        self.assertIn("unknown lock command",
+                      self.daemon.handle_control("lock sideways"))
+
+    def test_a_lock_that_is_not_a_word_is_named(self):
+        with self.assertRaises(actions.ActionError):
+            actions.parse("lock:sideways")
+
+
 class BadConfigTests(unittest.TestCase):
     def test_a_setting_written_into_a_bindings_table_is_named_not_crashed_on(self):
         # `hide_bar_in_game = true` one table too low is a plain typo, and

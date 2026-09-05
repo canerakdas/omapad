@@ -33,6 +33,9 @@
 #                                          teach omapad which button is which
 #   map:skip|back|restart|save|cancel      drive it without the pad
 #   mode:toggle|desktop|game               switch between desktop and game mode
+#   lock:on|off|toggle                     the game lock: the pad is the app
+#                                          in front's outright, and nothing of
+#                                          ours fires but the menu chord
 #   pad:profile=auto|nintendo_pro|xbox     which codes this pad is read with
 #   pad:layout=auto|nintendo|xbox|playstation
 #                                          which console's names the badges print
@@ -772,6 +775,25 @@ update_hz = 30.0
 # had no way in over a game, and it is the one that has to be reachable from
 # inside a game.
 "MINUS+PLUS" = "menu:toggle"
+
+# A trigger and B: the game lock. The hand-off is automatic and asks the
+# program itself, which is right about every game whose opening of the pad
+# /proc can see - and two things are left over. A game the walk misses gets
+# nothing while the pad drives the desktop over the top of it, and a game that
+# does have the pad still sees the two gestures that reach past it: the
+# announced hold Steam's profile puts a workspace on is two seconds of resting
+# a thumb on a shoulder, which happens mid-fight. Locked, the pad is the
+# app's outright and only a chord gets through - which is MINUS+PLUS, the
+# menu, and so the way back out. The menu row says the same thing and ticks
+# while it is on.
+#
+# Both triggers, because which one a thumb is not already using is the game's
+# business, not ours. It fires **only while the app in front has the pad**: on
+# the desktop ZL + B closes the window and that is not a press to spend, and
+# over a game these two cost nothing at all - the grab is off there, so the
+# game sees both buttons whatever this does with them.
+"ZL+B" = "lock:on"
+"ZR+B" = "lock:on"
 
 # ---------------------------------------------------------------------------
 # Layers: hold the button to reach a second set of bindings.
@@ -2007,6 +2029,16 @@ detail = "Speed, vibration, labels, mapping"
   label = "Remap the buttons"
   detail = "Teach it which button is which"
   action = "map:open"
+
+# At the top level rather than under Controller: it is the one row that is
+# looked for while a game has the pad, and a row you have to go and find is
+# a row that is not there.
+[[menu.items]]
+icon = "󰌾"
+label = "Game lock"
+detail = "Every press goes to the game"
+action = "lock:toggle"
+stay = true
 
 [[menu.items]]
 icon = ""

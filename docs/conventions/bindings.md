@@ -88,6 +88,7 @@ column, and must say what it cost.
 | HOME | tap: next window, hold: switch mode | no: the hold is the way back to the desktop |
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |
 | MINUS + PLUS | the menu, everywhere, past a game | no: it is the only door left over a cloud session |
+| ZL + B, ZR + B | the game lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |
 
 ## Saying what a binding means
 
@@ -173,3 +174,4 @@ undocumented exception is a rule nobody keeps.
 | `[profile.shell]` | 3 - Y is paste, a second Do | A terminal's right-click menu is two entries in kitty and ghostty and nothing at all in foot and alacritty. |
 | `[bindings.guide]` | 1 and 4 - every button closes | The guide is read, not used: it has one job, turning the page, and everything else is a way out of a surface you opened by mistake. |
 | `[bindings.window]` | A is fullscreen, not Enter | The layer acts on a window rather than on a selection, and fullscreen is the affirmative one. B still closes, X still acts, Y still moves it elsewhere. |
+| `[chords]` `ZL+B` / `ZR+B` | ZL and ZR are never a profile's to take | A chord is not a binding of either button, and this one claims the press **only while the app in front already has the pad** - where the grab is off and the game sees both buttons whatever omapad does. On the desktop `ZL` + B still closes the window and `ZR` is still a left click you can drag with. |

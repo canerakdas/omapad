@@ -97,6 +97,33 @@ way in. Nothing ships with that on.
 opt out. Nothing ships with that on either - in a game ZL is aim, and ZL + A
 would put the window full-screen mid-fight.
 
+## The game lock: the question answered by hand
+
+`/proc` is right about every game whose opening of the pad it can see, and
+that leaves two cases over. A game the walk misses gets nothing while the
+sticks drive the desktop over the top of it. A game that does have the pad
+still sees what reaches past it - and the announced hold `[profile.steam]`
+puts a workspace on is two seconds of resting a thumb on a shoulder, which
+happens mid-fight.
+
+So a person can answer it instead. `daemon.set_locked(True)` - the `ZL+B` /
+`ZR+B` chords, the **Game lock** menu row, `omapad ctl lock on` - pins
+`handed_over` on ahead of every other test in `update_handover()`, including a
+profile's `handover = false`, and `allowed()` then refuses everything but a
+chord. `check_hold_timers()` asks the same question before it *announces* a
+confirming hold, so a lock does not leave a tick and a notification counting
+down to nothing over the game. The chord is the menu and the menu is the way out, which is why the
+notification names it.
+
+The chords fire only while the pad is already the app's
+(`LockAction.claims_chord`), because on the desktop `ZL + B` closes the window
+and `ZR` is a left click held for a drag. Over a game they cost nothing: the
+grab is off, so the app sees both buttons whatever omapad does with them.
+
+The lock is runtime state and is not written to `settings.toml`. A pad that
+did nothing at the next boot for a reason nobody remembers is worse than
+locking again.
+
 ## The app that opens the pad without being a game
 
 Discord polls the Gamepad API for its own keybinds, so `/proc` sees it holding

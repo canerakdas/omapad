@@ -292,6 +292,35 @@ reaches_past = true                                               # all of it
 B = { tap = "hypr:hl.dsp.window.close()", reaches_past = false }  # except this
 ```
 
+### The game lock
+
+The hand-off asks the program itself and is right about the games it can see.
+Two things are left over, and the lock is the answer to both.
+
+A game the walk **misses** never gets the pad, and then the sticks drive the
+desktop over the top of it. And a game that *has* the pad still sees the two
+gestures above: a shoulder held for two seconds is a workspace change, and
+mid-fight a thumb rests there for two seconds often enough.
+
+**Hold either trigger and press B** — `ZL + B` or `ZR + B` — and the pad is the
+app in front's outright: it is handed over whatever `/proc` thinks, and nothing
+of omapad's fires any more. Not an announced hold, not a `reaches_past`
+binding, not a single-button summon. A hold it will not let through does not
+**announce** itself either — the tick and the notification are a promise that
+something is about to happen, and they land on top of the game. What is left is the MINUS + PLUS chord,
+which opens the menu, and **Game lock** is a row in it — that is the way back
+out, and the notification says so as it locks.
+
+The chord fires **only while the app in front already has the pad**. On the
+desktop `ZL + B` closes the window and `ZR` is a left click you can drag with,
+and neither press is the lock's to take; over a game it costs nothing at all,
+because the grab is already off and the game sees both buttons anyway.
+
+The menu row is the same switch and ticks while the lock is on, so it locks a
+game the hand-off missed as well as unlocking one it did not. `omapad ctl lock
+on|off|toggle` is the same thing without a pad, and the bar widget wears a
+padlock while it is on.
+
 ### Cloud gaming and remote play
 
 GeForce NOW, Moonlight, Chiaki and xCloud open the pad the moment a session
@@ -317,7 +346,8 @@ R = { hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next works
 A session run in a **browser** instead matches `[profile.browser]`, which already
 puts the same confirmed hold on the same two buttons.
 
-`omapad ctl status` says which it is: `pad=ours` / `pad=app`.
+`omapad ctl status` says which it is: `pad=ours` / `pad=app`, and whether the
+lock below is on: `lock=on` / `lock=off`.
 
 Game mode also takes Omarchy's bar away, and puts
 [omapad's own](#game-bar) in its place.
@@ -792,6 +822,7 @@ hold in every layer and every application —
 | PLUS | tap: **the controller menu**, hold: the Omarchy menu | toggle split |
 | MINUS | **the on-screen keyboard** | – |
 | MINUS + PLUS | **the controller menu** (a chord, everywhere, and the only way in over a game) | – |
+| ZL + B, ZR + B | **the game lock** — a chord, and only over an app that already has the pad | – |
 | HOME | tap: switch window, hold: **switch mode** | centre the window |
 | Left stick click | middle click | pin the window |
 | Right stick click | back (mouse 4) | the on-screen keyboard |
@@ -1000,6 +1031,7 @@ restart — so every config change would close your Steam.
 | `guide:toggle\|open\|close` | the bindings guide |
 | `guide:next\|prev` | turn the guide's page |
 | `mode:toggle\|desktop\|game` | switch mode |
+| `lock:on\|off\|toggle` | the game lock — the pad is the app in front's, outright |
 | `pad:profile=auto\|nintendo_pro\|xbox` | which codes this pad is read with |
 | `pad:layout=auto\|nintendo\|xbox\|playstation` | which console's names the badges print |
 | `pad:rumble=on\|off\|toggle` | the motor |
@@ -1054,6 +1086,8 @@ Which button to spend on what is a question of its own —
 ```toml
 [chords]
 "MINUS+PLUS" = "menu:toggle"
+"ZL+B" = "lock:on"
+"ZR+B" = "lock:on"
 ```
 
 A chord **takes the press outright**: neither button does its own job, and a
@@ -1066,11 +1100,16 @@ way down**. Whether it is a chord or a press of its own cannot be known until
 its partner has had its chance to go down. An imperceptible delay, but a chord
 button is a bad place for dragging (a click held down).
 
-Chords are bound **everywhere**, not to a layer. The reason is the one chord
+Chords are bound **everywhere**, not to a layer. The reason is the first chord
 that ships: over an app that has taken the pad it is the only way in, and that
 has to work wherever you are. A chord is also the one gesture that **always
 reaches past** an app holding the pad, whatever it runs — two buttons at once
 is not an input any game asks you for.
+
+The other two are [the game lock](#the-game-lock), and they are the exception
+to the price above: a chord whose action can do nothing right now does not take
+the press, so `ZL` and `ZR` keep the window layer and the held left click on
+the desktop, where the lock has nothing to lock.
 
 ### Adding a layer
 
@@ -1829,8 +1868,8 @@ The tree that ships is nine rows deep at the top, grouped so that the ones you
 reach for from a sofa are the ones nearest the opening selection: **Apps** (Steam
 Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
 installed) · Keyboard · **Windows** ·
-**Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) · Game
-mode · **Controller** · **System** (lock, suspend, log out, restart, power off) ·
+**Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) ·
+**Controller** · **Game lock** · **System** (lock, suspend, log out, restart, power off) ·
 Omarchy menu. What you open, then what is on screen, then the room, then the pad,
 then the machine — and last, on its own, the way out into the Omarchy menu, which
 has everything else and wants a keyboard. The volume and brightness rows are
@@ -2317,6 +2356,7 @@ omapad ctl press A           # fire a button as if it had been tapped
 omapad ctl press ZL hold     # ...or the hold half of its binding
 omapad ctl ripple left       # draw the burst a click leaves, without clicking
 omapad ctl mode game
+omapad ctl lock toggle       # the game lock: the pad is the app in front's
 omapad ctl status
 ```
 

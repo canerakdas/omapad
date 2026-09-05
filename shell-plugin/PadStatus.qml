@@ -26,6 +26,11 @@ BarWidget {
   property string mode: "desktop"
   property string pad: ""
   property string profile: ""
+  // The game lock, which is the one state a pressed button explains nothing
+  // about: the pad answers the app in front and nothing else, until the menu
+  // is told otherwise. The widget is where that is said on the desktop - the
+  // game bar has already got out of the way by then.
+  property bool locked: false
   // Nothing has been heard from the daemon yet. An icon for a service that is
   // not running is worse than a gap, so the widget waits to be told.
   property bool live: false
@@ -45,6 +50,7 @@ BarWidget {
       if (s.connected !== undefined) root.connected = !!s.connected
       if (s.pad !== undefined) root.pad = String(s.pad)
       if (s.profile !== undefined) root.profile = String(s.profile)
+      if (s.locked !== undefined) root.locked = !!s.locked
       root.live = true
       silence.restart()
     } catch (e) {}
@@ -54,6 +60,7 @@ BarWidget {
     var text = pad !== "" ? pad : "No controller"
     text += game ? " · game mode, the pad is the game's" : " · desktop mode"
     if (!game && profile !== "") text += " · " + profile + " profile"
+    if (locked) text += " · game lock on"
     return text + "\nLeft: menu · Right: switch mode"
   }
 
@@ -84,9 +91,11 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // A gamepad, and a gamepad handed over.
-    text: root.game ? "󰒗" : ""
-    active: root.game
+    // A gamepad, a gamepad in game mode, and a gamepad the lock has
+    // given away - the same glyph the menu row carries, so the two say
+    // one thing.
+    text: root.locked ? "󰌾" : root.game ? "󰒗" : ""
+    active: root.game || root.locked
     slotSize: Style.bar.statusSlot
     tooltipText: root.summary()
     onPressed: function (which) {

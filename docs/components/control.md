@@ -6,6 +6,7 @@ so the daemon can be driven without the pad:
 ```bash
 omapad ctl osk toggle
 omapad ctl mode game
+omapad ctl lock toggle
 omapad ctl press A
 omapad ctl status
 ```

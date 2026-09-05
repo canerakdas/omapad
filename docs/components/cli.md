@@ -16,7 +16,8 @@ developing - the wrapper runs straight from the tree.
 Global flags: `-c/--config`, `-v/--verbose`, `--version` (which prints
 `__version__` from `omapad/__init__.py` - the only thing that file holds).
 
-`ctl` verbs: `osk`, `menu`, `guide`, `map`, `surface`, `mode`, `status` - the
+`ctl` verbs: `osk`, `menu`, `guide`, `map`, `surface`, `mode`, `lock`,
+`status` - the
 same set `control.py` dispatches and `Surfaces.qml` shells out to.
 
 ## `check` is the error surface

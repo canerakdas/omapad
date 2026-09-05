@@ -25,6 +25,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 | `snap:` | `SnapAction` | jump the pointer to the window next door |
 | `pad:` | `PadAction` | change one of the settings in `config.CHOSEN` |
 | `mode:` | `ModeAction` | desktop / game / toggle |
+| `lock:` | `LockAction` | the game lock - the pad is the app in front's outright ([`handover.md`](handover.md)) |
 | (empty) | `NoAction` | bound to nothing, on purpose |
 
 `ActionError` is what an unknown verb or a bad argument raises.
@@ -92,6 +93,9 @@ caller is on the loop.
 
 - A new verb is a new `Action` subclass plus a row in `PARSERS`, and it
   validates its argument **in its constructor**.
+- `claims_chord(ctx)` is how an action refuses a chord it could do nothing
+  with, so the chord's buttons keep their own bindings. Only `LockAction`
+  answers anything but `True`, and [`handover.md`](handover.md) says why.
 - An action that reaches a surface does not touch the surface's model: it
   hands a command word to the daemon, which routes it. That is what keeps a
   surface's state in one place.

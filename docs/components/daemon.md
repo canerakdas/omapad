@@ -110,6 +110,11 @@ no `reaches_past` to come back on.
   `allowed()` is the one place that decides; [handover](handover.md) says why.
   The sticks reach past nothing at all - `stick_roles()`, and handover says
   why they get no say in it.
+- `set_locked()` is the game lock: the pad is the app in front's whatever
+  `/proc` says, and `allowed()` then lets nothing through but a chord - the
+  menu, and so the way back out. `chord_pending()` is the other half of it,
+  and keeps a chord that can do nothing right now from making its buttons wait
+  for their release. See [handover](handover.md).
 
 ## Surfaces
 

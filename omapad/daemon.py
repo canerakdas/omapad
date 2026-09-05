@@ -173,6 +173,12 @@ class Daemon:
         # Not a mode anyone switches: there is no list of games worth keeping,
         # so the question is asked of the program itself. See handover.py.
         self.handed_over = False
+        # The same answer given by hand, and it outranks the question: while
+        # the lock is on the pad is the app's whatever /proc says, and nothing
+        # of ours fires but a chord. Runtime state rather than a setting - a
+        # lock that survived a restart would be a pad that does nothing for a
+        # reason nobody remembers. See `set_locked`.
+        self.locked = False
         self.pad_nodes = frozenset()
         self.focus_pid = None
         self._next_handover_check = 0.0
@@ -219,7 +225,6 @@ class Daemon:
         self.hat = {"x": 0, "y": 0}
         self.pressed = set()
         self.chords = []                 # (frozenset of buttons, Action)
-        self.chord_buttons = set()       # every button any chord names
         self.active_chords = []          # chords whose buttons are still down
         self.active_layers = []          # layer names, most recent last
         self.held = {}                   # button -> HeldAction
@@ -273,7 +278,6 @@ class Daemon:
         for buttons, spec in config.chords:
             try:
                 self.chords.append((buttons, actions.parse(spec)))
-                self.chord_buttons |= buttons
             except actions.ActionError as exc:
                 log.error("bad chord %s: %s", "+".join(sorted(buttons)), exc)
 
@@ -484,6 +488,12 @@ class Daemon:
         self._next_handover_check = time.monotonic() + self.config.handover_poll
         if self.device is None:
             wanted = False
+        elif self.locked:
+            # Asked and answered by a person, which is the one answer /proc
+            # cannot argue with: the lock is there for the game the walk
+            # misses, and for the profile that refuses a hand-off it turns
+            # out to want.
+            wanted = True
         elif self.active_profile and not self.active_profile["handover"]:
             wanted = False
         else:
@@ -508,6 +518,31 @@ class Daemon:
         self.apply_grab()
         self.apply_gamebar()
         self.push_status_view()
+
+    def set_locked(self, locked):
+        """Give the pad to the app in front outright, or take it back.
+
+        The hand-off is a question about a program and this is a person
+        answering it themselves, so it goes through the same door - forced,
+        because it has to hold whatever the last walk of /proc decided.
+
+        The notification names the menu because the menu is the only door
+        left: a chord is the one gesture the lock lets through, and every
+        other way of saying "give it back" is a button this has just switched
+        off.
+        """
+        locked = bool(locked)
+        if locked == self.locked:
+            return
+        self.locked = locked
+        log.info("game lock: %s", "on" if locked else "off")
+        self.update_handover(force=True)
+        if self.config.notify:
+            self.session.notify(
+                "omapad",
+                "Game lock on - unlock it from the menu" if locked
+                else "Game lock off",
+            )
 
     def apply_gamebar(self):
         """The bar belongs to the couch, and not over an app driving itself."""
@@ -1679,6 +1714,7 @@ class Daemon:
             "pad": self.device.name.strip() if self.device else "",
             "profile": self.active_profile_name or "",
             "handed_over": self.handed_over,
+            "locked": self.locked,
         }
 
     def push_open_views(self):
@@ -1807,7 +1843,7 @@ class Daemon:
                 "| map <toggle|open|close|skip|back|restart|save|cancel> "
                 "| surface <close|close_all|back> "
                 "| ripple <left|right|middle> "
-                "| pad <setting>=<value> "
+                "| pad <setting>=<value> | lock <on|off|toggle> "
                 "| press <BUTTON> [tap|hold] "
                 "| mode <toggle|desktop|game> | status"
             )
@@ -1816,11 +1852,12 @@ class Daemon:
             return "ok"
         if verb == "status":
             return (
-                "mode=%s pad=%s osk=%s menu=%s guide=%s map=%s "
+                "mode=%s pad=%s lock=%s osk=%s menu=%s guide=%s map=%s "
                 "layer=%s device=%s"
                 % (
                     self.mode,
                     "app" if self.handed_over else "ours",
+                    "on" if self.locked else "off",
                     "open" if self.osk_open else "closed",
                     "open" if self.menu_open else "closed",
                     "open" if self.guide_open else "closed",
@@ -1943,6 +1980,23 @@ class Daemon:
                 return "press %s hold=%s" % (
                     button, "fired" if fired else "nothing bound")
             return "press %s" % button
+        if verb == "lock" and args:
+            # The lock has one button-shaped way in - a chord over a game -
+            # and this is the other, for a script and for seeing what it does
+            # without a pad in front of a game.
+            from .actions import LockAction
+
+            command = args[0]
+            if command not in LockAction.SIMPLE:
+                return "unknown lock command: %s" % command
+            if command == "toggle":
+                self.set_locked(not self.locked)
+            else:
+                self.set_locked(command == "on")
+            return "lock=%s pad=%s" % (
+                "on" if self.locked else "off",
+                "app" if self.handed_over else "ours",
+            )
         if verb == "mode" and args and args[0] in ("toggle", "desktop", "game"):
             if args[0] == "toggle":
                 self.toggle_mode()
@@ -2088,6 +2142,11 @@ class Daemon:
                 continue
             if buttons in self.active_chords:
                 continue  # still held from the press that completed it
+            if not action.claims_chord(self.ctx):
+                # Nothing for it to do right now, and a chord that took the
+                # press anyway would cost both buttons their own bindings for
+                # it. See `LockAction.claims_chord`.
+                continue
             self.active_chords.append(buttons)
             # A partner pressed first is either sitting on an undecided
             # tap/hold or holding its own binding down; the chord meant
@@ -2099,8 +2158,22 @@ class Daemon:
             # Two buttons at once is not something a game asks you to press,
             # which is exactly why the way back in is one - and with `PLUS`
             # and `MINUS` standing aside over a game, it is the only way in.
-            self.fire_once(action, reaches=True)
+            self.fire_once(action, reaches=True, chord=True)
             return True
+        return False
+
+    def chord_pending(self, button):
+        """Could a chord this button names still fire right now?
+
+        Only then does the button have to wait for its release. A chord that
+        cannot fire is no reason to hold anything back, and the lock's are
+        dead on the desktop by design: `ZL` is the window layer's trigger
+        there and `ZR` a left click held for a drag, and neither may become a
+        press that only lands when the thumb comes off.
+        """
+        for buttons, action in self.chords:
+            if button in buttons and action.claims_chord(self.ctx):
+                return True
         return False
 
     def forget_chords(self, button):
@@ -2130,7 +2203,8 @@ class Daemon:
     # is allowed even once the surface has gone: see `allowed`.
     SURFACE_LAYERS = ("osk", "menu", "guide")
 
-    def allowed(self, action, layer=None, confirmed=False, reaches=None):
+    def allowed(self, action, layer=None, confirmed=False, reaches=None,
+                chord=False):
         """Whether an action may run at all right now.
 
         Game mode is the couch environment, not a hand-off: everything works
@@ -2151,6 +2225,10 @@ class Daemon:
         the way in on the chord, and `reaches_past = true` is how a binding
         that is not a summon at all - a left click in a stream - buys its way
         back.
+
+        The **game lock** is the end of all that while it is on: nothing but a
+        chord, because the chord is the menu and the menu is the only way to
+        turn it off again. See `set_locked`.
         """
         if not self.handed_over:
             return True
@@ -2165,6 +2243,14 @@ class Daemon:
         # exists for.
         if layer in self.SURFACE_LAYERS:
             return True
+        if self.locked:
+            # The lock is the whole of the answer while it is on: an announced
+            # hold and a `reaches_past` binding are both things somebody asked
+            # for at a desk, and neither is something they asked for mid-fight
+            # - the shoulder Steam's profile holds a workspace on is two
+            # seconds of resting a thumb on LB. A chord is what is left,
+            # because the menu is the way back out and there is no other.
+            return chord
         if confirmed:
             return True
         # `reaches_past` is the binding's own answer, and it overrules the kind
@@ -2186,7 +2272,7 @@ class Daemon:
         # chance to land. So it waits for the release, the way a tap/hold
         # binding does - which also means a chord member is a poor place for a
         # drag.
-        if binding.waits_for_release or button in self.chord_buttons:
+        if binding.waits_for_release or self.chord_pending(button):
             self.held[button] = HeldAction(None, binding, now)
             self.set_holding(button, binding)
             return
@@ -2284,9 +2370,10 @@ class Daemon:
         if self.gamebar_open:
             self.push_gamebar_view()
 
-    def fire_once(self, action, layer=None, confirmed=False, reaches=None):
+    def fire_once(self, action, layer=None, confirmed=False, reaches=None,
+                  chord=False):
         """Fire an action that has no press/release of its own. True if it ran."""
-        if not self.allowed(action, layer, confirmed, reaches):
+        if not self.allowed(action, layer, confirmed, reaches, chord):
             return False
         action.press(self.ctx)
         action.release(self.ctx)
@@ -2308,6 +2395,18 @@ class Daemon:
                 continue
             if not held.warned:
                 if elapsed >= binding.hold_ms:
+                    # An announcement is a promise that this is about to
+                    # happen, and it is made with a tick and a notification -
+                    # both of which land on top of the game. So it is only
+                    # made when the hold would actually be let through: while
+                    # the game lock is on it would not, and a countdown to
+                    # nothing is worse than silence. Asked every tick rather
+                    # than once, so a hold that outlives the lock still
+                    # announces itself.
+                    if not self.allowed(binding.hold, binding.layer,
+                                        confirmed=True,
+                                        reaches=binding.reaches_past):
+                        continue
                     held.warned = True
                     self.warn_confirm(binding)
                     # The tick and the notification both happen away from the

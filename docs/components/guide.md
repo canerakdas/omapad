@@ -17,7 +17,7 @@ L = { tap = "hypr:hl.dsp.focus({ workspace = 'r-1' })", desc = "Previous workspa
 
 `_describe_key`, `_describe_hypr`, `_describe_exec`, `_describe_pad` are the
 per-verb halves; `CLICKS`, `KEY_NAMES`, `OSK_TEXT`, `MENU_TEXT`, `GUIDE_TEXT`,
-`MAP_TEXT`, `SURFACE_TEXT`, `PAD_NAMES`, `MODE_TEXT`, `FOCUS_TEXT`,
+`MAP_TEXT`, `SURFACE_TEXT`, `PAD_NAMES`, `MODE_TEXT`, `LOCK_TEXT`, `FOCUS_TEXT`,
 `SNAP_TEXT`, `STICK_ROLES` are the words they use, and `BRIEF` is the one word
 the bar gets instead.
 
