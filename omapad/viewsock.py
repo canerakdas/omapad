@@ -16,12 +16,47 @@ from . import paths
 
 log = logging.getLogger("omapad")
 
+# The longest a string that came from a device may be when it reaches a
+# surface. Not a setting: it bounds what something outside this machine can
+# say, rather than expressing a preference about it - every row that draws one
+# elides far short of this.
+DRAWABLE = 128
+
+
+def drawable(text, limit=DRAWABLE):
+    """A string a device named itself with, made fit to hand a surface.
+
+    A pad's name and an audio sink's description arrive from outside this
+    machine - a USB descriptor, whatever a daemon was told to call a device -
+    and land in a shell that stays up for the whole session. Two things happen
+    to one before it goes on the wire. It is cut to a length a row can hold,
+    because a name three screens long is not drawable and was not typed by
+    anyone. And the characters that make Qt guess a string is rich text are
+    dropped: a `Text` left to detect its own format renders `<img src=...>` in
+    a device name by fetching what it points at. The panels here all say
+    `textFormat: Text.PlainText`, but the bar's tooltip is Omarchy's `Text` and
+    not ours to set - so the string itself is what has to be safe.
+    """
+    text = "".join(ch for ch in str(text) if ch >= " " and ch != "\x7f")
+    text = text.replace("<", "").replace(">", "").strip()
+    if len(text) > limit:
+        text = text[:limit - 1].rstrip() + "\u2026"
+    return text
+
 
 class ViewClient:
     def __init__(self, name, path=None):
         self.sock = None
         try:
             self.path = path or paths.socket_path(name)
+            if path:
+                reason = paths.private_dir_reason(path)
+                if reason:
+                    # What goes down here is whatever the surface is showing,
+                    # which includes the line a keyboard page was filled with.
+                    log.warning("%s is not private: %s - what it draws is "
+                                "readable by anyone who binds there",
+                                name, reason)
         except paths.RuntimeDirError as exc:
             # Best-effort here too: a directory private enough to bind in is
             # the same one we are willing to stream state into, and a daemon

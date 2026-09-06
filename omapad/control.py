@@ -8,10 +8,13 @@ checking state:
     omapad ctl status
 """
 
+import logging
 import os
 import socket
 
 from . import paths
+
+log = logging.getLogger("omapad")
 
 
 class ControlServer:
@@ -31,6 +34,14 @@ class ControlServer:
         if path:
             self.path = path
             os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            reason = paths.private_dir_reason(self.path)
+            if reason:
+                # Not refused - it was asked for - but this is the socket that
+                # reaches every `exec:` a binding can run, and a directory
+                # another user can write to is another user's daemon.
+                log.warning(
+                    "control socket is not private: %s - anyone who can write "
+                    "there can run what a binding can", reason)
         else:
             self.path = paths.socket_path("control.sock", create=True)
         # A socket left behind by a killed daemon would block the bind.

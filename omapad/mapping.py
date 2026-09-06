@@ -32,6 +32,8 @@ writes.
 """
 
 from . import guide
+from .config import toml_string
+from .viewsock import drawable
 
 # The printed names, in the order they are asked for. Face buttons first
 # because they are the ones a wrong profile scrambles, then outwards to the
@@ -268,7 +270,9 @@ class MappingModel:
             "count": len(self.steps),
             "confirm": self.confirming,
             "note": self.note,
-            "pad": self.pad_name,
+            # Cut and stripped here rather than at `start`: the mapping file
+            # keeps whatever the kernel said, and only the screen is bounded.
+            "pad": drawable(self.pad_name),
             # The confirmation is answered in the names just learned, so it is
             # printed in them too - and on a PlayStation pad "A saves it" names
             # nothing that is on the thing in your hands.
@@ -302,17 +306,19 @@ def render(mappings):
     ]
     for identity in sorted(mappings):
         entry = mappings[identity]
-        lines.append('[pad."%s"]' % identity)
+        lines.append("[pad.%s]" % toml_string(identity))
         name = entry.get("name")
         if name:
-            lines.append('name = "%s"' % name.replace('"', ""))
+            # The pad named itself; `toml_string` is why that cannot end the
+            # line it is written on.
+            lines.append("name = %s" % toml_string(name))
         for table in ("buttons", "triggers"):
             codes = entry.get(table) or {}
             if not codes:
                 continue
             lines.append("")
-            lines.append('[pad."%s".%s]' % (identity, table))
+            lines.append("[pad.%s.%s]" % (toml_string(identity), table))
             for code in sorted(codes):
-                lines.append('0x%03x = "%s"' % (code, codes[code]))
+                lines.append("0x%03x = %s" % (code, toml_string(codes[code])))
         lines.append("")
     return "\n".join(lines)

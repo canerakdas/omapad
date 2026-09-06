@@ -14,10 +14,37 @@ warn() { printf '\033[33m==> %s\033[0m\n' "$*"; }
 # --- 1. uinput ---------------------------------------------------------------
 # The daemon writes to /dev/uinput to create the virtual mouse and keyboard.
 # Without this it would have to run as root, which it should not.
+#
+# The rule is written from these bytes, never copied out of the checkout. The
+# checkout is writable by the user who is running this, and `sudo` opens the
+# source path only when it finally runs - on the far side of a password prompt
+# someone stood waiting at. Another process of the same user can swap the file
+# in that window, and a udev rule carries `RUN+=`, which is to say it can name
+# something to execute as root. A quoted here-document has no window at all:
+# what is installed is what is in the installer that is running.
+# `udev/99-omapad-uinput.rules` is the same rule for packagers, and
+# `tests/test_packaging.py` is what keeps the two identical.
+UINPUT_RULES=/etc/udev/rules.d/99-omapad-uinput.rules
+UINPUT_RULE="$(cat <<'RULE'
+# omapad needs to create virtual mouse and keyboard devices, which means
+# write access to /dev/uinput. Granting it to the "input" group avoids running
+# the daemon as root; static_node applies the same mode before the module has
+# been loaded on demand.
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"
+RULE
+)"
+
 if [[ ! -e /dev/uinput ]] || ! [[ -w /dev/uinput ]]; then
   say "Granting the input group access to /dev/uinput (needs sudo)"
-  sudo install -Dm644 "$REPO/udev/99-omapad-uinput.rules" \
-    /etc/udev/rules.d/99-omapad-uinput.rules
+  sudo install -d -m755 /etc/udev/rules.d
+  printf '%s\n' "$UINPUT_RULE" | sudo tee "$UINPUT_RULES" >/dev/null
+  sudo chmod 644 "$UINPUT_RULES"
+  # Read back before anything acts on it: `udevadm trigger` below is what makes
+  # a rule real, and a rule that is not the one above must never get that far.
+  if ! printf '%s\n' "$UINPUT_RULE" | sudo cmp -s - "$UINPUT_RULES"; then
+    warn "$UINPUT_RULES is not the rule this installer wrote; stopping."
+    exit 1
+  fi
   echo uinput | sudo tee /etc/modules-load.d/omapad-uinput.conf >/dev/null
   sudo modprobe uinput
   sudo udevadm control --reload-rules

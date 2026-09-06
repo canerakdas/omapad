@@ -47,6 +47,21 @@ def socket_path(name, create=False):
     return os.path.join(socket_dir(create=create), name)
 
 
+def private_dir_reason(path):
+    """Why the directory `path` sits in is not private, or None when it is.
+
+    `ensure_private` refuses; this only answers. A socket path written in the
+    config is the user's own choice and taking it away would break a setup
+    that works, but nothing on these sockets is authenticated - so the one
+    thing left to do is say it out loud, once, where it is bound.
+    """
+    try:
+        ensure_private(os.path.dirname(path) or ".")
+    except RuntimeDirError as exc:
+        return str(exc)
+    return None
+
+
 def ensure_private(path):
     """Raise unless `path` is a directory of ours that only we can write to.
 

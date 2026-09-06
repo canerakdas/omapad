@@ -59,3 +59,11 @@ that makes the retry end.
 A socket path written in the config is the **user's own choice** and is taken
 as written - `[control] socket`, `[osk] socket` and the rest skip these checks.
 The default is ours, so making it private is ours too.
+
+Taken as written is not taken in silence, though. `private_dir_reason(path)`
+is `ensure_private` with the refusal turned into an answer: `ControlServer`
+and `ViewClient` call it for a configured path and log one line naming why the
+directory is not private - that another user can write there is worth knowing
+whether or not it was asked for, since the control socket reaches every
+`exec:` a binding can run and the view sockets carry what the keyboard was
+filled with.

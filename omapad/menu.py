@@ -22,6 +22,7 @@ import shlex
 import time
 
 from . import actions
+from .viewsock import drawable
 
 ROOT_TITLE = "Go"
 
@@ -186,6 +187,9 @@ def listed(item, lines, limit):
         on = label.startswith("*")
         if on:
             label = label[1:].strip()
+        # The label is drawn and nothing else; the values keep their own text,
+        # which the template quotes on the way into the action.
+        label = drawable(label)
         if not label:
             continue
         values = [field.strip() for field in fields[1:]]

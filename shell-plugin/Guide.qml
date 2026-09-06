@@ -95,6 +95,7 @@ Item {
     id: capProbe
     visible: false
     text: "H"
+    textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: metrics.font.bodySmall
     font.weight: Font.Medium
@@ -229,6 +230,7 @@ Item {
       // a row of badges read as two type sizes, so every badge is set at
       // one size and only the labels that overrun are squeezed to the width.
       text: badge.label
+      textFormat: Text.PlainText
       // A label with no drawing behind it is typed into the same shape, so it
       // is punched the same way: on a solid badge it is the card showing
       // through, and on a washed one it is the card's text.
@@ -269,6 +271,7 @@ Item {
       height: Math.ceil(label.implicitHeight)
       y: line.hasHold ? 0 : Math.round((line.height - label.height) / 2)
       text: line.row.d
+      textFormat: Text.PlainText
       color: Color.menu.text
       font.family: metrics.font.family
       font.pixelSize: metrics.font.body
@@ -283,6 +286,7 @@ Item {
       height: Math.ceil(hold.implicitHeight)
       y: label.y + label.height
       text: visible ? "hold · " + line.row.h : ""
+      textFormat: Text.PlainText
       color: Color.menu.text
       opacity: 0.52
       font.family: metrics.font.family
@@ -341,6 +345,7 @@ Item {
           width: parent.width
           height: Math.ceil(heading.implicitHeight)
           text: root.title
+          textFormat: Text.PlainText
           color: Color.menu.text
           font.family: metrics.font.family
           font.pixelSize: metrics.font.heading
@@ -352,6 +357,7 @@ Item {
           width: parent.width
           visible: root.note.length > 0
           text: root.note
+          textFormat: Text.PlainText
           color: Color.menu.text
           opacity: 0.55
           font.family: metrics.font.family
@@ -389,6 +395,7 @@ Item {
                   Text {
                     width: groupItem.width
                     text: groupItem.modelData.t
+                    textFormat: Text.PlainText
                     color: Color.accent
                     font.family: metrics.font.family
                     font.pixelSize: metrics.font.caption
@@ -450,6 +457,7 @@ Item {
               Text {
                 anchors.centerIn: parent
                 text: pip.current ? root.focusedGlyph : String(pip.index + 1)
+                textFormat: Text.PlainText
                 color: pip.current ? Color.accent : Color.menu.text
                 opacity: pip.current ? 1 : 0.5
                 font.family: metrics.font.family

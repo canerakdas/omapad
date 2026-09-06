@@ -16,6 +16,15 @@ The daemon creates a virtual mouse and keyboard, which needs write access to
 runs as root**, with `static_node=uinput` so the mode applies before the module
 is loaded on demand.
 
+This file is the copy for packagers. `install.sh` does **not** install it:
+it carries the same bytes in a quoted here-document and writes those. The
+checkout is writable by the user running the installer, and `sudo` opens a
+source path only when it finally runs - after a password prompt someone stood
+waiting at - so a rule read from the tree is a file another process of the same
+user had a window to swap, and a udev rule can name something to run as root.
+`tests/test_packaging.py` compares the two and fails if they drift, and it also
+fails if any `sudo` line in the installer grows a `$REPO` path again.
+
 ## `systemd/omapad.service`
 
 A user unit, `PartOf=graphical-session.target`. `__REPO__` in `ExecStart` is
@@ -33,7 +42,9 @@ journalctl --user -u omapad -f
 Idempotent, and **never run it from an agent session**: it uses `sudo`, writes
 a udev rule and touches the user's systemd units. It is the user's to run.
 
-It does five things: grant `/dev/uinput` to `input`, put a starter config in
+It does five things: grant `/dev/uinput` to `input` (writing the udev rule
+from its own bytes and reading it back before `udevadm` acts on it), put a
+starter config in
 `~/.config/omapad/`, link `bin/omapad` into `~/.local/bin`, link the checkout
 into `~/.config/omarchy/plugins/` as `canerakdas.omapad` (validating the
 manifest first), and install the user unit with the checkout path baked in.

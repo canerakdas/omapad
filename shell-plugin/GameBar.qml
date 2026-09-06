@@ -138,6 +138,7 @@ Item {
     id: capProbe
     visible: false
     text: "H"
+    textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.round(root.badgeUnit * 0.44)
     font.weight: Font.Medium
@@ -672,6 +673,7 @@ Item {
       // squeezed to the width at one shared size, not by stepping down a
       // size, which made a row of badges read as two type sizes.
       text: badge.label
+      textFormat: Text.PlainText
       // Typed into the same shape the drawn ones are punched out of, so on a
       // stencil badge it is the bar showing through the letter.
       color: root.stencil ? Color.bar.background : root.foreground
@@ -863,6 +865,7 @@ Item {
                             - wordInk.tightBoundingRect.y
                             - wordInk.tightBoundingRect.height / 2)
               text: "MENU"
+              textFormat: Text.PlainText
               color: root.foreground
               font.family: metrics.font.family
               font.pixelSize: metrics.font.body
@@ -923,6 +926,7 @@ Item {
                 text: parent.focused
                   ? root.focusedGlyph
                   : (parent.modelData === 10 ? "0" : String(parent.modelData))
+                textFormat: Text.PlainText
                 color: root.foreground
                 opacity: parent.focused || root.occupied(parent.modelData) ? 1 : 0.5
                 font.family: metrics.font.family
@@ -962,6 +966,7 @@ Item {
           visible: root.note.length > 0
           anchors.verticalCenter: parent.verticalCenter
           text: visible ? root.note : ""
+          textFormat: Text.PlainText
           color: root.foreground
           opacity: 0.45
           font.family: metrics.font.family
@@ -1003,6 +1008,7 @@ Item {
                 // A binding game mode only honours as a hold says so, rather
                 // than reading as something a tap would do.
                 text: hint.holdOnly ? "hold · " + hint.modelData.h : hint.modelData.d
+                textFormat: Text.PlainText
                 color: root.foreground
                 opacity: 0.85
                 font.family: metrics.font.family

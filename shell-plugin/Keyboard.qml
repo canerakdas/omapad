@@ -85,6 +85,7 @@ Item {
     id: capProbe
     visible: false
     text: "H"
+    textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.max(6, Math.round(root.badgeUnit * buttonArt.capSize))
     font.weight: Font.Medium
@@ -156,6 +157,7 @@ Item {
       x: Math.round((badge.width - contentWidth) / 2)
       y: Math.round((badge.height - height) / 2) + root.capNudge
       text: badge.label
+      textFormat: Text.PlainText
       color: root.stencil ? badge.fill : badge.ink
       font.family: buttonArt.family
       font.pixelSize: Math.max(6, Math.round(badge.unit * buttonArt.capSize))
@@ -366,6 +368,7 @@ Item {
                     horizontalAlignment: Text.AlignHCenter
                     elide: Text.ElideRight
                     text: modelData.l === undefined ? "" : modelData.l
+                    textFormat: Text.PlainText
                     font.family: metrics.font.family
                     font.pixelSize: (modelData.s && !modelData.g)
                       ? metrics.font.bodySmall : metrics.font.title
@@ -386,6 +389,7 @@ Item {
                     anchors.rightMargin: metrics.space(4)
                     visible: parent.alt !== "" && parent.width > metrics.space(28)
                     text: parent.alt
+                    textFormat: Text.PlainText
                     font.family: metrics.font.family
                     font.pixelSize: metrics.font.caption
                     color: selected

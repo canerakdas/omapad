@@ -50,6 +50,20 @@ state onto whatever a model returns, so no model has to remember them: `scale`,
 `badge`, and `bar` for whether omapad's own bar is holding a strip of the
 screen - which is what tells a scrim where to stop.
 
+## What a device says about itself
+
+`drawable(text)` is the one thing here that treats a string as coming from
+outside the machine. A pad's name is a USB descriptor, an audio row's label is
+whatever a sink was told to call itself, and both land in a shell that stays up
+for the whole session. It cuts the string to `DRAWABLE` characters - a bound on
+what a device may say, not a preference, and every row elides far short of it -
+and drops `<` and `>`, which are what make Qt guess a string is rich text. The
+panels all say `textFormat: Text.PlainText`
+([`../conventions/qml.md`](../conventions/qml.md) §8.6); the bar's tooltip and
+the notification daemon are somebody else's `Text`, which is why the string
+itself is made safe as well. Used by `Daemon.status_state`, the pad-connected
+notification and `menu.listed`.
+
 ## Do not
 
 - Make the loop depend on the plugin being up.

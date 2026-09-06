@@ -89,6 +89,38 @@ class EnsurePrivateTests(unittest.TestCase):
             os.getuid = real_getuid
 
 
+class PrivateDirReasonTests(unittest.TestCase):
+    """The half that answers instead of refusing.
+
+    A socket path in the config is the user's own choice, so it is taken as
+    written - but nothing on these sockets is authenticated, and the control
+    one reaches every `exec:` a binding can run. Saying so once, where it is
+    bound, is what is left.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def test_a_private_directory_has_nothing_to_say(self):
+        private = os.path.join(self.tmp, "private")
+        os.makedirs(private, mode=0o700)
+        self.assertIsNone(
+            paths.private_dir_reason(os.path.join(private, "control.sock")))
+
+    def test_a_directory_others_can_write_to_says_why(self):
+        loose = os.path.join(self.tmp, "loose")
+        os.makedirs(loose, mode=0o777)
+        os.chmod(loose, 0o777)
+        reason = paths.private_dir_reason(os.path.join(loose, "control.sock"))
+        self.assertIsNotNone(reason)
+        self.assertIn("writable by other users", reason)
+
+    def test_a_directory_that_is_not_there_yet_is_not_a_complaint(self):
+        # Nothing to be public about, and whoever binds says so better.
+        self.assertIsNone(
+            paths.private_dir_reason(os.path.join(self.tmp, "gone", "x.sock")))
+
+
 class ViewClientFallbackTests(unittest.TestCase):
     """A surface that cannot be reached privately is a surface that is not drawn."""
 

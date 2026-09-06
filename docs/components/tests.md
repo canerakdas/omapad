@@ -38,6 +38,8 @@ the outside as an argument.
 | `test_snap.py` | which window is next door |
 | `test_cursor.py` | the drawn pointer and the XCursor it encodes |
 | `test_assets.py` | that every badge the daemon can send has art, and that the checked-in generated files still match the generator |
+| `test_viewsock.py` | what `drawable` lets through, for the strings a device names itself with |
+| `test_packaging.py`, `test_shell_plugin.py` | what a release and the plugin look like with nothing running: the version, the boot pin, the udev rule the installer writes from its own bytes, and that every `Text` says `textFormat: Text.PlainText` |
 
 ## Rules
 

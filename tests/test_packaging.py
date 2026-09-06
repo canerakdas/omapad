@@ -47,5 +47,40 @@ class BootPinTests(unittest.TestCase):
         self.assertIn("OMAPAD_SHA is not set", self.boot)
 
 
+class UdevRuleTests(unittest.TestCase):
+    """What `sudo` is handed, and where those bytes came from.
+
+    The checkout is writable by the user running the installer, and `sudo`
+    opens a source path only when it finally runs - on the far side of a
+    password prompt someone stood waiting at. A rule read from the tree could
+    be a different file by then, and a udev rule names things to run as root.
+    """
+
+    def setUp(self):
+        with open(os.path.join(REPO, "install.sh")) as handle:
+            self.install = handle.read()
+        with open(os.path.join(REPO, "udev", "99-omapad-uinput.rules")) as handle:
+            self.rule = handle.read()
+
+    def test_the_rule_it_installs_is_the_rule_in_the_repository(self):
+        # Two copies of one file, which is the cost of the here-document; this
+        # is what stops them drifting.
+        found = re.search(r"<<'RULE'\n(.*?)\nRULE\n", self.install, re.S)
+        self.assertIsNotNone(found, "install.sh no longer carries the rule")
+        self.assertEqual(found.group(1) + "\n", self.rule)
+
+    def test_nothing_privileged_reads_a_path_in_the_checkout(self):
+        for line in self.install.split("\n"):
+            if "sudo " in line and not line.lstrip().startswith("#"):
+                self.assertNotIn("$REPO", line, line.strip())
+
+    def test_the_rule_is_read_back_before_anything_acts_on_it(self):
+        # `udevadm trigger` is what makes a rule real, so what is on disk is
+        # compared with what was sent before the reload gets that far.
+        self.assertIn("sudo cmp -s -", self.install)
+        self.assertLess(self.install.index("sudo cmp -s -"),
+                        self.install.index("udevadm control"))
+
+
 if __name__ == "__main__":
     unittest.main()

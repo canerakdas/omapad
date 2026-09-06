@@ -155,6 +155,44 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(buttons[0x130], "A")
         self.assertEqual(triggers, {0x02: "ZL"})
 
+    def test_a_pad_cannot_name_itself_into_the_file_it_is_written_in(self):
+        # EVIOCGNAME hands back whatever the descriptor says, newlines and
+        # backslashes included, and this file is read again at every start: a
+        # name that ends its own line leaves TOML standing behind it, and one
+        # ending in a backslash escapes the closing quote. Either is a daemon
+        # that will not boot until someone deletes the file by hand.
+        text = mapping.render({
+            "057E:2009": {
+                "name": 'Rogue"\n[pad."DEAD:BEEF".buttons]\n0x130 = "MENU"\n#',
+                "buttons": {0x130: "A"},
+                "triggers": {},
+            },
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "mapping.toml")
+            with open(path, "w") as handle:
+                handle.write(text)
+            missing = os.path.join(directory, "no-such-config.toml")
+            config = config_module.load(path=missing, mapping=path,
+                                        settings=missing)
+        # One block, the one that was written, and the name is a name.
+        self.assertEqual(list(config.pad_mappings), ["057E:2009"])
+        self.assertEqual(config.pad_mappings["057E:2009"]["buttons"],
+                         {0x130: "A"})
+
+    def test_a_name_ending_in_a_backslash_still_parses(self):
+        text = mapping.render({
+            "057E:2009": {"name": "Rogue\\", "buttons": {}, "triggers": {}},
+        })
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "mapping.toml")
+            with open(path, "w") as handle:
+                handle.write(text)
+            missing = os.path.join(directory, "no-such-config.toml")
+            config = config_module.load(path=missing, mapping=path,
+                                        settings=missing)
+        self.assertEqual(config.pad_mappings["057E:2009"]["name"], "Rogue\\")
+
     def test_a_mapping_only_speaks_for_the_pad_it_was_measured_on(self):
         # The KP20 has one identity per hardware mode and different codes in
         # each, so a mapping that leaked across them would break the other.

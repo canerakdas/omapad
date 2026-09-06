@@ -278,6 +278,30 @@ def setting_text(name, value):
     return ("%g %s" % (round(amount, 2), unit)).strip()
 
 
+def toml_string(text):
+    """`text` as a TOML basic string, quotes included.
+
+    Everything this project writes it reads again at the next start, so a
+    string going into one of those files has to survive the round trip. One of
+    them is a pad's own name for itself, which is an ioctl away from a USB
+    descriptor - bytes chosen outside this machine, and the only rule on them
+    is that they are not NUL. Dropping the quote characters was not enough: a
+    name carrying a newline ends the line and leaves what follows it standing
+    as TOML, and a name ending in a backslash escapes the closing quote.
+    Either one makes the file unparseable, and an unparseable `mapping.toml`
+    is a daemon that will not start until someone deletes it by hand.
+    """
+    out = []
+    for char in str(text):
+        if char in ('"', "\\"):
+            out.append("\\" + char)
+        elif char >= " " and char != "\x7f":
+            out.append(char)
+        # A control character has no escape worth writing here: TOML forbids it
+        # raw, and a name with one in it is not a name anybody reads.
+    return '"%s"' % "".join(out)
+
+
 def render_settings(chosen):
     """Serialise what the pad has changed, one line per setting."""
     lines = [
@@ -295,7 +319,7 @@ def render_settings(chosen):
         elif isinstance(value, (int, float)):
             text = repr(round(float(value), 3))
         else:
-            text = '"%s"' % str(value).replace('"', "")
+            text = toml_string(value)
         lines.append("%s = %s" % (name, text))
     lines.append("")
     return "\n".join(lines)
@@ -645,7 +669,17 @@ class Config:
         # back.
         pointer_cursor = data.get("cursor", {})
         self.cursor_enabled = bool(pointer_cursor.get("enabled", True))
-        self.cursor_theme = pointer_cursor.get("theme", "omapad-ring")
+        # A directory name, not a path: `cursor.install` writes into
+        # ~/.local/share/icons/<theme> and unlinks the shapes it no longer
+        # carries from inside it, so a name with a `/` or a `..` in it would
+        # be some other theme's directory being written to and pruned. Named
+        # here, where `omapad check` can say so, rather than at the press.
+        self.cursor_theme = str(pointer_cursor.get("theme", "omapad-ring")).strip()
+        if (not self.cursor_theme or "/" in self.cursor_theme
+                or self.cursor_theme in (".", "..")):
+            raise ConfigError(
+                "cursor.theme must be a directory name, not a path: %r"
+                % (pointer_cursor.get("theme"),))
         self.cursor_size = max(16, int(pointer_cursor.get("size", 48)))
         # `auto` is the desktop theme's own foreground and background; any
         # other name is a key read out of the same file, so "accent" is a

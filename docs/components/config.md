@@ -80,7 +80,10 @@ different physical button in NS mode than in XInput mode.
 (`bool`, `choice`, `number`) and, for a number, its step, range and unit.
 `setting_request()` parses a request (`toggle`, `on`, `+`, `-`, a value),
 `_clamp_setting` keeps it in range, `setting_text()` renders it for a menu
-row, and `render_settings()` writes `settings.toml` back out.
+row, and `render_settings()` writes `settings.toml` back out through
+`toml_string()` - the escape that keeps a string in a file this project writes
+from ending the line it is on, which is what
+[`mapping.md`](mapping.md) needs for a pad's own name.
 
 `SettingError` is what an out-of-range or unknown request raises.
 

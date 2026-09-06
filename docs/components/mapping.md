@@ -40,6 +40,14 @@ its own rather than a block in `config.toml`: that one is hand-written and
 full of comments a program would trample, and a mapping is undone by deleting
 a file rather than by finding the block again.
 
+Every string in it goes through `config.toml_string()`. The `name` is the pad's
+word for itself, straight from `EVIOCGNAME`, and the only rule on those bytes
+is that they are not NUL: a name carrying a newline used to end the line it was
+written on and leave what followed standing as TOML, and one ending in a
+backslash escaped the closing quote. Both made the file unparseable, and the
+file is read again at every start - so the daemon would not boot until someone
+deleted it by hand.
+
 ## Prompts are printed in the layout in force
 
 The names in `STEPS` are the Switch's; a pad printed like an Xbox one carries

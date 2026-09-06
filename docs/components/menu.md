@@ -54,8 +54,12 @@ to `%9`. A label beginning with `*` is the one in force and is ticked - the
 mark `pactl` and `wpctl` already put beside the current device - and the mark
 is not drawn. **Every value is quoted as it goes in**: a device names itself
 from its own USB descriptor, and the action it lands in is usually a shell
-command. A line whose action will not parse is dropped; a page with no rows
-left says so in the row's own `empty` words rather than opening blank.
+command. **The label goes through `viewsock.drawable`** for the same reason on
+the drawing side: it is text from a descriptor on its way to a `Text`, so it is
+cut to a length a row can hold and cannot arrive shaped like markup (see
+[`viewsock.md`](viewsock.md)). A line whose action will not parse is dropped;
+a page with no rows left says so in the row's own `empty` words rather than
+opening blank.
 
 The daemon reads it at the press (`menu_fill`), not at load and not from a
 cache: the reason the row lists devices instead of naming them is that the

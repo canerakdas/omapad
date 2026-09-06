@@ -19,6 +19,12 @@ The theme is written into `~/.local/share/icons` once and rewritten only when
 the settings that shaped it change (`stamp_for()` is the fingerprint), so
 entering game mode costs a `setcursor` and nothing else.
 
+`[cursor] theme` is therefore a **directory name, not a path**: `install()`
+joins it onto the icon root, writes into it and unlinks from it the shapes the
+theme no longer carries, so a `/` or a `..` in the name is some other theme's
+directory being written to and pruned. `config.py` refuses one, which is what
+lets `omapad check` name it instead of a press finding out.
+
 **Every cursor name points at the same ring on purpose.** From the couch an
 I-beam over a text field is the same unreadable smudge as an arrow, and one
 shape that never changes is easier to follow than a correct one that does.

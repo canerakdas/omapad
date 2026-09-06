@@ -421,6 +421,7 @@ Item {
             // The trailing ellipsis is the Omarchy menu's own idiom for "this
             // is where you are, pick something".
             text: root.title + "…"
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.58
             font.family: metrics.font.family
@@ -434,6 +435,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: root.clock.length > 0
             text: root.clock
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.42
             font.family: metrics.font.family
@@ -469,6 +471,7 @@ Item {
               id: iconText
               visible: row.hasIcon
               text: row.hasIcon ? row.modelData.i : ""
+              textFormat: Text.PlainText
               color: row.selected ? Color.menu.selectedText : Color.menu.text
               font.family: metrics.font.family
               font.pixelSize: metrics.font.iconLarge
@@ -492,6 +495,7 @@ Item {
               Text {
                 width: parent.width
                 text: row.modelData.l
+                textFormat: Text.PlainText
                 color: row.selected ? Color.menu.selectedText : Color.menu.text
                 font.family: metrics.font.family
                 font.pixelSize: metrics.font.heading
@@ -503,6 +507,7 @@ Item {
                 width: parent.width
                 visible: row.modelData.d !== undefined && row.modelData.d.length > 0
                 text: visible ? row.modelData.d : ""
+                textFormat: Text.PlainText
                 color: Color.menu.text
                 opacity: 0.52
                 font.family: metrics.font.family
@@ -519,6 +524,7 @@ Item {
               id: chevron
               readonly property bool ticked: row.modelData.on === true
               text: row.modelData.sub ? "›" : (ticked ? "✓" : "")
+              textFormat: Text.PlainText
               color: row.selected
                 ? Color.menu.selectedText
                 : (ticked ? Color.accent : Color.menu.text)

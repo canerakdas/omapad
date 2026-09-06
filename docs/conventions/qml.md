@@ -238,6 +238,21 @@ their badge labels; `GameBar.qml`'s menu door measures its own because the
 mark beside its word is drawn to the word's capitals. Round the result: a
 letter on a half pixel is the blur antialiasing cannot help.
 
+**8.6** **Every `Text` MUST say `textFormat: Text.PlainText`.** Left alone, a
+`Text` guesses: a string that looks like markup is drawn as rich text, and
+rich text loads what it names. Some of what a panel draws is not typed by
+anyone - a pad's name comes from its own USB descriptor, an audio row's label
+from whatever a sink calls itself - so `<img src=…>` in a device name is a
+persistent shell fetching a stranger's URL. The property is on every `Text`
+rather than only the ones drawing a payload today, because which string a
+`Text` draws changes and the failure is silent when it does.
+`tests/test_shell_plugin.py` reads the files and fails on a `Text` without it.
+
+The daemon does the other half: `viewsock.drawable()` cuts a device-derived
+string to a length a row can hold and strips the characters that make Qt guess
+at all, for the sinks this project does not own - the bar tooltip is Omarchy's
+`Text`, not ours to set.
+
 ## 9 Reloading
 
 ```bash
@@ -259,6 +274,6 @@ plugin folder — which is why `fonts/` holds a real copy of the font.
 ## 10 Quick list of what is never in this plugin
 
 state the daemon should own · a `Timer` polling for it · a hardcoded colour ·
-a hand-drawn button shape · an edit to `ButtonArt.qml` · a bare assignment in
-`applyState` · a model re-assigned from an unchanged payload · an animation
+a hand-drawn button shape · an edit to `ButtonArt.qml` · a `Text` with no
+`textFormat` · a bare assignment in `applyState` · a model re-assigned from an unchanged payload · an animation
 only a signal handler can start · a panel that opens itself.

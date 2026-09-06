@@ -222,6 +222,17 @@ class ListedTests(unittest.TestCase):
         lines = ["Sink %d\t%d\tname%d" % (n, n, n) for n in range(20)]
         self.assertEqual(len(self.rows(lines, limit=4)), 4)
 
+    def test_a_name_shaped_like_markup_is_not_drawn_as_markup(self):
+        # The same descriptor the quoting above defends the shell from, one
+        # step further on: the label is drawn by a Text, and one left to guess
+        # its format fetches what an <img src=...> in a device name points at.
+        row = self.rows(['<img src="http://elsewhere/x"> Sink\t1\tanalog'])[0]
+        self.assertEqual(row["label"], 'img src="http://elsewhere/x" Sink')
+
+    def test_a_name_too_long_for_a_row_is_cut(self):
+        row = self.rows(["S" * 400 + "\t1\tanalog"])[0]
+        self.assertEqual(len(row["label"]), 128)
+
     def test_a_line_with_no_label_is_dropped(self):
         self.assertEqual(
             self.rows(["\t1\tanalog", "Speakers\t1\tanalog"])[0]["label"],

@@ -198,6 +198,7 @@ Item {
       x: Math.round((badge.width - contentWidth) / 2)
       y: Math.round((badge.height - height) / 2)
       text: badge.label
+      textFormat: Text.PlainText
       color: Color.accent
       font.family: buttonArt.family
       font.pixelSize: Math.round(badge.unit * 0.4)
@@ -235,6 +236,7 @@ Item {
       id: label
       anchors.centerIn: parent
       text: chip.name
+      textFormat: Text.PlainText
       color: chip.asking ? Color.accent : Color.menu.text
       opacity: chip.skipped ? 0.3 : (chip.done ? 0.85 : 0.45)
       font.family: metrics.font.family
@@ -298,6 +300,7 @@ Item {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             text: "Map the controller"
+            textFormat: Text.PlainText
             color: Color.menu.text
             font.family: metrics.font.family
             font.pixelSize: metrics.font.heading
@@ -309,6 +312,7 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: root.confirm ? "done" : (root.index + 1) + " / " + root.count
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.5
             font.family: metrics.font.family
@@ -320,6 +324,7 @@ Item {
           width: parent.width
           visible: root.pad.length > 0
           text: visible ? root.pad : ""
+          textFormat: Text.PlainText
           color: Color.menu.text
           opacity: 0.45
           font.family: metrics.font.family
@@ -337,6 +342,7 @@ Item {
           Text {
             width: parent.width
             text: root.confirm ? "Save this mapping?" : "Press"
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.55
             font.family: metrics.font.family
@@ -366,6 +372,7 @@ Item {
             width: parent.width
             visible: !root.confirm && root.prompt.length > 0 && root.prompt !== root.label
             text: visible ? root.prompt : ""
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.6
             font.family: metrics.font.family
@@ -386,6 +393,7 @@ Item {
                  + root.keyName("restart", "X") + " starts over — "
                  + "in the names just learned")
               : ""
+            textFormat: Text.PlainText
             color: Color.menu.text
             opacity: 0.7
             font.family: metrics.font.family
@@ -399,6 +407,7 @@ Item {
           width: parent.width
           visible: root.note.length > 0
           text: visible ? root.note : ""
+          textFormat: Text.PlainText
           color: Color.accent
           opacity: 0.8
           font.family: metrics.font.family
@@ -439,6 +448,7 @@ Item {
           text: root.optional
             ? "This pad may not have one — press a button you have already named to skip it. Hold anything for 2.5s to leave."
             : "A button you have already named skips this one. Hold anything for 2.5s to leave without saving."
+          textFormat: Text.PlainText
           color: Color.menu.text
           opacity: 0.5
           font.family: metrics.font.family

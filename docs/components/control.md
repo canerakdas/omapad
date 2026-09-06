@@ -1,7 +1,11 @@
 # Control socket - `omapad/control.py`
 
 A unix socket at `$XDG_RUNTIME_DIR/omapad/control.sock` (`[control] socket`),
-so the daemon can be driven without the pad:
+so the daemon can be driven without the pad. Nothing on it is authenticated -
+it takes every command a binding can run - so the default lives in the one
+directory that is ours alone, and a path written in the config is taken as
+asked for but logged once if the directory it names is one other users can
+write to (`paths.private_dir_reason`).
 
 ```bash
 omapad ctl osk toggle

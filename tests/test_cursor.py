@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from omapad import config as config_module
 from omapad import cursor
 
 
@@ -15,6 +16,30 @@ def theme(text):
     handle.write(text)
     handle.close()
     return handle.name
+
+
+class ThemeNameTests(unittest.TestCase):
+    """`cursor.theme` names a directory omapad writes into and prunes."""
+
+    def config(self, theme):
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "config.toml")
+            with open(path, "w") as handle:
+                handle.write('[cursor]\ntheme = "%s"\n' % theme)
+            missing = os.path.join(directory, "no-such-file.toml")
+            return config_module.load(path=path, mapping=missing,
+                                      settings=missing)
+
+    def test_a_name_is_a_name(self):
+        self.assertEqual(self.config("omapad-ring").cursor_theme, "omapad-ring")
+
+    def test_a_path_is_refused_by_name(self):
+        # cursor.install joins it onto ~/.local/share/icons and unlinks the
+        # shapes it no longer carries from inside it: `..` is somebody else's
+        # theme being written to and pruned.
+        for bad in ("../Adwaita", "a/b", "..", " "):
+            with self.assertRaises(config_module.ConfigError):
+                self.config(bad)
 
 
 class ColoursComeFromTheDesktop(unittest.TestCase):

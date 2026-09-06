@@ -29,7 +29,7 @@ from . import paths
 from .ripple import RippleModel
 from .rumble import Rumble
 from . import xkb
-from .viewsock import ViewClient
+from .viewsock import ViewClient, drawable
 from .uinput import WHEEL_HI_RES_STEP, VirtualKeyboard, VirtualMouse
 
 log = logging.getLogger("omapad")
@@ -389,7 +389,9 @@ class Daemon:
         self.push_status_view()
         if self.config.notify:
             self.session.notify(
-                "omapad", "%s connected - %s mode" % (device.name, self.mode)
+                # The notification daemon is another `Text` nobody here owns,
+                # and the name is the pad's own word for itself.
+                "omapad", "%s connected - %s mode" % (drawable(device.name), self.mode)
             )
 
     def apply_layout(self):
@@ -1864,7 +1866,7 @@ class Daemon:
         return {
             "mode": self.mode,
             "connected": self.device is not None,
-            "pad": self.device.name.strip() if self.device else "",
+            "pad": drawable(self.device.name) if self.device else "",
             "profile": self.active_profile_name or "",
             "handed_over": self.handed_over,
             "locked": self.locked,

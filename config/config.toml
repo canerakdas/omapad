@@ -386,7 +386,9 @@ apply = "game"                # game = only from the couch. "always" wears it
                               # drives the desktop with the pad all day.
 size = 48                     # nominal pixels. 32 is an ordinary large pointer,
                               # 96 a target
-theme = "omapad-ring"         # the name it is written and applied under
+theme = "omapad-ring"         # the name it is written and applied under. A
+                              # directory name, not a path: omapad writes into
+                              # ~/.local/share/icons/<theme> and prunes it
 # The colours. `auto` reads the desktop's own theme - Omarchy keeps it in
 # ~/.local/state/omarchy/current/theme/colors.toml - so the pointer changes
 # with everything else on screen instead of being the one white thing on a
@@ -421,6 +423,14 @@ shapes = "all"
 # theme changed while omapad runs is still the one restored.
 restore_theme = ""
 restore_size = 0
+
+[control]
+# The socket `omapad ctl` talks to, and the shell plugin with it. Nothing on it
+# is authenticated: it takes every command a binding can run, so the default
+# lives in $XDG_RUNTIME_DIR, which is yours alone and 0700. A path written here
+# is taken as asked for - omapad only says so in the log if the directory it
+# names is one other users can write to.
+# socket = "/run/user/1000/omapad/control.sock"  # defaults to $XDG_RUNTIME_DIR
 
 [ripple]
 # What a click looks like. A mouse answers a click three ways - the finger
