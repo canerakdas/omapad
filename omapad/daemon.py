@@ -49,7 +49,8 @@ MAPPING_AXIS_OFF = 0.3
 
 # The stick roles the tick knows how to integrate; anything else - "none" - is
 # a stick with nothing to do.
-STICK_ROLES = ("cursor", "scroll", "resize", "move", "snap", "focus")
+STICK_ROLES = ("cursor", "scroll", "resize", "move", "snap", "focus",
+               "swap")
 RECONNECT_INTERVAL = 2.0
 # When nothing is deflected or held there is nothing to integrate, so the loop
 # blocks on poll() this long instead of waking at the full polling rate. Any
@@ -279,8 +280,14 @@ class Daemon:
         self._scroll_way = None
         self._window_remainder = {"resize": [0.0, 0.0], "move": [0.0, 0.0]}
         # A stick with the "snap" role is a flick, not an integrator: it fires
-        # once when it is pushed and re-arms only after it comes back.
+        # once when it is pushed and re-arms only after it comes back. The
+        # "swap" role is the same shape on its own thresholds, and so is the
+        # tiled half of "move".
         self._snap_armed = {"left": True, "right": True}
+        self._swap_armed = {"left": True, "right": True}
+        # Which half of the "move" role this push is, asked once when the
+        # stick leaves its rest and kept until it comes back. See move_drags().
+        self._move_drag = {}
         # A stick with the "focus" role: which way it is being held and when
         # it is next due to step. Unlike a snap it repeats, because walking a
         # long list one shove at a time is worse than not walking it.
@@ -2780,6 +2787,8 @@ class Daemon:
             # a stick released between two ticks would never re-arm, and the
             # snap would work exactly once.
             return True
+        if not all(self._swap_armed.values()):
+            return True  # the same, for a swap
         if self._focus_held:
             return True  # a held direction still walking the focus
         if not self.sticks_live():
@@ -2799,7 +2808,13 @@ class Daemon:
             elif role == "resize":
                 resize = self.stick_vector(stick)
             elif role == "move":
-                move = self.stick_vector(stick)
+                # One role, two answers - the window in front decides which.
+                if self.move_drags(stick):
+                    move = self.stick_vector(stick)
+                else:
+                    self.check_swap(stick)
+            elif role == "swap":
+                self.check_swap(stick)
             elif role == "snap":
                 self.check_flick(stick)
             elif role == "focus":
@@ -2835,6 +2850,58 @@ class Daemon:
         # would say the same thing as one that worked.
         if landed and self.config.snap_rumble:
             self.rumble.pulse()
+
+    def move_drags(self, stick):
+        """Which half of the `move` role this push is: drag, or swap.
+
+        `window.move` does nothing to a tiled window and `window.swap` nothing
+        to a floating one, so the role has to ask before it acts. Asked once,
+        when the stick leaves its rest, and kept for the length of the push:
+        one `j/activewindow` costs what a snap's three cost on a press, which
+        a gesture can afford and a tick 30 times a second cannot. The question
+        is settled at the deadzone rather than at `swap.flick`, so a floating
+        window still drags from the smallest deflection.
+
+        With no compositor to ask, it drags - which is what this role did
+        before it had a second half.
+        """
+        code_x, code_y = STICK_AXES[stick]
+        x, y = self.axes[code_x], self.axes[code_y]
+        magnitude = (x * x + y * y) ** 0.5
+        if magnitude < self.config.stick_deadzone(stick):
+            self._move_drag.pop(stick, None)
+            return False
+        drag = self._move_drag.get(stick)
+        if drag is None:
+            floating = self.hypr.window_floating()
+            drag = True if floating is None else floating
+            self._move_drag[stick] = drag
+        return drag
+
+    def check_swap(self, stick):
+        """A stick whose role is `swap`: one neighbour per push.
+
+        The hysteresis of a snap for the same reason - a stick held over is
+        one press, not a stream - and the direction is read off the raw axes,
+        because the curve exists to make small deflections finer and this only
+        ever asks whether the stick went all the way over.
+        """
+        code_x, code_y = STICK_AXES[stick]
+        x, y = self.axes[code_x], self.axes[code_y]
+        magnitude = (x * x + y * y) ** 0.5
+        if magnitude < self.config.swap_release:
+            self._swap_armed[stick] = True
+            return
+        if magnitude < self.config.swap_flick or not self._swap_armed[stick]:
+            return
+        self._swap_armed[stick] = False
+        if abs(x) >= abs(y):
+            way = "r" if x > 0 else "l"
+        else:
+            way = "d" if y > 0 else "u"
+        self.hypr.dispatch(
+            "hl.dsp.window.swap({ direction = '%s' })" % way
+        )
 
     def focus_step(self, step, pressed):
         """Send the key the focused app walks its own focus with.

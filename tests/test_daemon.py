@@ -92,6 +92,9 @@ class FakeHypr:
         # What `j/<command>` answers with, so a snap can be posed a whole
         # desktop without one being on screen.
         self.answers = {}
+        # Every `j/` asked, so a role that promises to ask once per push can
+        # be held to it.
+        self.queries = []
         self.position = (0.0, 0.0)
 
     def dispatch(self, expression):
@@ -99,7 +102,17 @@ class FakeHypr:
         return "ok"
 
     def query(self, command):
+        self.queries.append(command)
         return self.answers.get(command)
+
+    def window_floating(self):
+        data = self.query("activewindow")
+        if not isinstance(data, dict):
+            return None
+        value = data.get("floating")
+        if value is None:
+            return None
+        return bool(value)
 
     def cursor_position(self):
         return self.position
@@ -2618,6 +2631,44 @@ class ChordTests(DaemonTestCase):
         self.assertEqual(self.daemon.mode, "desktop")
 
 
+class TerminalCloseTests(DaemonTestCase):
+    """`ZL` + B, and the one window it asks a question of first."""
+
+    def close_the_window(self):
+        # B is half of the `ZL+B` chord, so the press waits for the release -
+        # the chord's own action stands aside on the desktop, where the pad is
+        # ours and the layer's binding is what was meant.
+        self.press("ZL")
+        self.press("B")
+        self.release("B")
+        self.release("ZL")
+
+    def test_a_terminal_running_a_command_is_interrupted_instead(self):
+        # Closing the window would kill the command and take the scrollback
+        # that said what it had done with it.
+        self.daemon.focus_pid = 4321
+        with unittest.mock.patch("omapad.terminal.busy", return_value=True) as busy:
+            self.close_the_window()
+        self.assertEqual(busy.call_args[0][0], 4321)
+        mods, code = keymap.parse_chord("CTRL+C")
+        self.assertEqual(self.keyboard.chords,
+                         [(tuple(mods), code, True), (tuple(mods), code, False)])
+        self.assertEqual(self.hypr.calls, [])
+
+    def test_and_closes_the_window_once_there_is_nothing_to_interrupt(self):
+        with unittest.mock.patch("omapad.terminal.busy", return_value=False):
+            self.close_the_window()
+        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
+        self.assertEqual(self.keyboard.chords, [])
+
+    def test_every_window_that_is_not_a_terminal_closes_as_it_always_did(self):
+        # Nothing with a prompt under it, nothing to ask: the /proc walk
+        # answers False and the binding is the close it has always been.
+        self.daemon.focus_pid = os.getpid()
+        self.close_the_window()
+        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
+
+
 class ModifierButtonTests(DaemonTestCase):
     def test_modifier_never_fires_its_own_binding(self):
         # ZL is a layer trigger (window ops); it must not also right-click.
@@ -3658,6 +3709,120 @@ class SnapStickTests(DaemonTestCase):
         self.push(1.0)
         self.assertFalse(self.daemon._snap_armed["left"])
         self.assertTrue(self.daemon.needs_tick())
+
+
+class SwapStickTests(DaemonTestCase):
+    """A stick whose role is `swap`: one neighbour per push."""
+
+    def setUp(self):
+        super().setUp()
+        self.config.left_stick = "swap"
+
+    def push(self, fraction):
+        self.feed((li.EV_ABS, li.ABS_X, int(32767 * fraction)))
+        self.tick(0.05)
+
+    def test_pushing_the_stick_over_swaps_once(self):
+        self.push(1.0)
+        self.push(1.0)
+        self.push(1.0)
+        self.assertEqual(
+            self.hypr.calls,
+            ["hl.dsp.window.swap({ direction = 'r' })"],
+        )
+
+    def test_it_re_arms_only_after_the_stick_comes_back(self):
+        self.push(1.0)
+        self.push(0.2)
+        self.push(-1.0)
+        self.assertEqual(
+            self.hypr.calls,
+            [
+                "hl.dsp.window.swap({ direction = 'r' })",
+                "hl.dsp.window.swap({ direction = 'l' })",
+            ],
+        )
+
+    def test_a_nudge_is_not_a_flick(self):
+        self.push(0.5)
+        self.assertEqual(self.hypr.calls, [])
+
+    def test_the_vertical_axis_says_up_and_down(self):
+        self.feed((li.EV_ABS, li.ABS_Y, -32767))
+        self.tick(0.05)
+        self.assertEqual(
+            self.hypr.calls,
+            ["hl.dsp.window.swap({ direction = 'u' })"],
+        )
+
+    def test_the_loop_keeps_ticking_until_the_stick_is_let_go(self):
+        self.push(1.0)
+        self.assertFalse(self.daemon._swap_armed["left"])
+        self.assertTrue(self.daemon.needs_tick())
+
+
+class MoveStickTests(DaemonTestCase):
+    """The `move` role, which is a drag or a swap depending on the window."""
+
+    def setUp(self):
+        super().setUp()
+        self.config.left_stick = "move"
+
+    def push(self, fraction, seconds=0.05):
+        self.feed((li.EV_ABS, li.ABS_X, int(32767 * fraction)))
+        self.tick(seconds)
+
+    def floating(self, yes):
+        self.hypr.answers = {"activewindow": {"floating": yes}}
+
+    def test_a_floating_window_is_dragged(self):
+        self.floating(True)
+        self.push(1.0)
+        self.assertEqual(len(self.hypr.calls), 1)
+        self.assertIn("hl.dsp.window.move(", self.hypr.calls[0])
+
+    def test_a_tiled_window_is_swapped(self):
+        self.floating(False)
+        self.push(1.0)
+        self.assertEqual(
+            self.hypr.calls,
+            ["hl.dsp.window.swap({ direction = 'r' })"],
+        )
+
+    def test_a_tiled_window_swaps_once_per_push(self):
+        self.floating(False)
+        self.push(1.0)
+        self.push(1.0)
+        self.push(1.0)
+        self.assertEqual(len(self.hypr.calls), 1)
+
+    def test_the_window_is_asked_once_per_push(self):
+        # A `j/` on every tick is 30 a second under a resting thumb; the
+        # answer cannot change while one window stays focused under it.
+        self.floating(False)
+        self.push(1.0)
+        self.push(1.0)
+        self.push(1.0)
+        self.assertEqual(self.hypr.queries.count("activewindow"), 1)
+
+    def test_letting_go_asks_again(self):
+        self.floating(False)
+        self.push(1.0)
+        self.push(0.0)
+        self.push(1.0)
+        self.assertEqual(self.hypr.queries.count("activewindow"), 2)
+
+    def test_no_compositor_drags(self):
+        # What this role did before it had a second half.
+        self.hypr.answers = {}
+        self.push(1.0)
+        self.assertEqual(len(self.hypr.calls), 1)
+        self.assertIn("hl.dsp.window.move(", self.hypr.calls[0])
+
+    def test_a_resting_stick_asks_nothing(self):
+        self.push(0.0)
+        self.assertEqual(self.hypr.queries, [])
+        self.assertEqual(self.hypr.calls, [])
 
 
 class GameCursorTests(DaemonTestCase):

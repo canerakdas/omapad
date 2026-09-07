@@ -68,6 +68,10 @@
 #                                          (Tab / Shift+Tab), see [traverse]
 #   focus:up|down|left|right               the same, with the arrow keys
 #   focus:activate|back                    press what is focused, or back out
+#   term:interrupt                         Ctrl+C where the window in front is
+#                                          running a command, and the window's
+#                                          close where it is not - see
+#                                          [terminal]
 #   nop                                    disable an inherited binding
 #
 # A binding can also be a table to separate a tap from a press-and-hold:
@@ -330,11 +334,13 @@ precision_factor = 0.28
 poll_hz = 125
 # Both roles are off while the app in front has the pad, whatever is set here:
 # see [mode] handover_depth.
-left_stick = "cursor"         # cursor | scroll | snap | focus | none
+left_stick = "cursor"         # cursor | scroll | snap | focus | swap | none
 # "snap" turns a stick into a flick: push it over and the pointer jumps to the
 # window that way instead of walking there. See [snap].
 # "focus" stops aiming altogether: the stick walks the focused app's own
 # controls, Tab by Tab, and repeats while it is held. See [traverse].
+# "swap" is a flick too, and moves the window rather than the pointer: the
+# focused window changes places with the one that way. See [swap].
 right_stick = "scroll"
 
 [rumble]
@@ -482,6 +488,21 @@ rumble = false
 # hysteresis the analog triggers use, for the same reason - a stick held over
 # is one press, not a stream of them.
 flick = 0.75
+release = 0.45
+
+[swap]
+# A stick whose role is "swap" rearranges the tiles: push it over and the
+# focused window changes places with the one that way. It is also the tiled
+# half of the "move" role - see [layers.window] below for why that role has
+# two halves.
+#
+# The same hysteresis as [snap] on firmer numbers. A snap that overshoots put
+# the pointer on the wrong window and the next flick brings it back; a swap
+# that overshoots has rearranged the screen, and the way back is another swap
+# past a window that is no longer where it was. Lower `flick` towards [snap]'s
+# 0.75 if a deliberate push is being missed; raise `release` if one push keeps
+# firing twice on the way back.
+flick = 0.85
 release = 0.45
 
 [traverse]
@@ -795,6 +816,41 @@ step = 900.0                  # window move/resize pixels per second (window lay
 update_hz = 30.0
 
 # ---------------------------------------------------------------------------
+# The terminal's half of the window layer's Close (item 49).
+#
+# `ZL` + B closes the window in every application, and a terminal is the one
+# where closing is not always what was meant: a command still running is the
+# thing in front of you, and closing the window kills it along with the
+# scrollback that said what it had done. So `term:interrupt` asks the terminal
+# first - is anything running? - and interrupts what is. With nothing running
+# it closes exactly as it always did, and so does every window that is not a
+# terminal: nothing under those has a prompt to ask about.
+#
+# The question is answered from /proc. A pty publishes the process group a
+# Ctrl+C would be delivered to, and while that is the shell's own, the prompt
+# is what is in front. A shell inside tmux or screen belongs to the
+# multiplexer's session rather than to the window, so a busy pane there reads
+# as idle and the window closes - the same as before this existed.
+# ---------------------------------------------------------------------------
+
+[terminal]
+# What is sent while a command is running. Any action a binding can carry, so
+# a shell driven with something other than Ctrl+C says so here.
+interrupt = "key:CTRL+C"
+# And what happens with nothing to interrupt - the close this button did before
+# it asked anything. A scheme that closes windows some other way changes it
+# here rather than losing the interrupt along with it.
+idle = "hypr:hl.dsp.window.close()"
+# How far below the focused window's process to look for the shell. Every
+# emulator measured here starts it as a direct child, so this is already
+# generous; raise it for a terminal reached through a wrapper script. The walk
+# only goes down, so a bigger number costs a bigger read of /proc and nothing
+# else - it can never reach out of the window it was asked about, and a ceiling
+# in the code stops any value here from making a press expensive (a terminal's
+# whole tree is 24 reads and a tenth of a millisecond; the ceiling is 256).
+depth = 4
+
+# ---------------------------------------------------------------------------
 # Chords: buttons pressed together, in either order.
 #
 # A chord takes the press outright - neither button also does its own job, and
@@ -850,7 +906,13 @@ update_hz = 30.0
 # moved to Y, which was a duplicate of B.
 button = "ZL"
 left_stick = "resize"         # resize the focused window
-right_stick = "move"          # move the focused window
+# One role with two answers, because Hyprland has two verbs and each ignores
+# the other's window: a floating window is dragged where the stick points, and
+# a tiled one changes places with the window that way. The role asks which it
+# is holding once per push - the alternative was a stick that looked dead in
+# the layout most windows are actually in. Set this to "swap" for the tiled
+# half alone, or "move" behaves as before on a desktop with nothing floating.
+right_stick = "move"          # move a floating window, swap a tiled one
 fallthrough = false           # true = unbound buttons fall back to [bindings.base]
 # `reaches_past = true` here would keep the whole layer working while the pad
 # has been handed to the app in front. It is off because the app sees ZL too:
@@ -917,7 +979,11 @@ CAPTURE = { tap = "exec:omarchy-capture-screenshot", hold = "exec:omarchy-captur
 
 [bindings.window]
 A = { tap = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })", desc = "Fullscreen" }
-B = { tap = "hypr:hl.dsp.window.close()", desc = "Close the window" }
+# Close, and the one window that is asked first: a terminal running a command
+# is interrupted instead, and closes on the press after that. See [terminal] -
+# both halves are settings, and every window that is not a terminal takes the
+# `idle` half, which is the close this line has always been.
+B = { tap = "term:interrupt", desc = "Close the window, or the command in it" }
 X = { tap = "hypr:hl.dsp.window.float({ action = 'toggle' })", desc = "Float / tile" }
 Y = { tap = "exec:omarchy-hyprland-window-pop", desc = "Pop the window out" }
 

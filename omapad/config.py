@@ -479,7 +479,7 @@ def _match_patterns(spec):
 # stick a layer turns off - which is why this is a wider list than daemon.py's
 # STICK_ROLES, the ones that actually integrate something every tick.
 STICK_ROLES = (
-    "cursor", "scroll", "resize", "move", "snap", "focus", "none",
+    "cursor", "scroll", "resize", "move", "snap", "focus", "swap", "none",
 )
 
 
@@ -783,6 +783,21 @@ class Config:
         # pointer arrives somewhere you were not looking.
         self.snap_rumble = bool(snap.get("rumble", False))
 
+        swap = data.get("swap", {})
+        # A stick with the "swap" role, and the tiled half of "move". The same
+        # hysteresis as a snap - cross `flick` to fire, fall back under
+        # `release` before it fires again - on its own numbers, because this
+        # one rearranges the screen: a window swapped one place too far is a
+        # worse mistake than a pointer that landed on the wrong window, so it
+        # asks for a firmer push than [snap] does.
+        self.swap_flick = float(swap.get("flick", 0.85))
+        self.swap_release = float(swap.get("release", 0.45))
+        if not 0.0 <= self.swap_release < self.swap_flick <= 1.0:
+            raise ConfigError(
+                "swap.release must be 0 or more and below swap.flick, which"
+                " must be at most 1.0"
+            )
+
         confirm = data.get("confirm", {})
         self.confirm_cancel = confirm.get("cancel_button", "B")
         # The two halves of an announced hold, for every binding that says
@@ -979,6 +994,23 @@ class Config:
         self.window_step = float(window.get("step", 900.0))
         self.window_hz = float(window.get("update_hz", 30.0))
 
+        # What `term:interrupt` does with its two answers. Parsed here rather
+        # than when the button is pressed, so a typo is something `omapad
+        # check` names instead of a window that will not close.
+        terminal = data.get("terminal", {})
+        self.terminal_interrupt = self._terminal_action(
+            terminal, "interrupt", "key:CTRL+C"
+        )
+        self.terminal_idle = self._terminal_action(
+            terminal, "idle", "hypr:hl.dsp.window.close()"
+        )
+        # How far below the focused window's process to look for a shell. The
+        # emulators measured here start it as a direct child; the rest is for a
+        # wrapper script or a login shell in between.
+        self.terminal_depth = int(terminal.get("depth", 4))
+        if self.terminal_depth < 1:
+            raise ConfigError("terminal.depth must be 1 or more")
+
         self.layers = []
         for name, spec in (data.get("layers") or {}).items():
             if not isinstance(spec, dict) or "button" not in spec:
@@ -1171,6 +1203,14 @@ class Config:
         self.modifier_buttons = {layer.button for layer in self.layers}
         if self.precision_button:
             self.modifier_buttons.add(self.precision_button)
+
+    def _terminal_action(self, table, key, default):
+        """One half of `term:interrupt`, parsed and named where it is wrong."""
+        spec = table.get(key, default)
+        try:
+            return actions_module.parse(spec)
+        except actions_module.ActionError as exc:
+            raise ConfigError("terminal.%s: %s" % (key, exc)) from exc
 
     def profile_matching(self, window_class):
         """The active profile for a window class, or None.

@@ -23,6 +23,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 | `surface:` | `SurfaceAction` | close / close_all / back, whatever is in front |
 | `focus:` | `FocusAction` | focus traversal inside a window |
 | `snap:` | `SnapAction` | jump the pointer to the window next door |
+| `term:` | `TerminalAction` | the window layer's close, asked of the terminal first: `Ctrl+C` where a command is running ([`terminal.md`](terminal.md)) |
 | `pad:` | `PadAction` | change one of the settings in `config.CHOSEN` |
 | `mode:` | `ModeAction` | desktop / game / toggle |
 | `lock:` | `LockAction` | the workspace lock - the pad is the app in front's outright ([`handover.md`](handover.md)) |
@@ -97,6 +98,13 @@ caller is on the loop.
 - `claims_chord(ctx)` is how an action refuses a chord it could do nothing
   with, so the chord's buttons keep their own bindings. Only `LockAction`
   answers anything but `True`, and [`handover.md`](handover.md) says why.
+- **An action that has two answers keeps its two halves in the config**, not
+  in the class. `TerminalAction` is the one, and `[terminal] interrupt` /
+  `idle` are parsed at load like any other action - so a scheme that closes
+  windows some other way changes a setting rather than losing the interrupt
+  along with the close. It also remembers which half went down, because the
+  release must reach the same one: a command can end under your thumb, and a
+  key pressed by one half and released by neither is a modifier left down.
 - An action that reaches a surface does not touch the surface's model: it
   hands a command word to the daemon, which routes it. That is what keeps a
   surface's state in one place.

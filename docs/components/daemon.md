@@ -85,9 +85,20 @@ exponent - and then whichever role the layer gave the stick. The deadzone comes
 from `config.stick_deadzone(stick)`, which is per stick rather than per role:
 the slop is in the hardware, so the right one carries the same zone scrolling
 the desktop as it does walking a game's controls. Roles:
-`cursor`, `scroll`, `resize`, `move`, `snap`, `focus` (`STICK_ROLES`). Each has
-its own emitter: `emit_cursor`, `emit_scroll` (with the ramp), `emit_window`,
-`snap_cursor`, `check_focus_stick`.
+`cursor`, `scroll`, `resize`, `move`, `snap`, `focus`, `swap` (`STICK_ROLES`).
+Each has its own emitter: `emit_cursor`, `emit_scroll` (with the ramp),
+`emit_window`, `snap_cursor`, `check_focus_stick`, `check_swap`.
+
+`move` is the one role with two answers, because Hyprland has two verbs and
+each ignores the other's window: `window.move` does nothing to a tiled window
+and `window.swap` nothing to a floating one. `move_drags()` asks
+`j/activewindow` **once per push** - when the stick leaves the deadzone - and
+keeps the answer until it comes back, so a floating window drags from the
+smallest deflection and a tiled one goes through `check_swap` on `[swap]`'s
+thresholds. Asking on every tick would be 30 `j/` a second under a resting
+thumb; asking at `swap.flick` instead of at the deadzone would cost the drag
+its fine end. With no compositor to ask, it drags - what the role did before
+it had a second half.
 
 `calibrate_axis()` runs before any of that, once per axis at `attach()`, and
 re-bases the axis on where its stick actually rests (`pointer.recenter`). What

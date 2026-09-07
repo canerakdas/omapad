@@ -34,6 +34,7 @@ socket between them.
 | [XKB labels](xkb.md) | `omapad/xkb.py` | What the keys are printed with, read back from the compositor. |
 | [Snap](snap.md) | `omapad/snap.py` | Which window is next door, as geometry. |
 | [Cursor](cursor.md) | `omapad/cursor.py` | A pointer you can find from a sofa, drawn into an XCursor theme. |
+| [Terminal](terminal.md) | `omapad/terminal.py` | Whether the window in front is running a command, or waiting at a prompt. |
 
 ## The surfaces
 

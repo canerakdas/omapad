@@ -24,7 +24,9 @@ Four layers, each deep-merged over the last:
 A flat object of validated attributes - `pointer_speed`, `snap_bias`,
 `gamebar_height`, `handover_depth`, `osk_layout`, one per setting - plus the
 parsed structures: `bindings`, `layers`, `chords`, `profiles`, `menu_items`,
-`keyboard_bindings`.
+`keyboard_bindings`. `terminal_interrupt` and `terminal_idle` are parsed
+`Action`s rather than strings - the two halves of `term:interrupt`, built when
+the config loads so `omapad check` names a bad one.
 
 Lookups the daemon uses:
 

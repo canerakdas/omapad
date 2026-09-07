@@ -12,6 +12,7 @@ import subprocess
 import threading
 
 from . import keymap
+from . import terminal
 
 OMARCHY_BIN = "/usr/share/omarchy/bin"
 
@@ -293,6 +294,21 @@ class Hypr:
             return float(data["x"]), float(data["y"])
         except (KeyError, TypeError, ValueError):
             return None
+
+    def window_floating(self):
+        """Is the focused window floating? None when there is no answer.
+
+        The `move` stick role has to know: `window.move` does nothing to a
+        tiled window and `window.swap` nothing to a floating one, so the same
+        push means two different things depending on this.
+        """
+        data = self.query("activewindow")
+        if not isinstance(data, dict):
+            return None
+        value = data.get("floating")
+        if value is None:
+            return None
+        return bool(value)
 
     def warp(self, x, y):
         self.dispatch("hl.dsp.cursor.move({ x = %d, y = %d })" % (int(x), int(y)))
@@ -776,6 +792,53 @@ class ModeAction(Action):
             ctx.daemon.set_mode(self.target)
 
 
+class TerminalAction(Action):
+    """The close that asks the terminal what is running in it first.
+
+        term:interrupt   Ctrl+C where a command is running, close where none is
+
+    `ZL` + B closes the window in every application, and a terminal is the one
+    where closing is not always what was meant: a command still running is the
+    thing in front of you, and killing the window kills it along with the
+    scrollback that said what it had done. So the same button interrupts what
+    is running and closes a window that has nothing to interrupt - one press
+    for either, and a second press for the window once the command has gone.
+
+    Both halves come from `[terminal]` rather than from here: a scheme that
+    closes windows some other way must be able to say so, and the interrupt is
+    a key like any other. `terminal.busy()` is the question they hang off, and
+    it answers False for everything that is not a terminal - so this is a
+    plain close everywhere else.
+    """
+
+    SIMPLE = ("interrupt",)
+
+    def __init__(self, command):
+        command = command.strip()
+        if command not in self.SIMPLE:
+            raise ActionError("unknown term command: %r" % command)
+        self.command = command
+        # Which half went down, so the release reaches the same one. The
+        # answer can change between the press and the release - a command that
+        # ends under your thumb - and a key pressed by one half and released
+        # by neither is a modifier left down.
+        self._fired = None
+
+    def press(self, ctx):
+        config = ctx.daemon.config
+        running = terminal.busy(
+            ctx.daemon.focus_pid, depth=config.terminal_depth
+        )
+        self._fired = (config.terminal_interrupt if running
+                       else config.terminal_idle)
+        self._fired.press(ctx)
+
+    def release(self, ctx):
+        fired, self._fired = self._fired, None
+        if fired is not None:
+            fired.release(ctx)
+
+
 PARSERS = {
     "osk": OskAction,
     "menu": MenuAction,
@@ -793,6 +856,7 @@ PARSERS = {
     "snap": SnapAction,
     "focus": FocusAction,
     "surface": SurfaceAction,
+    "term": TerminalAction,
 }
 
 

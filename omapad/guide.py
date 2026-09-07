@@ -208,11 +208,18 @@ SNAP_TEXT = {
     "centre": "Centre of this window", "center": "Centre of this window",
 }
 
+# The window layer's Close, read out where a binding has not said it in its
+# own words: what it does is one thing with two answers, so the phrase names
+# both rather than the commoner one.
+TERM_TEXT = {"interrupt": "Interrupt, or close the window"}
+
 STICK_ROLES = {
     "cursor": "Move the pointer", "scroll": "Scroll",
-    "resize": "Resize the window", "move": "Move the window",
+    "resize": "Resize the window",
+    "move": "Move a floating window, swap a tiled one",
     "snap": "Flick to the next window",
     "focus": "Walk the focus",
+    "swap": "Swap places with the next window",
 }
 
 # What the *bar* prints instead, where one word is not the first word of the
@@ -369,6 +376,8 @@ def describe(spec):
         return SNAP_TEXT.get(argument, _sentence("snap " + argument))
     if kind == "focus":
         return FOCUS_TEXT.get(argument, _sentence("focus " + argument))
+    if kind == "term":
+        return TERM_TEXT.get(argument, _sentence(argument))
     if kind == "hypr":
         return _describe_hypr(argument)
     if kind == "exec":

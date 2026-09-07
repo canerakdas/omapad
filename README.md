@@ -876,9 +876,9 @@ hold in every layer and every application —
 | Button | Base | ZL held (window) |
 |---|---|---|
 | Left stick | pointer | resize the window |
-| Right stick | scroll (in game mode: **walk focus**) | move the window |
+| Right stick | scroll (in game mode: **walk focus**) | move a floating window, **swap** a tiled one with its neighbour |
 | A | Enter / confirm | fullscreen |
-| B | Esc / back | close the window |
+| B | Esc / back | close the window — in a terminal, **interrupt** what it is running first |
 | X | middle click | float/tile |
 | Y | **right click** | take the window out (float+pin) |
 | ZR | left click | – |
@@ -895,6 +895,16 @@ hold in every layer and every application —
 | Capture* | tap: screenshot, hold: region | screen recording |
 
 \* The Capture button only exists in NS mode (see below).
+
+**Moving a window with the right stick** means two different things, and the
+stick works out which one it is holding. A **floating** window is dragged where
+you point; a **tiled** one changes places with the window that way — one
+neighbour per push, so a stick held over does not walk the layout apart. That is
+Hyprland having two verbs rather than a mood: `movewindow` ignores a tiled
+window and `swapwindow` a floating one, and a stick that only knew the first
+looked dead in the layout most windows are actually in. `[swap] flick` and
+`release` are how hard the push has to be; `right_stick = "swap"` under
+`[layers.window]` keeps the tiled half alone.
 
 **Why the modifier is on a trigger:** inside the window layer the left thumb is
 on the D-pad and the right one on A/B/X/Y — so the modifier has to be held by a
@@ -1112,6 +1122,7 @@ restart — so every config change would close your Steam.
 | `focus:next\|prev` | walk the application's own controls (Tab / Shift+Tab) |
 | `focus:up\|down\|left\|right` | the same, with the arrow keys |
 | `focus:activate\|back` | press the focused control / step back out |
+| `term:interrupt` | the window layer's close, asked of the terminal first — `Ctrl+C` while a command is running, the close where there is none. Both halves are `[terminal]` settings |
 | `nop` | cancel an inherited binding |
 
 Every `pad:` value also takes `next` / `prev`, which steps through what that
@@ -1183,7 +1194,7 @@ the desktop, where the lock has nothing to lock.
 ```toml
 [layers.apps]
 button = "PLUS"
-left_stick = "none"       # cursor | scroll | resize | move | none
+left_stick = "none"       # cursor | scroll | resize | move | swap | none
 right_stick = "none"
 fallthrough = false       # true: unbound buttons fall back to the base layer
 
@@ -1244,7 +1255,7 @@ is a game the pad never reaches.
 
 A profile may also say what a **stick** is for, with the same `left_stick` /
 `right_stick` roles a layer takes (`cursor`, `scroll`, `resize`, `move`, `snap`,
-`focus`, `none`). It has the last word at rest and in game mode, on the same
+`focus`, `swap`, `none`). It has the last word at rest and in game mode, on the same
 layers its bindings reach — while **ZL** is held both sticks belong to the
 window, whatever the app says; leave it out and both thumbs keep whatever the
 layer gives them. This is what the shipped browser profile uses: game mode gives
@@ -1691,6 +1702,36 @@ layer](#per-application-profiles-and-the-shoulder-buttons) now, and it stays on
 `Y` regardless: `B` is the Esc that vim, less and every full-screen program in
 a terminal want, and a hold is the right shape for an interrupt — killing a
 command by accident is worse than pasting one by accident.
+
+**And `ZL` + `B` asks the terminal before it closes it.** The window layer's
+close is the one binding that reads the window in front of it: while a command
+is running it sends `Ctrl+C` instead, and the press after that — with the
+command gone — closes the window as it always did. Nothing else changes, and
+nothing else has to: a browser, a game or a file manager has no shell under it
+and takes the close straight.
+
+The question is answered from `/proc` rather than guessed at. A pty publishes
+the process group a `Ctrl+C` typed at that terminal would be delivered to, and
+while that is the shell's own, the prompt is what is in front and there is
+nothing to interrupt. A shell inside **tmux** or **screen** belongs to the
+multiplexer's session rather than to the window, so a busy pane there reads as
+idle and the window closes — the same as before. A terminal that serves several
+windows from one process (`foot --server`, `kitty --single-instance`) is the
+other way round: any busy terminal under that process answers for all of them,
+so an idle window declines to close while another one is still compiling.
+Neither can close a window over a command that is running in it, which is the
+mistake worth avoiding.
+
+Both halves are settings, so a scheme that closes windows some other way does
+not lose the interrupt along with the close:
+
+```toml
+[terminal]
+interrupt = "key:CTRL+C"                    # while a command is running
+idle = "hypr:hl.dsp.window.close()"         # with nothing to interrupt
+depth = 4                                   # how far below the window to look
+                                            # for the shell
+```
 
 `Y`'s tap is the paste that works. The middle click `X` carries elsewhere pastes
 the PRIMARY selection, which wants a selection made with a mouse and a pointer
