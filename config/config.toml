@@ -267,6 +267,13 @@ handover_siblings = true
 # quietly. Turn it off to keep the desktop bar in game mode; both reserve
 # their own strip, so you get the one you cannot reach above the one you can.
 hide_bar_in_game = true
+# In game mode the screen belongs to the couch, and the screensaver firing
+# mid-game reads as a black screen over it. So game mode also tells Omarchy to
+# stay awake (`omarchy toggle idle stay-awake`) - the screensaver and the lock
+# cannot come on while it is up - and puts idle back on the way out and at
+# shutdown, exactly as it does with the bar. Turn it off if you would rather
+# game mode left the desktop's idle behaviour alone.
+stay_awake_in_game = true
 # What the sticks do in game mode. Empty means "the same as on the desktop",
 # which is the answer for the left one: the pointer is the pointer wherever you
 # are sitting.

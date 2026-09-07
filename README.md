@@ -173,6 +173,13 @@ rumble = true   # the tick under the thumb
 (MINUS + PLUS used to be the chord for this; it opens the **menu** now, which
 had no second way in — see below.)
 
+While game mode is up the screen is the couch's, so omapad also tells Omarchy
+to **stay awake** (`omarchy toggle idle stay-awake`): the screensaver and the
+lock cannot fire over a game or a paused cloud session. Idle is given back the
+moment the desktop returns, and at shutdown, so a daemon that dies in game mode
+does not leave a screen that stops locking. Turn it off with
+`stay_awake_in_game = false` under `[mode]`.
+
 **Handing the pad to a game is separate from all this, and happens by
 itself** — the next section.
 

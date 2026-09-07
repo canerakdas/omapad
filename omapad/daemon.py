@@ -698,6 +698,7 @@ class Daemon:
         self.release_everything()
         self.apply_grab()
         self.apply_bar()
+        self.apply_idle()
         self.apply_cursor()
         self.apply_gamebar()
         # A surface that was up before the switch is still up, and the two
@@ -823,6 +824,24 @@ class Daemon:
             self.session.spawn("omarchy toggle bar %s" % wanted)
         except OSError as exc:
             log.warning("could not turn the bar %s: %s", wanted, exc)
+
+    def apply_idle(self, restore=False):
+        """Keep the screen awake while game mode is up, and give idle back.
+
+        Same shape and same best-effort rule as `apply_bar`: `stay-awake`
+        while the game has the screen so the screensaver and lock cannot fire
+        over it, `allow-idle` the moment the desktop is back. `restore` forces
+        idle back on regardless of mode - the shutdown path, so a daemon that
+        dies in game mode does not leave a desktop that never idles again by
+        mistake.
+        """
+        if not self.config.stay_awake_in_game:
+            return
+        wanted = "allow-idle" if (restore or self.mode == "desktop") else "stay-awake"
+        try:
+            self.session.spawn("omarchy toggle idle %s" % wanted)
+        except OSError as exc:
+            log.warning("could not set idle %s: %s", wanted, exc)
 
     # -- the game-mode pointer ---------------------------------------------
 
@@ -3112,6 +3131,7 @@ class Daemon:
         self.prepare_cursor()
         self.apply_cursor()
         self.apply_bar()
+        self.apply_idle()
 
     def run(self):
         self.start()
@@ -3288,6 +3308,7 @@ class Daemon:
         # not ours.
         self.apply_bar(restore=True)
         self.apply_cursor(restore=True)
+        self.apply_idle(restore=True)
         self.status_client.close()
         self.set_gamebar(False)
         self.gamebar_client.close()

@@ -598,6 +598,15 @@ class Config:
         # default with `gamebar.enabled`: the bar that replaces it is only
         # worth drawing where the desktop one has gone.
         self.hide_bar_in_game = bool(mode.get("hide_bar_in_game", True))
+        # In game mode nobody is looking at the desktop straight-on, so the
+        # screensaver firing while a cloud game pauses or a menu idles reads as
+        # a black screen over the game. `omarchy toggle idle stay-awake` is the
+        # same best-effort flag flip as the bar one, and it is undone on the way
+        # out and at shutdown like the bar is. On by default with game mode, for
+        # the same reason as `hide_bar_in_game`: game mode is the couch, and an
+        # idle-fallen desktop at the foot of the bed is game mode talking over
+        # the one audience it exists for.
+        self.stay_awake_in_game = bool(mode.get("stay_awake_in_game", True))
         # What the sticks do in game mode, where an empty string means "the
         # same as on the desktop". It lives in [mode] rather than a
         # [layers.game] because game mode is not held by a button, and a layer

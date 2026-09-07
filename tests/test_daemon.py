@@ -1600,6 +1600,61 @@ class BarInGameModeTests(DaemonTestCase):
         self.assertEqual(self.daemon.mode, "game")
 
 
+class IdleInGameModeTests(DaemonTestCase):
+    """The screensaver and lock, while the game has the screen."""
+
+    def idle_calls(self):
+        return [c for c in self.session.spawned if "toggle idle" in c]
+
+    def test_it_ships_on_with_game_mode(self):
+        # Game mode is the couch; an idle-fallen desktop at its foot is game
+        # mode talking over the one screen it exists for. So it ships on, the
+        # same default as `hide_bar_in_game`.
+        self.assertTrue(shipped_config().stay_awake_in_game)
+
+    def test_turning_it_off_leaves_idle_alone(self):
+        # A config that says not to must not reach for idle in either
+        # direction - not on the way in, and not on the way back out.
+        self.config.stay_awake_in_game = False
+        self.daemon.set_mode("game")
+        self.daemon.set_mode("desktop")
+        self.assertEqual(self.idle_calls(), [])
+
+    def test_game_mode_stays_awake_and_desktop_gives_idle_back(self):
+        # `omarchy toggle idle <action>` is a flag flip; `stay-awake` while
+        # the game is up, `allow-idle` the moment the desktop is back.
+        self.config.stay_awake_in_game = True
+        self.daemon.set_mode("game")
+        self.assertEqual(self.idle_calls()[-1], "omarchy toggle idle stay-awake")
+        self.daemon.set_mode("desktop")
+        self.assertEqual(self.idle_calls()[-1], "omarchy toggle idle allow-idle")
+
+    def test_shutting_down_in_game_mode_still_gives_idle_back(self):
+        # Otherwise a daemon that dies there leaves a screen that never idles
+        # by mistake, and the lock that hides the deck stays off.
+        self.config.stay_awake_in_game = True
+        self.daemon.set_mode("game")
+        self.daemon.shutdown()
+        self.assertEqual(self.idle_calls()[-1], "omarchy toggle idle allow-idle")
+
+    def test_a_session_that_starts_in_game_mode_stays_awake_too(self):
+        # No switch to hang it on, but the same rule must hold.
+        self.config.stay_awake_in_game = True
+        self.daemon.mode = "game"
+        self.daemon.start()
+        self.assertEqual(self.idle_calls()[-1], "omarchy toggle idle stay-awake")
+
+    def test_a_machine_without_omarchy_is_not_a_daemon_that_stops(self):
+        self.config.stay_awake_in_game = True
+
+        def refuse(command):
+            raise OSError("no such command")
+
+        self.session.spawn = refuse
+        self.daemon.set_mode("game")
+        self.assertEqual(self.daemon.mode, "game")
+
+
 class GameBarPressTests(DaemonTestCase):
     """The bar answers a thumb, and a pointer answers back."""
 
