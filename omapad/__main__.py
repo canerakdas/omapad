@@ -27,9 +27,10 @@ def build_parser():
         "command",
         nargs="?",
         default="run",
-        choices=("run", "dump", "check", "ctl"),
+        choices=("run", "dump", "check", "ctl", "unit"),
         help="run the daemon (default), print controller events, validate the "
-        "configuration, or send a command to a running daemon",
+        "configuration, send a command to a running daemon, or write the "
+        "systemd user unit for this checkout",
     )
     parser.add_argument(
         "args",
@@ -40,7 +41,7 @@ def build_parser():
         "surface <close|close_all|back>, ripple <left|right|middle>, "
         "press <BUTTON> [tap|hold], "
         "lock <on|off|toggle>, keep <on|off|toggle>, "
-        "mode <toggle|desktop|game>, status",
+        "mode <toggle|desktop|game>, status; for unit: check",
     )
     return parser
 
@@ -298,6 +299,32 @@ def cmd_ctl(config, words):
     return 0
 
 
+def cmd_unit(words):
+    """Write the systemd user unit for this checkout - what `install.sh` calls.
+
+    `unit check` answers the one question without writing anything, so the
+    installer can ask whether this checkout can be baked into a unit at all
+    before it has written a file or asked for a password.
+
+    Both print one path and nothing else, so the installer can say the
+    sentence around it.
+    """
+    from . import unit
+
+    if words and words != ["check"]:
+        print("usage: omapad unit [check]", file=sys.stderr)
+        return 2
+    try:
+        if words:
+            print(unit.check_repo(unit.checkout()))
+        else:
+            print(unit.install_service())
+    except (unit.UnitError, OSError) as exc:
+        print("omapad: %s" % exc, file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_run(config):
     try:
         daemon = Daemon(config)
@@ -324,6 +351,11 @@ def main(argv=None):
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(levelname)s: %(message)s",
     )
+    if args.command == "unit":
+        # Answered before the config is loaded, on purpose: this is what the
+        # installer runs, and someone re-running the installer to repair a
+        # broken config must not be stopped by that config.
+        return cmd_unit(args.args)
     try:
         config = config_module.load(args.config)
     except (config_module.ConfigError, OSError) as exc:

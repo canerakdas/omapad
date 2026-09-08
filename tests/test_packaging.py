@@ -82,5 +82,42 @@ class UdevRuleTests(unittest.TestCase):
                         self.install.index("udevadm control"))
 
 
+class UnitInstallTests(unittest.TestCase):
+    """Who writes the systemd unit, now that the shell no longer does.
+
+    The unit names the checkout in `ExecStart`, and the installer used to bake
+    it in with `sed` and land it with `>`. A path is not replacement syntax,
+    and a redirection writes through a symlink someone else put at the
+    destination. Both halves moved to `omapad/unit.py`, where
+    `tests/test_unit.py` can reach them; these are the guards against either
+    half coming back as one convenient line.
+    """
+
+    def setUp(self):
+        with open(os.path.join(REPO, "install.sh")) as handle:
+            self.install = handle.read()
+        self.lines = [line for line in self.install.split("\n")
+                      if not line.lstrip().startswith("#")]
+
+    def test_the_command_installs_it(self):
+        self.assertIn('"$REPO/bin/omapad" unit', self.install)
+
+    def test_nothing_is_redirected_into_a_unit(self):
+        for line in self.lines:
+            if ">" in line:
+                self.assertNotIn("omapad.service", line, line.strip())
+
+    def test_no_path_is_substituted_by_sed(self):
+        for line in self.lines:
+            self.assertNotIn("sed ", line, line.strip())
+
+    def test_the_checkout_path_is_judged_before_anything_is_written(self):
+        # A checkout that cannot be baked into a unit is worth saying before
+        # the password prompt, not after four steps have already run.
+        checked = self.install.index('"$REPO/bin/omapad" unit check')
+        self.assertLess(checked, self.install.index("sudo "))
+        self.assertLess(checked, self.install.index('cat >"$CONFIG_DIR'))
+
+
 if __name__ == "__main__":
     unittest.main()

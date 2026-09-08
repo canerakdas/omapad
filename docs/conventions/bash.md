@@ -72,6 +72,18 @@ udev rule.
 **4.5** Numbered sections with a `# --- n. name ---` banner, in the order a
 reader would do them by hand.
 
+**4.6** A file the installer puts on the machine is written by Python, not by
+a redirection. `>` opens the destination through a symlink already sitting at
+that name and truncates before the first byte is written, so a planted link
+turns the install into a write somewhere else and an interruption leaves half
+a file. `omapad unit` is the shape: substitute as data, `mkstemp` beside the
+destination, `rename` over it. The exception is what `sudo` is handed, which
+`install.sh` writes from a quoted here-document and reads back - see
+[`../components/packaging.md`](../components/packaging.md) for both.
+
+**4.7** A path the installer bakes into a file is validated where a test can
+reach it (`omapad unit check`), never quoted into safety in the shell.
+
 ## 5 Checking
 
 ```bash

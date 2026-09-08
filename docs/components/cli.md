@@ -12,6 +12,7 @@ developing - the wrapper runs straight from the tree.
 | `dump` | `cmd_dump` | print every event from the pad, for mapping a pad by hand. Says so when something else holds the pad exclusively - a running daemon makes it a partial witness, and a press caught half way reads as a stuck button |
 | `check` | `cmd_check` | parse every binding, report the pad, and say what is wrong. Names any button the kernel has down (`held_keys`), which is the one thing that can be asked about a pad the daemon has grabbed |
 | `ctl <verb> <command>` | `cmd_ctl` | send a command to a running daemon |
+| `unit [check]` | `cmd_unit` | write the systemd user unit for this checkout, with the checkout's path baked into `ExecStart`; `check` answers whether that path can be baked in and writes nothing. What `install.sh` calls, at its last step and at its first. Prints the path alone, so the installer can say the sentence around it |
 
 Global flags: `-c/--config`, `-v/--verbose`, `--version` (which prints
 `__version__` from `omapad/__init__.py` - the only thing that file holds).
@@ -19,6 +20,12 @@ Global flags: `-c/--config`, `-v/--verbose`, `--version` (which prints
 `ctl` verbs: `osk`, `menu`, `guide`, `map`, `surface`, `mode`, `lock`,
 `status` - the
 same set `control.py` dispatches and `Surfaces.qml` shells out to.
+
+`unit` is the one command answered **before the config is loaded**: it is what
+the installer runs, and someone re-running the installer to repair a broken
+config must not be stopped by that config. Everything it decides lives in
+[`omapad/unit.py`](packaging.md), because the installer used to decide it in
+one line of shell where no test could reach it.
 
 ## `check` is the error surface
 

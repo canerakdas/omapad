@@ -101,7 +101,15 @@ What `install.sh` does:
 4. Validates the manifest, links the checkout into `~/.config/omarchy/plugins/`
    as `canerakdas.omapad`, and enables it. If you came through `omarchy plugin
    add`, the checkout is already there and this step only enables it.
-5. Installs and starts the `omapad.service` user service.
+5. Installs and starts the `omapad.service` user service, with the path of
+   this checkout baked into it.
+
+Before any of that, it checks that the checkout is somewhere whose path can be
+written into a systemd unit at all. A space or a `%` in it is something systemd
+reads rather than keeps — `%t` is its own runtime directory — so a checkout at
+`~/my games/gamepadd` is refused with a line saying to move it, rather than
+installed as a service that will not start. Anywhere ordinary is fine; the
+default `~/.config/omarchy/plugins/canerakdas.omapad` always is.
 
 Updating it — `omarchy plugin update` only pulls, so re-run the installer when
 the pull touched the service or the udev rule. Because an install is the

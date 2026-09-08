@@ -5,11 +5,18 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/omapad"
-UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 BIN_DIR="$HOME/.local/bin"
 
 say() { printf '\033[1m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m==> %s\033[0m\n' "$*"; }
+
+# --- 0. the checkout path ----------------------------------------------------
+# It is written into the systemd unit at step 5 and into the config stub at
+# step 2, and `omapad/unit.py` is the one place that decides which characters
+# survive that (a space and a `%` do not: systemd would read them). Asked here
+# rather than there, so a checkout that cannot be installed says so before this
+# has written a file or asked for a password.
+"$REPO/bin/omapad" unit check >/dev/null
 
 # --- 1. uinput ---------------------------------------------------------------
 # The daemon writes to /dev/uinput to create the virtual mouse and keyboard.
@@ -64,7 +71,13 @@ mkdir -p "$CONFIG_DIR"
 # A stub, not a copy of the defaults: omapad merges the shipped config under
 # whatever the user writes, so copying the whole file here would freeze today's
 # defaults and shadow every later improvement.
-if [[ -f "$CONFIG_DIR/config.toml" ]]; then
+if [[ -L "$CONFIG_DIR/config.toml" ]]; then
+  # `-f` is true through a symlink and `cat >` writes through one, so a link
+  # planted here would have this stub land on whatever it points at. Your own
+  # link is left alone for the same reason: it is not this installer's to
+  # follow.
+  say "Keeping the link at $CONFIG_DIR/config.toml"
+elif [[ -f "$CONFIG_DIR/config.toml" ]]; then
   say "Keeping your existing $CONFIG_DIR/config.toml"
 else
   cat >"$CONFIG_DIR/config.toml" <<STUB
@@ -130,9 +143,14 @@ elif [[ $PLUGIN_OK -eq 1 ]]; then
 fi
 
 # --- 5. service --------------------------------------------------------------
-mkdir -p "$UNIT_DIR"
-sed "s|__REPO__|$REPO|g" "$REPO/systemd/omapad.service" \
-  > "$UNIT_DIR/omapad.service"
+# The checkout path is baked into ExecStart, and both halves of doing that are
+# decisions rather than glue, so both are in Python where a test can reach
+# them (omapad/unit.py). This used to be `sed ... > "$UNIT_DIR/omapad.service"`:
+# a path is not sed replacement syntax, and `>` opens the destination through
+# whatever name is already there - a symlink planted at omapad.service made
+# this truncate what it pointed at, and a Ctrl-C left half a unit behind.
+UNIT="$("$REPO/bin/omapad" unit)"
+say "Installed $UNIT"
 systemctl --user daemon-reload
 systemctl --user enable --now omapad.service
 say "Service enabled. Check it with: systemctl --user status omapad"

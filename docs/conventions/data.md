@@ -87,9 +87,12 @@ line before anybody summons them.
 ## The systemd unit and the udev rule
 
 - `systemd/omapad.service` is a template: `__REPO__` is substituted by
-  `install.sh`. It is a user unit, `PartOf=graphical-session.target`, and it
-  carries `Environment=XDG_RUNTIME_DIR=%t` because that one variable is what
-  makes rediscovering the rest possible.
+  `omapad unit`, never by `sed` - a checkout path is data, and in a `sed`
+  replacement `&` is the whole match. It is a user unit,
+  `PartOf=graphical-session.target`, and it carries
+  `Environment=XDG_RUNTIME_DIR=%t` because that one variable is what makes
+  rediscovering the rest possible. `%` in the checkout path would be read the
+  same way, which is why `unit.py` refuses one rather than escaping it.
 - `udev/99-omapad-uinput.rules` exists so the daemon never runs as root. It
   gives the `input` group `/dev/uinput`, with `static_node=uinput` so the mode
   applies before the module is loaded on demand.
