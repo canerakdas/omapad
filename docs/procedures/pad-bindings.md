@@ -1,15 +1,16 @@
----
-name: pad-bindings
-description: Write or review gamepad button bindings for omapad - an application profile ([profile.<app>]), a layer, or a keyboard page. Use when asked to "bind an app to the pad", "add a profile for <app>", "which button should X be", "make the controller work in <app>", or when reviewing bindings for consistency. Enforces the face-button contract in docs/conventions/bindings.md.
----
-
 # Binding an application to the pad
+
+> Write or review gamepad button bindings for omapad - an application profile
+> ([profile.<app>]), a layer, or a keyboard page. Use when asked to "bind an
+> app to the pad", "add a profile for <app>", "which button should X be", "make
+> the controller work in <app>", or when reviewing bindings for consistency.
+> Enforces the face-button contract in docs/conventions/bindings.md.
 
 You are placing at most four things on a controller that a person already has
 reflexes for. The pad has fourteen buttons and every one of them already means
 something, so the work is **spending**, not filling.
 
-Read [`docs/conventions/bindings.md`](../../../docs/conventions/bindings.md)
+Read [`docs/conventions/bindings.md`](../conventions/bindings.md)
 before writing a line. It is normative; this file is how to apply it.
 
 ## The contract, in one table

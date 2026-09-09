@@ -10,6 +10,7 @@ silently: the install keeps working, and only the review fails, weeks later.
 import json
 import os
 import re
+import subprocess
 import unittest
 
 import sys
@@ -117,6 +118,70 @@ class UnitInstallTests(unittest.TestCase):
         checked = self.install.index('"$REPO/bin/omapad" unit check')
         self.assertLess(checked, self.install.index("sudo "))
         self.assertLess(checked, self.install.index('cat >"$CONFIG_DIR'))
+
+
+class PayloadTests(unittest.TestCase):
+    """What the tree may contain, given that the tree is what ships.
+
+    `omarchy plugin add` clones this checkout into
+    `~/.config/omarchy/plugins/canerakdas.omapad`, and `boot.sh` clones it
+    there too: every tracked file lands on the machine of someone who wanted an
+    on-screen keyboard. A file a coding agent loads by itself - a skill, a
+    rules file - is then instructions that arrive inside that payload and are
+    read without anyone asking for them, with whatever their tools can reach.
+    The jobs live in `docs/procedures/` as prose, which an agent sees only when
+    its owner hands it over; the rule is `docs/conventions/procedures.md`, and
+    this is what keeps one from coming back as a convenient folder.
+    """
+
+    # Formats a tool picks up on its own, by path rather than by content. A
+    # name costs nothing here; the one added after the fact is the one that
+    # already shipped.
+    LOADED_BY_AGENTS = frozenset((
+        ".claude",
+        ".claude-plugin",
+        ".clinerules",
+        ".cursor",
+        ".cursorrules",
+        ".github/copilot-instructions.md",
+        ".mcp.json",
+        ".windsurfrules",
+        "agents.md",
+        "claude.md",
+        "copilot-instructions.md",
+        "gemini.md",
+        "skill.md",
+    ))
+
+    def tracked(self):
+        # Only what git carries: an untracked `.claude/` is the developer's own
+        # wiring, `.gitignore` covers it, and a clone never sees it.
+        try:
+            found = subprocess.run(
+                ["git", "-C", REPO, "ls-files", "-z"],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        except OSError:
+            self.skipTest("git is not available")
+        if found.returncode != 0:
+            self.skipTest("not a git checkout")
+        return [path for path in found.stdout.decode().split("\0") if path]
+
+    def test_nothing_tracked_is_addressed_to_an_agent(self):
+        for path in self.tracked():
+            segments = [segment.lower() for segment in path.split("/")]
+            for segment in segments:
+                self.assertNotIn(
+                    segment, self.LOADED_BY_AGENTS,
+                    "%s ships to a user's machine and is loaded by a tool "
+                    "there; see docs/conventions/procedures.md" % path)
+            self.assertNotIn(path.lower(), self.LOADED_BY_AGENTS, path)
+
+    def test_the_procedures_are_still_in_the_tree(self):
+        # The rule above is satisfiable by deleting the knowledge, which is not
+        # the trade this project made.
+        procedures = [path for path in self.tracked()
+                      if path.startswith("docs/procedures/pad-")]
+        self.assertEqual(len(procedures), 7, procedures)
 
 
 if __name__ == "__main__":

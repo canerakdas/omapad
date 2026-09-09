@@ -130,3 +130,24 @@ pin from creeping back and the manifest's version in step with
 `omapad.__version__`.
 
 See [`../conventions/bash.md`](../conventions/bash.md) for how to change it.
+
+## What ships
+
+There is no build step, so there is no manifest of what a release contains:
+the tracked tree **is** the release. `omarchy plugin add` clones it into
+`~/.config/omarchy/plugins/canerakdas.omapad` and `boot.sh` clones it to the
+same place, which makes every tracked file something that lands on the machine
+of someone who wanted an on-screen keyboard.
+
+That is the reason nothing in the tree is addressed to a tool rather than to a
+person. Until 1.3.1 the seven procedures were `.claude/skills/pad-*/SKILL.md`,
+a format a coding agent loads by itself: a marketplace install then put
+instructions on a stranger's machine that their own tools would read without
+being asked, with whatever those tools can reach. They are prose in
+`docs/procedures/` now, which reaches an agent only when its owner hands it
+over, and `.gitignore` covers `.claude/` so local wiring stays local.
+`tests/test_packaging.py` fails on any tracked path a tool loads on its own -
+`.claude/`, `AGENTS.md`, `CLAUDE.md`, a `SKILL.md`, a rules file - and also
+fails if the seven procedures leave the tree, since deleting them satisfies the
+first rule and loses the reason for it. The rule is
+[`../conventions/procedures.md`](../conventions/procedures.md).

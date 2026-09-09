@@ -1,9 +1,10 @@
----
-name: pad-diagnose
-description: Diagnose omapad at runtime - a pad that does nothing, a button doing the wrong thing, a surface that will not draw, a pointer that drifts, a pad that will not hand over to a game, or a binding that silently does nothing. Use when something works in the tests but not on the machine. Walks the diagnostic ladder in order instead of guessing.
----
-
 # Diagnosing a live pad
+
+> Diagnose omapad at runtime - a pad that does nothing, a button doing the
+> wrong thing, a surface that will not draw, a pointer that drifts, a pad that
+> will not hand over to a game, or a binding that silently does nothing. Use
+> when something works in the tests but not on the machine. Walks the
+> diagnostic ladder in order instead of guessing.
 
 Almost everything here fails **silently** - the daemon is built so that no
 compositor, no plugin, no control socket and no pad each cost a log line
@@ -112,8 +113,8 @@ ls $XDG_RUNTIME_DIR/omapad/                # the sockets
 
 - Plugin not `enabled` → `omarchy-plugin-enable canerakdas.omapad`.
 - Daemon says open, nothing on screen → it is the panel. See the three silent
-  QML failures in the `pad-surface` skill; the shell log is the only place the
-  real error appears.
+  QML failures in [`pad-surface.md`](pad-surface.md); the shell log is the
+  only place the real error appears.
 - It drew once and then went away → the daemon stopped talking. State is
   re-sent every 2 s and the panel takes itself down when the heartbeat stops.
 
@@ -157,7 +158,7 @@ pad open, and takes it back when it stops. `omapad ctl status` says
 | Pointer drifts a little | not enough dead zone on that stick - raise `[pointer] left_deadzone` (or `right_deadzone`) 0.10 → 0.15, or step it from Controller > Dead zone with the pointer live under the menu |
 | Steam presses keys at startup | a virtual keyboard declaring `BTN_*` gets a `js*` node and Steam reads it as a ghost pad. Ours declares none - check with `grep -A5 "omapad virtual keyboard" /proc/bus/input/devices`, there must be **no `js`** on `Handlers`. If it persists it is Steam seeing the real pad through `js0`: Settings → Controller → Desktop layout |
 | The screensaver interrupts a surface | pad activity produces no Wayland input at all, so the idle timer runs. The keyboard holds an `IdleInhibitor`; anything else does not |
-| A badge prints typed text | the label has no art - see the `pad-badge-art` skill |
+| A badge prints typed text | the label has no art - see [`pad-badge-art.md`](pad-badge-art.md) |
 
 ## What not to do
 

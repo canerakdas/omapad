@@ -1,2 +1,9 @@
 __pycache__/
 *.pyc
+
+# Never tracked: `omarchy plugin add` and boot.sh clone this checkout onto a
+# user's machine, so a file a coding agent loads by itself would be
+# instructions inside a payload. The procedures live in docs/procedures/;
+# a local skill folder here may point at them. See
+# docs/conventions/procedures.md.
+.claude/

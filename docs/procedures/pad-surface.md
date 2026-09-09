@@ -1,16 +1,18 @@
----
-name: pad-surface
-description: Add or change an omapad surface - a daemon-side model plus the QML panel that draws it and the socket between them. Use when asked to "add a new screen/overlay/panel", "make the daemon show X", "add a field to the keyboard/menu/guide/bar payload", or when a panel is not drawing, not opening, or silently ignoring half its data. Covers the wiring checklist and the three silent failure modes.
----
-
 # Adding or changing a surface
+
+> Add or change an omapad surface - a daemon-side model plus the QML panel that
+> draws it and the socket between them. Use when asked to "add a new
+> screen/overlay/panel", "make the daemon show X", "add a field to the
+> keyboard/menu/guide/bar payload", or when a panel is not drawing, not
+> opening, or silently ignoring half its data. Covers the wiring checklist and
+> the three silent failure modes.
 
 A surface is **three things that must agree**: a model in the daemon, a socket,
 and a panel that only draws. Getting one of them wrong is usually silent -
 this file exists for the silent parts.
 
-Read [`docs/conventions/qml.md`](../../../docs/conventions/qml.md) before
-touching a `.qml`, [`docs/components/viewsock.md`](../../../docs/components/viewsock.md)
+Read [`docs/conventions/qml.md`](../conventions/qml.md) before
+touching a `.qml`, [`docs/components/viewsock.md`](../components/viewsock.md)
 for the boundary, and the target surface's own doc under `docs/components/`.
 
 ## The two rules that decide every question
@@ -86,7 +88,7 @@ Nine steps. Follow `menu.py` / `Menu.qml` as the smallest complete example.
 3. **`config/config.toml`** - a `[<name>]` section with its settings, each
    with a comment saying what it decides, and the commented-out `socket` line
    the others carry. Read it in `config.py` with `.get(key, default)`; see
-   the `pad-setting` skill.
+   [`pad-setting.md`](pad-setting.md).
 4. **Daemon wiring**, four places in `omapad/daemon.py` - grep `menu_client`
    to see all of them at once:
    - `__init__`: `self.<name> = <Name>Model(...)`,
@@ -103,7 +105,7 @@ Nine steps. Follow `menu.py` / `Menu.qml` as the smallest complete example.
    the name in `daemon.SURFACE_LAYERS`, and a branch in `current_layer`. The
    order in that property **is** the precedence - guide over menu over
    keyboard. Bindings for it follow
-   [`../../../docs/conventions/bindings.md`](../../../docs/conventions/bindings.md):
+   [`docs/conventions/bindings.md`](../conventions/bindings.md):
    A commits, B leaves.
 6. **The control verb** - `handle_control` in `daemon.py`, the usage string
    beside it, and the `--help` text in `__main__.py`. Everything a binding can

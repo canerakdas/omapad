@@ -1,9 +1,11 @@
----
-name: pad-wording
-description: Write or fix any text a user reads on omapad - a menu row's label and detail, a binding's desc or short, a keyboard key label, CLI output. Use when adding a menu row or binding, when asked to "reword this", "the descriptions are bad", "what should this row say", or when a line reads as a metaphor, a riddle, or an argument for why the project exists. Owns the split between the two voices.
----
-
 # Words on the screen
+
+> Write or fix any text a user reads on omapad - a menu row's label and detail,
+> a binding's desc or short, a keyboard key label, CLI output. Use when adding
+> a menu row or binding, when asked to "reword this", "the descriptions are
+> bad", "what should this row say", or when a line reads as a metaphor, a
+> riddle, or an argument for why the project exists. Owns the split between the
+> two voices.
 
 This project writes in two voices and only one of them ends up on the pad.
 
@@ -17,7 +19,7 @@ interface should be. It is silent: the row parses, `omapad check` is happy, the
 tests pass, and the person on the sofa reads *The couch's television* and still
 does not know what the button does.
 
-The standard is [`docs/conventions/writing.md`](../../../docs/conventions/writing.md)
+The standard is [`docs/conventions/writing.md`](../conventions/writing.md)
 - read it before writing the string, not after review. What follows is the
 short form.
 
@@ -79,7 +81,7 @@ And one thing has **one** name across the menu, the guide, the bar and
 
 - **A detail cannot know anything live.** It is written once in a config file.
   The tick and `value(action)` are how a row says what is currently true; see
-  the `pad-setting` skill.
+  [`pad-setting.md`](pad-setting.md).
 - **A line that contradicts the design teaches the wrong model of the whole
   thing.** `Game mode / Hand the pad back to games` was wrong on both counts:
   game mode is the couch environment, and the hand-off is `handover.py` and

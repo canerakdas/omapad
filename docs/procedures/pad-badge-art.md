@@ -1,9 +1,11 @@
----
-name: pad-badge-art
-description: Change the controller buttons omapad draws - the SVG shapes in assets/shapes/ and the generated assets/buttons/*.svg and shell-plugin/ButtonArt.qml. Use when adding support for a pad whose buttons print something new, when a badge shows typed text instead of a drawing, when tests/test_assets.py fails, or when asked to redraw a button shape. Owns the shape sources and the generator.
----
-
 # Button art
+
+> Change the controller buttons omapad draws - the SVG shapes in assets/shapes/
+> and the generated assets/buttons/*.svg and shell-plugin/ButtonArt.qml. Use
+> when adding support for a pad whose buttons print something new, when a badge
+> shows typed text instead of a drawing, when tests/test_assets.py fails, or
+> when asked to redraw a button shape. Owns the shape sources and the
+> generator.
 
 Every controller button omapad draws is **one hand-drawn SVG plus a label
 punched through it**, generated into two outputs that cannot drift apart.
@@ -14,7 +16,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 python3 -m unittest tests.test_assets -v
 ```
 
-Read [`docs/components/assets.md`](../../../docs/components/assets.md) for the
+Read [`docs/components/assets.md`](../components/assets.md) for the
 mechanism; this is the procedure and the traps.
 
 ## The one rule

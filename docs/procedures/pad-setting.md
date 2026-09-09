@@ -1,9 +1,10 @@
----
-name: pad-setting
-description: Add, change or audit an omapad configuration setting so it is reachable from config.toml, validated, documented, and reachable from the pad where it should be. Use when adding a number/threshold/timeout to the daemon, when asked to "make X configurable", when a hardcoded value needs turning into a setting, or when omapad check should be catching a bad value and is not.
----
-
 # Adding a setting
+
+> Add, change or audit an omapad configuration setting so it is reachable from
+> config.toml, validated, documented, and reachable from the pad where it
+> should be. Use when adding a number/threshold/timeout to the daemon, when
+> asked to "make X configurable", when a hardcoded value needs turning into a
+> setting, or when omapad check should be catching a bad value and is not.
 
 The rule this skill exists to enforce:
 
@@ -17,8 +18,8 @@ setting. `guide.COLUMN_ROWS` and `gamebar.MAX_ACTIONS` are the shape of a card
 and where a hint stops reading as a hint; both carry that sentence. If you
 cannot write that sentence, it is a setting.
 
-Read [`docs/components/config.md`](../../../docs/components/config.md) and
-[`docs/conventions/data.md`](../../../docs/conventions/data.md) first.
+Read [`docs/components/config.md`](../components/config.md) and
+[`docs/conventions/data.md`](../conventions/data.md) first.
 
 ## Where the value comes from
 
@@ -110,7 +111,8 @@ itself prints wants `stay = true`; one you nudge rather than pick wants
 - `docs/components/<component>.md` - the settings line at the foot of the doc.
 - If the **plugin** needs the value: put it in the payload. The shell cannot
   read the config, so a height, a lean, a delay all travel over the socket
-  even though they look like shell constants. See the `pad-surface` skill.
+  even though they look like shell constants. See
+  [`pad-surface.md`](pad-surface.md).
 
 ## Verifying
 

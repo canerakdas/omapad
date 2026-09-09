@@ -1,24 +1,25 @@
----
-name: pad-menu
-description: Add, reorder or review rows in the omapad controller menu - the [[menu.items]] tree the pad walks with the D-pad. Use when asked to "add X to the menu", "put a launcher/setting/toggle on the pad", "reorganise the menu", or when a menu row does nothing, does not tick, or throws you out of a submenu. Covers row kinds, launch-or-focus, and what belongs on a sofa.
----
-
 # Menu rows
+
+> Add, reorder or review rows in the omapad controller menu - the
+> [[menu.items]] tree the pad walks with the D-pad. Use when asked to "add X to
+> the menu", "put a launcher/setting/toggle on the pad", "reorganise the menu",
+> or when a menu row does nothing, does not tick, or throws you out of a
+> submenu. Covers row kinds, launch-or-focus, and what belongs on a sofa.
 
 The controller menu is the one door that reaches past an app holding the pad,
 so it is where a capability goes when it cannot have a button. It is a list,
 not a radial: a radial reads a stick angle in one flick but caps out at a
 handful of entries and has nowhere to put a submenu.
 
-Read [`docs/components/menu.md`](../../../docs/components/menu.md) first. Rows
+Read [`docs/components/menu.md`](../components/menu.md) first. Rows
 use **the same action grammar as a button binding**, so the menu reaches
 anything a button can - see
-[`../../../docs/conventions/bindings.md`](../../../docs/conventions/bindings.md).
+[`docs/conventions/bindings.md`](../conventions/bindings.md).
 
 **What the row says is a second job**, with a standard of its own:
-[`../../../docs/conventions/writing.md`](../../../docs/conventions/writing.md),
-and the `pad-wording` skill. A row that does the right thing and reads as a
-riddle from the sofa is not finished.
+[`docs/conventions/writing.md`](../conventions/writing.md),
+and [`pad-wording.md`](pad-wording.md). A row that does the right thing and
+reads as a riddle from the sofa is not finished.
 
 ## The one question to ask first
 
@@ -50,7 +51,7 @@ action = "exec:omarchy-menu toggle apps"
 |---|---|
 | `label` | required |
 | `icon` | a glyph the shell's font has |
-| `detail` | one line under the label - written once, so it cannot know anything live. ~40 characters, says what happens: `pad-wording` |
+| `detail` | one line under the label - written once, so it cannot know anything live. ~40 characters, says what happens: [`pad-wording`](pad-wording.md) |
 | `action` | the binding grammar, parsed at load |
 | `items` | a submenu; mutually exclusive with `action` |
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |
@@ -76,7 +77,7 @@ daemon answers that, not the row: `view_state(opened, state, value)` takes
 A number cannot be ticked - every step is equally "not the case" - so those
 rows print where they have got to instead (`9 notches a second`), and `value`
 replaces the row's own `detail`. If a setting you add should tick or print,
-it needs to be in `CHOSEN`; see the `pad-setting` skill.
+it needs to be in `CHOSEN`; see [`pad-setting.md`](pad-setting.md).
 
 ## Rows you cannot write down
 
@@ -105,8 +106,8 @@ from = "..."     # prints: label \t %1 \t %2, one row per line
   value is one argument.
 - Picking a listed row keeps the menu up and moves the tick, so two of them can
   be tried without reopening anything.
-- `empty` is a user-facing line like any other: `pad-wording`, not a stack
-  trace.
+- `empty` is a user-facing line like any other:
+  [`pad-wording`](pad-wording.md), not a stack trace.
 
 ## Launching something
 

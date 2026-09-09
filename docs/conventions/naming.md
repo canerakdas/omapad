@@ -25,7 +25,7 @@ omapad/
   docs/             this folder
     conventions/    how to write in each language
     components/     one document per component
-  .claude/skills/   one folder per skill, each holding a SKILL.md
+    procedures/     one document per recurring job
   manifest.json     the Omarchy plugin manifest - at the root, not in
                     shell-plugin/, so `omarchy plugin add` finds it
   README.md         the user-facing manual, authoritative
@@ -50,7 +50,7 @@ omapad/
 | Vendored asset | beside what loads it | the upstream filename, unchanged, with its licence file next to it | `shell-plugin/fonts/FiraCode-Medium.ttf`, `OFL.txt` |
 | Manifest / unit / rule | where the tool that reads it demands | the name that tool demands, never a name of ours | `manifest.json`, `omapad.service` |
 | Documentation | `docs/` | `kebab-case.md`, one component per file | `docs/components/linux-input.md` |
-| Skill | `.claude/skills/<name>/` | `pad-<job>`, `kebab-case`, naming the job rather than the component; always `SKILL.md` inside it, and `name:` in its frontmatter repeats the folder name. The rest of the rules are [`skills.md`](skills.md) | `.claude/skills/pad-bindings/SKILL.md` |
+| Procedure | `docs/procedures/` | `pad-<job>.md`, `kebab-case`, naming the job rather than the component. The rest of the rules are [`procedures.md`](procedures.md) | `docs/procedures/pad-bindings.md` |
 
 ## Names that have to agree across the tree
 
@@ -110,3 +110,12 @@ land in the tree. Everything else in it is source, including the generated
 `assets/buttons/*.svg` and `shell-plugin/ButtonArt.qml`: they are checked in on
 purpose, so a change to a shape shows up as a diff and `tests/test_assets.py`
 can fail when the output and the generator disagree.
+
+It also covers `.claude/`, which is not generated and is not source either. A
+checkout of this repository is installed as a plugin, so a file that a coding
+agent loads by itself would be instructions arriving inside a payload someone
+installed to get a keyboard. The jobs live in
+[`../procedures/`](../procedures/) as prose; wire them into your own agent
+under `.claude/` if you want to,
+untracked, pointing at those files rather than copying them
+([`procedures.md`](procedures.md)).
