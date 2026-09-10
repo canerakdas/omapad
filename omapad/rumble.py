@@ -1,15 +1,30 @@
 """Force feedback: the pad answering a press with a tick you can feel.
 
-Two constraints shape this. The effect is uploaded once per connection rather
-than once per pulse, because an EVIOCSFF round trip inside a button press is
-latency under the thumb. And every path is best-effort, the way the view socket
-is: a pad with no motors, a node we may only read, a dongle yanked mid-pulse -
-none of them is worth more than a log line.
+Three constraints shape this. The effect is uploaded once per connection
+rather than once per pulse, because an EVIOCSFF round trip inside a button
+press is latency under the thumb. A tick sends its own stop rather than
+trusting the one the kernel owes it. And every path is best-effort, the way
+the view socket is: a pad with no motors, a node we may only read, a dongle
+yanked mid-pulse - none of them is worth more than a log line.
 """
 
 import logging
+import time
 
 log = logging.getLogger("omapad")
+
+# How long after a tick's own length its explicit stop goes out. Buzzing and
+# stopping are two packets rather than one - an Xbox pad is told to run its
+# motors and runs them until something says otherwise - and the stop is the
+# kernel's to send when the effect expires. It does not always arrive: the
+# tick sticks on, and the next thing anybody plays is what ends it. Reported
+# on a game and on a browser holding the pad, which is exactly where a second
+# force-feedback client is playing effects of its own into the same device. So
+# the tick ends itself and does not depend on who else is buzzing. Not a
+# setting: it is a safety net on `duration_ms` rather than anything to taste,
+# and it is late enough that a tick behaving normally has stopped before it
+# fires.
+SETTLE_MARGIN = 0.05
 
 
 def _magnitude(value):
@@ -25,6 +40,7 @@ class Rumble:
         self.duration_ms = max(1, int(config.rumble_duration))
         self.device = None
         self.effect_id = None
+        self._settle_at = None
 
     def configure(self, config):
         """Take the settings again, and re-upload the effect they describe.
@@ -66,6 +82,7 @@ class Rumble:
 
     def detach(self):
         """Give the effect slot back, if the pad is still there to take it."""
+        self._settle_at = None
         if self.device is not None and self.effect_id is not None:
             try:
                 self.device.erase_effect(self.effect_id)
@@ -83,4 +100,34 @@ class Rumble:
             # The pad went away between the press and the tick; the reconnect
             # path will notice on its own.
             log.debug("rumble failed: %s", exc)
+            self.effect_id = None
+            self._settle_at = None
+            return
+        self._settle_at = (
+            time.monotonic() + self.duration_ms / 1000.0 + SETTLE_MARGIN
+        )
+
+    @property
+    def settling(self):
+        """Is a tick still owed the stop that ends it?"""
+        return self._settle_at is not None
+
+    def settle(self, now):
+        """Stop a tick whose time is up, whether or not it stopped itself.
+
+        A stop costs one packet and is worth it: the write is what makes the
+        kernel look at every effect on the device again, so a tick this one
+        arrives too late for - and anybody else's that has outlived its own
+        length - ends here too. Nothing to stop is not a failure; it writes
+        an event and the kernel says nothing back.
+        """
+        if self._settle_at is None or now < self._settle_at:
+            return
+        self._settle_at = None
+        if not self.available:
+            return
+        try:
+            self.device.play_effect(self.effect_id, 0)
+        except OSError as exc:
+            log.debug("rumble stop failed: %s", exc)
             self.effect_id = None

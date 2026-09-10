@@ -75,6 +75,12 @@ afterwards. `click_button()` is the way in for something that is not the pad -
 a click on a badge, `omapad ctl press` - and it replays a tap through this
 same path rather than resolving a binding of its own.
 
+`pointer_away()` hangs off both places an action fires - `press_binding()` and
+`fire_once()` - and is the one thing a press does that is about neither the
+binding nor the bar: it takes the pointer off screen unless the press is the
+pointer's own (`POINTER_STAYS`). What hides it is the compositor;
+[cursor](cursor.md) says how, and why nothing here remembers that it did.
+
 Triggers arriving as analog axes (`handle_trigger`) are thresholded with
 hysteresis from `[device]`; the hat is `handle_hat()`.
 

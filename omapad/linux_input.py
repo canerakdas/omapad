@@ -41,6 +41,11 @@ BTN_MIDDLE = 0x112
 BTN_SIDE = 0x113
 BTN_EXTRA = 0x114
 
+# The keycode that is not a key: no layout gives it a symbol, so it is a
+# keystroke to the compositor and nothing at all to the window under it. See
+# `VirtualKeyboard.nudge`, the only thing that presses it.
+KEY_UNKNOWN = 240
+
 _IOC_NRBITS, _IOC_TYPEBITS, _IOC_SIZEBITS = 8, 8, 14
 _IOC_NRSHIFT = 0
 _IOC_TYPESHIFT = _IOC_NRSHIFT + _IOC_NRBITS

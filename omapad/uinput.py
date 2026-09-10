@@ -16,6 +16,7 @@ from .linux_input import (
     EV_REL,
     EV_REP,
     EV_SYN,
+    KEY_UNKNOWN,
     REL_HWHEEL,
     REL_HWHEEL_HI_RES,
     REL_WHEEL,
@@ -225,6 +226,17 @@ class VirtualKeyboard(VirtualDevice):
             self._pressed.discard(code)
         self.write(EV_KEY, code, 1 if pressed else 0)
         self.syn()
+
+    def nudge(self):
+        """One keystroke that types nothing, for something that watches keys.
+
+        KEY_UNKNOWN is the code no layout gives a symbol to: a keystroke to
+        the compositor, and nothing at all to the window in front of it. The
+        only caller is `Daemon.pointer_away`, which is how a press that never
+        types anything still reaches Hyprland's `cursor:hide_on_key_press`.
+        """
+        self.key(KEY_UNKNOWN, True)
+        self.key(KEY_UNKNOWN, False)
 
     def chord(self, mods, code, pressed):
         """Press/release `code` with `mods` held around it."""

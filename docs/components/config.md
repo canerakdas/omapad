@@ -89,6 +89,12 @@ from ending the line it is on, which is what
 
 `SettingError` is what an out-of-range or unknown request raises.
 
+`start_mode` (`[mode] start`) is the exception the rest of the table is worth
+reading against: every other entry configures the daemon that is running, so
+`Daemon.apply_setting()` has a branch telling it again, and this one names the
+mode the *next* start comes up in. It has no branch on purpose - acting on it
+would swap the mode under someone who only said what to do next time.
+
 ## Adding a setting
 
 1. Add it to `config/config.toml` with its default **and a comment saying what

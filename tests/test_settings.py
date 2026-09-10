@@ -128,6 +128,30 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(config_module.setting_text("layout", "xbox"), "")
         self.assertEqual(config_module.setting_text("rumble", True), "")
 
+    def test_the_mode_at_the_next_start_is_chosen_from_the_pad(self):
+        # The one setting here that is about a start other than this one, so
+        # what proves it took is what was written down, not what the daemon
+        # is doing a moment later.
+        self.assertEqual(self.config.start_mode, "desktop")
+        self.assertEqual(self.set("start_mode", "game"), "game")
+        self.assertEqual(self.config.start_mode, "game")
+        self.assertEqual(self.config.chosen, {"start_mode": "game"})
+        # Two of them, so one button walks between them as well as two rows.
+        self.assertEqual(self.set("start_mode", "toggle"), "desktop")
+
+    def test_a_mode_the_daemon_cannot_come_up_in_is_refused(self):
+        with self.assertRaises(config_module.SettingError):
+            config_module.setting_request("start_mode", "couch")
+
+    def test_hiding_the_pointer_is_switched_from_the_pad(self):
+        # Read at every press rather than at startup, so the attribute is the
+        # whole of applying it - there is no branch in `apply_setting`.
+        self.assertIs(self.config.hide_pointer, True)
+        self.assertIs(self.set("hide_pointer", "off"), False)
+        self.assertIs(self.config.hide_pointer, False)
+        self.assertIs(self.set("hide_pointer", "toggle"), True)
+        self.assertEqual(self.config.chosen, {"hide_pointer": True})
+
     def test_only_what_was_changed_is_remembered(self):
         # settings.toml holds what the pad chose, not a frozen copy of every
         # default - which is what would make improving the defaults pointless.
@@ -191,6 +215,12 @@ class FileTests(unittest.TestCase):
         config = self.load_with("pointer_deadzone = 0.25\n")
         self.assertEqual(config.stick_deadzone("left"), 0.25)
         self.assertEqual(config.chosen, {"left_deadzone": 0.25})
+
+    def test_the_mode_chosen_from_the_pad_is_the_one_the_next_start_reads(self):
+        # The menu writes a flat name; `[mode] start` is what comes up in it.
+        config = self.load_with('start_mode = "game"\n',
+                                user='[mode]\nstart = "desktop"\n')
+        self.assertEqual(config.start_mode, "game")
 
     def test_a_setting_that_does_not_exist_is_named(self):
         with self.assertRaises(config_module.ConfigError) as caught:

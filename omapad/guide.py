@@ -168,6 +168,8 @@ PAD_NAMES = {
     "scroll_speed": "Scroll speed",
     "pointer_speed": "Pointer speed",
     "badge_style": "Button style",
+    "hide_pointer": "Hide the pointer",
+    "start_mode": "Start in",
 }
 
 PAD_VALUES = {
@@ -177,6 +179,7 @@ PAD_VALUES = {
     "nintendo_pro": "Nintendo Pro", "nintendo": "Nintendo",
     "xbox": "Xbox", "playstation": "PlayStation",
     "filled": "filled in", "stencil": "punched through",
+    "desktop": "the desktop", "game": "game mode",
 }
 
 MODE_TEXT = {

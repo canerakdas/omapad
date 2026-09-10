@@ -47,9 +47,35 @@ that is not the theme's.
 `install(name, size, color, outline, ...)` puts the theme where Hyprland will
 find it, `resolve(spec, role, fallback)` turns a config value into a colour.
 
+## Going away
+
+The ring answers where the pointer is, not whether it should be on screen at
+all, and a pointer stays wherever it was left - over the menu that just opened,
+the window that just moved - with no press to move it out of the way.
+`Daemon.pointer_away()` is that half: a press that is not the pointer's own
+work takes it off screen until something points again.
+
+**Nothing here does the hiding.** Hyprland's `cursor:hide_on_key_press` takes
+the pointer away at a keystroke and brings it back at the next movement of a
+mouse; a pad is a keyboard that does not type, so the press says so itself
+through `VirtualKeyboard.nudge()` - `KEY_UNKNOWN`, the keycode no layout gives
+a symbol to, which is a keystroke to the compositor and nothing at all to the
+window in front. Leaving both halves there is what makes this stateless: no
+`hidden` flag to get wrong, nothing left behind by a daemon that dies
+mid-press, and no second answer needed for the mouse on the desk - any pointer
+at all brings it back, a snap included, because a warp counts as movement.
+
+`POINTER_STAYS` in `daemon.py` is what a press has to carry to leave the
+pointer where it is: click, scroll and snap, which are the pointer working,
+and a key, which hides it without being asked. `check_pointer_hiding()` says
+so once at startup when the compositor's own switch is off - from a sofa that
+looks exactly like a setting of ours that does not work.
+
 Settings: `[cursor] enabled`, `size`, `color`, `outline`, `thickness`, `dot`,
 `halo`, `ring_opacity`, `shapes`, `theme`, `apply`, `restore_theme`,
-`restore_size`.
+`restore_size`; and `[pointer] hide_on_press` for the section above, which
+lives there rather than here because it is true of any pointer, ring or not
+(**Controller > Hide the pointer**, `pad:hide_pointer`).
 
 ## Rules
 
@@ -60,5 +86,9 @@ Settings: `[cursor] enabled`, `size`, `color`, `outline`, `thickness`, `dot`,
 - The daemon restores the desktop's cursor on the way out of game mode and on
   shutdown (`desktop_cursor()`, `apply_cursor(restore=True)`). A left-behind
   ring is the most visible way this can fail.
+- Hiding the pointer keeps no state, and must not start keeping any. The
+  compositor owns when it goes and when it comes back; anything here that
+  tried to remember which it was would be a second answer to disagree with the
+  one on screen.
 - `SIZES` are the sizes rendered into the theme; `MAGIC`, `FILE_VERSION` and
   `CHUNK_IMAGE` are the file format and stay hardcoded.

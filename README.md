@@ -178,6 +178,19 @@ notify = true   # the desktop notification
 rumble = true   # the tick under the thumb
 ```
 
+**Which mode it comes up in** is `[mode] start`, which ships `desktop`. It is
+the one thing about the couch that could only be decided at a keyboard - the
+machine you never walk to one for is exactly the machine that wants to come up
+from the couch - so it is in the menu as well, under **System › Start in**:
+Desktop or Game mode, and the one that is waiting is ticked. Picking it moves
+nothing; what it names is the next start, which is a reboot, a fresh login or
+`systemctl --user restart omapad`.
+
+```toml
+[mode]
+start = "desktop"   # or "game", to come back up from the couch
+```
+
 (MINUS + PLUS used to be the chord for this; it opens the **menu** now, which
 had no second way in — see below.)
 
@@ -710,6 +723,31 @@ shapes = "all"           # "pointer" = only the arrow changes, the rest comes
                          # index.theme)
 ```
 
+**A press puts the pointer away.** The ring answers where the pointer is, not
+whether it should be there at all: it stays wherever it was left, over the menu
+that just opened or the window that just moved, and no press moves it out of
+the way. A console shows no pointer at all between one thing you point at and
+the next.
+
+So the desktop's own answer is borrowed. Hyprland already takes the pointer off
+screen at a keystroke and brings it back at the next movement of a mouse
+(`cursor:hide_on_key_press`, which Omarchy ships on), and a pad is a keyboard
+that does not type — so a press says as much itself, with a keycode no layout
+gives a symbol to. The stick brings the pointer back by moving it, and so does
+a mouse on the desk, because both halves stay the compositor's. Clicking and
+scrolling never hide it: those are the pointer at work.
+
+```toml
+[pointer]
+hide_on_press = true     # false leaves the ring on screen whatever is pressed
+```
+
+**Controller › Hide the pointer** is the same switch from the couch, and
+`pad:hide_pointer=toggle` puts it on a button. With
+`cursor:hide_on_key_press` turned off in Hyprland nothing here can work, and
+`journalctl --user -u omapad` says so once at startup rather than leaving you
+looking for the setting that broke.
+
 **A click shows where it landed.** A mouse answers a click three ways — the
 finger feels the switch, the hand is on the thing that moved, the arrow sits on
 what was hit — and a pad answers none of them: the thumb is on a trigger that
@@ -1129,6 +1167,7 @@ restart — so every config change would close your Steam.
 | `pad:rumble=on\|off\|toggle` | the motor |
 | `pad:rumble_strength=up\|down\|<0..1>` | how hard it ticks |
 | `pad:pointer_speed=up\|down\|<200..4000>` | how fast the pointer aims |
+| `pad:hide_pointer=on\|off\|toggle` | whether a press that is not aiming puts the pointer away |
 | `pad:scroll_speed=up\|down\|<1..40>` | how fast the wheel turns |
 | `pad:left_deadzone=up\|down\|<0..0.5>` | how much of the left stick does nothing |
 | `pad:right_deadzone=up\|down\|<0..0.5>` | the same, for the right one |
@@ -2019,7 +2058,7 @@ reach for from a sofa are the ones nearest the opening selection: **Apps** (Stea
 Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
 installed) · Keyboard · **Windows** ·
 **Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) ·
-**Controller** · **Workspace lock** · **Keep the controller** · **System** (lock, suspend, log out, restart, power off) ·
+**Controller** · **Workspace lock** · **Keep the controller** · **System** (start in, lock, suspend, log out, restart, power off) ·
 Omarchy menu. What you open, then what is on screen, then the room, then the pad,
 then the machine — and last, on its own, the way out into the Omarchy menu, which
 has everything else and wants a keyboard. The volume and brightness rows are
@@ -2034,6 +2073,7 @@ Everything about the pad itself is one row, because a controller is one thing:
 | Shortcuts | the [bindings guide](#the-bindings-guide) — what every button does |
 | Speed | how fast the two thumbs are: pointer faster/slower, scroll faster/slower |
 | Dead zone | how much of each stick does nothing: left stick wider/narrower, right stick wider/narrower |
+| Hide the pointer | whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again: on, off |
 | Vibration | the motor: on, off, stronger, weaker |
 | Button labels | [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
 | Button style | [how they are drawn](#how-the-badges-are-drawn): filled, or the label punched out of a solid shape |
@@ -2081,7 +2121,9 @@ back all of them. `omapad check` prints what is in there, since it outranks
 what you wrote by hand. The same settings are reachable from a button with
 [`pad:`](#the-action-grammar), and each takes effect immediately: a new profile
 re-reads the pad that is already open, a new layout repaints every badge on
-every surface at once.
+every surface at once. **System › Start in** is the one that does
+not, and that is what it is for: it names the mode the *next* start comes up
+in, so nothing on screen moves when you pick it.
 
 **Windows** is the window in front — fullscreen, next window, float/tile, close
 — and it is in the menu rather than only on the window layer (`ZL`) because the

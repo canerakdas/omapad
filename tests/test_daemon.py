@@ -10,6 +10,7 @@ import select
 import sys
 import tempfile
 import shutil
+import time
 import unittest
 import unittest.mock
 
@@ -69,6 +70,7 @@ class FakeMouse:
 class FakeKeyboard:
     def __init__(self):
         self.chords = []
+        self.nudges = 0
         self.released = 0
 
     def chord(self, mods, code, pressed):
@@ -76,6 +78,12 @@ class FakeKeyboard:
 
     def key(self, code, pressed):
         self.chords.append(((), code, pressed))
+
+    # Counted rather than recorded with the rest: it types nothing, and a
+    # test asking what a binding typed should not have to say "and the
+    # keystroke that puts the pointer away" every time.
+    def nudge(self):
+        self.nudges += 1
 
     def release_all(self):
         self.released += 1
@@ -171,6 +179,7 @@ class FakeDevice:
         self.rumble = rumble
         self.effects = {}
         self.played = []
+        self.stopped = []
         self._next_effect = 0
 
     def supports_rumble(self):
@@ -184,7 +193,10 @@ class FakeDevice:
         return effect_id
 
     def play_effect(self, effect_id, count=1):
-        self.played.append(effect_id)
+        if count:
+            self.played.append(effect_id)
+        else:
+            self.stopped.append(effect_id)
 
     def erase_effect(self, effect_id):
         self.effects.pop(effect_id, None)
@@ -227,10 +239,24 @@ class DaemonTestCase(unittest.TestCase):
 
         self.config = shipped_config()
         self.config.notify = False
+        directory = tempfile.mkdtemp(prefix="omapad-test-")
+        self.addCleanup(shutil.rmtree, directory, True)
         # Never bind the real control socket: a live daemon may own it.
-        self.config.control_socket = os.path.join(
-            tempfile.mkdtemp(prefix="omapad-test-"), "control.sock"
+        self.config.control_socket = os.path.join(directory, "control.sock")
+        # And never write the settings.toml of the machine the suite is run
+        # on. A test that changes a setting on a real Daemon saves it at the
+        # press, exactly as the daemon does, and `render_settings` writes the
+        # whole file - so one such test replaces what this pad chose from the
+        # sofa with what the test chose, and quietly loses every other line.
+        # Named here rather than in the one class that needs to read the file
+        # back: any test may set a setting, and none of them may cost the
+        # developer theirs.
+        patch = unittest.mock.patch.object(
+            daemon_module, "settings_path",
+            lambda: os.path.join(directory, "settings.toml"),
         )
+        patch.start()
+        self.addCleanup(patch.stop)
         self.daemon = daemon_module.Daemon(self.config)
         self.mouse = self.daemon.mouse
         self.keyboard = self.daemon.keyboard
@@ -444,6 +470,74 @@ class PointerTests(DaemonTestCase):
         )
 
 
+class PointerHidingTests(DaemonTestCase):
+    """`[pointer] hide_on_press`: a press that is not pointing puts it away.
+
+    What does the hiding is Hyprland, at a keystroke it is already watching
+    for, so what these hold is which presses ask for one.
+    """
+
+    def test_a_press_with_nothing_to_do_with_the_pointer_puts_it_away(self):
+        # From inside the menu, which is the surface that most wants the ring
+        # off it: it is drawn over whatever the pointer was last left on, and
+        # its own buttons act on the way down.
+        self.daemon.set_menu(True)
+        self.press("Y")                # guide:toggle
+        self.assertEqual(self.keyboard.nudges, 1)
+
+    def test_a_click_leaves_it_where_it_is(self):
+        # The one press that *is* the pointer working. Hiding it here would
+        # take the ring away at the moment the burst says where it landed.
+        self.press("X")                # click:middle
+        self.release("X")
+        self.assertEqual(self.keyboard.nudges, 0)
+
+    def test_typing_is_left_to_the_compositor(self):
+        # A key already hides it without being asked - that is the behaviour
+        # this borrows - so asking again is a second keystroke per press.
+        self.press("A")                # key:ENTER
+        self.assertEqual(self.keyboard.nudges, 0)
+        self.assertEqual(self.keyboard.chords,
+                         [((), keymap.resolve("ENTER"), True)])
+
+    def test_an_action_that_waits_for_the_release_hides_it_then(self):
+        # The other way in: a binding that fires on the way up goes through
+        # fire_once, and a workspace arriving with the ring still over the
+        # last one is the whole complaint.
+        self.press("R")
+        self.assertEqual(self.keyboard.nudges, 0)
+        self.release("R")
+        self.assertEqual(self.keyboard.nudges, 1)
+
+    def test_turned_off_nothing_touches_the_pointer(self):
+        self.config.hide_pointer = False
+        self.press("MINUS")
+        self.assertEqual(self.keyboard.nudges, 0)
+
+    def test_a_compositor_that_will_not_hide_it_says_so_once(self):
+        # Turned off in Hyprland, every press here does nothing visible -
+        # which looks exactly like a setting of ours that is broken.
+        self.hypr.answers["getoption cursor:hide_on_key_press"] = {
+            "option": "cursor:hide_on_key_press", "bool": False, "set": True,
+        }
+        with self.assertLogs("omapad", level="WARNING") as caught:
+            self.daemon.check_pointer_hiding()
+        self.assertIn("cursor:hide_on_key_press", caught.output[0])
+
+    def test_a_compositor_that_will_says_nothing_at_all(self):
+        self.hypr.answers["getoption cursor:hide_on_key_press"] = {
+            "option": "cursor:hide_on_key_press", "bool": True, "set": True,
+        }
+        with self.assertNoLogs("omapad", level="WARNING"):
+            self.daemon.check_pointer_hiding()
+
+    def test_no_compositor_to_ask_is_not_a_complaint(self):
+        # Everything that leaves this process is best-effort, this included:
+        # the daemon runs with no Hyprland at all.
+        with self.assertNoLogs("omapad", level="WARNING"):
+            self.daemon.check_pointer_hiding()
+
+
 class ScrollRampTests(DaemonTestCase):
     """[scroll] ramp: a stick held one way keeps getting faster."""
 
@@ -620,6 +714,24 @@ class RumbleTests(DaemonTestCase):
         self.config.mode_rumble = False
         self.daemon.set_mode("game")
         self.assertEqual(self.device.played, [])
+
+    def test_a_tick_is_told_to_stop_once_its_length_is_up(self):
+        # An Xbox pad runs its motors until something says otherwise, and the
+        # stop the kernel owes the effect does not always arrive - which is
+        # the tick that sticks on under a game or a browser.
+        self.press("Y")
+        self.release("Y")
+        self.assertEqual(self.device.stopped, [])
+        self.daemon.rumble.settle(time.monotonic() + 1.0)
+        self.assertEqual(self.device.stopped, [self.daemon.rumble.effect_id])
+
+    def test_the_loop_stays_awake_for_a_tick_it_owes_a_stop(self):
+        # On the idle poll the stop lands up to a quarter-second late, and a
+        # click that long reads as a buzz.
+        self.assertFalse(self.daemon.needs_tick())
+        self.press("Y")
+        self.release("Y")
+        self.assertTrue(self.daemon.needs_tick())
 
     def test_a_pad_the_app_has_taken_neither_acts_nor_buzzes(self):
         self.daemon.handed_over = True

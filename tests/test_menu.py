@@ -144,6 +144,48 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(labels[-1], "All apps")
 
 
+    def test_the_mode_at_the_next_start_sits_where_the_restart_does(self):
+        # It is not a Controller row: it decides nothing about the pad, and
+        # the rows beside it are the ones that make it true.
+        missing = os.path.join(tempfile.gettempdir(),
+                               "omapad-no-such-config")
+        config = config_module.load(path=missing, mapping=missing,
+                                       settings=missing)
+        system = [row for row in config.menu_items
+                  if row.get("label") == "System"]
+        self.assertEqual(len(system), 1)
+        rows = system[0]["items"]
+        self.assertEqual(rows[0]["label"], "Start in")
+        self.assertEqual(
+            [(row["label"], row["action"]) for row in rows[0]["items"]],
+            [("Desktop", "pad:start_mode=desktop"),
+             ("Game mode", "pad:start_mode=game")],
+        )
+        # Both stay: choosing between two and being thrown out of the menu
+        # means opening it twice to see which one is ticked.
+        self.assertTrue(all(row["stay"] for row in rows[0]["items"]))
+
+    def test_the_pointer_row_sits_with_the_pointer_s_other_questions(self):
+        # Under Controller, after the two rows about the sticks: all three are
+        # asked while holding the pad and looking at the pointer.
+        missing = os.path.join(tempfile.gettempdir(),
+                               "omapad-no-such-config")
+        config = config_module.load(path=missing, mapping=missing,
+                                       settings=missing)
+        controller = [row for row in config.menu_items
+                      if row.get("label") == "Controller"]
+        self.assertEqual(len(controller), 1)
+        rows = controller[0]["items"]
+        self.assertEqual([row["label"] for row in rows[:4]],
+                         ["Shortcuts", "Speed", "Dead zone",
+                          "Hide the pointer"])
+        self.assertEqual(
+            [(row["label"], row["action"]) for row in rows[3]["items"]],
+            [("On", "pad:hide_pointer=on"), ("Off", "pad:hide_pointer=off")],
+        )
+        self.assertTrue(all(row["stay"] for row in rows[3]["items"]))
+
+
 class WhenTests(unittest.TestCase):
     """`when`: the states a row is offered in."""
 

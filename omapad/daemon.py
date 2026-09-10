@@ -47,6 +47,13 @@ MAPPING_CANCEL_HOLD = 2.5
 MAPPING_AXIS_ON = 0.6
 MAPPING_AXIS_OFF = 0.3
 
+# The actions that leave the pointer on screen when they are pressed: the
+# three that are the pointer's own work, and the one that hides it without
+# being asked - a key, which is the compositor behaviour `pointer_away`
+# borrows for every other press.
+POINTER_STAYS = (actions.ClickAction, actions.ScrollAction,
+                 actions.SnapAction, actions.KeyAction)
+
 # The stick roles the tick knows how to integrate; anything else - "none" - is
 # a stick with nothing to do.
 STICK_ROLES = ("cursor", "scroll", "resize", "move", "snap", "focus",
@@ -938,6 +945,51 @@ class Daemon:
         self.hypr.set_cursor_theme(self._cursor_ready, self.config.cursor_size)
         log.info("cursor: %s at %dpx", self._cursor_ready, self.config.cursor_size)
 
+    def pointer_away(self, action):
+        """Take the pointer off screen for a press that is not pointing at all.
+
+        The half of the couch problem the ring does not answer: a pointer
+        stays where it was left, over whatever the press just opened, and no
+        press moves it out of the way. A console shows none at all between one
+        thing you point at and the next.
+
+        The hiding is the compositor's rather than ours. Hyprland takes the
+        pointer off screen at a keystroke and brings it back at the next
+        movement of a mouse (`cursor:hide_on_key_press`), and a pad is a
+        keyboard that does not type - so the press says so itself, with a
+        keycode no layout gives a symbol to: a keystroke to the compositor and
+        nothing at all to the window in front.
+
+        Leaving both halves there is the point. Nothing here holds a "hidden"
+        flag that could be wrong, a daemon that dies mid-press leaves nothing
+        to put back, and what brings the pointer out again is any pointer at
+        all - this one's stick, a snap, or a mouse on the desk.
+        """
+        if not self.config.hide_pointer or isinstance(action, POINTER_STAYS):
+            return
+        self.keyboard.nudge()
+
+    def check_pointer_hiding(self):
+        """Say so, once, when the compositor will not hide the pointer.
+
+        `pointer_away` borrows `cursor:hide_on_key_press`, so a Hyprland with
+        that turned off answers every press by doing nothing - which from the
+        sofa looks exactly like a setting of ours that does not work. Nothing
+        fails; this is the line in the log that tells the two apart.
+        """
+        if not self.config.hide_pointer:
+            return
+        answer = self.hypr.query("getoption cursor:hide_on_key_press")
+        if not isinstance(answer, dict):
+            return  # no compositor to ask, or a build without the option
+        value = answer.get("bool", answer.get("int"))
+        if value is not None and not value:
+            log.warning(
+                "pointer: hide_on_press has nothing to ask - Hyprland's "
+                "cursor:hide_on_key_press is off, so the pointer stays on "
+                "screen whatever is pressed"
+            )
+
     def toggle_mode(self):
         self.set_mode("game" if self.mode == "desktop" else "desktop")
 
@@ -1815,6 +1867,11 @@ class Daemon:
         Every one of these is something the config decides at startup, so a
         setting reachable from the pad is only half a setting until the thing
         it configures is told again.
+
+        `start_mode` is the one that is not here, and its absence is the
+        point: it decides which mode the *next* start comes up in, so acting
+        on it would swap the mode under someone who only said what to do the
+        time after this one.
         """
         if name == "profile":
             if self.device is not None:
@@ -2486,6 +2543,7 @@ class Daemon:
             return
         if binding.rumble:
             self.rumble.pulse()
+        self.pointer_away(action)
         if binding.holdable:
             self.held[button] = HeldAction(action, binding, now)
             action.press(self.ctx)
@@ -2580,6 +2638,7 @@ class Daemon:
         """Fire an action that has no press/release of its own. True if it ran."""
         if not self.allowed(action, layer, confirmed, reaches, chord):
             return False
+        self.pointer_away(action)
         action.press(self.ctx)
         action.release(self.ctx)
         return True
@@ -2793,6 +2852,10 @@ class Daemon:
     def needs_tick(self):
         """Is there anything to integrate or time out between events?"""
         if self.repeats:
+            return True
+        if self.rumble.settling:
+            # A tick owed its stop. Without this the idle poll decides when
+            # the motor goes quiet, and a click reads as a buzz.
             return True
         if self.mapping_open and self._mapping_down is not None:
             return True  # a hold that is counting down towards cancelling
@@ -3132,6 +3195,7 @@ class Daemon:
         self.apply_cursor()
         self.apply_bar()
         self.apply_idle()
+        self.check_pointer_hiding()
 
     def run(self):
         self.start()
@@ -3253,6 +3317,10 @@ class Daemon:
                 last = now
                 self.check_hold_timers(now)
                 self.fire_repeats(now)
+                # A tick that has run its length is told to stop, because the
+                # stop the kernel owes it does not always arrive - see
+                # rumble.SETTLE_MARGIN.
+                self.rumble.settle(now)
                 if self.osk_open and now >= self._osk_next_heartbeat:
                     self.push_osk_view()
                 if self.menu_open and now >= self._menu_next_heartbeat:

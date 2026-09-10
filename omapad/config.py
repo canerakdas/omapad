@@ -194,6 +194,26 @@ CHOSEN = {
         "kind": "number", "step": 0.01, "min": 0.0, "max": 0.50,
         "unit": "%", "scale": 100,
     },
+    # Whether a press puts the pointer away. It is on the pad because it is
+    # only ever wrong from the couch: a ring left over the thing a press just
+    # opened is a complaint you have while looking at it, and one that
+    # vanishes under a resting thumb is the same complaint from the other
+    # side. Neither is answerable at a keyboard.
+    "hide_pointer": {
+        "attr": "hide_pointer", "table": "pointer", "key": "hide_on_press",
+        "kind": "bool",
+    },
+    # Which mode the *next* start comes up in - the one setting here that
+    # changes nothing about the daemon it was set from. It is on the pad
+    # because of what it decides: a machine that is used from a sofa has to be
+    # told to come up ready for one, and the only place to tell it was a
+    # config file, which is the keyboard this project exists to do without.
+    # The shipped value is "desktop", so nothing comes up from the couch
+    # until it has been asked for from the couch.
+    "start_mode": {
+        "attr": "start_mode", "table": "mode", "key": "start",
+        "kind": "choice", "choices": ("desktop", "game"),
+    },
 }
 
 # What a setting used to be called. settings.toml is written by the menu
@@ -642,6 +662,12 @@ class Config:
         self.precision_button = pointer.get("precision_button", "ZL") or None
         self.precision_factor = float(pointer.get("precision_factor", 0.28))
         self.poll_hz = max(30, int(pointer.get("poll_hz", 125)))
+        # Whether a press that is not the pointer's own takes the pointer off
+        # screen until something points again. What does the hiding is the
+        # compositor's own `cursor:hide_on_key_press`, so this is which
+        # presses ask for it, not whether it can happen - see
+        # `Daemon.pointer_away`.
+        self.hide_pointer = bool(pointer.get("hide_on_press", True))
         self.left_stick = _stick_role(
             "pointer.left_stick", pointer.get("left_stick", "cursor")
         )

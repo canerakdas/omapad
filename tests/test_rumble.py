@@ -8,6 +8,7 @@ import os
 import struct
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -45,7 +46,7 @@ class FakePad:
     def play_effect(self, effect_id, count=1):
         if self.fail_play:
             raise OSError(19, "no such device")
-        self.played.append(effect_id)
+        self.played.append((effect_id, count))
 
     def erase_effect(self, effect_id):
         self.erased.append(effect_id)
@@ -112,7 +113,7 @@ class RumblePolicyTests(unittest.TestCase):
         rumble.pulse()
         rumble.pulse()
         self.assertEqual(len(pad.uploads), 1)
-        self.assertEqual(pad.played, [7, 7])
+        self.assertEqual(pad.played, [(7, 1), (7, 1)])
 
     def test_detach_gives_the_slot_back(self):
         rumble = Rumble(FakeConfig())
@@ -151,6 +152,66 @@ class RumblePolicyTests(unittest.TestCase):
         rumble.attach(pad)
         rumble.pulse()
         # And it stops trying until the next connection.
+        self.assertFalse(rumble.available)
+
+    def test_a_tick_stops_itself(self):
+        # The stop the kernel owes a finished effect does not always arrive,
+        # and an Xbox pad told to buzz buzzes until something says otherwise.
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.pulse()
+        self.assertTrue(rumble.settling)
+        rumble.settle(time.monotonic() + 1.0)
+        self.assertEqual(pad.played, [(7, 1), (7, 0)])
+        self.assertFalse(rumble.settling)
+
+    def test_a_tick_still_running_is_left_alone(self):
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.pulse()
+        rumble.settle(time.monotonic())
+        self.assertEqual(pad.played, [(7, 1)])
+        self.assertTrue(rumble.settling)
+
+    def test_a_second_tick_pushes_the_stop_out(self):
+        # Otherwise a tick fired just as the last one was due to stop would
+        # be cut short by the stop the first one armed.
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.pulse()
+        due = rumble._settle_at
+        rumble.pulse()
+        self.assertGreater(rumble._settle_at, due)
+
+    def test_nothing_to_stop_is_not_a_stop(self):
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.settle(time.monotonic() + 1.0)
+        self.assertEqual(pad.played, [])
+
+    def test_a_pad_that_left_owes_no_stop(self):
+        # detach() erases the effect, which stops it; a stop written after
+        # that would name a slot the kernel has handed to somebody else.
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.pulse()
+        rumble.detach()
+        self.assertFalse(rumble.settling)
+        rumble.settle(time.monotonic() + 1.0)
+        self.assertEqual(pad.played, [(7, 1)])
+
+    def test_a_pad_unplugged_before_the_stop_is_not_an_error(self):
+        rumble = Rumble(FakeConfig())
+        pad = FakePad()
+        rumble.attach(pad)
+        rumble.pulse()
+        pad.fail_play = True
+        rumble.settle(time.monotonic() + 1.0)
         self.assertFalse(rumble.available)
 
     def test_the_shipped_defaults_load(self):

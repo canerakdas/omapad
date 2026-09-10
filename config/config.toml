@@ -192,9 +192,16 @@ esc = "surface:close"
 # right = "menu:press"
 
 [mode]
-# desktop = the ordinary desktop. game = the same thing from the couch: the bar
-# replaces Omarchy's, and every binding still works. Game mode is not a
-# hand-off - handing the pad to a game is automatic, and separate.
+# Which mode the daemon comes up in, which is to say the mode the machine is in
+# when it finishes booting. desktop = the ordinary desktop. game = the same
+# thing from the couch: the bar replaces Omarchy's, and every binding still
+# works. Game mode is not a hand-off - handing the pad to a game is automatic,
+# and separate.
+#
+# The menu has it too, under System > Start in, because this is the one
+# question about the couch that could only be answered at a keyboard: a machine
+# used from a sofa has to be told to come up ready for one. What is picked
+# there is written to settings.toml, which wins over this line.
 start = "desktop"
 grab = true                   # take the pad exclusively, so nothing else acts
                               # on the buttons omapad is already acting on
@@ -339,6 +346,24 @@ recenter_limit = 0.60         # a rest farther than this from centre is a stick
 precision_button = ""
 precision_factor = 0.28
 poll_hz = 125
+# Put the pointer away when a press is not aiming it, and leave it away until
+# something points again. A console shows no pointer between one thing you
+# point at and the next; a desktop leaves the ring sitting over whatever the
+# press just opened, where from across a room it reads as one more thing still
+# waiting to be dealt with.
+#
+# The desktop already does this for the keyboard: Hyprland takes the pointer
+# off screen at a keystroke and brings it back at the next movement of a mouse
+# (cursor:hide_on_key_press, which Omarchy ships on). A pad is a keyboard that
+# does not type, so a press says as much itself, and the stick brings the
+# pointer back by moving it - as does a mouse on the desk, since the hiding is
+# the compositor's and not ours. Clicking and scrolling never hide it: those
+# are the pointer at work.
+#
+# Turn it off to keep the ring on screen whatever is pressed. With
+# cursor:hide_on_key_press turned off in Hyprland, this does nothing either
+# way, and omapad says so once at startup.
+hide_on_press = true
 # Both roles are off while the app in front has the pad, whatever is set here:
 # see [mode] handover_depth.
 left_stick = "cursor"         # cursor | scroll | snap | focus | swap | none
@@ -2045,6 +2070,28 @@ detail = "Speed, vibration, labels, mapping"
     action = "pad:right_deadzone=down"
     repeat = true
 
+  # The pointer is the one thing on screen a press cannot push out of the way,
+  # so the press puts it away instead. Under Controller rather than Display:
+  # what it answers to is the pad, and the two rows above are the pointer's
+  # other two questions.
+  #
+  # Both rows stay and both tick, the way the vibration pair does - which of
+  # the two is in force is what somebody opened this page to find out.
+  [[menu.items.items]]
+  icon = "󰍽"
+  label = "Hide the pointer"
+  detail = "Away on a press, back on the stick"
+
+    [[menu.items.items.items]]
+    label = "On"
+    action = "pad:hide_pointer=on"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Off"
+    action = "pad:hide_pointer=off"
+    stay = true
+
   # Every row here ticks the motor as it lands, which is the only honest way to
   # set a strength: the number says nothing and the buzz says everything.
   [[menu.items.items]]
@@ -2196,6 +2243,29 @@ stay = true
 [[menu.items]]
 icon = ""
 label = "System"
+
+  # Which mode the machine comes back in, set from the pad because that is the
+  # only way to set it on a machine nobody walks to a keyboard for. It is here
+  # rather than under Controller - it decides nothing about the pad - and it is
+  # first, above the rows that are the way to find out whether it took.
+  #
+  # The one setting row in the tree that changes nothing when it lands: it is
+  # about the next start, not this one. So neither row says "on" - both say
+  # what a start would do, and the tick says which one is waiting.
+  [[menu.items.items]]
+  icon = "󰐊"
+  label = "Start in"
+  detail = "The mode at the next start"
+
+    [[menu.items.items.items]]
+    label = "Desktop"
+    action = "pad:start_mode=desktop"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Game mode"
+    action = "pad:start_mode=game"
+    stay = true
 
   [[menu.items.items]]
   icon = ""

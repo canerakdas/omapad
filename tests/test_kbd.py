@@ -199,9 +199,13 @@ class FakeViewClient:
 class FakeUinput:
     def __init__(self):
         self.chords = []
+        self.nudges = 0
 
     def chord(self, mods, code, pressed):
         self.chords.append((tuple(mods), code, pressed))
+
+    def nudge(self):
+        self.nudges += 1
 
     def move(self, dx, dy):
         pass
