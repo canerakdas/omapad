@@ -308,7 +308,7 @@ accel = 2.2                   # response curve; 1.0 linear, higher = finer contr
 #
 # Widen one when an untouched stick still creeps the pointer along - a worn pad
 # rests a percent or two off centre - and narrow it when small corrections are
-# swallowed and aiming feels like it starts late. Controller > Dead zone steps
+# swallowed and aiming feels like it starts late. Controller > Sticks moves
 # both from the pad, with the pointer live under the open menu, which is the
 # only way to tell those two apart.
 #
@@ -388,9 +388,37 @@ right_stick = "scroll"
 enabled = true
 strong = 0.20                 # 0..1 on the low-frequency motor - this is the tick
 weak = 0.0                    # 0..1 on the high-frequency motor, where there is one
-duration_ms = 60              # short enough to read as a click, not a buzz.
-                              # hid-nintendo sends rumble every 50ms, so
-                              # anything under that is a pulse it can swallow
+duration_ms = 60              # short enough to read as a click, not a buzz
+
+# The floor under every pulse above and below. A pulse shorter than the packet
+# interval of the slowest driver omapad supports can fall between two packets
+# and never reach the motor - hid-nintendo sends rumble every 50ms - so this is
+# the shortest thing worth asking for rather than a claim about any one pad.
+floor_ms = 50
+
+# The motor says four things, not one, and which waveform says which is not a
+# setting: a square wave is what makes an edge feel like an edge, and making
+# that configurable is offering to turn a bump into a hum. How hard and how
+# long are settings, because those are taste.
+#
+#   tick     a press landed              - the three lines above
+#   edge     you cannot go further       - a control at its end, the grid's rim
+#   commit   that took                   - a switch flipped, a tile put down
+#   texture  it is moving                - held while a value is being scrubbed
+#
+# A pad with no periodic effects plays `edge` and `commit` as plain ticks.
+edge_strength = 0.35
+edge_duration_ms = 70
+commit_strength = 0.28
+commit_duration_ms = 90
+
+# The texture is the only one that ships off, and the only one with no
+# fallback. Off because a continuous hum under a moving thumb is the likeliest
+# of the four to annoy, and a scheme where everything buzzes says nothing. No
+# fallback because degrading a continuous effect onto a pulse is how a tick
+# gets stuck on - where the pad has no sine wave, there is no texture.
+texture = false
+texture_strength = 0.12
 
 [scroll]
 speed = 8.0                   # wheel notches per second at full deflection
@@ -836,6 +864,51 @@ click = true
 # step asks for A to save and B to discard, in the names it has just learned.
 # socket = "/run/user/1000/omapad/mapping.sock"  # defaults to $XDG_RUNTIME_DIR
 
+# ---------------------------------------------------------------------------
+# What the machine is doing, rather than what omapad holds: how loud it is, how
+# bright, and what is playing. A tile reads one of these with
+# `reads = "live:volume"`, and a button can drive one with `live:volume=up` -
+# the twin of `pad:`, and the same grammar, so a button reads the same
+# whichever of the two it is pointed at.
+#
+# Every one is a command, and every command is a setting. omapad runs a string
+# and parses what comes back; it knows nothing about PulseAudio, backlights or
+# MPRIS, and a machine that answers these questions some other way answers them
+# by editing this table. `%1` is where the new value goes, as a whole percent.
+# An empty string is a reading this machine does not have: nothing is asked
+# for it, and a tile that reads it draws blank.
+#
+# Nothing here is asked while the menu is shut, and nothing is asked at frame
+# rate: a reading is read once when its tile appears, again after a press has
+# changed it, and otherwise only while its own tile is selected.
+[live]
+# Volume goes to the sink rather than through `omarchy-audio-output-volume`,
+# and that is deliberate: the helper always ends in `omarchy-osd`, so every
+# press from the HUD would raise Omarchy's own overlay *over the tile showing
+# the same number*. `omarchy-audio-output-sink` is what the helper itself
+# resolves with, so a speaker tuning chain is still respected. Put the helper
+# back here if you would rather have the OSD.
+volume_read = 'pactl get-sink-volume "$(omarchy-audio-output-sink)"'
+volume_set = 'pactl set-sink-volume "$(omarchy-audio-output-sink)" %1%'
+mute_read = 'pactl get-sink-mute "$(omarchy-audio-output-sink)"'
+mute_set = 'pactl set-sink-mute "$(omarchy-audio-output-sink)" %1'
+
+# Brightness keeps its helper: DDC, Apple displays and backlights are three
+# code paths omapad must not reimplement. `--no-osd` is the same argument as
+# above, and this one the helper offers.
+brightness_read = "omarchy-brightness-display"
+brightness_set = "omarchy-brightness-display --no-osd %1%"
+
+# What is playing, as one line of JSON. The write takes one of MPRIS's own
+# three words - playPause, next, previous.
+media_read = "omarchy-shell media status"
+media_set = "omarchy-shell media %1"
+
+timeout_ms = 1000             # how late an answer may be before it is dropped
+poll_ms = 2000                # how often the selected tile is re-asked
+settle_ms = 250               # and how long after a press the helper is asked
+                              # what it actually did
+
 [guide]
 # The bindings guide: one page per layer, every button drawn as the button it
 # is. Read-only - it is a map, not an editor - and summoned from the menu or
@@ -1076,7 +1149,8 @@ RSTICK = "osk:toggle"
 # This layer is implicit: it has no [layers.osk] entry because it activates
 # with the keyboard rather than while a button is held. Holding MINUS still
 # wins, so window controls stay reachable while typing. The sticks keep doing
-# what they do on the base layer, so the pointer still works.
+# what they do on the base layer, so the pointer still works - which is what
+# every implicit layer does except the menu, and [menu] left_stick says why.
 # ---------------------------------------------------------------------------
 
 [bindings.osk]
@@ -1127,15 +1201,25 @@ CAPTURE = "osk:close"
 # ---------------------------------------------------------------------------
 
 [bindings.menu]
+# Four directions, one meaning: the tile that way. Left and right used to be a
+# second way to say Back and Pick, which a single column left them free to be;
+# a grid spends both axes on getting about, and A and B already say the other
+# two things.
 DPAD_UP = "menu:up"
 DPAD_DOWN = "menu:down"
-DPAD_LEFT = "menu:back"
-DPAD_RIGHT = "menu:press"
+DPAD_LEFT = "menu:left"
+DPAD_RIGHT = "menu:right"
+
+# The bar. Both shoulders were unbound in this layer - a surface layer does not
+# fall through to the one under it, so the workspace switcher is already gone
+# while the menu is up - so this costs nothing at all.
+L = "menu:group_prev"
+R = "menu:group_next"
 
 A = "menu:press"
 B = "menu:back"                # at the top level this closes the menu
 # X leaves outright, which is not what B does: B walks back up one submenu at
-# a time, and from inside `Controller > Speeds` that is two presses. The other
+# a time, and from inside `Controller > Sticks` that is two presses. The other
 # half of Back rather than a second one.
 X = "menu:close"
 # Y is the reach the face-button pattern asks for - see
@@ -1146,7 +1230,15 @@ X = "menu:close"
 # `desc` because the derived words for `guide:toggle` are "This view", which is
 # only true when it is read from inside the guide - and this is read from the
 # menu.
-Y = { tap = "guide:toggle", desc = "Bindings guide", short = "Guide" }
+# Y is the reach the face-button pattern asks for, and its hold is the other
+# reach: the tiles of this page are yours to arrange, and holding the button
+# that shows you what the buttons do is where to find that out. While it is
+# on, every button on the card means something else and the legend says so.
+#
+# What the hold costs is that Y now acts on the way back up rather than on the
+# way down, the way every tap/hold does - the same beat HOME already has in
+# this layer.
+Y = { tap = "guide:toggle", desc = "Bindings guide", short = "Guide", hold = "menu:edit", hold_ms = 700, hold_desc = "Rearrange this page", hold_short = "Arrange" }
 
 PLUS = "menu:close"
 HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700 }
@@ -1687,6 +1779,9 @@ HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700 }
 #
 # `repeat = true` marks a row you nudge rather than pick: the menu stays where
 # it is and holding the button keeps firing, the way a held volume key does.
+# Nothing shipped uses it any more - the volume and brightness rows that did
+# are bars now, and a bar is held rather than repeated - but it is still the
+# right answer for a step that has no value to show.
 # `stay = true` is the quieter half of that - one press, and the menu stays up:
 # what a row that changes a setting the menu itself prints needs, so trying two
 # badge layouts costs two presses rather than two trips back here. Every other
@@ -1706,21 +1801,264 @@ HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700 }
 # ---------------------------------------------------------------------------
 
 [menu]
-title = "Go"                  # header shown at the top level
-# The day and the time, at the head of the menu, in strftime. Game mode takes
-# Omarchy's bar away and the pad can reach no other clock. Empty for none.
-clock = "%A %H:%M"
-repeat_delay_ms = 400         # hold up/down this long before the list walks
-repeat_rate_ms = 110          # then one row every this many ms
-# A row can list its own submenu instead of holding one: `from` is a command,
-# and every line it prints becomes a row (see the audio outputs below). The
-# command runs when the row is entered, off to one side: the page opens at once
-# and the rows appear when the answer does. This is how long that answer may
-# take before the page is called empty. Raise it for a listing that is slow;
-# lower it and a slow one settles on empty sooner.
+title = "Go"                  # the word at the head of the card
+# The day and the time used to sit on the title line; the head grid above the
+# bar is where they belong now, so this is empty. A config that still sets it
+# gets its clock back on the title line as well.
+clock = ""
+# How many cells across a page is. It decides how much fits on one screen and
+# how big a tile reads from across a room, so a laptop panel and a television
+# do not want the same answer. Below three there is nowhere to put a bar; far
+# above it a tile is a row again.
+columns = 6
+# What a tile off to the side costs against one straight ahead, both measured
+# edge to edge - the same question `[snap] bias` answers about windows, and its
+# own number because tiles are small and touching where windows are large and
+# sparse. Below 1 the nearest tile wins whatever direction was pressed, which
+# makes the press meaningless; far above it only a tile perfectly in line is
+# ever reachable.
+bias = 2.0
+repeat_delay_ms = 400         # hold a direction this long before it walks
+repeat_rate_ms = 110          # then one tile every this many ms
+# How long the bar has to stop moving before the chip you came to rest on is
+# worth asking about. Flicking across five groups in a second should spawn one
+# command, not five: the four you passed through are answers nobody wanted.
+# Raise it if a fast walk still spawns commands; lower it and a group you
+# meant to stop on fills later.
+group_settle_ms = 180
+# Whether the card prints what its face buttons do along the foot. In game
+# mode omapad's own bar is already along an edge saying the same thing, and
+# somebody running that may not want it said twice - but the two are not the
+# same answer in general: the bar is the screen's and this is the page's, and
+# only this one can say what a page has spent a key on.
+keys = true
+
+# A control with a range - a slider - is walked with the D-pad once A has
+# taken it, and swept with either trigger whether or not it has been taken.
+# The two exist for different presses: the D-pad is how you land on the number
+# you meant, and a trigger is how you cross the distance to it.
+#
+# `ramp` is what a held direction grows to: the shipped pointer speed is 38
+# steps end to end, and a slider that stepped once per repeat would be worse
+# than the two rows it replaced. Raise it to cross a range in fewer presses,
+# lower it towards 1.0 to step evenly however long it is held. Pushing the
+# other way resets it - a reversal is somebody who went too far.
+ramp = 4.0
+ramp_ms = 900                 # how long holding it takes to reach `ramp`
+# And how long a fully pulled trigger takes to cross a control's whole range.
+# Half pulled takes twice as long, so this is the fastest it ever moves rather
+# than the only speed it has. Raise it for finer aim, lower it to cross a
+# range in one pull.
+sweep_ms = 1500
+
+# What the sticks do while the menu is up. Every other surface keeps whatever
+# the base layer's sticks were doing - the pointer still works under the
+# keyboard - and this one does not, because it is the one with something for a
+# thumb to do. The left stick walks the tiles, held rather than flicked, at
+# the same rate `[traverse]` walks a window's own controls. The right stick
+# keeps the pointer, so the promise that the pointer stays live under the open
+# card is kept by the thumb that was aiming with it anyway.
+left_stick = "menu"
+right_stick = "cursor"
+
+# How often a gauge is told where the thumb is, while a gauge is the tile in
+# front. Nothing else on this surface streams anything: the *tile's* kind
+# decides, not the surface's, so a menu open on a page of buttons costs the
+# loop nothing at all. It cannot be more than `[pointer] poll_hz`, which is
+# how many turns the loop takes in a second - `omapad check` says so.
+live_hz = 60
+
+# A tile can list its own page instead of holding one: `from` is a command, and
+# every line it prints becomes a tile (see the audio outputs below). The
+# command runs when the page is entered, off to one side: the page opens at
+# once and the tiles appear when the answer does. This is how long that answer
+# may take before the page is called empty. Raise it for a listing that is
+# slow; lower it and a slow one settles on empty sooner.
 list_timeout_ms = 1000
 list_limit = 24               # and how many of its lines reach the page
 # socket = "/run/user/1000/omapad/menu.sock"   # defaults to $XDG_RUNTIME_DIR
+
+# ---------------------------------------------------------------------------
+# The head: the read-only grid above the bar.
+#
+# Nothing here is selectable. A clock is not a button, and a cursor that can
+# wander into one is a cursor that has to come back out again.
+#
+# A cell prints either a `format` - strftime, rendered here - or the last thing
+# a command said. `ttl` is how long that answer stays fresh, which is not the
+# same clock as the redraw: the card repaints every couple of seconds and the
+# weather is asked for every quarter of an hour.
+#
+# The weather cell is the whole reason this is a command rather than a feature.
+# omapad owns no network, no location and no cache: `omarchy-weather-status`
+# does the lookup, `omarchy-weather-location` decides where, and the helper
+# prints "Weather unavailable" when it cannot reach anything. Point it at
+# something else and this cell says something else.
+# ---------------------------------------------------------------------------
+
+[[menu.head]]
+span = [2, 1]
+format = "%A %H:%M"
+
+[[menu.head]]
+span = [4, 1]
+from = "omarchy-weather-status"
+ttl = 900
+empty = "Weather unavailable"
+
+# ---------------------------------------------------------------------------
+# The bar, and the tiles under it.
+#
+# A top-level row is a **group**: a chip on the bar, walked with the shoulders.
+# The bar holds places rather than verbs - a row that acts still works there,
+# as a page of one, but the shipped tree puts none there.
+#
+# Inside a group, a tile is placed by how often a thumb reaches for it: the
+# order here is the order they are packed in, left to right and top to bottom,
+# and a `row_break` tile ends a row so a group of them reads as a group.
+#
+# A page may also spend **X and Y** on a job of its own, and the legend along
+# the foot prints what it spent them on. Not A and B: the contract is that A
+# commits and B leaves, in every layer and every surface, and a page that took
+# either would be the one place on the pad where that stopped being true. A
+# page taking X keeps `menu:close` on the hold, because X is how you leave
+# from anywhere else in here.
+#
+# Nothing in the shipped tree spends one, and that is the answer rather than
+# an omission: `bindings.md` lets an override take a button only when what it
+# would do is **not reachable on screen**, and on a page of tiles it almost
+# always is. Play / pause on the Now page is the worked example of when not
+# to - the tile is right there.
+#
+#   [[menu.items]]
+#   label = "Apps"
+#
+#     [menu.items.keys]
+#     Y = { tap = "exec:omarchy-menu toggle apps", short = "All" }
+#
+# The chips are in that same order - what you change now, then what you open,
+# then what is on screen, then the room, then the pad, then the machine.
+# ---------------------------------------------------------------------------
+
+# What you change while you are sitting in the room, on the chip the menu
+# opens on. How loud, how bright, what is playing - in one place, because they
+# are what the menu is opened for from a sofa.
+#
+# They used to be the top of Audio and the top of Display, which was right
+# while the menu was one column and there was no nearer place to put them.
+# There is now. What stays behind on those pages is what you set when the room
+# changes rather than while you are sitting in it.
+
+[[menu.items]]
+icon = ""
+label = "Now"
+detail = "Sound, screen, what is playing"
+
+  [[menu.items.items]]
+  icon = "󰌌"
+  label = "Keyboard"
+  span = [2, 1]
+  action = "osk:open"
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  # How loud and how bright, as bars that say what the number is. They were
+  # four stepping rows and a mute row, none of which could say either. A bar
+  # reads what the machine is doing rather than what omapad holds, which is
+  # the other half of `reads` - see [live] for the commands behind it.
+  #
+  # The volume bar does not go through `omarchy-audio-output-volume`, and that
+  # is the point of it: the helper always ends in `omarchy-osd`, so every
+  # press would raise Omarchy's own overlay over the tile showing the same
+  # number. [live] volume_set is a setting, so anyone who wants the OSD back
+  # puts the helper there.
+  [[menu.items.items]]
+  label = "Volume"
+  control = "slider"
+  reads = "live:volume"
+
+  [[menu.items.items]]
+  icon = "󰝟"
+  label = "Mute"
+  control = "toggle"
+  reads = "live:mute"
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  [[menu.items.items]]
+  label = "Brightness"
+  control = "slider"
+  reads = "live:brightness"
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  # What is playing, and the two ways to walk it. One tile that draws the
+  # title, the artist and whether it is running, with A doing to it what A
+  # does to a switch - it has two states, so it needs no mode of its own - and
+  # `Previous` and `Next` as two tiles either side of it.
+  #
+  # Two tiles rather than a transport inside the one: left and right already
+  # mean "the tile that way", so the grid walks to them without a button
+  # learning a second meaning anywhere. A tile costs nobody a reflex, which is
+  # the same argument that keeps every page's X and Y unspent.
+  [[menu.items.items]]
+  icon = "󰒮"
+  label = "Previous"
+  action = "live:media=previous"
+  stay = true
+
+  [[menu.items.items]]
+  label = "Music"
+  empty = "Nothing playing"
+  control = "media"
+  reads = "live:media"
+
+  [[menu.items.items]]
+  icon = "󰒭"
+  label = "Next"
+  action = "live:media=next"
+  stay = true
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  # The two tiles that used to sit at the top level, and why they are not
+  # there any more. Item 48 put them there because a row you have to go and
+  # find is a row that is not there - and the bar has no room for a verb.
+  # `open_on` answers it the other way round: while the condition holds, the
+  # menu opens *on* this tile, with nothing at all to walk to. That is nearer
+  # than a top-level row in a list of ten ever was.
+  #
+  # The states a tile may wait for are `game`, `handed_over`, `locked` and
+  # `kept`; any one of those listed is enough.
+  [[menu.items.items]]
+  icon = "󰌾"
+  label = "Workspace lock"
+  detail = "Every press goes to the game"
+  span = [3, 1]
+  action = "lock:toggle"
+  when = ["game", "handed_over"]
+  open_on = true
+  stay = true
+
+  # Its pair, for the case the hand-off is right about and nobody can use. A
+  # cloud client opens the pad as its page loads, so the launcher screen in
+  # front of the stream - a web page, which reads no pad at all - is handed the
+  # pointer and offers nothing to press it with; measured with GeForce NOW,
+  # whose session then never starts. This takes the pad back, and keeps it
+  # until it is given up again.
+  [[menu.items.items]]
+  icon = "󰕾"
+  label = "Keep the controller"
+  detail = "Every press drives the desktop"
+  span = [3, 1]
+  action = "keep:toggle"
+  when = ["handed_over", "kept"]
+  open_on = true
+  stay = true
 
 [[menu.items]]
 icon = "󰀻"
@@ -1793,24 +2131,6 @@ detail = "Steam, chat, music, video"
   action = "exec:omarchy-menu toggle apps"
 
 [[menu.items]]
-icon = "󰌌"
-label = "Keyboard"
-action = "osk:open"
-
-# The window in front, from the menu rather than from the window layer (item
-# 33). ZL already holds a layer with all of this on it, and none of it reaches
-# past an app that has taken the pad: only a summon and an announced hold do,
-# and the menu is the summon. Launch a game from Steam Big Picture and that is
-# exactly where you are - Steam holds the pad, Big Picture floats over the
-# game, and until this existed the only way out was a keyboard.
-#
-# `Fullscreen` is first because it is the one that clears it. Big Picture is a
-# floating window and a game launched from it is tiled; in Hyprland a floating
-# window is always drawn above a tiled one, so focusing the game or raising it
-# changes nothing - measured - and making it fullscreen is what puts it in
-# front. The Hyprland rule that stops it happening at all is in the README.
-
-[[menu.items]]
 icon = "󰖯"
 label = "Windows"
 detail = "The window in front"
@@ -1839,23 +2159,7 @@ detail = "The window in front"
 [[menu.items]]
 icon = ""
 label = "Audio"
-
-  [[menu.items.items]]
-  icon = "󰝝"
-  label = "Volume up"
-  repeat = true
-  action = "exec:omarchy-audio-output-volume raise"
-
-  [[menu.items.items]]
-  icon = "󰝞"
-  label = "Volume down"
-  repeat = true
-  action = "exec:omarchy-audio-output-volume lower"
-
-  [[menu.items.items]]
-  icon = "󰝟"
-  label = "Mute"
-  action = "exec:omarchy-audio-output-volume mute-toggle"
+detail = "Where the sound goes"
 
   # Which speakers and which microphone - the two rows a television asks for.
   # Plug one in and there is a second output in the room; the desktop asks you
@@ -1921,41 +2225,15 @@ label = "Audio"
                 + "\t" + (.index | tostring) + "\t" + .name'
     '''
 
-  [[menu.items.items]]
-  icon = "󰐊"
-  label = "Play / pause"
-  action = "exec:omarchy-shell media playPause"
-
-  [[menu.items.items]]
-  icon = "󰒭"
-  label = "Next track"
-  action = "exec:omarchy-shell media next"
-
-  [[menu.items.items]]
-  icon = "󰒮"
-  label = "Previous track"
-  action = "exec:omarchy-shell media previous"
-
 [[menu.items]]
 icon = "󰍹"
 label = "Display"
+detail = "Size, and the screensaver"
 
-  [[menu.items.items]]
-  icon = "󰃠"
-  label = "Brighter"
-  repeat = true
-  action = "exec:omarchy-brightness-display +5%"
-
-  [[menu.items.items]]
-  icon = "󰃞"
-  label = "Dimmer"
-  repeat = true
-  action = "exec:omarchy-brightness-display 5%-"
-
-  # Not `repeat = true` like the brightness rows above it: a step here
-  # reconfigures the monitor and rewrites monitors.lua, which is not something
-  # to fire every 110ms under a resting thumb. Scale is also a thing you set
-  # once for where you are sitting, not one you nudge.
+  # Two stepping rows rather than a bar, unlike the brightness on Now: a step
+  # here reconfigures the monitor and rewrites monitors.lua, which is not
+  # something to sweep a trigger through. Scale is also a thing you set once
+  # for where you are sitting, not one you push about.
   [[menu.items.items]]
   icon = "󰁌"
   label = "Scale up"
@@ -1989,86 +2267,75 @@ detail = "Speed, vibration, labels, mapping"
   detail = "What every button does"
   action = "guide:open"
 
-  # How fast the two thumbs are. Nobody can pick these at a keyboard: they
-  # depend on the pad, the screen and how far away the sofa is, and the answer
-  # is felt rather than reasoned about. The two live on one screen because they
-  # are the same decision made twice, and a submenu of two rows is not a place.
-  # Every row repeats, so a setting is walked by holding the button rather than
-  # pressed eleven times, and each prints where its number is now - a step
-  # nothing acknowledges is a press in the dark, and these are the two settings
-  # that have an end to reach.
+  # How the two thumbs feel. Nobody can pick these at a keyboard: they depend
+  # on the pad, the screen and how far away the sofa is, and the answer is
+  # felt rather than reasoned about. Both sticks stay live under the open
+  # menu, so the one you are complaining about answers while you move it.
   #
-  # The pointer still moves while the menu is up, so a step is felt at once.
+  # This was two pages of four stepping rows - Speed and Dead zone - and the
+  # argument for keeping them apart was that eight of those on one screen is a
+  # list nobody reads from across a room. Four sliders is not that list: each
+  # one shows where its number is and where the ends are, which is the whole
+  # of what eight rows saying "faster" and "slower" could not. The break puts
+  # the speeds on one line and the dead zones on the next, so the page is
+  # still two answers rather than one heap.
+  #
+  # A dead zone is the other end of the same stick: travel that does nothing.
+  # By stick rather than by what the stick is doing, because that is where the
+  # slop is - and because from the sofa the complaint is always about a thumb
+  # you are holding, not about a role you would have to look up. A stick that
+  # wanders on its own wants a wider zone; aim that starts late a narrower one.
   [[menu.items.items]]
   icon = "󰍽"
-  label = "Speed"
-  detail = "How fast the sticks move"
+  label = "Sticks"
+  detail = "Speed, and travel that does nothing"
 
     [[menu.items.items.items]]
-    icon = "󰍽"
-    label = "Pointer faster"
-    action = "pad:pointer_speed=up"
-    repeat = true
+    label = "Pointer"
+    control = "slider"
+    reads = "pad:pointer_speed"
 
     [[menu.items.items.items]]
-    icon = "󰍽"
-    label = "Pointer slower"
-    action = "pad:pointer_speed=down"
-    repeat = true
+    label = "Scroll"
+    control = "slider"
+    reads = "pad:scroll_speed"
 
     [[menu.items.items.items]]
-    icon = "󰄼"
-    label = "Scroll faster"
-    action = "pad:scroll_speed=up"
-    repeat = true
+    control = "row_break"
 
     [[menu.items.items.items]]
-    icon = "󰄼"
-    label = "Scroll slower"
-    action = "pad:scroll_speed=down"
-    repeat = true
-
-  # The other end of the same stick: how much of its travel does nothing. By
-  # stick rather than by what the stick is doing, because that is where the
-  # slop is - and because from the sofa the complaint is always about a stick
-  # you are holding, not about a role you would have to look up.
-  #
-  # A page of its own rather than four more rows on Speed: it answers a
-  # different complaint - a stick that wanders on its own wants a wider zone,
-  # aim that starts late a narrower one - and eight stepping rows on one screen
-  # is a list nobody reads from across a room. They repeat and print their
-  # percentage for the same reason the speeds do, and both sticks are live
-  # underneath, so the one you are complaining about answers while you step it.
-  #
-  # The four rows below carry no icon on purpose. The font's gamepad glyphs are
-  # all face buttons - a diamond of four circles - so a row saying "Left stick"
-  # was drawn with A, B, X and Y beside it. No glyph here means a stick, and a
-  # wrong picture from across a room is worse than none: the label already says
-  # which thumb it is.
-  [[menu.items.items]]
-  icon = "󰐾"
-  label = "Dead zone"
-  detail = "Stick travel that does nothing"
+    label = "Left dead zone"
+    control = "slider"
+    reads = "pad:left_deadzone"
 
     [[menu.items.items.items]]
-    label = "Left stick wider"
-    action = "pad:left_deadzone=up"
-    repeat = true
+    label = "Right dead zone"
+    control = "slider"
+    reads = "pad:right_deadzone"
 
     [[menu.items.items.items]]
-    label = "Left stick narrower"
-    action = "pad:left_deadzone=down"
-    repeat = true
+    control = "row_break"
+
+    # And the same two numbers again, as the thing they are about: a dial per
+    # stick, with the dead zone shaded and a dot where the thumb actually is.
+    # Push the stick and watch the dot cross the shading - which is the whole
+    # question, and one no number could ever answer. A bar sets it, a dial
+    # says what it did; take either and both move.
+    #
+    # This is the only tile that draws something no config file holds, so it
+    # is the only one the menu streams for - and only while it is the tile in
+    # front. See [menu] live_hz.
+    [[menu.items.items.items]]
+    label = "Left stick"
+    control = "gauge"
+    reads = "pad:left_deadzone"
+    shows = "left"
 
     [[menu.items.items.items]]
-    label = "Right stick wider"
-    action = "pad:right_deadzone=up"
-    repeat = true
-
-    [[menu.items.items.items]]
-    label = "Right stick narrower"
-    action = "pad:right_deadzone=down"
-    repeat = true
+    label = "Right stick"
+    control = "gauge"
+    reads = "pad:right_deadzone"
+    shows = "right"
 
   # The pointer is the one thing on screen a press cannot push out of the way,
   # so the press puts it away instead. Under Controller rather than Display:
@@ -2080,44 +2347,28 @@ detail = "Speed, vibration, labels, mapping"
   [[menu.items.items]]
   icon = "󰍽"
   label = "Hide the pointer"
-  detail = "Away on a press, back on the stick"
+  # Two cells: three words over a switch do not fit in one, and the name is
+  # the half of a tile you cannot shorten without losing what it is.
+  span = [2, 1]
+  control = "toggle"
+  reads = "pad:hide_pointer"
 
-    [[menu.items.items.items]]
-    label = "On"
-    action = "pad:hide_pointer=on"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Off"
-    action = "pad:hide_pointer=off"
-    stay = true
-
-  # Every row here ticks the motor as it lands, which is the only honest way to
-  # set a strength: the number says nothing and the buzz says everything.
+  # A switch, because there are two states and the tile draws which one it is
+  # in.
   [[menu.items.items]]
   icon = "󰕦"
   label = "Vibration"
-  detail = "On, off, and how hard"
+  control = "toggle"
+  reads = "pad:rumble"
 
-    [[menu.items.items.items]]
-    label = "On"
-    action = "pad:rumble=on"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Off"
-    action = "pad:rumble=off"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Stronger"
-    action = "pad:rumble_strength=up"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Weaker"
-    action = "pad:rumble_strength=down"
-    stay = true
+  # And how hard, which is a number and so a bar. The motor ticks once at the
+  # level you let go on rather than at every step on the way: the number says
+  # nothing and the buzz says everything, but a buzz per step of a sweep says
+  # nothing either.
+  [[menu.items.items]]
+  label = "Strength"
+  control = "slider"
+  reads = "pad:rumble_strength"
 
   # What the badges print, which is a second question from the profile below:
   # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
@@ -2153,26 +2404,20 @@ detail = "Speed, vibration, labels, mapping"
 
   # And how they are drawn, which is the same question asked about the shape
   # instead of the letter. A stencil badge is the one to reach for when the
-  # screen is across a room; a filled one is quieter beside a keyboard. Both
-  # rows tick, so the menu says which is in force rather than offering two
-  # guesses, and both stay: choosing between two looks and being thrown out of
-  # the menu means opening it twice to compare them.
+  # screen is across a room; a filled one is quieter beside a keyboard.
+  #
+  # Two values, so it is walked in place: a submenu of two rows was never a
+  # place, and comparing two looks meant opening the menu twice. What it costs
+  # is the line each row carried saying how the two differ - a tile that shows
+  # one value has nowhere to put it - and with two values whose names say it,
+  # that is a good trade. `Button labels` and `Profile` keep their submenus
+  # for exactly that reason: getting either wrong scrambles the face buttons,
+  # and the sentence under each choice is what stops you.
   [[menu.items.items]]
   icon = "󰏘"
   label = "Button style"
-  detail = "How the badges are drawn"
-
-    [[menu.items.items.items]]
-    label = "Filled"
-    detail = "Letter on a soft-filled shape"
-    action = "pad:badge_style=filled"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Stencil"
-    detail = "Letter punched out of a solid shape"
-    action = "pad:badge_style=stencil"
-    stay = true
+  control = "choice"
+  reads = "pad:badge_style"
 
   # Which codes the pad is read with. `auto` is what the driver says it is,
   # which is right until it is not: a pad with a hardware mode switch reports
@@ -2208,38 +2453,6 @@ detail = "Speed, vibration, labels, mapping"
   detail = "Teach it which button is which"
   action = "map:open"
 
-# At the top level rather than under Controller: it is the one row that is
-# looked for while a game has the pad, and a row you have to go and find is
-# a row that is not there.
-#
-# `when` is why it is not in the way the rest of the time. On a desktop there
-# is nothing to lock the pad to - taking it would hand the pad to a terminal
-# and leave you finding the menu again to give it back - so the row is there
-# in game mode, or whenever the app in front has already taken the pad, and
-# nowhere else. The states a row may wait for are `game`, `handed_over` and
-# `locked`; any one of those listed is enough.
-[[menu.items]]
-icon = "󰌾"
-label = "Workspace lock"
-detail = "Every press goes to the game"
-action = "lock:toggle"
-when = ["game", "handed_over"]
-stay = true
-
-# Its pair, for the case the hand-off is right about and nobody can use. A
-# cloud client opens the pad as its page loads, so the launcher screen in front
-# of the stream - a web page, which reads no pad at all - is handed the pointer
-# and offers nothing to press it with; measured with GeForce NOW, whose session
-# then never starts. This takes the pad back, and keeps it until it is given up
-# again: offered while an app has it, and for as long as it is on.
-[[menu.items]]
-icon = ""
-label = "Keep the controller"
-detail = "Every press drives the desktop"
-action = "keep:toggle"
-when = ["handed_over", "kept"]
-stay = true
-
 [[menu.items]]
 icon = ""
 label = "System"
@@ -2256,16 +2469,8 @@ label = "System"
   icon = "󰐊"
   label = "Start in"
   detail = "The mode at the next start"
-
-    [[menu.items.items.items]]
-    label = "Desktop"
-    action = "pad:start_mode=desktop"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Game mode"
-    action = "pad:start_mode=game"
-    stay = true
+  control = "choice"
+  reads = "pad:start_mode"
 
   [[menu.items.items]]
   icon = ""
@@ -2292,15 +2497,15 @@ label = "System"
   label = "Shutdown"
   action = "exec:omarchy-system-shutdown"
 
-# Last, and its own group: the way out of this menu into the one that has
-# everything else. It wants a keyboard, which is why it is not the menu the pad
-# opens.
-
-[[menu.items]]
-icon = "󰍜"
-label = "Omarchy menu"
-detail = "Everything else"
-action = "exec:omarchy-menu toggle"
+  # Last on this page, and the way out of this menu into the one that has
+  # everything else. It wants a keyboard, which is why it is not the menu the
+  # pad opens - and it is here rather than a chip of its own because the bar
+  # holds places you go to, and this is a door you leave by.
+  [[menu.items.items]]
+  icon = "󰍜"
+  label = "Omarchy menu"
+  detail = "Everything else"
+  action = "exec:omarchy-menu toggle"
 
 # ---------------------------------------------------------------------------
 # Per-application profiles (item 09) - optional.

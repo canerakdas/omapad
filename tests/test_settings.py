@@ -13,7 +13,8 @@ MISSING = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
 
 
 def shipped():
-    return config_module.load(path=MISSING, mapping=MISSING, settings=MISSING)
+    return config_module.load(path=MISSING, mapping=MISSING,
+                              settings=MISSING, layout=MISSING)
 
 
 class RequestTests(unittest.TestCase):
@@ -172,6 +173,7 @@ class FileTests(unittest.TestCase):
             with open(user_path, "w") as handle:
                 handle.write(user)
         return config_module.load(
+            layout=MISSING,
             path=user_path, mapping=MISSING, settings=path
         )
 

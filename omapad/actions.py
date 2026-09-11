@@ -494,7 +494,16 @@ class MenuAction(Action):
 
     SIMPLE = {
         "up", "down", "left", "right", "press", "back",
+        "group_prev", "group_next",
         "open", "close", "toggle",
+        # Rearranging the page in front. `edit` is a mode and the four after
+        # it are what the face buttons and the shoulders mean inside it -
+        # written as ordinary actions rather than as a branch in the press
+        # handler, because the legend along the foot of the card is built from
+        # the same specs, so what it prints and what a press does cannot
+        # drift apart.
+        "edit", "edit_on", "edit_off", "pick", "hide", "restore",
+        "wider", "narrower", "save",
     }
     holdable = True
 
@@ -664,6 +673,58 @@ class PadAction(Action):
         from .config import setting_text
 
         return setting_text(self.setting, ctx.daemon.config.setting(self.setting))
+
+
+class LiveAction(Action):
+    """One of the things the machine is doing, rather than one of ours.
+
+        live:volume=up             a notch louder
+        live:volume=0.4            straight to four tenths
+        live:mute=toggle           the speakers, on or off
+        live:brightness=down       one step darker
+        live:media=playPause       what is playing, or is not
+
+    The twin of `pad:`, and the same grammar on purpose: a button reads the
+    same whichever of the two it is pointed at, and a capability reachable
+    only from the shape it first shipped in is a gap. Validated here, so a
+    typo is what `omapad check` is for.
+    """
+
+    def __init__(self, spec):
+        from .live import LiveError, request
+
+        name, separator, raw = spec.partition("=")
+        if not separator:
+            raise ActionError(
+                "live: takes a reading and a value, as live:volume=up"
+            )
+        self.reading = name.strip().lower()
+        try:
+            self.request = request(self.reading, raw)
+        except LiveError as exc:
+            raise ActionError(str(exc)) from exc
+
+    def press(self, ctx):
+        ctx.daemon.live_write(self.reading, self.request)
+
+    def state(self, ctx):
+        """True where this would change nothing - the switch already that way.
+
+        None for a step and for the transport: no single step of a number is
+        the one it is on, and `next` is never already the case.
+        """
+        from .live import READINGS
+
+        if self.request[0] != "set":
+            return None
+        if READINGS.get(self.reading, {}).get("kind") == "media":
+            return None
+        return ctx.daemon.live.value(self.reading) == self.request[1]
+
+    def value(self, ctx):
+        from .live import text
+
+        return text(self.reading, ctx.daemon.live.value(self.reading))
 
 
 class LockAction(Action):
@@ -853,6 +914,7 @@ PARSERS = {
     "lock": LockAction,
     "keep": KeepAction,
     "pad": PadAction,
+    "live": LiveAction,
     "snap": SnapAction,
     "focus": FocusAction,
     "surface": SurfaceAction,

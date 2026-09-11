@@ -76,8 +76,9 @@ column, and must say what it cost.
 | Control | Job | A profile may take it |
 |---|---|---|
 | D-pad | the selection, or the arrow keys | rarely - it is how every surface is walked |
-| **L / R** | previous / next workspace | yes, and then the workspace **MUST** move to the hold with `confirm = true` - see `[profile.browser]` |
+| **L / R** | previous / next workspace, and previous / next group inside the menu | yes, and then the workspace **MUST** move to the hold with `confirm = true` - see `[profile.browser]` |
 | **ZL** | holds the window layer | **never**: a layer trigger has no binding of its own, in any layer or profile |
+| **ZL / ZR, as axes** | how far each is pulled, which the menu reads to sweep a control with a range | not a binding at all - see below |
 | **ZR** | left click | **never** without `reaches_past = false`: in a game ZR is the trigger |
 | Left stick | the pointer | yes, by naming a `left_stick` role |
 | Right stick | the wheel; `focus` in game mode | yes, by naming a `right_stick` role - `[profile.browser]` and `[profile.shell]` both do |
@@ -89,6 +90,20 @@ column, and must say what it cost.
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |
 | MINUS + PLUS | the menu, everywhere, past a game | no: it is the only door left over a cloud session |
 | ZL + B, ZR + B | the workspace lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |
+
+### An axis is not a binding
+
+The menu reads how far ZL and ZR are pulled, and that is not an exception to
+the row above. A binding is a press routed by name; this is a number read off
+an axis, the way `[mode] left_stick` names a role rather than binding a stick.
+ZL keeps its "never": it has no binding in the menu layer, and a surface layer
+falls through to nothing, so nothing is displaced. What a profile may do is
+unchanged - a profile cannot take ZL, and the menu is not a profile.
+
+The test that makes this honest is whether a press was taken from something.
+It was not: both triggers do nothing in the menu layer, and a control with a
+range is the first thing in this project that has wanted to ask an analogue
+question of a button that is otherwise a switch.
 
 ## Saying what a binding means
 
@@ -106,6 +121,17 @@ X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab", hold = "key:F5", hold
 | `desc` | the guide | a phrase. **SHOULD** be written wherever `describe()` would print a dispatcher path or a script name |
 | `short` | the game bar | **one word**, and **MUST** be written when the first word of `desc` is not the meaning - "New tab" cuts to "New" |
 | `hold_desc` / `hold_short` | the same two | the same rule for the other half |
+
+**This one is a rule for a person, and `omapad check` deliberately does not
+enforce it.** Whether the first word of a phrase is its meaning is a judgement
+no parser can make, and it was tried: of the fourteen shipped bindings with a
+multi-word `desc` and no `short`, eleven are perfectly clear as their first
+word - *Previous* workspace, *Close* the window, *Centre* the window - so a
+warning would be eleven parts noise. The check that *is* decidable - two
+bindings in one layer printing the same word on the bar - fires on three
+places, and all three are deliberate and in the ledger below: L3 duplicating
+X, and every button in the guide and the menu saying *Close*. A check that
+only ever names its own exceptions is a check nobody reads.
 
 The bar prints one word because it is glanced at over the top of a game with
 three slots; the guide prints the phrase because it is a page you sit and
@@ -164,6 +190,29 @@ come to.
 An app whose bindings are more than a page of keys wants a **keyboard page**
 (`[profile.<app>.osk]`) rather than more buttons. Four rows, eight short
 entries, and the pad keeps its scheme.
+
+## A menu page, which may spend two of them
+
+A page of the controller menu can take **X and Y** for a job of its own, with
+`[menu.items.keys]`, and the legend along the foot of the card prints what it
+took them for. This is rule 2 one surface along, and it carries rule 2's
+conditions rather than getting its own:
+
+- **A and B are not on offer, and the parser says so.** `menu.PAGE_KEYS` is
+  `X` and `Y`; anything else fails `omapad check` naming the page. That is the
+  one rule the whole project rests on, enforced by the thing that reads the
+  file rather than by review.
+- **A page taking X keeps `menu:close` on the hold**, because X is how you
+  leave from everywhere else in this surface. `omapad check` says so too.
+- **The test is still whether it is reachable on screen.** A page of tiles
+  almost always has room for one more tile, and a tile costs nothing anybody
+  has to remember. Nothing in the shipped tree spends a key, and play / pause
+  on the `Now` page is the worked example of when not to: the tile is right
+  there.
+- The guide, opened from that page, prints the page's answer rather than the
+  layer's - see [`../components/guide.md`](../components/guide.md). A guide
+  that was wrong about the two buttons somebody opened it to ask about would
+  be worse than no guide.
 
 ## The ledger: where the shipped config bends a rule
 

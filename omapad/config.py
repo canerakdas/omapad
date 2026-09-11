@@ -1,14 +1,18 @@
 """Configuration loading: shipped defaults deep-merged with the user's file."""
 
+import logging
 import os
 import tomllib
 
 from . import actions as actions_module
 from . import gamebar as gamebar_module
 from . import guide as guide_module
+from . import live as live_module
 from . import snap as snap_module
 from . import keymap
 from . import osk as osk_module
+
+log = logging.getLogger("omapad")
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG_PATH = os.path.join(
@@ -30,6 +34,19 @@ def mapping_path():
     """
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     return os.path.join(base, "omapad", "mapping.toml")
+
+
+def layout_path():
+    """Where an arrangement made from the pad is written down.
+
+    A third program-written file, and separate from settings.toml on purpose:
+    that one is scalars and this one is structure, so a layout that will not
+    parse must not be able to take the settings down with it. Never a
+    `ConfigError` either - a file the daemon wrote itself must not be how the
+    daemon stops starting.
+    """
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(base, "omapad", "layout.toml")
 
 
 def settings_path():
@@ -127,14 +144,24 @@ BADGE_STYLES = ("filled", "stencil")
 # ---------------------------------------------------------------------------
 
 CHOSEN = {
+    # `words` is what each value is called where somebody reads it - a tile
+    # that walks a choice in place, and the line a notification prints. Beside
+    # the choices rather than in a table of its own: a second place to say
+    # what `xbox` is called is a second place for it to be wrong. A value with
+    # no word here prints itself, which is right for the ones that are already
+    # words.
     "profile": {
         "attr": "profile_name", "table": "device", "key": "profile",
         "kind": "choice", "choices": ("auto",) + tuple(sorted(PROFILES)),
+        "words": {"auto": "Detect it", "nintendo_pro": "Nintendo Pro",
+                  "xbox": "Xbox"},
     },
     "layout": {
         "attr": "layout_name", "table": "device", "key": "layout",
         "kind": "choice",
         "choices": ("auto",) + tuple(sorted(guide_module.LAYOUTS)),
+        "words": {"auto": "Follow the pad", "nintendo": "Nintendo",
+                  "playstation": "PlayStation", "xbox": "Xbox"},
     },
     # How the badges are drawn, which is the other half of what they print:
     # the answer depends on how far away the screen is, so it is asked from
@@ -142,6 +169,7 @@ CHOSEN = {
     "badge_style": {
         "attr": "ui_badge_style", "table": "ui", "key": "badge_style",
         "kind": "choice", "choices": BADGE_STYLES,
+        "words": {"filled": "Filled", "stencil": "Stencil"},
     },
     "rumble": {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
@@ -213,6 +241,7 @@ CHOSEN = {
     "start_mode": {
         "attr": "start_mode", "table": "mode", "key": "start",
         "kind": "choice", "choices": ("desktop", "game"),
+        "words": {"desktop": "Desktop", "game": "Game mode"},
     },
 }
 
@@ -320,6 +349,116 @@ def toml_string(text):
         # A control character has no escape worth writing here: TOML forbids it
         # raw, and a name with one in it is not a name anybody reads.
     return '"%s"' % "".join(out)
+
+
+def read_layout(path):
+    """Everything in layout.toml that still makes sense, and nothing else.
+
+    Syntax corruption and semantic corruption are not the same failure, and
+    the difference is the whole of this function:
+
+    | Broken | Answer |
+    |---|---|
+    | the file will not parse as TOML | ignore the whole layout, one warning |
+    | an unknown id | ignore that id |
+    | an invalid span | ignore that one override, keep the rest |
+    | a duplicate id | keep the first, drop the rest |
+
+    What it cannot do is raise. Nothing here is the user's typing - it is a
+    file omapad wrote - so a mistake in it is omapad's to survive.
+    """
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        log.warning("%s: %s - the shipped arrangement is used instead",
+                    path, exc)
+        return {}
+    pages = data.get("layout")
+    if not isinstance(pages, dict):
+        return {}
+    out = {}
+    for page, plan in pages.items():
+        if not isinstance(plan, dict):
+            continue
+        out[str(page)] = {
+            "order": _layout_ids(plan.get("order")),
+            "hidden": _layout_ids(plan.get("hidden")),
+            "span": _layout_spans(plan.get("span")),
+        }
+    return out
+
+
+def _layout_ids(value):
+    """A list of ids, de-duplicated, first one winning."""
+    if not isinstance(value, list):
+        return []
+    out = []
+    for entry in value:
+        if not isinstance(entry, str):
+            continue
+        name = entry.strip()
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def _layout_spans(value):
+    """The size overrides that are sizes. One bad one costs only itself."""
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for name, span in value.items():
+        if not isinstance(span, list) or len(span) != 2:
+            continue
+        try:
+            width, height = int(span[0]), int(span[1])
+        except (TypeError, ValueError):
+            continue
+        if width < 1 or height < 1:
+            continue
+        out[str(name)] = (width, height)
+    return out
+
+
+def render_layout(layout):
+    """Serialise an arrangement, one table per page."""
+    lines = [
+        "# omapad layout - written by the controller menu.",
+        "#",
+        "# One table per page, naming the tiles in the order they are shown.",
+        "# Anything the config has that is not named here is added at the",
+        "# end, and a name here the config no longer has is ignored - so",
+        "# editing config.toml can never break this file, and this file can",
+        "# never hide a tile that did not exist when it was written.",
+        "#",
+        "# Delete a page's table to hand that page back to the config, or the",
+        "# file to hand back every page.",
+        "",
+    ]
+    for page in sorted(layout):
+        plan = layout[page]
+        if not plan.get("order") and not plan.get("hidden") \
+                and not plan.get("span"):
+            continue
+        lines.append("[layout.%s]" % page)
+        if plan.get("order"):
+            lines.append("order = [%s]" % ", ".join(
+                toml_string(name) for name in plan["order"]))
+        if plan.get("hidden"):
+            lines.append("hidden = [%s]" % ", ".join(
+                toml_string(name) for name in plan["hidden"]))
+        if plan.get("span"):
+            lines.append("")
+            lines.append("[layout.%s.span]" % page)
+            for name in sorted(plan["span"]):
+                width, height = plan["span"][name]
+                lines.append("%s = [%d, %d]"
+                             % (toml_string(name), width, height))
+        lines.append("")
+    return "\n".join(lines)
 
 
 def render_settings(chosen):
@@ -499,7 +638,8 @@ def _match_patterns(spec):
 # stick a layer turns off - which is why this is a wider list than daemon.py's
 # STICK_ROLES, the ones that actually integrate something every tick.
 STICK_ROLES = (
-    "cursor", "scroll", "resize", "move", "snap", "focus", "swap", "none",
+    "cursor", "scroll", "resize", "move", "snap", "focus", "swap", "menu",
+    "none",
 )
 
 
@@ -531,6 +671,10 @@ class Config:
         # setting name. Kept apart from `data` so settings.toml can be written
         # back out holding only that, and not a copy of everybody's defaults.
         self.chosen = dict(chosen or {})
+        # The arrangement made from the pad, page by page. Filled by `load`
+        # from layout.toml; empty means the tiles are the config's own order,
+        # which is what a machine that has never been rearranged has.
+        self.layout = {}
         device = data.get("device", {})
         # Which pad to drive. Empty is any pad: what makes something a pad is
         # what it advertises, not what it is called, so a pad nobody has heard
@@ -853,6 +997,32 @@ class Config:
         self.rumble_strong = float(rumble.get("strong", 0.20))
         self.rumble_weak = float(rumble.get("weak", 0.0))
         self.rumble_duration = int(rumble.get("duration_ms", 60))
+        self.rumble_edge_strength = float(rumble.get("edge_strength", 0.35))
+        self.rumble_edge_duration = int(rumble.get("edge_duration_ms", 70))
+        self.rumble_commit_strength = float(
+            rumble.get("commit_strength", 0.28))
+        self.rumble_commit_duration = int(
+            rumble.get("commit_duration_ms", 90))
+        self.rumble_texture = bool(rumble.get("texture", False))
+        self.rumble_texture_strength = float(
+            rumble.get("texture_strength", 0.12))
+        self.rumble_floor = int(rumble.get("floor_ms", 50))
+        for key, value in (("strong", self.rumble_strong),
+                           ("weak", self.rumble_weak),
+                           ("edge_strength", self.rumble_edge_strength),
+                           ("commit_strength", self.rumble_commit_strength),
+                           ("texture_strength",
+                            self.rumble_texture_strength)):
+            if not 0.0 <= value <= 1.0:
+                raise ConfigError("rumble.%s must be between 0 and 1" % key)
+        for key, value in (("duration_ms", self.rumble_duration),
+                           ("edge_duration_ms", self.rumble_edge_duration),
+                           ("commit_duration_ms",
+                            self.rumble_commit_duration)):
+            if value <= 0:
+                raise ConfigError("rumble.%s must be positive" % key)
+        if self.rumble_floor < 0:
+            raise ConfigError("rumble.floor_ms cannot be negative")
 
         scroll = data.get("scroll", {})
         self.scroll_speed = float(scroll.get("speed", 8.0))
@@ -930,6 +1100,25 @@ class Config:
         # entry by entry - which is what you want: a user menu is their menu,
         # not the shipped one with rows spliced in at matching indexes.
         self.menu_items = menu.get("items", [])
+        # The read-only grid above the bar, by the same argument: a head
+        # somebody wrote is theirs, not the shipped one with cells spliced in.
+        self.menu_head = menu.get("head", [])
+        # How many cells across a page is. It decides how much fits on one
+        # screen and how big a tile reads from across a room, so a laptop
+        # panel and a television do not want the same answer. Below three
+        # there is nowhere to put a bar, and far above it a tile is a row
+        # again.
+        self.menu_columns = int(menu.get("columns", 6))
+        if self.menu_columns < 3:
+            raise ConfigError("menu.columns must be 3 or more")
+        # What a tile off to the side costs against one straight ahead, both
+        # measured edge to edge - the same question `snap.bias` answers about
+        # windows, and its own number because tiles are small and touching
+        # where windows are large and sparse. Below 1 the nearest tile wins
+        # whatever direction was pressed, which makes the press meaningless.
+        self.menu_bias = float(menu.get("bias", 2.0))
+        if self.menu_bias < 0:
+            raise ConfigError("menu.bias cannot be negative")
         # The day and the time, at the head of the menu. strftime; empty for
         # none. It lives here rather than on the bar because the bar's left end
         # is the menu's own place and two things there read as clutter.
@@ -949,6 +1138,86 @@ class Config:
         self.menu_list_limit = int(menu.get("list_limit", 24))
         if self.menu_list_limit < 1:
             raise ConfigError("menu.list_limit must be 1 or more")
+        # How long a flick across the bar waits before a group that lists its
+        # tiles asks. Walking five chips in a second should spawn one command,
+        # not five, and the chip you stop on is the only one worth asking
+        # about.
+        self.menu_group_settle = float(
+            menu.get("group_settle_ms", 180)) / 1000.0
+        if self.menu_group_settle < 0:
+            raise ConfigError("menu.group_settle_ms cannot be negative")
+        # Whether the card prints what its face buttons do along the foot. In
+        # game mode omapad's own bar is already along an edge saying the same
+        # thing, and somebody running that may not want it said twice - but
+        # the two are not the same answer in general: the bar is the screen's
+        # and this is the page's, and only this one can show a key the page in
+        # front has spent on a job of its own.
+        self.menu_keys = bool(menu.get("keys", True))
+        # How much bigger one push of a held direction gets on a control with
+        # a range, and how long it takes to get there. A slider walked one
+        # step per repeat is thirty-eight presses end to end on the shipped
+        # pointer speed; this is what a held wheel does about the same
+        # problem, with the same reversal reset.
+        self.menu_ramp = float(menu.get("ramp", 4.0))
+        if self.menu_ramp < 1.0:
+            raise ConfigError("menu.ramp is 1.0 or more (1.0 is off)")
+        self.menu_ramp_ms = int(menu.get("ramp_ms", 900))
+        if self.menu_ramp_ms < 0:
+            raise ConfigError("menu.ramp_ms cannot be negative")
+        # How long a fully pulled trigger takes to cross a control's whole
+        # range. Half pulled takes twice as long, so the number is the fastest
+        # the control ever moves rather than the only speed it has.
+        self.menu_sweep_ms = int(menu.get("sweep_ms", 1500))
+        if self.menu_sweep_ms <= 0:
+            raise ConfigError("menu.sweep_ms must be positive")
+        # What the sticks do while the menu is up. The implicit surface layers
+        # keep the base roles everywhere else, so this is a documented new
+        # case rather than a general mechanism: the left one walks the tiles
+        # and the right one keeps the pointer, which is what `[menu]` promises
+        # about the pointer staying live under the open card.
+        self.menu_left_stick = _stick_role(
+            "menu.left_stick", menu.get("left_stick", "menu"))
+        self.menu_right_stick = _stick_role(
+            "menu.right_stick", menu.get("right_stick", "cursor"))
+        # How often a gauge is told where the thumb is. A scheduler parameter
+        # rather than a second clock: the loop already runs at `poll_hz` while
+        # anything needs a tick, and this only decides how many of those turns
+        # carry a push.
+        self.menu_live_hz = int(menu.get("live_hz", 60))
+        if self.menu_live_hz <= 0:
+            raise ConfigError("menu.live_hz must be positive")
+        if self.menu_live_hz > self.poll_hz:
+            # A push per turn the loop cannot make. Said rather than silently
+            # served at whatever the loop manages, because the number would be
+            # a promise the daemon was never keeping.
+            raise ConfigError(
+                "menu.live_hz is %d, which is more turns than pointer.poll_hz"
+                " (%d) gives it" % (self.menu_live_hz, self.poll_hz))
+
+        # What the machine is doing, and the commands that ask and answer.
+        # Every one is a setting: a machine that reads its volume some other
+        # way is a config change rather than a patch. An empty string is a
+        # reading this machine does not have, and nothing asks for it.
+        live = data.get("live", {})
+        self.live_reads = {}
+        self.live_writes = {}
+        for name in sorted(live_module.READINGS):
+            self.live_reads[name] = str(live.get("%s_read" % name, "")).strip()
+            self.live_writes[name] = str(live.get("%s_set" % name, "")).strip()
+            template = self.live_writes[name]
+            if template and "%1" not in template:
+                raise ConfigError(
+                    "live.%s_set has to say where the value goes, as %%1"
+                    % name
+                )
+        self.live_timeout = float(live.get("timeout_ms", 1000)) / 1000.0
+        self.live_poll = float(live.get("poll_ms", 2000)) / 1000.0
+        self.live_settle = float(live.get("settle_ms", 250)) / 1000.0
+        for key, value in (("timeout_ms", self.live_timeout),
+                           ("poll_ms", self.live_poll),
+                           ("settle_ms", self.live_settle)):
+            if value <= 0:
+                raise ConfigError("live.%s must be positive" % key)
 
         guide = data.get("guide", {})
         self.guide_socket = guide.get("socket") or None
@@ -1356,6 +1625,11 @@ class Config:
         layer = self.layer(layer_name)
         if layer is not None:
             roles = (layer.left_stick, layer.right_stick)
+        elif layer_name == "menu":
+            # The one implicit surface layer that does not keep the base
+            # roles, because it is the one with something for a thumb to do:
+            # a grid of tiles, and a gauge that answers where the stick is.
+            return (self.menu_left_stick, self.menu_right_stick)
         elif layer_name == "game":
             roles = (
                 self.game_left_stick or self.left_stick,
@@ -1474,7 +1748,7 @@ class Layer:
         self.reaches_past = reaches_past
 
 
-def load(path=None, mapping=None, settings=None):
+def load(path=None, mapping=None, settings=None, layout=None):
     """Shipped defaults, the user's config, what was measured, what was chosen.
 
     In that order, so each layer answers for what the one before it could not:
@@ -1498,7 +1772,12 @@ def load(path=None, mapping=None, settings=None):
             raise ConfigError("%s: %s" % (source, exc)) from exc
         chosen = _migrate_settings(chosen)
         data = _deep_merge(data, _settings_data(chosen, source))
-    return Config(data, chosen)
+    config = Config(data, chosen)
+    # Not merged into `data`: this one is structure rather than scalars, and
+    # it is read with its own rules - see `read_layout`.
+    config.layout = read_layout(
+        layout_path() if layout is None else layout)
+    return config
 
 
 def _renamed(data):

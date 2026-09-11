@@ -1,11 +1,15 @@
-// The drawn half of a badge: one controller button, in the theme's colours.
+// The drawn half of a badge: one hand-drawn entry, in the theme's colours.
 //
-// The geometry comes from ButtonArt.qml, which assets/generate.py writes out
-// of the hand-drawn shapes in assets/shapes and Fira Code. Paths rather than
-// the SVGs beside them because every surface paints a badge differently - the
-// guide fills the button faintly under a solid label, the game bar draws it as
-// an outline in whatever colour the wallpaper left readable - and an SVG can
-// only carry the colour it was drawn with.
+// Usually a controller button, out of ButtonArt.qml; the menu's control tiles
+// are drawn from ControlArt.qml through the same painter, because a dial and
+// a face button are the same problem - a drawing that has to take the colour
+// of whatever it is standing on. Both are written by assets/generate.py out
+// of the shapes in assets/shapes.
+//
+// Paths rather than the SVGs beside them because every surface paints a badge
+// differently - the guide fills the button faintly under a solid label, the
+// game bar draws it as an outline in whatever colour the wallpaper left
+// readable - and an SVG can only carry the colour it was drawn with.
 //
 // Nothing here decides anything: the caller picks the entry, the colours and
 // the weight of the outline, and this scales the 32- or 64-unit drawing to

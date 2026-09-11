@@ -25,12 +25,34 @@ The shipped defaults. The user's file at
 - Comments in this file are the user's manual as much as `README.md` is;
   write them for someone editing at a keyboard, not for a reviewer.
 
-Two files are written *by* the program and are merged after the user's:
+Three files are written *by* the program:
 
 | File | Written by | Why it is not in `config.toml` |
 |---|---|---|
 | `~/.config/omapad/mapping.toml` | the mapping wizard | `config.toml` is hand-written and full of comments a program would trample; a mapping is undone by deleting a file |
 | `~/.config/omapad/settings.toml` | the controller menu | same reason; it is merged last so what was just changed from the pad wins |
+| `~/.config/omapad/layout.toml` | the controller menu, while a page is being rearranged | same reason again, and one of its own: that file is scalars and this one is structure, so a layout that will not parse must not be able to take the settings down with it |
+
+The first two are **deep-merged** into the config. `layout.toml` is not: it is
+read separately, by `config.read_layout`, into `Config.layout`.
+
+**None of the three may keep the daemon from starting.** For the two that are
+merged, a parse failure is a `ConfigError` naming the file, because a mapping
+or a setting the daemon cannot read is a thing the user must be told about
+before anything else happens. For `layout.toml` even that is too much: it is
+structure the daemon itself wrote, and it degrades in four steps rather than
+failing.
+
+| Broken | Answer |
+|---|---|
+| the file will not parse as TOML | ignore the whole layout, ship the config order, one `log.warning` |
+| an unknown id | ignore that id |
+| an invalid span (`[999, -3]`) | ignore that one override, keep the rest |
+| a duplicate id | keep the first, drop the rest, deterministically |
+
+And the merge itself is three rules, so that a saved arrangement and a changed
+config can never break each other - see
+[`../components/menu.md`](../components/menu.md).
 
 ## The socket payloads - line-delimited JSON
 

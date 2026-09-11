@@ -17,7 +17,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 | `hypr:` | `HyprAction` | a Lua dispatcher over Hyprland's socket - see [`../conventions/lua.md`](../conventions/lua.md) |
 | `exec:` | `ExecAction` | a command, with the session's environment |
 | `osk:` | `OskAction` | a keyboard command |
-| `menu:` | `MenuAction` | a menu command |
+| `menu:` | `MenuAction` | a menu command - walking it, driving a control, and the seven that rearrange a page |
 | `guide:` | `GuideAction` | a guide command |
 | `map:` | `MappingAction` | a mapping-wizard command |
 | `surface:` | `SurfaceAction` | close / close_all / back, whatever is in front |
@@ -25,6 +25,7 @@ loaded**, not when it fires, so a typo surfaces in `omapad check`.
 | `snap:` | `SnapAction` | jump the pointer to the window next door |
 | `term:` | `TerminalAction` | the window layer's close, asked of the terminal first: `Ctrl+C` where a command is running ([`terminal.md`](terminal.md)) |
 | `pad:` | `PadAction` | change one of the settings in `config.CHOSEN` |
+| `live:` | `LiveAction` | change one of the things the machine is doing - `live.READINGS`, and [`live.md`](live.md) |
 | `mode:` | `ModeAction` | desktop / game / toggle |
 | `lock:` | `LockAction` | the workspace lock - the pad is the app in front's outright ([`handover.md`](handover.md)) |
 | `keep:` | `KeepAction` | its pair - the pad is ours over an app that opened it and is not being played with ([`handover.md`](handover.md)) |

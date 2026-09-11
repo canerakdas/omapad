@@ -13,6 +13,15 @@ exactly where each window is, on which workspace, at what size. So this snaps
 between windows - the layer omapad can be right about - and leaves aiming
 inside a window to the stick.
 
+## Two callers, one rule
+
+`choose()` answers "which rectangle is that way from here?", and a window is
+not the only thing that is a rectangle. The menu's grid asks it about **tiles
+in cells** ([`menu.md`](menu.md)), so the pad walks a page of tiles by the same
+rule it walks a desktop of windows rather than by two that can disagree. The
+menu passes `[menu] bias` rather than this one's: windows are large and sparse,
+tiles are small and touching, and the number was measured on windows.
+
 ## Surface
 
 Geometry only. The caller does the talking to Hyprland, so every choice can be

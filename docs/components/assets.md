@@ -22,6 +22,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/sys-guide.svg` | The Xbox button, drawn 36 of 40 against the 24 the rest get - it is larger than every other button on that pad, face buttons included. Nothing else earns it. |
 | `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
 | `shapes/stick.svg` | The stick, seen from above: a pill inside its own rim, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. The rim is three subpaths of the same fill, not a stroke. |
+| `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
 | `truetype.py`, `svgpath.py`, `place.py` | Its parts. |
@@ -35,16 +36,44 @@ guide fills the button faintly under a solid label, the game bar draws it as an
 outline over whatever the wallpaper left readable - and an SVG can only carry
 the colour it was drawn with.
 
-## The three tables
+## The four tables
 
-In `generate.py`, and between them they cover every kind the daemon sends, so
-no surface falls back to a bordered rectangle:
+In `generate.py`. The first three cover every badge kind the daemon sends, so
+no surface falls back to a bordered rectangle; the fourth is the menu's:
 
 | Table | What it makes |
 |---|---|
 | `BUTTONS_TO_DRAW` | a shape plus the labels punched into it |
 | `ICONS_TO_DRAW` | a label that is itself a drawing (a D-pad arm set into the cross) |
 | `BLANKS_TO_DRAW` | the shape only, for the oblong the shell types the word into |
+| `CONTROLS_TO_DRAW` | the parts a control tile is drawn from, into a second file |
+
+## The control parts, which are not a font
+
+`CONTROLS_TO_DRAW` writes `../shell-plugin/ControlArt.qml`, and **nothing in it
+goes near the font**: `truetype.py` exists to turn letters into outlines so
+they can be punched out of a silhouette, and a dial has no letters. What is
+generated is the same path data with that step skipped. Say so wherever this
+is described - "generate a font for the elements too" is the obvious reading of
+what the buttons do, and it is the wrong one.
+
+**Only the furniture is generated**, meaning what does not depend on the value.
+Where the thumb dot sits and how far a switch's knob has travelled are
+geometry, and geometry is the panel's: a shape parameterised by a number
+cannot be drawn once. It is the same split
+`BadgeArt.qml` already makes between a button and the label set into it, which
+is also why `BadgeArt` paints both files without knowing there are two.
+
+A second file rather than more entries in the first, for two reasons.
+`ButtonArt` cannot be a `pragma Singleton` - it does not register from a plugin
+directory - so every surface that badges anything instantiates a copy of it,
+and only the menu draws these. And `EveryBadgeIsDrawn` says every label of
+every layout in `guide.LAYOUTS` has art; a map that also held dials would make
+that invariant read as a coincidence.
+
+Nothing is written to `buttons/` for them - a dial is not a button, and half a
+control is not something to hand a README. That is the argument
+`BLANKS_TO_DRAW` already carries.
 
 ## The parts
 

@@ -1,11 +1,12 @@
 # Button art
 
 The controller buttons omapad badges with — a face button, the two shoulders,
-the two triggers, a stick click — drawn once and generated everywhere else.
+the two triggers, a stick click — and the parts its control tiles are drawn
+from, drawn once and generated everywhere else.
 
 ```bash
 python3 assets/generate.py       # after editing anything in shapes/
-omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
+omarchy-restart-shell            # so the shell picks up the new art
 ```
 
 ## What is here
@@ -19,6 +20,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/sys-round.svg` | The small **round** button — what every pad but one puts a mark on. |
 | `shapes/sys-guide.svg` | The **Xbox button**, drawn 36 units of 40 against the 24 the rest get, with `sys-nexus.svg` scaled to match it. |
 | `shapes/system.svg` | The **oblong** — PlayStation's Create and Options, and the bare shape the shell types a word into. |
+| `shapes/dial-*.svg`, `switch-*.svg`, `chev-*.svg`, `media-*.svg`, `grip.svg` | The parts a **control tile** is drawn from — see below. No labels, so no font. |
 | `buttons/` | Generated: each shape with a label punched through it. |
 | `generate.py` | The generator. `truetype.py`, `svgpath.py` and `place.py` are its parts. |
 
@@ -41,6 +43,47 @@ Two things, from the same numbers, so they cannot drift apart:
   colours (the guide fills the button faintly under a solid label; the game bar
   draws it as an outline over the wallpaper), and an SVG can only carry the
   colour it was drawn with.
+
+* **`../shell-plugin/ControlArt.qml`** — the same, for the parts a control
+  tile is drawn from.
+
+## Control tiles, which are not a font
+
+The menu's tiles hold values — a dial, a switch, a walked choice, a transport —
+and the parts they are drawn from are generated here alongside the buttons.
+**This is not a TrueType font.** `truetype.py` exists to turn *letters* into
+outlines so they can be punched out of a silhouette; nothing in a dial has a
+letter in it, so nothing here goes near it. What comes out is the same path
+data with that step skipped.
+
+`CONTROLS_TO_DRAW` is the table, `(family, name, shape.svg)`, and it writes
+`ControlArt.qml` rather than adding to `ButtonArt.qml`. Two reasons:
+`ButtonArt` cannot be a `pragma Singleton` (it does not register from a
+plugin directory), so every surface that badges anything instantiates a copy,
+and only the menu draws these. Keeping them apart also keeps
+`EveryBadgeIsDrawn` honest, which says every label of every layout has art.
+
+**Only the furniture is generated** — what does not depend on the value:
+
+| Generated | Left to the panel |
+|---|---|
+| the dial's rim, its notches, the thumb dot | where the dot sits, and the shaded zone - a circle of variable radius, which a drawing cannot be |
+| the switch's pill and its knob | how far the knob has travelled |
+| the two chevrons | which one is dimmed at an end |
+| the four transport marks | which one is drawn |
+
+A shape parameterised by a number cannot be drawn once, so it is not drawn
+here. It is the same split `BadgeArt` already makes between a button and the
+label set into it.
+
+The rules are the buttons' rules: **fill, never a stroke**; flat edges on whole
+units; a canvas `Metrics.badgeGrid` divides. `MARK_CAPS` and the centring test
+do **not** apply — none of these is a mark set into a silhouette. One rule of
+their own: a shape with a hole in it (the dial's rim) is wound so the hole
+survives **both** fill rules, because a
+badge is painted non-zero normally and even-odd in the stencil style. That is
+the trap `stick.svg`'s rim already taught, and
+`tests/test_assets.py::AnnuliSurviveEitherFillRule` is what says so now.
 
 ## Adding a button
 

@@ -130,7 +130,7 @@ def shipped_config():
     day someone's own config bound something these tests assert about.
     """
     missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
-    return config_module.load(path=missing, mapping=missing,
+    return config_module.load(path=missing, mapping=missing, layout=missing,
                               settings=missing)
 
 
@@ -142,6 +142,30 @@ BASE = {
     },
     "layers": {"window": {"button": "ZL", "left_stick": "resize"}},
 }
+
+
+class EveryStickRoleIsNamed(unittest.TestCase):
+    """A role the guide cannot name is a stick the guide does not print.
+
+    It happened: the menu gained a stick role of its own and the guide's menu
+    page listed one stick where the pad has two, with nothing anywhere saying
+    the other one walked the tiles.
+    """
+
+    def test_every_role_a_config_may_name_has_words(self):
+        for role in config_module.STICK_ROLES:
+            if role == "none":
+                continue  # a stick a layer turned off has nothing to say
+            self.assertIn(
+                role, guide.STICK_ROLES,
+                "[.] %s is a role a config may name and the guide has no"
+                " words for it" % role)
+
+    def test_the_guide_names_no_role_a_config_cannot_ask_for(self):
+        # The other way: words for a role nobody can name are words nobody
+        # will ever read.
+        for role in guide.STICK_ROLES:
+            self.assertIn(role, config_module.STICK_ROLES, role)
 
 
 class PageTests(unittest.TestCase):

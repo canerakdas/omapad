@@ -136,8 +136,11 @@ OSK_TEXT = {
 MENU_TEXT = {
     "toggle": "Controller menu", "open": "Open the menu",
     "close": "Close the menu", "press": "Pick", "back": "Back",
+    # Four directions walk a grid of tiles now, so left and right are no
+    # longer the second way to say Back and Pick.
     "up": "Move up", "down": "Move down",
-    "left": "Back", "right": "Pick",
+    "left": "Move left", "right": "Move right",
+    "group_prev": "Previous group", "group_next": "Next group",
 }
 
 GUIDE_TEXT = {
@@ -223,6 +226,7 @@ STICK_ROLES = {
     "snap": "Flick to the next window",
     "focus": "Walk the focus",
     "swap": "Swap places with the next window",
+    "menu": "Walk the tiles",
 }
 
 # What the *bar* prints instead, where one word is not the first word of the
@@ -432,7 +436,8 @@ def _stick_rows(config, layer_name):
     return rows
 
 
-def _groups_for(config, layer_name, available, layout=DEFAULT_LAYOUT):
+def _groups_for(config, layer_name, available, layout=DEFAULT_LAYOUT,
+                overrides=None):
     """Rows of one layer, grouped by the region of the pad they sit in.
 
     Empty for a layer that binds nothing, so it gets no page: the sticks
@@ -440,6 +445,13 @@ def _groups_for(config, layer_name, available, layout=DEFAULT_LAYOUT):
     when nothing about it does.
     """
     bindings = config.bindings.get(layer_name, {})
+    if overrides:
+        # A page of the menu may spend X and Y on a job of its own, and while
+        # that page is in front those buttons do that. A guide opened from it
+        # that printed the layer's answer instead would be wrong about the
+        # two buttons somebody opened the guide to ask about.
+        bindings = dict(bindings)
+        bindings.update(overrides)
     layer = config.layer(layer_name)
     placed = set()
     groups = []
@@ -578,16 +590,26 @@ def _layer_titles(config, layout=DEFAULT_LAYOUT):
     return titles
 
 
-def build_pages(config, available=None, layout=DEFAULT_LAYOUT):
+def build_pages(config, available=None, layout=DEFAULT_LAYOUT,
+                menu_keys=None, menu_page=""):
     """Every page the guide can show, for the pad that is actually connected.
 
     `available` is the set of logical names the connected pad has; None means
     no pad is attached and everything the config binds is worth showing.
+
+    `menu_keys` is what the menu page the guide was opened from spends X and Y
+    on, and `menu_page` is which page that was. The guide is reached from the
+    menu with Y, and the whole reason it is on Y is that you had forgotten
+    what a button does - so it has to answer about the page you just left
+    rather than about the menu in general.
     """
     pages = []
     for name, title, note in _layer_titles(config, layout):
-        groups = _groups_for(config, name, available, layout)
+        overrides = menu_keys if name == "menu" else None
+        groups = _groups_for(config, name, available, layout, overrides)
         if groups:
+            if overrides and menu_page:
+                note = "On %s" % menu_page
             pages.extend(_paginate(title, groups, note))
     return pages
 
@@ -604,13 +626,16 @@ class GuideModel:
         self.index = 0
         self.rebuild()
 
-    def rebuild(self, available=None):
+    def rebuild(self, available=None, menu_keys=None, menu_page=""):
         """Rebuild against the pad in front of you.
 
         Called when the guide opens rather than once at startup, because which
-        buttons exist depends on the profile of whatever is plugged in now.
+        buttons exist depends on the profile of whatever is plugged in now -
+        and, for the same reason one page along, on which menu page the guide
+        was opened from.
         """
-        self.pages = build_pages(self.config, available, self.layout)
+        self.pages = build_pages(self.config, available, self.layout,
+                                 menu_keys, menu_page)
         if self.index >= len(self.pages):
             self.index = 0
 

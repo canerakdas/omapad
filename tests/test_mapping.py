@@ -141,6 +141,7 @@ class RenderTests(unittest.TestCase):
                 handle.write(text)
             missing = os.path.join(directory, "no-such-config.toml")
             config = config_module.load(path=missing, mapping=path,
+                                        layout=missing,
                                         settings=missing)
         self.assertEqual(
             config.pad_mappings["057E:2009"]["buttons"],
@@ -174,6 +175,7 @@ class RenderTests(unittest.TestCase):
                 handle.write(text)
             missing = os.path.join(directory, "no-such-config.toml")
             config = config_module.load(path=missing, mapping=path,
+                                        layout=missing,
                                         settings=missing)
         # One block, the one that was written, and the name is a name.
         self.assertEqual(list(config.pad_mappings), ["057E:2009"])
@@ -190,6 +192,7 @@ class RenderTests(unittest.TestCase):
                 handle.write(text)
             missing = os.path.join(directory, "no-such-config.toml")
             config = config_module.load(path=missing, mapping=path,
+                                        layout=missing,
                                         settings=missing)
         self.assertEqual(config.pad_mappings["057E:2009"]["name"], "Rogue\\")
 
@@ -206,6 +209,7 @@ class RenderTests(unittest.TestCase):
                 handle.write(text)
             missing = os.path.join(directory, "no-such-config.toml")
             config = config_module.load(path=missing, mapping=path,
+                                        layout=missing,
                                         settings=missing)
         _, buttons, _ = config.profile_for("Beitong KP20A", "20BC:5127")
         self.assertEqual(buttons[0x130], "A")  # the xbox profile's own answer

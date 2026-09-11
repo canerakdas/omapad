@@ -8,6 +8,8 @@ import signal
 import sys
 
 from . import __version__, config as config_module, linux_input as li
+from . import live as live_module
+from . import rumble as rumble_module
 from .config import DPAD_NAMES
 from .daemon import Daemon
 from .uinput import UinputError
@@ -24,6 +26,10 @@ def build_parser():
     parser.add_argument("-c", "--config", help="path to config.toml")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument(
+        "--layout", action="store_true",
+        help="for check: what the saved arrangement still resolves to",
+    )
+    parser.add_argument(
         "command",
         nargs="?",
         default="run",
@@ -35,7 +41,9 @@ def build_parser():
     parser.add_argument(
         "args",
         nargs="*",
-        help="for ctl: osk <toggle|open|close>, menu <toggle|open|close>, "
+        help="for ctl: osk <toggle|open|close>, "
+        "menu <toggle|open|close|up|down|left|right|press|back"
+        "|group_prev|group_next|select N|group N>, "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
@@ -137,6 +145,85 @@ def cmd_dump(config):
         device.close()
 
 
+def cmd_check_layout(config):
+    """What a saved arrangement still resolves to, page by page.
+
+    A layout that has quietly lost half its tiles is exactly the kind of thing
+    this project makes a command say out loud rather than leaving somebody to
+    notice. Nothing here is a fault - an id the config no longer has is
+    ignored by design, and this is where you find out it was.
+    """
+    from . import menu as menu_module
+
+    path = config_module.layout_path()
+    if not config.layout:
+        print("no saved arrangement (%s)" % path)
+        return 0
+    pages = {}
+
+    def walk(items, owner=""):
+        for item in items:
+            if item.get("items"):
+                pages.setdefault(
+                    menu_module.slug(str(item.get("id")
+                                         or item.get("label", ""))),
+                    [child for child in item["items"]])
+                walk(item["items"])
+
+    walk(config.menu_items)
+    print("arrangement: %s" % path)
+    for page in sorted(config.layout):
+        plan = config.layout[page]
+        tiles = pages.get(page)
+        if tiles is None:
+            print("  %s: no such page any more - it is ignored" % page)
+            continue
+        names = set()
+        for item in tiles:
+            names.add(menu_module.slug(str(item.get("id")
+                                           or item.get("label", ""))))
+        lost = [name for name in plan["order"] if name not in names]
+        hidden = [name for name in plan["hidden"] if name in names]
+        added = [name for name in names
+                 if name and name not in plan["order"]]
+        kept = len(plan["order"]) - len(lost)
+        print("  %s: %d tile%s" % (page, kept, "" if kept == 1 else "s"))
+        if lost:
+            print("    gone from the config, ignored: %s" % ", ".join(lost))
+        if added:
+            print("    new since it was saved, added at the end: %s"
+                  % ", ".join(sorted(added)))
+        if hidden:
+            print("    hidden: %s" % ", ".join(hidden))
+    return 0
+
+
+def _report_rumble(config, device):
+    words = rumble_module.Rumble(config).levels
+    if not config.rumble_enabled:
+        print("rumble: off")
+        return
+    try:
+        supported = device.supports_effects()
+        slots = max(1, device.effect_slots())
+    except OSError as exc:
+        log.debug("could not ask the pad about force feedback: %s", exc)
+        print("rumble: cannot be asked - run this with the pad's udev rules")
+        return
+    taken = rumble_module.plan(words, supported, slots)
+    if not taken:
+        print("rumble: no usable motor")
+        return
+    said = [name if waveform is not None or name == "tick"
+            else "%s (as a tick)" % name for name, waveform in taken]
+    silent = [name for name in rumble_module.EFFECTS
+              if words[name][0] > 0 and name not in dict(taken)]
+    line = "rumble: %s" % ", ".join(said)
+    if silent:
+        line += " - no %s" % ", ".join(silent)
+    print(line)
+
+
 def cmd_check(config):
     """Parse every binding so mistakes surface before the daemon starts."""
     from . import actions, menu, osk
@@ -175,7 +262,14 @@ def cmd_check(config):
                     file=sys.stderr,
                 )
     try:
-        menu.build(config.menu_items)
+        menu.build(config.menu_items, columns=config.menu_columns,
+                   settings=config_module.CHOSEN,
+                   readings=live_module.READINGS)
+    except menu.MenuError as exc:
+        problems += 1
+        print("%s" % exc, file=sys.stderr)
+    try:
+        menu.build_head(config.menu_head, columns=config.menu_columns)
     except menu.MenuError as exc:
         problems += 1
         print("%s" % exc, file=sys.stderr)
@@ -203,6 +297,12 @@ def cmd_check(config):
             % (device.name, device.vid_pid, profile_name,
                config.badge_layout(profile_name))
         )
+        # Which of the four words this pad can say. Printed because the
+        # answer is the device's and the driver's rather than the config's -
+        # a pad with no periodic effects answers an edge with a plain tick,
+        # and has no texture at all - and the only other way to find out is
+        # to press something and notice it felt like something else.
+        _report_rumble(config, device)
         # Only when there is something to say: a hand on the pad is the usual
         # reason, so this is not a problem and does not count as one. It is
         # printed because the other reason is a button stuck at the hardware,
@@ -363,7 +463,10 @@ def main(argv=None):
         return 1
     if args.command == "ctl":
         return cmd_ctl(config, args.args)
-    return {"run": cmd_run, "dump": cmd_dump, "check": cmd_check}[args.command](config)
+    if args.command == "check" and args.layout:
+        return cmd_check_layout(config)
+    return {"run": cmd_run, "dump": cmd_dump,
+            "check": cmd_check}[args.command](config)
 
 
 if __name__ == "__main__":

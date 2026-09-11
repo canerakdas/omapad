@@ -80,6 +80,13 @@ KEY_BYTES = KEY_MAX // 8 + 1
 EVIOCGKEY = _ior("E", 0x18, KEY_BYTES)
 
 FF_RUMBLE = 0x50
+FF_PERIODIC = 0x51
+# The waveforms a periodic effect may be. A pad reports each one it will take
+# as a separate bit, so asking for the effect type is not enough - a device
+# with FF_PERIODIC and no FF_SINE exists.
+FF_SQUARE = 0x58
+FF_TRIANGLE = 0x59
+FF_SINE = 0x5A
 FF_MAX = 0x7F
 
 # struct ff_effect is a run of u16 fields followed by a union whose widest
@@ -96,8 +103,20 @@ FF_UNION_OFFSET = (
 )
 FF_EFFECT_SIZE = FF_UNION_OFFSET + struct.calcsize("@HHhhHHHHHIP")
 
+# That format string is ff_periodic_effect itself - waveform, period,
+# magnitude, offset, phase, the four u16s of ff_envelope, then custom_len and
+# the pointer that makes the union this wide. So a periodic effect needs no
+# more room than the rumble one already reserved, and FF_PERIODIC_FORMAT is
+# the same bytes named rather than counted.
+FF_PERIODIC_FORMAT = "@HHhhHHHHH"  # waveform, period, magnitude, offset,
+                                   # phase, envelope{attack_length,
+                                   # attack_level, fade_length, fade_level}
+
 EVIOCSFF = _iow("E", 0x80, FF_EFFECT_SIZE)
 EVIOCRMFF = _iow("E", 0x81, 4)
+# How many effects the device will hold at once. Asked rather than assumed:
+# uploading past it fails with ENOSPC on the effect nobody notices is missing.
+EVIOCGEFFECTS = _ior("E", 0x84, struct.calcsize("@i"))
 
 
 def EVIOCGNAME(length):
@@ -204,12 +223,27 @@ class InputDevice:
             return set()
         return {i for i in range(max_code) if buf[i // 8] >> (i % 8) & 1}
 
-    def supports_rumble(self):
+    def supports_effects(self):
+        """Which force-feedback effects and waveforms this node will take.
+
+        One set, because the kernel reports effect types and waveforms in the
+        same bitmap: FF_PERIODIC says a periodic effect is possible and
+        FF_SINE says which one, and a pad answering the first without the
+        second is a pad that takes the upload and plays nothing.
+        """
         if not self.writable:
-            return False
+            return set()
         if EV_FF not in self.capabilities(0, EV_FF + 1):
-            return False
-        return FF_RUMBLE in self.capabilities(EV_FF, FF_MAX + 1)
+            return set()
+        return self.capabilities(EV_FF, FF_MAX + 1)
+
+    def supports_rumble(self):
+        return FF_RUMBLE in self.supports_effects()
+
+    def effect_slots(self):
+        """How many effects the device holds at once."""
+        buf = fcntl.ioctl(self.fd, EVIOCGEFFECTS, bytes(struct.calcsize("@i")))
+        return struct.unpack("@i", buf)[0]
 
     def upload_rumble(self, strong, weak, length_ms, effect_id=-1):
         """Upload a rumble effect, or replace the one already at effect_id.
@@ -221,6 +255,25 @@ class InputDevice:
             FF_HEADER, buf, 0, FF_RUMBLE, effect_id, 0, 0, 0, length_ms, 0
         )
         struct.pack_into("@HH", buf, FF_UNION_OFFSET, strong, weak)
+        fcntl.ioctl(self.fd, EVIOCSFF, buf, True)
+        return struct.unpack_from("@h", buf, 2)[0]
+
+    def upload_periodic(self, waveform, magnitude, period_ms, length_ms,
+                        effect_id=-1):
+        """Upload a periodic effect, or replace the one at effect_id.
+
+        `magnitude` is signed here where rumble's is not, so it tops out at
+        0x7FFF rather than 0xFFFF; the sign is a phase inversion nothing here
+        asks for. `length_ms` of 0 means run until stopped.
+        """
+        buf = bytearray(FF_EFFECT_SIZE)
+        struct.pack_into(
+            FF_HEADER, buf, 0, FF_PERIODIC, effect_id, 0, 0, 0, length_ms, 0
+        )
+        struct.pack_into(
+            FF_PERIODIC_FORMAT, buf, FF_UNION_OFFSET,
+            waveform, period_ms, magnitude, 0, 0, 0, 0, 0, 0
+        )
         fcntl.ioctl(self.fd, EVIOCSFF, buf, True)
         return struct.unpack_from("@h", buf, 2)[0]
 

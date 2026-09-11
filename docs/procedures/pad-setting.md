@@ -99,10 +99,34 @@ If it does belong there, add it to `CHOSEN` in `config.py`:
 
 `kind` is `bool`, `choice` or `number`; a number needs `step`, `min`, `max`
 and a `unit` that reads in a sentence. **The step size is itself a decision** -
-comment it. Then give it a `[[menu.items]]` row, and it becomes reachable from
-a binding as `pad:<name>=...` for free. A row that changes a setting the menu
-itself prints wants `stay = true`; one you nudge rather than pick wants
-`repeat = true`.
+comment it. A `choice` also wants `words`: what each value is *called* where
+somebody reads it, beside the choices rather than in a table of its own. A
+value with no word prints itself, which is right for the ones that already
+read as words.
+
+Then give it a tile, and it becomes reachable from a binding as
+`pad:<name>=...` for free. **What `kind` it is decides what the tile is:**
+
+| `kind` | Tile | What A does |
+|---|---|---|
+| `bool` | `control = "toggle"` | flips it |
+| `choice` | `control = "choice"` | walks it forward |
+| `number` | `control = "slider"`, or `"gauge"` where it is about a stick | takes it; then left and right move it, and either trigger sweeps it |
+
+```toml
+[[menu.items.items]]
+label = "Vibration"
+control = "toggle"
+reads = "pad:rumble"
+```
+
+A control tile needs no `action`, cannot `repeat` and always stays. For a
+switch and a choice the press is the whole of it; a slider is taken first,
+because a grid spends both axes on getting about and cannot lend one to a tile
+the selection is only passing over. Where a setting still uses a plain
+`action` row, one that changes something the menu itself prints wants
+`stay = true`, and one you nudge rather than pick wants `repeat = true`. See
+[`pad-menu.md`](pad-menu.md).
 
 ### 5. Document it
 

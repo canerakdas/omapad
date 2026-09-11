@@ -19,8 +19,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from omapad import config as config_module, daemon as daemon_module
 from omapad import keymap
 from omapad import linux_input as li
+from omapad import linux_input as li
 from omapad import uinput
 from omapad import actions
+from omapad import menu as menu_module
 from omapad import guide as guide_module
 from omapad.linux_input import AbsInfo
 
@@ -41,7 +43,7 @@ def shipped_config():
     """
     missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
     return config_module.load(path=missing, mapping=missing,
-                              settings=missing)
+                              settings=missing, layout=missing)
 
 
 class FakeMouse:
@@ -182,8 +184,27 @@ class FakeDevice:
         self.stopped = []
         self._next_effect = 0
 
+    def supports_effects(self):
+        # A pad that wires a motor and every waveform: what the daemon tests
+        # ask about is when a tick fires, never which wave carries it.
+        if not self.rumble:
+            return set()
+        return {li.FF_RUMBLE, li.FF_PERIODIC, li.FF_SQUARE, li.FF_TRIANGLE,
+                li.FF_SINE}
+
     def supports_rumble(self):
         return self.rumble
+
+    def effect_slots(self):
+        return 16
+
+    def upload_periodic(self, waveform, magnitude, period_ms, length_ms,
+                        effect_id=-1):
+        if effect_id < 0:
+            effect_id = self._next_effect
+            self._next_effect += 1
+        self.effects[effect_id] = (waveform, magnitude, period_ms, length_ms)
+        return effect_id
 
     def upload_rumble(self, strong, weak, length_ms, effect_id=-1):
         if effect_id < 0:
@@ -479,10 +500,12 @@ class PointerHidingTests(DaemonTestCase):
 
     def test_a_press_with_nothing_to_do_with_the_pointer_puts_it_away(self):
         # From inside the menu, which is the surface that most wants the ring
-        # off it: it is drawn over whatever the pointer was last left on, and
-        # its own buttons act on the way down.
+        # off it: it is drawn over whatever the pointer was last left on. Y
+        # here is a tap/hold - the hold rearranges the page - so it acts on
+        # the release, the way every tap/hold does.
         self.daemon.set_menu(True)
-        self.press("Y")                # guide:toggle
+        self.press("Y")                # guide:toggle, on the way back up
+        self.release("Y")
         self.assertEqual(self.keyboard.nudges, 1)
 
     def test_a_click_leaves_it_where_it_is(self):
@@ -690,10 +713,14 @@ class RumbleTests(DaemonTestCase):
         }
         self.daemon.bindings.clear()
 
+    def tick(self):
+        """The effect id a plain tick plays - one of four uploaded now."""
+        return self.daemon.rumble.effects["tick"]
+
     def test_a_binding_marked_rumble_ticks_the_pad(self):
         self.press("Y")
         self.release("Y")
-        self.assertEqual(self.device.played, [self.daemon.rumble.effect_id])
+        self.assertEqual(self.device.played, [self.tick()])
 
     def test_bindings_that_are_not_marked_stay_quiet(self):
         self.press("A")
@@ -705,10 +732,7 @@ class RumbleTests(DaemonTestCase):
         # it is felt going in and coming back out.
         self.daemon.set_mode("game")
         self.daemon.set_mode("desktop")
-        self.assertEqual(
-            self.device.played,
-            [self.daemon.rumble.effect_id] * 2,
-        )
+        self.assertEqual(self.device.played, [self.tick()] * 2)
 
     def test_a_switch_can_be_left_silent(self):
         self.config.mode_rumble = False
@@ -723,7 +747,7 @@ class RumbleTests(DaemonTestCase):
         self.release("Y")
         self.assertEqual(self.device.stopped, [])
         self.daemon.rumble.settle(time.monotonic() + 1.0)
-        self.assertEqual(self.device.stopped, [self.daemon.rumble.effect_id])
+        self.assertEqual(self.device.stopped, [self.tick()])
 
     def test_the_loop_stays_awake_for_a_tick_it_owes_a_stop(self):
         # On the idle poll the stop lands up to a quarter-second late, and a
@@ -749,13 +773,14 @@ class RumbleTests(DaemonTestCase):
         self.assertEqual(self.hypr.calls, ["hl.dsp.window.center()"])
         self.assertEqual(self.device.played, [])
 
-    def test_the_effect_is_uploaded_once_and_given_back_on_unplug(self):
-        self.assertEqual(len(self.device.effects), 1)
+    def test_the_effects_are_uploaded_once_and_given_back_on_unplug(self):
+        # The three the shipped config asks for: the texture ships off.
+        self.assertEqual(len(self.device.effects), 3)
         self.press("Y")
         self.release("Y")
         self.press("Y")
         self.release("Y")
-        self.assertEqual(len(self.device.effects), 1)
+        self.assertEqual(len(self.device.effects), 3)
         self.assertEqual(len(self.device.played), 2)
         self.daemon.disconnect()
         self.assertEqual(self.device.effects, {})
@@ -1071,9 +1096,9 @@ class HandoverTests(DaemonTestCase):
     def test_and_the_surface_can_be_driven_while_it_is_up(self):
         self.hand_over()
         self.daemon.set_menu(True)
-        before = self.daemon.menu.index
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
-        self.assertNotEqual(self.daemon.menu.index, before)
+        before = self.daemon.menu.selected
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, -1))
+        self.assertNotEqual(self.daemon.menu.selected, before)
 
     def test_the_way_out_is_still_reachable(self):
         self.hand_over()
@@ -1384,9 +1409,9 @@ class WorkspaceLockTests(DaemonTestCase):
         self.daemon.handed_over = True
         self.daemon.locked = True
         self.daemon.set_menu(True)
-        before = self.daemon.menu.index
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
-        self.assertNotEqual(self.daemon.menu.index, before)
+        before = self.daemon.menu.selected
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, -1))
+        self.assertNotEqual(self.daemon.menu.selected, before)
 
     def test_a_trigger_and_b_locks_over_a_game(self):
         for trigger in ("ZR", "ZL"):
@@ -1440,13 +1465,15 @@ class WorkspaceLockTests(DaemonTestCase):
         self.assertFalse(self.daemon.locked)
 
     def menu_labels(self):
-        return [item["label"] for item in self.daemon.menu.items]
+        return [tile["item"]["label"] for tile in self.daemon.menu.tiles]
 
     def pick_the_row(self):
+        # `open_on` is what puts the selection here: the tile is offered only
+        # while there is something to lock to, and while there is, the menu
+        # opens on it with nothing at all to walk to.
         self.daemon.set_menu(True)
-        labels = self.menu_labels()
-        self.assertIn("Workspace lock", labels)
-        self.daemon.menu.index = labels.index("Workspace lock")
+        self.assertIn("Workspace lock", self.menu_labels())
+        self.assertEqual(self.daemon.menu.selected, "workspace-lock")
 
     def test_the_row_is_not_offered_where_there_is_nothing_to_lock_to(self):
         # On a desktop the lock would hand the pad to a terminal and leave you
@@ -2207,22 +2234,45 @@ class OskTests(DaemonTestCase):
         ])
 
 
+def walk_menu(daemon, labels, press):
+    """Walk the shipped menu to a tile, pressing on the way in.
+
+    The tree was one list and a test could name a row by its index. It is a
+    bar of pages now: a name that is not on the page in front is a chip, and a
+    chip is walked to rather than pressed.
+    """
+    for label in labels:
+        for tile in daemon.menu.tiles:
+            if tile["item"]["label"] == label:
+                daemon.menu.select_id(tile["item"]["id"])
+                break
+        else:
+            for number, group in enumerate(daemon.menu.groups):
+                if group["label"] == label:
+                    daemon.menu_select_group(number)
+                    break
+            else:
+                raise AssertionError(
+                    "no menu tile labelled %r on %r"
+                    % (label, daemon.menu.title)
+                )
+            continue
+        press()
+
+
 class MenuTests(DaemonTestCase):
     def open_menu(self):
         self.daemon.set_menu(True)
         self.menu_client.sent.clear()
 
     def select(self, label):
-        for index, item in enumerate(self.daemon.menu.items):
-            if item["label"] == label:
-                self.daemon.menu.index = index
-                return
-        raise AssertionError("no menu row labelled %r" % label)
+        """Put the selection on a tile, walking the bar to find it."""
+        walk_menu(self.daemon, [label], lambda: None)
 
     def drill(self, label):
-        """Open a submenu, so a row inside it can be selected by name."""
-        self.select(label)
-        self.daemon.menu_command("press")
+        """Get to the page behind a name - a chip, or a tile that opens one."""
+        walk_menu(self.daemon, [label],
+                  lambda: self.daemon.menu_command("press"))
 
     def test_menu_layer_takes_over_while_it_is_up(self):
         self.assertEqual(self.daemon.current_layer, "base")
@@ -2239,32 +2289,67 @@ class MenuTests(DaemonTestCase):
 
     def test_dpad_moves_the_selection_and_repaints(self):
         self.open_menu()
+        before = self.daemon.menu.selected
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
-        self.assertEqual(self.daemon.menu.index, 1)
-        self.assertEqual(self.menu_client.sent[-1]["sel"], 1)
+        self.assertNotEqual(self.daemon.menu.selected, before)
+        self.assertEqual(self.menu_client.sent[-1]["sel"],
+                         self.daemon.menu.selected)
 
-    def test_holding_a_direction_walks_the_list(self):
+    def test_the_dpad_walks_the_grid_both_ways(self):
+        # Left and right used to be a second way to say Back and Pick, which a
+        # single column left them free to be. A grid spends both axes.
+        self.open_menu()
+        self.daemon.menu_command("down")
+        first = self.daemon.menu.selected
+        self.daemon.menu_command("right")
+        self.assertNotEqual(self.daemon.menu.selected, first)
+        self.daemon.menu_command("left")
+        self.assertEqual(self.daemon.menu.selected, first)
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_holding_a_direction_walks_the_grid(self):
         self.open_menu()
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
         self.assertTrue(self.daemon.repeats, "a held direction should repeat")
+        first = self.daemon.menu.selected
         entry = list(self.daemon.repeats.values())[0]
         self.daemon.fire_repeats(entry[1])
-        self.assertEqual(self.daemon.menu.index, 2)
+        self.assertNotEqual(self.daemon.menu.selected, first)
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
         self.assertEqual(self.daemon.repeats, {})
 
+    def test_the_shoulders_walk_the_bar(self):
+        self.open_menu()
+        self.assertEqual(self.daemon.menu.group, 0)
+        self.daemon.menu_command("group_next")
+        self.assertEqual(self.daemon.menu.group, 1)
+        self.assertEqual(self.menu_client.sent[-1]["g"], 1)
+        self.daemon.menu_command("group_prev")
+        self.assertEqual(self.daemon.menu.group, 0)
+
+    def test_the_bar_says_what_is_on_it(self):
+        self.open_menu()
+        self.daemon.push_menu_view()
+        self.assertEqual(
+            [group["l"] for group in self.menu_client.sent[-1]["groups"]],
+            ["Now", "Apps", "Windows", "Audio", "Display", "Controller",
+             "System"],
+        )
+
     def test_a_drills_into_a_submenu(self):
         self.open_menu()
-        self.select("Audio")
+        self.drill("Audio")
+        self.select("Devices")
         self.press("A")
         self.release("A")
         self.assertTrue(self.daemon.menu_open)
-        self.assertEqual(self.daemon.menu.title, "Audio")
-        self.assertEqual(self.menu_client.sent[-1]["title"], "Audio")
+        self.assertEqual(self.daemon.menu.title, "Devices")
+        self.assertEqual(self.menu_client.sent[-1]["title"], "Devices")
 
     def test_b_climbs_back_out_and_then_closes(self):
         self.open_menu()
-        self.select("Audio")
+        self.drill("Audio")
+        self.select("Devices")
         self.daemon.menu_command("press")
         self.daemon.menu_command("back")
         self.assertTrue(self.daemon.menu_open)
@@ -2290,8 +2375,7 @@ class MenuTests(DaemonTestCase):
         # clears it - a tiled window cannot be raised over a floating one.
         self.daemon.handed_over = True
         self.open_menu()
-        self.select("Windows")
-        self.daemon.menu_command("press")
+        self.drill("Windows")
         self.select("Fullscreen")
         self.press("A")
         self.release("A")
@@ -2313,14 +2397,24 @@ class MenuTests(DaemonTestCase):
         self.assertEqual(self.session.spawned, ["omarchy-launch-terminal"])
 
     def test_a_repeat_row_leaves_the_menu_where_it_is(self):
-        # Volume is nudged, not picked: reopening the menu per step is absurd.
+        # A row you nudge rather than pick: reopening the menu per step is
+        # absurd. Nothing shipped is marked any more - what used to be marked
+        # was the volume and brightness stepping rows, and those are bars now
+        # - so the flag needs its own tile to be tested at all.
+        self.config.menu_items[0]["items"].append({
+            "label": "Nudge", "action": "exec:nudge-it", "repeat": True,
+        })
+        self.daemon.menu = daemon_module.MenuModel(
+            daemon_module.build_menu(
+                self.config.menu_items, columns=self.config.menu_columns,
+                settings=config_module.CHOSEN,
+                readings=daemon_module.live_module.READINGS),
+            self.config.menu_title, self.config.menu_clock,
+            columns=self.config.menu_columns, bias=self.config.menu_bias)
         self.open_menu()
-        self.select("Audio")
-        self.daemon.menu_command("press")
-        self.select("Volume up")
+        self.select("Nudge")
         self.press("A")
         self.assertTrue(self.daemon.menu_open)
-        self.assertEqual(self.daemon.menu.title, "Audio")
         self.assertEqual(len(self.session.spawned), 1)
 
         # ...and holding it keeps firing.
@@ -2342,11 +2436,13 @@ class MenuTests(DaemonTestCase):
 
     def test_it_always_opens_at_the_root(self):
         self.open_menu()
-        self.select("Audio")
+        self.drill("Audio")
+        self.select("Devices")
         self.daemon.menu_command("press")
         self.daemon.set_menu(False)
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.depth, 0)
+        self.assertEqual(self.daemon.menu.group, 0)
         self.assertEqual(self.daemon.menu.index, 0)
 
     def test_opening_it_puts_the_keyboard_away(self):
@@ -2374,15 +2470,35 @@ class MenuTests(DaemonTestCase):
         # A cursor points at a row outright; the daemon turns that into the
         # selection, the same way every D-pad press lands in `menu.index`.
         self.open_menu()
+        named = self.daemon.menu.tiles[3]["item"]["id"]
         reply = self.daemon.handle_control("menu select 3")
-        self.assertIn("sel=3", reply)
+        self.assertIn("sel=%s" % named, reply)
         self.assertEqual(self.daemon.menu.index, 3)
-        self.assertEqual(self.menu_client.sent[-1]["sel"], 3)
+        self.assertEqual(self.menu_client.sent[-1]["sel"], named)
 
     def test_mouse_hover_out_of_range_clamps(self):
         self.open_menu()
         self.daemon.handle_control("menu select 999")
-        self.assertEqual(self.daemon.menu.index, len(self.daemon.menu.items) - 1)
+        self.assertEqual(self.daemon.menu.index,
+                         len(self.daemon.menu.tiles) - 1)
+
+    def test_a_pointer_click_names_a_chip(self):
+        self.open_menu()
+        self.daemon.handle_control("menu group 2")
+        self.assertEqual(self.daemon.menu.group, 2)
+        self.assertEqual(self.daemon.menu.title, "Go")
+
+    def test_a_chip_out_of_range_clamps(self):
+        self.open_menu()
+        self.daemon.handle_control("menu group 999")
+        self.assertEqual(self.daemon.menu.group,
+                         len(self.daemon.menu.groups) - 1)
+
+    def test_a_chip_takes_a_bad_index_without_guessing(self):
+        self.open_menu()
+        self.assertIn("group nonsense",
+                      self.daemon.handle_control("menu group nonsense"))
+        self.assertEqual(self.daemon.menu.group, 0)
 
     def test_mouse_hover_does_nothing_while_the_menu_is_down(self):
         self.daemon.handle_control("menu select 2")
@@ -2394,17 +2510,182 @@ class MenuTests(DaemonTestCase):
                       self.daemon.handle_control("menu select nonsense"))
         self.assertEqual(self.daemon.menu.index, 0)
 
-    def test_a_pointer_click_picks_the_row_it_lands_on(self):
-        # The panel sends the row and the press in one go, so a click cannot
-        # land on one row and pick another. The last root row is a leaf; the
-        # row right in front of the fold is the whole point of having a
-        # cursor.
+    def test_a_pointer_click_picks_the_tile_it_lands_on(self):
+        # The panel sends the tile and the press in one go, so a click cannot
+        # land on one tile and pick another.
         self.open_menu()
+        self.drill("System")
         self.daemon.handle_control("menu select %d"
-                                   % (len(self.daemon.menu.items) - 1))
+                                   % (len(self.daemon.menu.tiles) - 1))
         self.daemon.handle_control("menu press")
         self.assertEqual(self.session.spawned, ["omarchy-menu toggle"])
         self.assertFalse(self.menu_client.sent[-1]["open"])
+
+
+class ControlTileTests(DaemonTestCase):
+    """A tile that reads a setting, and what A does to it."""
+
+    def open_at(self, label):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Controller", label], lambda: None)
+        self.menu_client.sent.clear()
+
+    def drawn(self, label):
+        for row in self.menu_client.sent[-1]["items"]:
+            if row["l"] == label:
+                return row
+        raise AssertionError("no tile labelled %r" % label)
+
+    def test_a_switch_says_what_it_is_on(self):
+        self.open_at("Vibration")
+        self.daemon.push_menu_view()
+        row = self.drawn("Vibration")
+        self.assertEqual(row["k"], "toggle")
+        self.assertEqual(row["on"], self.config.rumble_enabled)
+
+    def test_and_a_presses_flips_it(self):
+        self.open_at("Vibration")
+        before = self.config.rumble_enabled
+        self.press("A")
+        self.release("A")
+        self.assertEqual(self.config.rumble_enabled, not before)
+        # The menu stays: a control acts on what it reads, and being thrown
+        # out to see what it did is how you open the menu twice.
+        self.assertTrue(self.daemon.menu_open)
+        self.assertEqual(self.drawn("Vibration")["on"], not before)
+
+    def test_a_choice_prints_the_word_it_is_called(self):
+        # Not the word it is stored as: `stencil` is a config value.
+        self.open_at("Button style")
+        self.daemon.push_menu_view()
+        row = self.drawn("Button style")
+        self.assertEqual(row["k"], "choice")
+        self.assertIn(row["t"], ("Filled", "Stencil"))
+
+    def test_and_a_walks_it_forward(self):
+        self.open_at("Button style")
+        first = self.config.ui_badge_style
+        self.press("A")
+        self.release("A")
+        self.assertNotEqual(self.config.ui_badge_style, first)
+        self.press("A")
+        self.release("A")
+        self.assertEqual(self.config.ui_badge_style, first)
+
+    def test_a_control_tile_is_never_the_whole_story_of_a_tile(self):
+        self.open_at("Vibration")
+        self.daemon.push_menu_view()
+        row = self.drawn("Vibration")
+        for field in ("id", "l", "x", "y", "w", "h"):
+            self.assertIn(field, row)
+
+    def test_a_setting_that_has_gone_away_draws_bare_rather_than_raising(self):
+        item = dict(self.daemon.menu.current or {})
+        item["control"] = "toggle"
+        item["reads"] = ("pad", "nonesuch")
+        self.assertIsNone(self.daemon.menu_control(item))
+
+
+class PageKeyTests(DaemonTestCase):
+    """A page of the menu spending X and Y on a job of its own."""
+
+    TREE = [
+        {"label": "Apps", "items": [
+            {"label": "Steam", "action": "exec:steam"},
+        ], "keys": {
+            # `desc` is the phrase the guide prints and `short` the one word
+            # the legend does - the same binding read at two distances.
+            "X": {"tap": "exec:page-x", "hold": "menu:close",
+                  "desc": "My own verb", "short": "Mine"},
+            "Y": {"tap": "exec:page-y", "desc": "The reach",
+                  "short": "Also"},
+        }},
+        {"label": "Plain", "items": [
+            {"label": "Thing", "action": "exec:thing"},
+        ]},
+    ]
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(self.TREE, columns=self.config.menu_columns),
+            columns=self.config.menu_columns,
+        )
+        self.daemon.set_menu(True)
+        self.menu_client.sent.clear()
+        self.session.spawned.clear()
+
+    def test_the_page_s_own_key_is_what_the_button_does(self):
+        self.press("Y")
+        self.release("Y")
+        self.assertEqual(self.session.spawned, ["page-y"])
+        self.assertFalse(self.daemon.guide_open)
+
+    def test_and_the_layer_s_own_comes_back_on_a_page_that_spends_none(self):
+        self.daemon.menu_command("group_next")
+        self.press("Y")
+        self.release("Y")
+        self.assertEqual(self.session.spawned, [])
+        self.assertTrue(self.daemon.guide_open)
+
+    def test_taking_x_keeps_the_way_out_on_the_hold(self):
+        self.press("X")
+        self.release("X")
+        self.assertEqual(self.session.spawned, ["page-x"])
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_a_page_key_means_nothing_once_the_menu_is_down(self):
+        self.daemon.set_menu(False)
+        self.press("Y")
+        self.release("Y")
+        self.assertEqual(self.session.spawned, [])
+
+    def test_the_legend_says_what_this_page_spent_them_on(self):
+        self.daemon.push_menu_view()
+        keys = self.menu_client.sent[-1]["keys"]
+        said = dict((row["b"], row["n"]) for row in keys)
+        self.assertEqual(said.get("X"), "Mine")
+        self.assertEqual(said.get("Y"), "Also")
+
+    def test_and_the_layer_s_words_where_it_spent_nothing(self):
+        self.daemon.menu_command("group_next")
+        keys = self.menu_client.sent[-1]["keys"]
+        said = dict((row["b"], row["n"]) for row in keys)
+        self.assertEqual(said.get("X"), "Close")
+        self.assertEqual(said.get("Y"), "Guide")
+
+    def test_the_legend_prints_the_contract_in_its_own_order(self):
+        self.daemon.push_menu_view()
+        keys = self.menu_client.sent[-1]["keys"]
+        self.assertEqual([row["b"] for row in keys], ["A", "B", "X", "Y"])
+
+    def test_the_legend_can_be_turned_off_for_anyone_running_the_bar(self):
+        self.config.menu_keys = False
+        self.daemon.push_menu_view()
+        self.assertEqual(self.menu_client.sent[-1]["keys"], [])
+
+    def test_the_guide_answers_about_the_page_it_was_opened_from(self):
+        # Y is the guide because you had forgotten what a button does, so a
+        # guide that printed the layer's X rather than this page's would be
+        # wrong about exactly what was asked.
+        self.daemon.set_guide(True)
+        # The phrase, not the word: the guide is read from a page with the pad
+        # in your lap, and the legend is glanced at over a game.
+        self.assertIn(("X", "My own verb"), self.guide_words())
+
+    def test_and_about_the_menu_at_large_when_it_was_not(self):
+        self.daemon.set_menu(False)
+        self.daemon.set_guide(True)
+        self.assertNotIn(("X", "My own verb"), self.guide_words())
+
+    def guide_words(self):
+        words = []
+        for page in self.daemon.guide.pages:
+            for column in page["cols"]:
+                for group in column:
+                    for row in group["rows"]:
+                        words.append((row["b"], row["d"]))
+        return words
 
 
 class ListedMenuTests(DaemonTestCase):
@@ -2412,6 +2693,9 @@ class ListedMenuTests(DaemonTestCase):
 
     def setUp(self):
         super().setUp()
+        # The head runs a command of its own when the menu opens, and this
+        # suite counts commands. It has a test of its own.
+        self.daemon.menu.head = []
         self.daemon.set_menu(True)
         self.session.lines = [
             "* Speakers\t1\tanalog-out",
@@ -2419,14 +2703,8 @@ class ListedMenuTests(DaemonTestCase):
         ]
 
     def enter(self, *labels):
-        for label in labels:
-            for index, item in enumerate(self.daemon.menu.items):
-                if item["label"] == label:
-                    self.daemon.menu.index = index
-                    break
-            else:
-                raise AssertionError("no menu row labelled %r" % label)
-            self.daemon.menu_command("press")
+        walk_menu(self.daemon, labels,
+                  lambda: self.daemon.menu_command("press"))
 
     def test_the_devices_are_read_when_the_row_is_entered(self):
         # Not at load: which outputs exist changes while the daemon runs, and
@@ -2451,7 +2729,7 @@ class ListedMenuTests(DaemonTestCase):
 
     def test_picking_a_device_runs_the_row_and_keeps_the_menu_up(self):
         self.enter("Audio", "Devices", "Output")
-        self.daemon.menu_command("down")
+        self.daemon.menu_command("right")
         self.daemon.menu_command("press")
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
@@ -2541,12 +2819,489 @@ class CommandWorkerTests(unittest.TestCase):
         self.assertEqual(self.answer(worker, read_fd), [(2, ["still here"])])
 
 
+class LiveTests(DaemonTestCase):
+    """The tiles that read the machine rather than the config."""
+
+    VOLUME = ["Volume: front-left: 39321 /  60% / -13.31 dB"]
+    MEDIA = ['{"hasPlayer":true,"hasMedia":true,"playing":true,'
+             '"title":"Sunset Roller","artist":"My Jinji",'
+             '"canGoNext":true,"canGoPrevious":false}']
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.menu.head = []
+        # A settings file of its own, so "nothing was written" is a claim this
+        # test can make about the machine it runs on.
+        directory = tempfile.mkdtemp(prefix="omapad-live-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.settings = os.path.join(directory, "settings.toml")
+        patch = unittest.mock.patch.object(
+            daemon_module, "settings_path", lambda: self.settings
+        )
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def answer(self, *lines):
+        """Ask for whatever is due, with this as what comes back.
+
+        The canned lines answer every question at once, which is safe because
+        the four parsers are mutually exclusive: a `pactl` line is not JSON
+        and a JSON line has no percentage in it, so three of the four return
+        None and leave their readings alone.
+        """
+        self.session.lines = list(lines)
+        self.daemon.live_refresh(time.monotonic())
+        self.daemon.drain_commands()
+
+    def asked(self):
+        return [command for command, _ in self.commands.submitted]
+
+    def open_on(self, label):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, [label], lambda: None)
+
+    def tile(self, label):
+        rows = self.menu_client.sent[-1]["items"]
+        return [row for row in rows if row["l"] == label][0]
+
+    def test_nothing_is_asked_while_the_menu_is_shut(self):
+        self.daemon.live_refresh(time.monotonic())
+        self.assertEqual(self.asked(), [])
+
+    def test_every_reading_on_the_page_is_asked_once_when_it_appears(self):
+        self.daemon.set_menu(True)
+        self.daemon.live_refresh(time.monotonic())
+        asked = self.asked()
+        self.assertEqual(len(asked), 4)
+        self.assertTrue(any("get-sink-volume" in one for one in asked))
+        self.assertTrue(any("get-sink-mute" in one for one in asked))
+        self.assertTrue(any("brightness" in one for one in asked))
+        self.assertTrue(any("media status" in one for one in asked))
+
+    def test_a_volume_answer_reaches_its_tile(self):
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        volume = self.tile("Volume")
+        self.assertEqual(volume["k"], "slider")
+        self.assertAlmostEqual(volume["v"], 0.6, places=2)
+        self.assertEqual(volume["t"], "60%")
+
+    def test_only_the_selected_tile_keeps_being_asked(self):
+        # A couch does not need the volume to track a keyboard nobody is at.
+        self.open_on("Volume")
+        now = time.monotonic()
+        self.daemon.live_refresh(now)
+        self.answer(*self.VOLUME)
+        self.commands.submitted = []
+        later = now + self.daemon.config.live_poll + 0.1
+        self.daemon.live_refresh(later)
+        self.assertEqual([one for one in self.asked()
+                          if "get-sink-volume" in one], self.asked())
+
+    def test_a_question_in_flight_is_not_asked_again(self):
+        # A helper that has wedged must not collect a queue of identical
+        # questions behind it: the answer to the first is the answer to all.
+        self.open_on("Volume")
+        now = time.monotonic()
+        self.daemon.live_refresh(now)
+        self.commands.submitted = []
+        self.daemon.live_refresh(now + self.daemon.config.live_poll + 0.1)
+        self.assertEqual(self.asked(), [])
+
+    def test_a_press_writes_and_then_asks_what_it_actually_did(self):
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        self.commands.submitted = []
+        self.daemon.menu_command("press")            # A takes it
+        self.daemon.menu_command("right")
+        written = self.asked()
+        self.assertEqual(len(written), 1)
+        self.assertIn("set-sink-volume", written[0])
+        self.assertIn(" 65%", written[0])
+        # The tile moves at the press rather than a round trip later.
+        self.assertAlmostEqual(self.tile("Volume")["v"], 0.65, places=2)
+        # ...and the machine is asked what it did, once the helper has landed.
+        self.commands.submitted = []
+        self.daemon.live_refresh(
+            time.monotonic() + self.daemon.config.live_settle + 0.1)
+        self.assertEqual([one for one in self.asked()
+                          if "get-sink-volume" in one], self.asked())
+        self.assertEqual(len(self.asked()), 1)
+
+    def test_a_live_push_writes_no_settings_file(self):
+        # The value is the machine's, not ours: there is nothing to keep.
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        self.daemon.menu_command("press")
+        self.daemon.menu_command("right")
+        self.assertFalse(os.path.exists(self.settings))
+
+    def test_a_switch_flips_what_the_machine_holds(self):
+        self.open_on("Mute")
+        self.answer("Mute: no")
+        self.assertFalse(self.tile("Mute")["on"])
+        self.commands.submitted = []
+        self.daemon.menu_command("press")
+        self.assertIn("set-sink-mute", self.asked()[0])
+        self.assertTrue(self.tile("Mute")["on"])
+
+    def test_the_media_tile_says_what_is_playing(self):
+        self.open_on("Music")
+        self.answer(*self.MEDIA)
+        music = self.tile("Sunset Roller")
+        self.assertEqual(music["k"], "media")
+        self.assertEqual(music["d"], "My Jinji")
+        self.assertTrue(music["on"])
+        # What the player can and cannot do is read and is not drawn.
+        self.assertNotIn("n", music)
+        self.assertNotIn("p", music)
+
+    def test_nothing_playing_falls_back_to_the_tiles_own_words(self):
+        self.open_on("Music")
+        self.answer('{"hasPlayer":false,"hasMedia":false,"playing":false}')
+        music = self.tile("Music")
+        self.assertEqual(music["d"], "Nothing playing")
+        self.assertFalse(music["on"])
+
+    def test_a_on_the_media_tile_plays_or_pauses_it(self):
+        # Two states, so A does to it what A does to a switch. The transport's
+        # two other marks are two more tiles, and a tile costs nobody a reflex.
+        self.open_on("Music")
+        self.answer(*self.MEDIA)
+        self.commands.submitted = []
+        self.daemon.menu_command("press")
+        self.assertEqual(self.asked(), ["omarchy-shell media playPause"])
+
+    def test_a_direction_the_player_closed_ticks_instead_of_going_quiet(self):
+        self.open_on("Music")
+        self.answer(*self.MEDIA)          # canGoPrevious is false
+        self.commands.submitted = []
+        self.device.played = []
+        walk_menu(self.daemon, ["Previous"], lambda: None)
+        self.daemon.menu_command("press")
+        self.assertEqual(self.asked(), [])
+        self.assertIn(self.daemon.rumble.effects["edge"], self.device.played)
+
+    def test_a_direction_the_player_allows_is_sent(self):
+        self.open_on("Music")
+        self.answer(*self.MEDIA)
+        self.commands.submitted = []
+        walk_menu(self.daemon, ["Next"], lambda: None)
+        self.daemon.menu_command("press")
+        self.assertEqual(self.asked(), ["omarchy-shell media next"])
+
+    def test_closing_the_menu_forgets_when_anything_was_read(self):
+        # What the machine was doing a minute ago is not what it is doing now.
+        self.daemon.set_menu(True)
+        self.answer(*self.VOLUME)
+        self.daemon.set_menu(False)
+        self.commands.submitted = []
+        self.daemon.set_menu(True)
+        self.daemon.live_refresh(time.monotonic())
+        self.assertEqual(len(self.asked()), 4)
+
+
+class GaugeTests(DaemonTestCase):
+    """The one tile that draws something no config file holds."""
+
+    def land(self, *labels):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, labels[:-1],
+                  lambda: self.daemon.menu_command("press"))
+        for tile in self.daemon.menu.tiles:
+            if tile["item"]["label"] == labels[-1]:
+                self.daemon.menu.select_id(tile["item"]["id"])
+                return tile["item"]
+        raise AssertionError("no tile labelled %r" % labels[-1])
+
+    def lines(self):
+        return [line for line in self.menu_client.sent]
+
+    def push(self, now=None):
+        self.daemon.push_menu_live(
+            time.monotonic() if now is None else now)
+
+    def test_the_menu_streams_only_while_a_gauge_is_the_tile_in_front(self):
+        # The *tile's* kind decides, not the surface's: a menu open on a page
+        # of buttons costs the loop nothing at all.
+        self.daemon.set_menu(True)
+        self.assertFalse(self.daemon.menu.watching())
+        self.assertFalse(self.daemon.needs_tick())
+        self.land("Controller", "Sticks", "Left stick")
+        self.assertEqual(self.daemon.menu.watching(), "left")
+        self.assertTrue(self.daemon.needs_tick())
+
+    def test_nothing_streams_while_the_menu_is_shut(self):
+        # A daemon nobody is looking at must not be pushing sixty lines a
+        # second at a socket with no panel on the other end.
+        self.land("Controller", "Sticks", "Left stick")
+        self.daemon.set_menu(False)
+        self.assertIsNone(self.daemon.menu_live())
+
+    def test_a_live_line_carries_no_items_at_all(self):
+        # The whole claim of this phase: `applyState` gets past its own guard,
+        # finds no items, and never reaches `fresh()` - so no delegate is
+        # rebuilt to move one dot.
+        self.land("Controller", "Sticks", "Left stick")
+        self.menu_client.sent.clear()
+        self.feed((li.EV_ABS, li.ABS_X, 20000))
+        self.push()
+        self.assertEqual(len(self.lines()), 1)
+        line = self.lines()[0]
+        self.assertNotIn("items", line)
+        self.assertIn("live", line)
+        # ...and it says which gauge the floats belong to, so the stream is
+        # meaningful without correlating it against the other one.
+        self.assertEqual(line["sel"], "left-stick")
+        self.assertEqual(line["g"], self.daemon.menu.group)
+
+    def test_the_thumb_is_read_raw_rather_than_through_the_curve(self):
+        # The curve exists to make small deflections aim finely; this asks
+        # where the thumb is, not how fast to move a pointer. Half over is
+        # half over, and a curved reading would draw the stick somewhere it
+        # is not.
+        self.land("Controller", "Sticks", "Left stick")
+        self.feed((li.EV_ABS, li.ABS_X, 0))
+        self.feed((li.EV_ABS, li.ABS_X, 16384))
+        live = self.daemon.menu_live()
+        self.assertAlmostEqual(live["x"], 0.5, places=1)
+        self.assertAlmostEqual(live["y"], 0.0, places=2)
+
+    def test_a_resting_stick_stops_the_stream_entirely(self):
+        # Quantised not as a noise filter but so the panel's own "same line as
+        # last time" guard works: a hand off the pad must cost nothing.
+        self.land("Controller", "Sticks", "Left stick")
+        self.push()
+        self.menu_client.sent.clear()
+        for _ in range(5):
+            self.push(time.monotonic() + 10)
+        self.assertEqual(self.lines(), [])
+
+    def test_the_stream_is_rate_limited_to_live_hz(self):
+        self.land("Controller", "Sticks", "Left stick")
+        now = time.monotonic()
+        self.feed((li.EV_ABS, li.ABS_X, 20000))
+        self.push(now)
+        self.menu_client.sent.clear()
+        self.feed((li.EV_ABS, li.ABS_X, 30000))
+        self.push(now)                       # too soon
+        self.assertEqual(self.lines(), [])
+        self.push(now + 1.0 / self.daemon.config.menu_live_hz + 0.001)
+        self.assertEqual(len(self.lines()), 1)
+
+    def test_the_zone_rides_on_the_full_push_rather_than_the_stream(self):
+        # It is a setting: it changes only when something presses, and putting
+        # it in the stream would send it sixty times a second to say the same
+        # thing.
+        self.land("Controller", "Sticks", "Left stick")
+        self.daemon.push_menu_view()
+        rows = self.menu_client.sent[-1]["items"]
+        dial = [row for row in rows if row["l"] == "Left stick"][0]
+        self.assertEqual(dial["k"], "gauge")
+        self.assertEqual(dial["s"], "left")
+        self.assertAlmostEqual(dial["z"], self.config.left_deadzone)
+        self.assertNotIn("z", self.daemon.menu_live())
+
+    def test_the_left_stick_walks_the_tiles_and_the_right_one_aims(self):
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.stick_roles(), ("menu", "cursor"))
+
+    def test_a_held_stick_walks_the_grid_the_way_a_held_key_does(self):
+        # A direction held, not a shove: walking a grid is a thing you do
+        # several of in a row.
+        self.land("Controller", "Sticks", "Pointer")
+        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.daemon.tick(0.05)
+        self.assertEqual(self.daemon.menu.selected, "left-dead-zone")
+        # ...and it waits out the delay before the next one, rather than
+        # running the length of the page in one push.
+        self.daemon.tick(0.05)
+        self.assertEqual(self.daemon.menu.selected, "left-dead-zone")
+        self.daemon.tick(self.config.traverse_repeat_delay)
+        self.assertEqual(self.daemon.menu.selected, "left-stick")
+
+    def test_a_stick_let_go_of_walks_again_at_once(self):
+        # A new direction steps immediately and then waits, the way a key
+        # pressed again does - so two deliberate pushes are two tiles.
+        self.land("Controller", "Sticks", "Pointer")
+        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.daemon.tick(0.05)
+        self.feed((li.EV_ABS, li.ABS_Y, 0))
+        self.daemon.tick(0.05)
+        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.daemon.tick(0.05)
+        self.assertEqual(self.daemon.menu.selected, "left-stick")
+
+    def test_a_stick_on_a_taken_control_moves_it_rather_than_the_selection(
+            self):
+        # Phase 0's table, and the one place the stick and the D-pad have to
+        # agree exactly.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.menu_command("press")
+        before = self.config.pointer_speed
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        self.daemon.tick(0.05)
+        self.assertEqual(self.daemon.menu.selected, "pointer")
+        self.assertGreater(self.config.pointer_speed, before)
+
+
+class EditModeTests(DaemonTestCase):
+    """Rearranging a page from the pad, and what it writes down."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.layout = os.path.join(directory, "layout.toml")
+        patch = unittest.mock.patch.object(
+            daemon_module, "layout_path", lambda: self.layout
+        )
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.daemon.menu.head = []
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Controller"], lambda: None)
+
+    def order(self):
+        return [tile["item"]["id"] for tile in self.daemon.menu.tiles]
+
+    def written(self):
+        if not os.path.exists(self.layout):
+            return ""
+        with open(self.layout) as handle:
+            return handle.read()
+
+    def test_holding_y_is_what_turns_it_on(self):
+        # The reach, one press longer: holding the button that shows you what
+        # the buttons do is where you find out the tiles are yours.
+        self.assertFalse(self.daemon.menu.edit)
+        self.press("Y")
+        self.daemon.check_hold_timers(time.monotonic() + 1.0)
+        self.assertTrue(self.daemon.menu.edit)
+
+    def test_the_legend_says_what_every_button_means_now(self):
+        # It is the discoverability surface: six rows, because the two
+        # borrowed shoulders must not be a secret.
+        self.daemon.menu_command("edit")
+        rows = self.menu_client.sent[-1]["keys"]
+        self.assertEqual([row["n"] for row in rows],
+                         ["Move", "Done", "Hide", "Reset",
+                          "Narrower", "Wider"])
+
+    def test_what_the_legend_prints_is_what_a_press_does(self):
+        # One table, read by both, so they cannot drift apart.
+        self.daemon.menu_command("edit")
+        for button, command in (("A", "menu:pick"), ("B", "menu:edit_off"),
+                                ("X", "menu:hide"), ("Y", "menu:restore"),
+                                ("L", "menu:narrower"), ("R", "menu:wider")):
+            self.assertEqual(
+                self.daemon.menu_key_spec(button)["tap"], command, button)
+            binding = self.daemon.binding_for("menu", button)
+            self.assertIsNotNone(binding, button)
+
+    def test_a_tile_is_picked_up_carried_and_put_down(self):
+        before = self.order()
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.assertEqual(self.daemon.menu.picked, before[0])
+        self.daemon.menu_command("right")
+        self.assertEqual(self.order()[:2], [before[1], before[0]])
+        self.daemon.menu_command("pick")
+        self.assertIsNone(self.daemon.menu.picked)
+
+    def test_leaving_is_when_it_is_written_down(self):
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("right")
+        self.assertEqual(self.written(), "")
+        self.daemon.menu_command("edit_off")
+        self.assertIn("[layout.controller]", self.written())
+        self.assertIn("order = [", self.written())
+
+    def test_the_arrangement_comes_back_on_the_next_start(self):
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("edit_off")
+        walked = self.order()
+        again = config_module.load(
+            path=os.devnull, mapping=os.devnull, settings=os.devnull,
+            layout=self.layout)
+        fresh = daemon_module.MenuModel(
+            daemon_module.build_menu(
+                again.menu_items, columns=again.menu_columns,
+                settings=config_module.CHOSEN,
+                readings=daemon_module.live_module.READINGS),
+            again.menu_title, again.menu_clock, columns=again.menu_columns,
+            bias=again.menu_bias, layout=again.layout)
+        for number, group in enumerate(fresh.groups):
+            if group["label"] == "Controller":
+                fresh.enter_group(number)
+                break
+        self.assertEqual([tile["item"]["id"] for tile in fresh.tiles], walked)
+
+    def test_nothing_arranges_outside_edit_mode(self):
+        before = self.order()
+        for command in ("pick", "hide", "wider", "narrower", "restore"):
+            self.daemon.menu_command(command)
+        self.assertEqual(self.order(), before)
+        self.assertEqual(self.written(), "")
+
+    def test_a_control_cannot_be_taken_while_the_page_is_being_arranged(self):
+        walk_menu(self.daemon, ["Sticks"],
+                  lambda: self.daemon.menu_command("press"))
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("press")   # A is `pick` now, not `take`
+        self.assertIsNone(self.daemon.menu.taken)
+        self.assertIsNotNone(self.daemon.menu.picked)
+
+    def test_a_tile_that_will_not_move_ticks_rather_than_going_quiet(self):
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.device.played = []
+        self.daemon.menu_command("left")     # already first
+        self.assertIn(self.daemon.rumble.effects["edge"], self.device.played)
+
+    def test_hiding_takes_a_tile_off_the_page_and_says_so(self):
+        self.daemon.menu_command("edit")
+        name = self.order()[0]
+        self.daemon.menu_command("hide")
+        rows = dict((row["id"], row) for row in
+                    self.menu_client.sent[-1]["items"])
+        self.assertTrue(rows[name]["off"])
+        self.daemon.menu_command("edit_off")
+        self.assertNotIn(name, self.order())
+        self.assertIn("hidden = [", self.written())
+
+    def test_reset_hands_the_page_back_and_writes_that_down(self):
+        before = self.order()
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("restore")
+        self.assertEqual(self.order(), before)
+        self.assertNotIn("[layout.controller]", self.written())
+
+    def test_a_layout_that_cannot_be_written_is_not_a_crash(self):
+        # A file omapad wrote itself is omapad's to survive.
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("right")
+        with unittest.mock.patch.object(
+                daemon_module, "layout_path",
+                lambda: "/proc/nothing/layout.toml"):
+            self.daemon.menu_command("edit_off")
+        self.assertFalse(self.daemon.menu.edit)
+
+
 class ListedMenuWorkerTests(DaemonTestCase):
     """A listed page filled from the worker rather than on the loop."""
 
     def setUp(self):
         super().setUp()
         self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.menu.head = []
         self.daemon.set_menu(True)
         self.session.lines = [
             "* Speakers\t1\tanalog-out",
@@ -2554,14 +3309,8 @@ class ListedMenuWorkerTests(DaemonTestCase):
         ]
 
     def enter(self, *labels):
-        for label in labels:
-            for index, item in enumerate(self.daemon.menu.items):
-                if item["label"] == label:
-                    self.daemon.menu.index = index
-                    break
-            else:
-                raise AssertionError("no menu row labelled %r" % label)
-            self.daemon.menu_command("press")
+        walk_menu(self.daemon, labels,
+                  lambda: self.daemon.menu_command("press"))
 
     def test_the_press_enters_the_page_before_the_answer_arrives(self):
         self.enter("Audio", "Devices", "Output")
@@ -2583,7 +3332,7 @@ class ListedMenuWorkerTests(DaemonTestCase):
         self.daemon.drain_commands()
         self.assertEqual([item["label"] for item in self.daemon.menu.items],
                          ["Speakers", "Television"])
-        self.daemon.menu_command("down")
+        self.daemon.menu_command("right")
         self.daemon.menu_command("press")
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
@@ -2668,15 +3417,11 @@ class GuideTests(DaemonTestCase):
     def test_the_menu_row_opens_it_and_the_menu_gets_out_of_the_way(self):
         self.daemon.set_menu(True)
         # It lives under Controller with everything else about the pad.
-        for label in ("Controller", "Shortcuts"):
-            for index, item in enumerate(self.daemon.menu.items):
-                if item["label"] == label:
-                    self.daemon.menu.index = index
-                    break
-            else:
-                raise AssertionError("the shipped menu has no %s row" % label)
+        def press():
             self.press("A")
             self.release("A")
+
+        walk_menu(self.daemon, ("Controller", "Shortcuts"), press)
         self.assertTrue(self.daemon.guide_open)
         self.assertFalse(self.daemon.menu_open)
 
@@ -2949,7 +3694,8 @@ class ConfigTests(unittest.TestCase):
             f.write('[pointer]\nspeed = 42.0\n\n[bindings.base]\nA = "nop"\n')
             path = f.name
         try:
-            config = config_module.load(path, settings=os.devnull)
+            config = config_module.load(path, settings=os.devnull,
+                                        layout=os.devnull)
             self.assertEqual(config.pointer_speed, 42.0)
             self.assertEqual(config.binding_for("base", "A"), "nop")
             # Untouched keys still come from the shipped defaults.
@@ -3218,7 +3964,8 @@ class ShoulderConfirmTests(DaemonTestCase):
         self.daemon.set_active_profile("chromium")
         pressed_at = self._hold("R", 2000)
         # Two seconds in: a tick, a notification, and nothing has happened yet.
-        self.assertEqual(self.device.played, [self.daemon.rumble.effect_id])
+        self.assertEqual(self.device.played,
+                         [self.daemon.rumble.effects["tick"]])
         self.assertEqual(len(self.session.notifications), 1)
         self.assertIn("Next workspace", self.session.notifications[0][1])
         self.assertIn("B to cancel", self.session.notifications[0][1])
@@ -3857,7 +4604,8 @@ class SnapStickTests(DaemonTestCase):
     def test_a_snap_that_lands_can_tick_the_pad(self):
         self.config.snap_rumble = True
         self.push(1.0)
-        self.assertEqual(self.device.played, [self.daemon.rumble.effect_id])
+        self.assertEqual(self.device.played,
+                         [self.daemon.rumble.effects["tick"]])
 
     def test_a_flick_into_an_empty_edge_stays_quiet(self):
         self.config.snap_rumble = True
@@ -4473,16 +5221,43 @@ class SettingTests(DaemonTestCase):
         # was, which is the point of it, and this walks from the top.
         self.daemon.set_menu(False)
         self.daemon.set_menu(True)
-        for label in labels:
-            for index, item in enumerate(self.daemon.menu.items):
-                if item["label"] == label:
-                    self.daemon.menu.index = index
-                    break
-            else:
-                raise AssertionError("no %s row in %s"
-                                     % (label, self.daemon.menu.title))
+        def press():
             self.press("A")
             self.release("A")
+
+        walk_menu(self.daemon, labels, press)
+
+    def land(self, *labels):
+        """Walk the shipped menu to a tile and stop on it, without pressing."""
+        self.daemon.set_menu(False)
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, labels[:-1], lambda: (self.press("A"),
+                                                     self.release("A")))
+        for tile in self.daemon.menu.tiles:
+            if tile["item"]["label"] == labels[-1]:
+                self.daemon.menu.select_id(tile["item"]["id"])
+                return tile["item"]
+        raise AssertionError("no tile labelled %r" % labels[-1])
+
+    def nudge(self, way="right"):
+        """One press of the D-pad sideways, which is a hat on this profile."""
+        self.feed((li.EV_ABS, li.ABS_HAT0X, 1 if way == "right" else -1))
+        self.feed((li.EV_ABS, li.ABS_HAT0X, 0))
+
+    def push(self, *labels, way="right", times=1, keep=True):
+        """Take a slider, push it, and let go keeping or dropping the value.
+
+        A commits and B puts it back, which is the face-button contract one
+        control along - so what the tests below drive is the whole of how a
+        control with a range is used.
+        """
+        self.land(*labels)
+        self.press("A")
+        self.release("A")
+        for _ in range(times):
+            self.nudge(way)
+        self.press("A" if keep else "B")
+        self.release("A" if keep else "B")
 
     def test_a_layout_row_reaches_every_surface_at_once(self):
         # A pad printed one way in the guide and another on the bar is worse
@@ -4506,56 +5281,192 @@ class SettingTests(DaemonTestCase):
         self.pick("Controller", "Button labels", "Xbox")
         self.assertIn('layout = "xbox"', self.written())
         again = config_module.load(
-            path=os.devnull, mapping=os.devnull, settings=self.settings
+            path=os.devnull, mapping=os.devnull, layout=os.devnull,
+            settings=self.settings
         )
         self.assertEqual(again.layout_name, "xbox")
 
     def test_the_motor_is_told_rather_than_only_the_config(self):
-        self.pick("Controller", "Vibration", "Off")
+        # A switch now, so A flips it rather than picking one of two rows.
+        self.assertTrue(self.daemon.rumble.enabled)
+        self.pick("Controller", "Vibration")
         self.assertFalse(self.daemon.rumble.enabled)
         self.assertFalse(self.daemon.rumble.available)
-        self.pick("Controller", "Vibration", "On")
+        self.pick("Controller", "Vibration")
         self.assertTrue(self.daemon.rumble.enabled)
 
-    def test_a_strength_step_re_uploads_the_effect_it_lives_in(self):
+    def test_a_strength_lands_on_the_motor_when_it_is_let_go_of(self):
+        # Not per step: the whole vocabulary is re-uploaded when a strength
+        # changes, and doing that thirty times across a sweep is an ioctl
+        # storm for a level nobody stopped on. The tick you feel is the one at
+        # the level you kept.
         before = self.daemon.rumble.strong
-        self.pick("Controller", "Vibration", "Stronger")
+        self.land("Controller", "Strength")
+        self.press("A")
+        self.release("A")
+        self.nudge()
+        self.assertGreater(self.daemon.config.rumble_strong,
+                           self.daemon.config.setting("rumble_strength")
+                           - self.daemon.config.rumble_strong)
+        self.assertEqual(self.daemon.rumble.strong, before)
+        self.press("A")
+        self.release("A")
         self.assertGreater(self.daemon.rumble.strong, before)
         self.assertIn("rumble_strength", self.written())
 
     def test_the_two_speeds_are_reachable_from_the_pad(self):
         before = self.daemon.config.scroll_speed
-        self.pick("Controller", "Speed", "Scroll faster")
+        self.push("Controller", "Sticks", "Scroll")
         self.assertEqual(self.daemon.config.scroll_speed, before + 1.0)
         self.assertIn("scroll_speed", self.written())
         before = self.daemon.config.pointer_speed
-        self.pick("Controller", "Speed", "Pointer slower")
+        self.push("Controller", "Sticks", "Pointer", way="left")
         self.assertEqual(self.daemon.config.pointer_speed, before - 100.0)
         self.assertIn("pointer_speed", self.written())
 
-    def test_a_speed_row_prints_where_the_number_has_got_to(self):
-        # Stepping blind is the failure here: nothing else on screen says what
-        # the number is, or that it has stopped at the end of its range.
-        self.pick("Controller", "Speed", "Scroll faster")
+    def test_the_first_push_of_a_direction_is_exactly_one_step(self):
+        # The ramp grows with how long a direction has been held, and a
+        # reversal starts it again - so the press that changes direction is
+        # always worth one step, whatever the one before it had got up to.
+        before = self.daemon.config.scroll_speed
+        self.land("Controller", "Sticks", "Scroll")
+        self.press("A")
+        self.release("A")
+        for _ in range(4):
+            self.nudge()
+        self.assertGreater(self.daemon.config.scroll_speed, before)
+        walked = self.daemon.config.scroll_speed
+        self.nudge("left")
+        self.assertEqual(self.daemon.config.scroll_speed, walked - 1.0)
+
+    def test_a_slider_says_where_it_is_and_how_far_along(self):
+        # Stepping blind is the failure this replaces: nothing else on screen
+        # said what the number was, or that it had stopped at an end. `v` is
+        # normalised here so the panel never sees a minimum or a maximum, and
+        # `t` is the real number in the unit it is counted in.
+        self.push("Controller", "Sticks", "Scroll")
         rows = self.menu_client.sent[-1]["items"]
-        # Both numbers are on the one screen, each under its own pair of rows.
+        scroll = [row for row in rows if row["l"] == "Scroll"][0]
+        self.assertEqual(scroll["k"], "slider")
         self.assertEqual(
-            [row["d"] for row in rows],
-            ["%g pixels a second" % self.daemon.config.pointer_speed] * 2
-            + ["%g notches a second" % self.daemon.config.scroll_speed] * 2,
-        )
+            scroll["t"],
+            "%g notches a second" % self.daemon.config.scroll_speed)
+        share = (self.daemon.config.scroll_speed - 1.0) / 39.0
+        self.assertAlmostEqual(scroll["v"], round(share, 3), places=3)
+
+    def test_b_puts_a_control_back_where_it_was(self):
+        # B leaves, here as everywhere, and leaving a control you have pushed
+        # too far is putting it back. A is the one that keeps it.
+        before = self.daemon.config.pointer_speed
+        self.push("Controller", "Sticks", "Pointer", times=3, keep=False)
+        self.assertEqual(self.daemon.config.pointer_speed, before)
+        self.assertIsNone(self.daemon.menu.taken)
+        # And it leaves no trace: writing a shipped default into settings.toml
+        # would freeze it, so the user stops receiving the one that changes
+        # later. A push nobody kept must not do that.
+        self.assertNotIn("pointer_speed", self.daemon.config.chosen)
+        self.assertFalse(os.path.exists(self.settings))
+
+    def test_a_control_at_its_end_says_so_once(self):
+        self.daemon.config.scroll_speed = 40.0
+        self.land("Controller", "Sticks", "Scroll")
+        self.press("A")
+        self.release("A")
+        self.device.played = []
+        for _ in range(3):
+            self.nudge()
+        edge = self.daemon.rumble.effects["edge"]
+        self.assertEqual([played for played in self.device.played
+                          if played == edge], [edge])
 
     def test_a_faster_pointer_is_felt_at_once(self):
         # Read every tick rather than at startup, so there is nothing to apply
         # - but that is a promise worth a test, since the menu is drawn over a
-        # pointer the same stick is still moving.
-        self.pick("Controller", "Speed", "Pointer faster")
-        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        # pointer that is still live under it. The *right* stick is the one
+        # that still aims there: the left one walks the tiles.
+        self.push("Controller", "Sticks", "Pointer")
+        self.feed((li.EV_ABS, li.ABS_RX, 32767))
         self.tick(0.5, steps=25)
         moved = sum(dx for dx, _ in self.mouse.moves)
         self.assertAlmostEqual(
             moved, self.daemon.config.pointer_speed * 0.5, delta=60
         )
+
+    def test_a_pulled_trigger_crosses_a_range_in_a_couple_of_seconds(self):
+        # Thirty-eight presses to cross `pointer_speed` is a chore, not a
+        # control. A pull is a rate: fully in crosses the whole range in
+        # `[menu] sweep_ms`, whether or not the tile has been taken.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 200.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(self.daemon.config.menu_sweep_ms / 1000.0, steps=30)
+        self.assertEqual(self.daemon.config.pointer_speed, 4000.0)
+
+    def test_half_a_pull_takes_twice_as_long(self):
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 200.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 128))
+        self.tick(self.daemon.config.menu_sweep_ms / 2000.0, steps=15)
+        moved = self.daemon.config.pointer_speed - 200.0
+        self.assertAlmostEqual(moved, 3800.0 * 0.25, delta=200.0)
+
+    def test_the_two_triggers_pull_against_each_other(self):
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 2000.0
+        self.feed((li.EV_ABS, li.ABS_Z, 255), (li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(1.0, steps=20)
+        self.assertEqual(self.daemon.config.pointer_speed, 2000.0)
+
+    def test_a_swept_value_lands_where_a_step_could_have(self):
+        # Two ways to the same set of numbers, not two sets: the sweep moves
+        # in whole steps, so a trigger cannot leave a value between two the
+        # D-pad can reach.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 200.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(0.4, steps=8)
+        self.assertEqual(self.daemon.config.pointer_speed % 100.0, 0.0)
+
+    def test_a_trigger_hums_while_it_moves_and_stops_when_it_does_not(self):
+        # One continuous effect rather than a tick per step: a step repeating
+        # under a held control would buzz all the way down its range. The
+        # texture ships off, so it is turned on here rather than assumed.
+        self.config.rumble_texture = True
+        self.daemon.rumble.configure(self.config)
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 1000.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(0.3, steps=6)
+        self.assertIn("texture", self.daemon.rumble._held)
+        self.feed((li.EV_ABS, li.ABS_RZ, 0))
+        self.tick(0.5, steps=10)
+        self.assertEqual(self.daemon.rumble._held, set())
+
+    def test_a_sweep_writes_the_file_once_when_it_stops(self):
+        # A slider is one decision made over a second, and writing the file
+        # thirty times is thirty chances to be interrupted halfway.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 1000.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(0.3, steps=6)
+        self.assertFalse(os.path.exists(self.settings))
+        self.feed((li.EV_ABS, li.ABS_RZ, 0))
+        self.tick(0.5, steps=10)
+        self.assertIn("pointer_speed", self.written())
+
+    def test_a_trigger_says_nothing_over_a_tile_with_no_range(self):
+        self.land("Controller", "Vibration")
+        before = self.daemon.config.rumble_enabled
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(1.0, steps=20)
+        self.assertEqual(self.daemon.config.rumble_enabled, before)
+
+    def test_a_pad_whose_triggers_are_buttons_sweeps_all_the_way_in(self):
+        # No fraction to give, so down is all the way: blunter, and it works.
+        self.daemon.trigger_level.clear()
+        self.daemon.pressed.add("ZR")
+        self.assertEqual(self.daemon.trigger_pull("ZR"), 1.0)
+        self.assertEqual(self.daemon.trigger_pull("ZL"), 0.0)
 
     def test_a_profile_row_re_reads_the_pad_that_is_already_open(self):
         # An Xbox pad's 0x130 is A; the Nintendo profile calls it B. Nothing

@@ -24,7 +24,7 @@ socket between them.
 | [uinput](uinput.md) | `omapad/uinput.py` | The virtual mouse and keyboard. |
 | [Keymap](keymap.md) | `omapad/keymap.py` | Key name → Linux keycode. |
 | [Real keyboards](kbd.md) | `omapad/kbd.py` | The way out of a surface when the pad cannot answer. |
-| [Rumble](rumble.md) | `omapad/rumble.py` | One uploaded effect, best-effort. |
+| [Rumble](rumble.md) | `omapad/rumble.py` | Four uploaded effects, best-effort. |
 | [Handover](handover.md) | `omapad/handover.py` | Whether the app in front has the pad open. |
 
 ## Talking to the desktop
@@ -35,6 +35,7 @@ socket between them.
 | [Snap](snap.md) | `omapad/snap.py` | Which window is next door, as geometry. |
 | [Cursor](cursor.md) | `omapad/cursor.py` | A pointer you can find from a sofa, drawn into an XCursor theme. |
 | [Terminal](terminal.md) | `omapad/terminal.py` | Whether the window in front is running a command, or waiting at a prompt. |
+| [Live](live.md) | `omapad/live.py` | How loud it is, how bright, and what is playing. |
 
 ## The surfaces
 

@@ -4,6 +4,20 @@ What every button does, badged like the button itself. Read-only, and
 deliberately so: seeing the map is most of what was wanted, and `[osk.keys]`
 already lets a key be changed without touching Python.
 
+## The page it was opened from
+
+Y opens the guide from the menu, and it is on Y because you had forgotten what
+a button does - so what it answers about has to be the page you were looking
+at. A menu page may spend X and Y on a job of its own
+([`menu.md`](menu.md)), and `rebuild(available, menu_keys, menu_page)` takes
+that page's table, layers it over `[bindings.menu]` for the menu's page, and
+puts the page's name in the note.
+
+Read **before** the menu is put away: `set_guide(True)` rebuilds first and
+closes the menu second, which is the only order in which the page still exists
+to be asked. Opened from anywhere else there is no page, and the menu's own
+layer is what that page shows.
+
 ## Descriptions are derived, not tabulated
 
 `describe(spec)` turns an action into English, so `click:left` is a left click

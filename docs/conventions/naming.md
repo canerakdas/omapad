@@ -42,7 +42,7 @@ omapad/
 | Test module | `tests/` | `test_<module>.py`, mirroring the module it covers | `tests/test_osk.py` |
 | Asset tool | `assets/` | lowercase word naming the job | `generate.py`, `place.py` |
 | QML component | `shell-plugin/` | `PascalCase.qml`; the filename **is** the component name | `GameBar.qml` |
-| Generated QML | `shell-plugin/` | `<Thing>Art.qml`, with `GENERATED` in the first comment line | `ButtonArt.qml` |
+| Generated QML | `shell-plugin/` | `<Thing>Art.qml`, with `GENERATED` in the first comment line | `ButtonArt.qml`, `ControlArt.qml` |
 | Shape source | `assets/shapes/` | `<family>-<name>.svg`, family first | `bumper-left.svg`, `sys-plus.svg`, `dpad-up.svg` |
 | Generated button | `assets/buttons/` | `<kind>-<side>-<label>.svg`, or `<kind>-<label>.svg` where there is no side | `bumper-l-lb.svg`, `face-a.svg`, `system-menu.svg` |
 | Executable | `bin/` | `omapad` or `omapad-<thing>`, no extension, `chmod +x` | `bin/omapad` |
@@ -65,10 +65,19 @@ A component is usually four names, and they must line up:
 | control verb | `omapad ctl guide ...` |
 | doc | `docs/components/guide.md` |
 
+**A source has no socket and no control verb**, and that is the difference
+rather than an omission: `snap.py`, `handover.py` and `live.py` answer a
+question the daemon asks, and nothing about them is drawn. `omapad/live.py` ·
+`tests/test_live.py` · `[live]` · `docs/components/live.md`, and there stop.
+
 The QML panel is the exception: it is named for what the user sees
 (`Keyboard.qml` for `osk.py`, `Mapping.qml` for `mapping.py`), because the
 plugin is the user's side of the boundary. Its socket keeps the daemon's name
 (`osk.sock`, `mapping.sock`).
+
+A program-written file is named for what it holds rather than for what writes
+it - `mapping.toml`, `settings.toml`, `layout.toml` - because what deleting it
+hands back is the only thing anybody needs to guess right.
 
 Underscores in a Python module become hyphens in its doc
 (`linux_input.py` → `docs/components/linux-input.md`) and stay underscores in
@@ -107,7 +116,8 @@ a `Config` attribute (`handover_depth`).
 
 `.gitignore` covers `__pycache__/` and `*.pyc` - the only generated files that
 land in the tree. Everything else in it is source, including the generated
-`assets/buttons/*.svg` and `shell-plugin/ButtonArt.qml`: they are checked in on
+`assets/buttons/*.svg`, `shell-plugin/ButtonArt.qml` and
+`shell-plugin/ControlArt.qml`: they are checked in on
 purpose, so a change to a shape shows up as a diff and `tests/test_assets.py`
 can fail when the output and the generator disagree.
 

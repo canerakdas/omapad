@@ -83,9 +83,10 @@ YouTube · Video                      does not
    a list of four choices asks.
 
 8. **A `detail` cannot know anything live.** It is written once into a config
-   file. Anything that depends on state is the daemon's: the tick for a setting
-   in force, and `value(action)` for a stepping row, which replaces the detail
-   with where the number has got to.
+   file. Anything that depends on state is the daemon's: the tick for a
+   setting in force, `value(action)` for a stepping row, and a control tile's
+   own value - a slider prints its number beside its name and wants no
+   `detail` at all, because the number *is* the detail.
 
 9. **The interface MUST NOT contradict the design.** `Game mode / Hand the pad
    back to games` was wrong on the pad and wrong in the manual: game mode is
@@ -135,6 +136,9 @@ not the meaning, because the game bar prints only that word
 | `Vibration` | The tick under your thumb | On, off, and how hard | 1, 5 |
 | `Speed` | How fast the two thumbs are | How fast the sticks move | 1 |
 | `Dead zone` | How much of a stick does nothing | Stick travel that does nothing | 1 |
+| `Sticks` | *(was two pages: Speed, Dead zone)* | Speed, and travel that does nothing | 1, 5 |
+| `Pointer`, `Scroll` | Pointer faster / Pointer slower | Pointer, Scroll | 6 |
+| `Left dead zone` | Left stick wider / Left stick narrower | Left dead zone | 6 |
 | `Scale up` | Bigger desktop, for the couch | Bigger text and windows | 2 |
 | `Apps` | Open something | Steam, chat, music, video | 1 |
 | `Filled` | The label set on a washed shape | Letter on a soft-filled shape | 3 |
@@ -144,6 +148,36 @@ not the meaning, because the game bar prints only that word
 | `Follow the pad` | Whatever the profile prints | What the pad reports it is | 3 |
 | `Close the window in front` (label) | - | `Close window` | 10, 11 |
 | `lock:` - the row, the guide page, the notification | Game lock | Workspace lock | 9, 13 |
+
+## What a tile that holds a value cannot say
+
+Rule 7 - *a choice row's `detail` is the difference from its siblings* - is
+written for a submenu of rows, and a `choice` tile has no siblings on screen:
+it shows one value at a time, so the line explaining how the choices differ has
+nowhere to go.
+
+So a submenu converts to a tile only where **the values say the difference
+themselves**. `Button style` did: `Filled` and `Stencil` are two looks whose
+names are the description. `Start in` did: `Desktop` and `Game mode`.
+
+`Button labels` and `Profile` did **not**, and this is the reason rather than
+an oversight. Getting either wrong scrambles the face buttons, and the
+sentence under each choice is exactly what stops you:
+
+| Kept | And the line it keeps |
+|---|---|
+| `Follow the pad` | What the pad reports it is |
+| `Nintendo` | A B X Y, ZL and ZR, − and + |
+| `Xbox` (labels) | LB and LT, View and Menu |
+| `PlayStation` | Shapes, L1 and L2, Create and Options |
+| `Detect it` | Follow what the driver reports |
+| `Nintendo Pro` | A Switch pad, or one in NS mode |
+| `Xbox` (profile) | An XInput pad - most of them |
+
+A choice **value** gets an interface word of its own, in `CHOSEN`'s `words`
+map: `playstation` is a config value and `PlayStation` is what a person reads.
+Rule 13 - one thing has one name everywhere - is why it lives beside the
+choices it describes rather than in a table somewhere else.
 
 ## Checking it
 

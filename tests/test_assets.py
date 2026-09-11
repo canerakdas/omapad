@@ -22,12 +22,12 @@ import generate
 import svgpath
 import truetype
 
-from omapad import config, guide
+from omapad import config, guide, menu
 
 
 class AssetsAreCurrent(unittest.TestCase):
     def setUp(self):
-        self.svgs, self.qml = generate.build()
+        self.svgs, self.qml, self.controls = generate.build()
 
     def test_every_generated_svg_is_what_is_on_disk(self):
         on_disk = sorted(name for name in os.listdir(generate.BUTTONS)
@@ -50,6 +50,125 @@ class AssetsAreCurrent(unittest.TestCase):
         for kind, _, _, labels in generate.BUTTONS_TO_DRAW:
             for label in labels:
                 self.assertIn('"%s:%s"' % (kind, label), self.qml)
+
+    def test_the_shell_plugin_draws_the_same_controls(self):
+        with open(generate.CONTROL_QML) as handle:
+            self.assertEqual(handle.read(), self.controls,
+                             "ControlArt.qml is stale: run "
+                             "python3 assets/generate.py")
+
+    def test_the_control_art_carries_no_font(self):
+        # The TrueType half of the generator turns letters into outlines so
+        # they can be punched out of a button. Nothing here has a letter in
+        # it, so a FontLoader arriving in this file means somebody has started
+        # building the font this was deliberately not.
+        self.assertNotIn("FontLoader", self.controls)
+        # The field, not the word: the header comment says why there is no
+        # label here, and a test that could not tell the two apart would fail
+        # on its own explanation.
+        self.assertNotIn('label: "', self.controls)
+
+
+class EveryControlIsDrawn(unittest.TestCase):
+    """A control tile cannot ship with a hole in it.
+
+    The analogue of `EveryBadgeIsDrawn` one file along: a kind the daemon can
+    send and the generator has no part for is a tile that draws blank, and
+    nothing else in the tree would say so.
+    """
+
+    # What each kind of tile is drawn from. The daemon's `menu.CONTROLS` is
+    # what may be declared; this is what each of them needs to exist.
+    NEEDS = {
+        # No zone: the shaded disc is a circle of *variable* radius, and a
+        # drawing cannot stretch - the same argument the slider's track
+        # carries, one shape along. `radius: width / 2` is what a circle of
+        # any size is, and it keeps a one-pixel outline one pixel wide at the
+        # two-percent values this setting is actually set to.
+        "gauge": ("dial:face", "dial:ticks", "dial:thumb"),
+        "toggle": ("switch:body", "switch:knob"),
+        "choice": ("chev:left", "chev:right"),
+        # Nothing, and that is the entry rather than an omission: a track is
+        # as wide as the tile it sits in, a drawn shape cannot stretch, and
+        # `radius: height / 2` is what a rounded bar of any width is. Listed
+        # so the other half of this test still sees the control.
+        "slider": (),
+        "media": ("media:play", "media:pause", "media:next", "media:prev"),
+    }
+
+    # Drawn for a *state* rather than for a kind of tile: the grip is the mark
+    # a tile wears while it is being carried, which belongs to edit mode and
+    # to no control at all.
+    ELSEWHERE = ("tile:grip",)
+
+    def test_every_part_a_kind_needs_is_generated(self):
+        _, _, controls = generate.build()
+        for kind, parts in sorted(self.NEEDS.items()):
+            for part in parts:
+                self.assertIn(
+                    '"%s"' % part, controls,
+                    "%s is drawn with %s, which nothing generates"
+                    % (kind, part))
+
+    def test_nothing_is_generated_that_no_kind_is_drawn_from(self):
+        # The other way round again: a shape nobody draws is weight in four
+        # surfaces and a thing the next person has to work out is dead. The
+        # dial's needle was one - drawn for a rotary the gauge turned out not
+        # to be, since a stick has a position rather than a bearing.
+        wanted = set(self.ELSEWHERE)
+        for parts in self.NEEDS.values():
+            wanted.update(parts)
+        for family, name, _ in generate.CONTROLS_TO_DRAW:
+            self.assertIn(
+                "%s:%s" % (family, name), wanted,
+                "%s:%s is generated and nothing is drawn from it"
+                % (family, name))
+
+    def test_every_declared_control_is_one_this_knows_how_to_draw(self):
+        # The other direction: a control added to the daemon with no art and
+        # no entry here would ship drawing nothing at all.
+        drawn = set(self.NEEDS) | set(menu.CONTROLS)
+        for kind in menu.CONTROLS:
+            if kind == menu.ROW_BREAK:
+                continue  # a gap is drawn by not being drawn
+            self.assertIn(
+                kind, self.NEEDS,
+                "menu.CONTROLS has %r, which this test cannot say is drawn"
+                % kind)
+        self.assertTrue(drawn)
+
+
+class AnnuliSurviveEitherFillRule(unittest.TestCase):
+    """A ring drawn as two same-wound circles is a disc in the filled style.
+
+    The rim of a stick was a stroked circle for exactly as long as it took
+    somebody to turn the stencil style on and find the stick had no rim. The
+    same trap one shape along: a badge is painted `WindingFill` normally and
+    `OddEvenFill` when the label is knocked out of it, so a hole only survives
+    both where the two subpaths are wound the opposite way round.
+    """
+
+    RINGS = ("dial-face.svg",)
+
+    def test_a_ring_is_wound_so_the_hole_survives(self):
+        for name in self.RINGS:
+            shape = generate.Shape(os.path.join(generate.SHAPES, name))
+            areas = []
+            for data in shape.fills:
+                for poly in svgpath.flatten(data):
+                    areas.append(self.signed_area(poly))
+            self.assertEqual(len(areas), 2, "%s is not one ring" % name)
+            self.assertLess(areas[0] * areas[1], 0,
+                            "%s: both subpaths wind the same way, so the "
+                            "filled style paints it solid" % name)
+
+    def signed_area(self, poly):
+        total = 0.0
+        for i in range(len(poly)):
+            x0, y0 = poly[i]
+            x1, y1 = poly[(i + 1) % len(poly)]
+            total += x0 * y1 - x1 * y0
+        return total / 2
 
 
 class ShapesSitOnTheGrid(unittest.TestCase):
@@ -211,7 +330,7 @@ class MarksStandAtOneHeight(unittest.TestCase):
         """The door scales its mark against the word's cap height by this, so
         a mark redrawn to another height has to reach the shell or it lands
         the wrong size beside the word."""
-        _, qml = generate.build()
+        _, qml, _controls = generate.build()
         self.assertIn("markCap: %g" % generate.SYSTEM_MARK_CAP, qml)
 
 
@@ -224,7 +343,7 @@ class EveryBadgeIsDrawn(unittest.TestCase):
     """
 
     def test_no_badge_falls_back_to_typed_text(self):
-        _, qml = generate.build()
+        _, qml, _controls = generate.build()
         for layout in sorted(guide.LAYOUTS):
             for button, kind in sorted(guide.KINDS.items()):
                 label = guide.badge_of(button, layout)
@@ -236,7 +355,7 @@ class EveryBadgeIsDrawn(unittest.TestCase):
         """No surface draws a bordered rectangle any more, so nothing may
         arrive without a shape: a kind ButtonArt has never heard of would come
         out as bare text on the bar with nothing around it."""
-        _, qml = generate.build()
+        _, qml, _controls = generate.build()
         for kind in sorted(set(guide.KINDS.values())):
             self.assertTrue('"%s"' % kind in qml or '"%s:l"' % kind in qml,
                             "%s badges have no shape" % kind)
@@ -249,6 +368,6 @@ class EveryBadgeIsDrawn(unittest.TestCase):
                              settings=os.devnull)
         rows = guide._stick_rows(shipped, "base")
         self.assertTrue(rows)
-        _, qml = generate.build()
+        _, qml, _controls = generate.build()
         for row in rows:
             self.assertIn('"%s:%s"' % (row["k"], row["b"]), qml)

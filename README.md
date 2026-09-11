@@ -808,12 +808,14 @@ section's job.
 
 The pointer's speed and the wheel's are the two settings nobody can pick for
 you: they depend on the pad, on the screen, and on how far away the sofa is. So
-they are also the two the pad can change about itself — **Controller › Speed**
-in the menu, or `pad:pointer_speed=up`
-and `pad:scroll_speed=down` on a button. Both rows repeat while you hold them,
-both print where the number has got to, and the pointer keeps moving under the
-open menu, so you set them by feel. What you land on is written to
-`settings.toml`.
+they are also the two the pad can change about itself — **Controller › Sticks**
+in the menu, or `pad:pointer_speed=up` and `pad:scroll_speed=down` on a button.
+Each is a bar there: A takes it and left and right walk it, faster the longer
+you hold a direction, and either trigger sweeps its whole range in about a
+second and a half whether you have taken it or not. The bar says where the
+number is and where the ends are, the pointer keeps moving under the open menu,
+and the motor ticks once when you reach an end — so you set them by feel. A
+keeps what you land on and writes it to `settings.toml`; **B puts it back**.
 
 ```toml
 [pointer]
@@ -831,8 +833,18 @@ natural = false     # true inverts the direction
 ```
 
 **How much of a stick does nothing** is the same argument at the other end of
-its travel, so the pad steps that too — **Controller › Dead zone** in the menu,
-or `pad:left_deadzone=up` and `pad:right_deadzone=down` on a button. Widen one
+its travel, so the pad sets that too — two more bars on **Controller ›
+Sticks**, and under them **a dial per stick**. The dial is the answer to the
+question a number cannot give you: it shows the dead zone as a shaded disc and
+puts a dot where the thumb actually is, **dim while the stick is being
+swallowed and lit the moment it is not**. Rest your hand on the pad and watch
+which way the dot creeps; push slowly and the moment it lights is the edge you
+have set. `pad:left_deadzone=up` and `pad:right_deadzone=down` do the same
+from a button.
+
+The dial is the one thing in omapad that draws at frame rate, and it does so
+**only while it is the tile you are on** — the menu stops the moment you move
+off it. Widen one
 when an untouched stick still creeps the pointer along; a worn pad rests a
 percent or two off centre. Narrow it when small corrections are swallowed and
 aiming feels like it starts late. A pointer that bolts for a corner rather than
@@ -1171,6 +1183,10 @@ restart — so every config change would close your Steam.
 | `pad:scroll_speed=up\|down\|<1..40>` | how fast the wheel turns |
 | `pad:left_deadzone=up\|down\|<0..0.5>` | how much of the left stick does nothing |
 | `pad:right_deadzone=up\|down\|<0..0.5>` | the same, for the right one |
+| `live:volume=up\|down\|<0..1>` | how loud the machine is — the twin of `pad:`, for what the machine holds rather than what omapad does |
+| `live:mute=on\|off\|toggle` | the speakers |
+| `live:brightness=up\|down\|<0..1>` | how bright the screen in front is |
+| `live:media=playPause\|next\|previous` | what is playing |
 | `snap:left\|right\|up\|down` | move the pointer to the window that way and focus it |
 | `snap:centre` | put the pointer in the middle of the window in front |
 | `focus:next\|prev` | walk the application's own controls (Tab / Shift+Tab) |
@@ -1183,7 +1199,8 @@ Every `pad:` value also takes `next` / `prev`, which steps through what that
 setting holds — so one button can walk what the menu offers as a list of rows.
 What is chosen from the pad is written to `~/.config/omapad/settings.toml`
 and wins over `config.toml` until you delete it; see [the Controller
-menu](#the-controller-submenu).
+menu](#the-controller-submenu). A page you rearrange lands in
+`layout.toml` beside it, and works the same way.
 
 `hypr:` values are written as **Lua**. This Hyprland routes `dispatch` through
 Lua; the old `workspace e+1` syntax no longer works. The spelling is exactly the
@@ -1849,8 +1866,8 @@ so one tick goes in and one comes back out.
 
 **Controller › Vibration** in the menu turns it on and off and steps the
 strength, ticking the motor at each step so you set it by feel rather than by
-number; what you pick lands in `settings.toml`. The defaults, and the two knobs
-the menu does not reach, are under `[rumble]`:
+number; what you pick lands in `settings.toml`. The defaults, and the knobs the
+menu does not reach, are under `[rumble]`:
 
 ```toml
 [rumble]
@@ -1858,6 +1875,7 @@ enabled = true
 strong = 0.20         # 0..1, the low-frequency motor - this is the real "tick"
 weak = 0.0            # 0..1, the high-frequency motor, on pads that have one
 duration_ms = 60      # short enough to read as a tick rather than a buzz
+floor_ms = 50         # the shortest pulse worth asking any driver for
 ```
 
 The defaults were picked **by hand on a Beitong KP20 in NS mode**: this pad has
@@ -1865,68 +1883,116 @@ only wired up the low-frequency motor, and you cannot feel the high-frequency
 one even at full power. On pads that wire up both, the really clean tick is
 usually on `weak`, so the knob stays.
 
-There is a timing floor too: `hid-nintendo` sends rumble packets **on a 50 ms
-period**, so a pulse shorter than 50 ms can be swallowed entirely. If you feel
-nothing, lengthen `duration_ms` first, then try the motors one at a time. On a
-pad with no motor, or one opened read-only, rumble turns itself off quietly —
-one line lands in `journalctl --user -u omapad` and nothing else changes.
+`floor_ms` is why: `hid-nintendo` sends rumble packets **on a 50 ms period**,
+so a pulse shorter than that can fall between two of them and be swallowed
+entirely. Nothing is ever asked for shorter. If you feel nothing, lengthen
+`duration_ms` first, then try the motors one at a time. On a pad with no motor,
+or one opened read-only, rumble turns itself off quietly — one line lands in
+`journalctl --user -u omapad` and nothing else changes.
+
+#### The motor says four things
+
+The tick is one of four, and each is a different shape rather than the same
+buzz at another length:
+
+| | Says | Where you feel it |
+|---|---|---|
+| **tick** | a press landed | the two standing jobs above |
+| **edge** | you cannot go further | a control at the end of its range, the rim of the menu grid |
+| **commit** | that took | a switch flipped, a choice walked on |
+| **texture** | it is moving | held under a thumb while a value is being pushed |
+
+How hard and how long each one is are settings; the *waveform* is not. A square
+wave is what makes an edge feel like an edge, and turning that into a knob is
+offering to turn a bump into a hum.
+
+```toml
+edge_strength = 0.35
+edge_duration_ms = 70
+commit_strength = 0.28
+commit_duration_ms = 90
+texture = false       # the only one that ships off
+texture_strength = 0.12
+```
+
+The **texture** is off by default because a hum under a moving thumb is the
+likeliest of the four to get on your nerves, and a scheme where everything
+buzzes says nothing. It is also the only one with no fallback: a pad that
+cannot play a sine wave plays `edge` and `commit` as plain ticks and has no
+texture at all, because a continuous effect turned into a pulse is how a
+vibration gets stuck on.
+
+`omapad check` prints which of the four **your** pad took, and says which it
+could not.
 
 The rumble fires when the action **really runs**: in game mode a binding outside
 `[bindings.game]` does not run, so the pad does not tick either.
 
 ## The menu
 
-To the right of the title stand **the day and the time** (`[menu] clock`,
-strftime; leave it empty for none). The reason: game mode takes Omarchy's bar
-away, and there is no other clock the pad can reach.
+Press **PLUS**. Three things open together, stacked down the middle of the
+screen:
 
-Press **PLUS**: a menu shaped like Omarchy's own opens in the middle of the
-screen — a single column of rows, a header at the top saying where you are, and
-a `›` to the right of the rows that lead into a submenu. **Hold** PLUS and the
-real Omarchy menu opens. That one wants a keyboard and a mouse; this one
-takes them both - the same Exclusive focus, hover-to-select and clicks -
-so whichever hand you are holding,ther menu reads the same way.
+- **the head** — the day, the time, and whatever else you point a command at.
+  Game mode takes Omarchy's bar away and there is no other clock the pad can
+  reach, so the menu carries one.
+- **the bar** — one chip per group, walked with the shoulders. `Now`, `Apps`,
+  `Windows`, `Audio`, `Display`, `Controller`, `System`.
+- **the grid** — the tiles of the group you are on, some of them wider or
+  taller than others.
 
-The pad and the desk drive the same selection: whatever moves it hurts,ther
-arrow,ther cursor - ends up as one `MenuModel` index, over the same
-control socket `omapad ctl` uses. A held D-pad direction and a held arrow key
-both walk the list;Enter and right both pick;Backspace climbs one level
-and Esc leaves outright;hover names a row,a click picks one,and a click on
-the scrim leaves.
+**Hold** PLUS and the real Omarchy menu opens. That one wants a keyboard and a
+mouse; this one takes them both — the same Exclusive focus, hover-to-select and
+clicks — so whichever hand you are holding, the menu reads the same way.
 
-Being a list rather than a radial is deliberate: a radial reads a stick angle in
-one flick but takes no more than a handful of entries, and has nowhere to put a
-submenu. The D-pad already walks a list well, and that is the shape the rest of
-the desktop teaches anyway.
+The pad and the desk drive the same selection: whatever moves it — a thumb, an
+arrow, a cursor — ends up naming one tile in the daemon, over the same control
+socket `omapad ctl` uses. A held D-pad direction and a held arrow key both walk
+the grid; Enter and A both pick; Backspace and B climb one level; Esc and X
+leave outright; hover names a tile, a click picks one, and a click on the scrim
+leaves.
+
+It was a single column for a long time, and it is a grid now for one reason: a
+list says every row is worth the same. What is playing is not worth the same as
+a tile beside it, and a grid is how you say so. It is still not a radial — a
+radial reads a stick angle in one flick but takes no more than a handful of
+entries, and has nowhere to put a page.
 
 | Button | Job |
 |---|---|
-| D-pad up / down | Walk the rows (hold it and it keeps walking) |
-| A · D-pad right | Pick — and go in, if it is a submenu |
-| B · D-pad left | Back to the menu above; at the top it closes the menu |
+| D-pad | Walk the tiles, all four ways (hold it and it keeps walking) |
+| L / R | Previous / next group |
+| A | Pick — and go in, if it opens a page |
+| B | Back to the page above; at the top it closes the menu |
 | X · PLUS · Capture · Right stick click | Close the menu outright, from any depth |
 | Y | Open [the bindings guide](#the-bindings-guide) |
 | HOME | Tap: close the menu · Hold: switch mode |
 
-`X` and `B` are not the same button twice: `B` walks back up **one** submenu at
-a time, and from inside `Controller › Speeds` that is two presses, while `X`
+**Left and right walk the grid; they used to be a second way to say Back and
+Pick.** A single column left both free for that, and a grid spends both axes on
+getting about — A and B already say the other two things.
+
+`X` and `B` are not the same button twice: `B` walks back up **one** page at a
+time, and from inside `Audio › Devices › Output` that is two presses, while `X`
 leaves outright. `Y` is the pad's reach for something not on screen — the menu
-has a `Controller › Shortcuts` row that opens the same guide, and `Y` is that
-row without walking to it. It is the button for when you opened the menu
+has a `Controller › Shortcuts` tile that opens the same guide, and `Y` is that
+tile without walking to it. It is the button for when you opened the menu
 *because* you had forgotten which button does what.
 
 The keyboard and the mouse drive the same menu,on top of the pad:
 
 | Key / mouse | Job |
 |---|---|
-| ↑ ↓ | Walk the rows (hold and it keeps walking) |
-| Enter · Space · → | Pick —and go in,if it is a submenu |
-| ← · Backspace | Back to the menu above; at the top it closes |
-| Esc | Close the menu outright,from any depth |
-| Hover a row | Move The selection to it (once the cursor has travelled) |
-| Click a row | Pick The row it lands on |
+| ↑ ↓ ← → | Walk the tiles (hold and it keeps walking) |
+| Tab · Shift+Tab | Next / previous group |
+| Enter · Space | Pick — and go in, if it opens a page |
+| Backspace | Back to the page above; at the top it closes |
+| Esc | Close the menu outright, from any depth |
+| Hover a tile | Move the selection to it (once the cursor has travelled) |
+| Click a tile | Pick the tile it lands on |
+| Click a chip | Walk the bar to that group |
 | Click the scrim | Close the menu |
-| Home · End · PgUp · PgDn | Jump to the ends,or six rows at a time |
+| Home · End | Jump to the ends of the page |
 
 The menu takes the keyboard exclusively while it is open -ther Omarchy
 menu's own window rules - so the arrows reach it rather than the window
@@ -1939,58 +2005,224 @@ The menu layer sits above the keyboard layer: opening the menu closes the
 on-screen keyboard, so that exactly one surface reads the D-pad. Holding MINUS
 still wins.
 
-When a row is picked the menu **closes first and the command runs after** — so
+When a tile is picked the menu **closes first and the command runs after** — so
 the window you opened is not left behind the dimming. There are two exceptions.
-Rows with `repeat = true` are things you *nudge* rather than *pick*, like volume
-and brightness: they leave the menu where it is, hold A and it repeats like a
-held keyboard key, and B is the way out. Rows with `stay = true` are the quieter
-half of that — one press, and the menu stays up — which is what a row that
-changes a setting the menu itself prints needs.
+Tiles with `repeat = true` are things you *nudge* rather than *pick*: they
+leave the menu where it is, hold A and it repeats like a held keyboard key, and
+B is the way out. Nothing shipped uses it any more — the volume and brightness
+tiles that did are bars now — but it is still the right answer for a step with
+no value to show. Tiles with `stay = true` are
+the quieter half of that — one press, and the menu stays up — which is what a
+tile that changes a setting the menu itself prints needs.
 
-A row that *sets* something is **ticked** while that something is what is in
-force, so a list of choices says which one you are on rather than making you
+A tile that *sets* something is **ticked** while that something is what is in
+force, so a page of choices says which one you are on rather than making you
 guess.
+
+### Arranging a page from the pad
+
+**Hold Y** on any page and its tiles become yours. Every button on the card
+means something else while you are there, and the legend says which:
+
+| | |
+|---|---|
+| **A** | pick a tile up, and put it down |
+| **B** | done — and that is when it is written down |
+| **X** | take a tile off the page, or put it back |
+| **Y** | reset the page to the one that shipped |
+| **LB / RB** | narrower / wider, while you are carrying one |
+
+A tile you take off stays on the page while you are arranging it, faded, so
+putting it back is the same press that took it away — there is no second
+screen to go and find it on. Moving a tile is a **reorder**, not a position:
+the grid packs again around it, which is why an arrangement still makes sense
+on a screen with a different `[menu] columns`.
+
+What you do lands in `~/.config/omapad/layout.toml`, and it and `config.toml`
+cannot break each other. A tile a new version ships appears at the end of your
+page rather than being invisible; a tile that goes away is dropped from your
+order rather than leaving a hole; and a tile you hid is hidden only while it
+still exists. If the file is damaged the daemon says so once and uses the
+shipped arrangement. `omapad check --layout` says what yours still resolves to,
+and deleting the file — or resetting one page with Y — hands it back.
+
+**Along the foot of the card is a legend** saying what A, B, X and Y do on the
+page you are looking at, drawn with the same buttons the guide and the bar
+print. `[menu] keys = false` turns it off — in game mode omapad's own bar is
+already saying the same kind of thing across the screen, though only the
+legend can say what a page has spent a key on.
+
+**The bar holds places, not verbs.** That is why the workspace lock is a tile
+on `Now` rather than a chip of its own — and why, whenever there is something
+to lock to, the menu **opens on it**, with nothing at all to walk to. Any tile
+can ask for that with `open_on`; see below.
 
 ### Writing the menu to suit yourself
 
-The rows are under `[[menu.items]]`; each row takes either an `action` (**the
-same grammar** as the button bindings) or an `items` list that opens a submenu.
+The tree is under `[[menu.items]]`. **A top-level entry is a group** — a chip
+on the bar — and holds the tiles of one page. Each tile takes either an
+`action` (**the same grammar** as the button bindings) or an `items` list that
+opens a page of its own.
 
 ```toml
 [[menu.items]]
-icon = ""                    # any glyph in the shell's font
-label = "Terminal"
-action = "exec:omarchy-launch-terminal"
-
-[[menu.items]]
-icon = ""
-label = "Audio"
-detail = "Volume and playback"   # a quieter second line under the label
+icon = ""                     # any glyph in the shell's font
+label = "Audio"                 # a group, so a noun: it is a place you go
+detail = "Where the sound goes"
 
   [[menu.items.items]]
-  label = "Volume up"
-  repeat = true              # keep the menu open, and repeat while held
-  action = "exec:omarchy-audio-output-volume raise"
+  label = "Screensaver"
+  span = [2, 1]               # two cells across; [1, 1] unless you say
+  action = "exec:omarchy-launch-screensaver force"
 
-[[menu.items]]
-label = "Xbox labels"
-stay = true                  # keep the menu open, but fire once
-action = "pad:layout=xbox"   # and this row is ticked while it is in force
+  [[menu.items.items]]
+  control = "row_break"       # end the row here; draws nothing
 
-[[menu.items]]
-label = "Workspace lock"
-when = ["game", "handed_over"]   # only offered in those states, any one is enough
-action = "lock:toggle"
+  [[menu.items.items]]
+  label = "Xbox labels"
+  stay = true                 # keep the menu open, but fire once
+  action = "pad:layout=xbox"  # and this tile is ticked while it is in force
+
+  [[menu.items.items]]
+  label = "Workspace lock"
+  when = ["game", "handed_over"]   # only offered in those states, any one does
+  open_on = true              # and the menu opens on it while one holds
+  action = "lock:toggle"
 ```
 
-`when` keeps a row out of the menu where it could do nothing useful. The states
-are `game` (game mode is on), `handed_over` (the app in front has taken the
-pad), `locked` (the workspace lock is on) and `kept` (the pad is being kept
-from an app that opened it); a row that says nothing is always there. They are read **when the menu opens** and stand until it closes, so no
-row appears or vanishes under the selection while a thumb is aiming at one.
+Tiles are packed **first fit, in the order you write them**, left to right and
+top to bottom — so the order is still yours, and a small tile is allowed to
+backfill the hole a big one left. `[menu] columns` is how many cells across a
+page is; six by default, and worth turning down for a small screen. A
+`row_break` tile ends the row it is in, which is the way to group tiles that
+belong together. It is deliberately not a one-cell spacer: a spacer holds a
+hole open at six columns and shifts everything under it at four, and the same
+page has to read on a laptop panel and on a television.
+
+`when` keeps a tile out of the menu where it could do nothing useful. The
+states are `game` (game mode is on), `handed_over` (the app in front has taken
+the pad), `locked` (the workspace lock is on) and `kept` (the pad is being kept
+from an app that opened it); a tile that says nothing is always there. They are
+read **when the menu opens** and stand until it closes, so no tile appears or
+vanishes under the selection while a thumb is aiming at one.
+
+`open_on` is the other half of that, and it needs a `when`: while the condition
+holds, the menu **opens on this tile**. It is what a capability that has to be
+found the moment you press PLUS asks for, now that the bar holds places rather
+than verbs. The earliest one in the tree wins.
 
 If you redefine the `items` list in your own config it replaces **the whole**
-shipped tree rather than being merged row by row — your menu is your menu.
+shipped tree rather than being merged group by group — your menu is your menu.
+
+### Tiles that hold a value
+
+A tile with a `control` reads a setting and draws what it is on, instead of
+doing something:
+
+```toml
+[[menu.items.items]]
+label = "Vibration"
+control = "toggle"            # a switch; A flips it
+reads = "pad:rumble"
+
+[[menu.items.items]]
+label = "Button style"
+control = "choice"            # ‹ a value ›; A walks it forward
+reads = "pad:badge_style"
+
+[[menu.items.items]]
+label = "Volume"
+control = "slider"            # a bar; A takes it, then ‹ › move it
+reads = "live:volume"
+
+[[menu.items.items]]
+label = "Music"
+empty = "Nothing playing"
+control = "media"             # what is playing; A plays or pauses it
+reads = "live:media"
+
+[[menu.items.items]]
+label = "Left stick"
+control = "gauge"             # a dial: the setting, and where the thumb is
+reads = "pad:left_deadzone"
+shows = "left"
+```
+
+`reads` names either one of the settings the pad can change — the same names a
+`pad:` binding takes — or one of the things the machine is doing: `volume`,
+`mute`, `brightness`, `media`. The kinds have to match and `omapad check` says
+so: a `toggle` reads an on/off setting, a `choice` reads one with a list of
+values, a `slider` reads a number.
+
+A control tile needs no `action`, never repeats, and always leaves the menu
+up. A switch and a choice are done in one press; **a bar is taken first** —
+both directions belong to the grid until it is, so A takes it, left and right
+move it (faster the longer you hold one), either trigger sweeps its whole
+range, and then **A keeps what it is on and B puts it back**.
+
+A control tile draws no icon: the control is the picture, and a glyph over a
+switch is the tile saying the same thing twice in the room it has for one.
+Give it a wider `span` when its name will not sit above the control in one
+cell; a bar is three cells and a media tile three by two, and neither needs
+one.
+
+### Giving a page its own X or Y
+
+A group, or any tile that opens a page, can take **X and Y** for a job of its
+own while that page is in front:
+
+```toml
+[[menu.items]]
+label = "Apps"
+
+  [menu.items.keys]
+  Y = { tap = "exec:omarchy-menu toggle apps", short = "All" }
+```
+
+**Not A or B.** A commits and B leaves, in every layer, every surface and every
+application — a page that could take either would be the one place on the pad
+where that stopped being true. And a page that takes X keeps `menu:close` on
+the hold, because X is how you leave from everywhere else in here. `omapad
+check` enforces both, naming the page.
+
+`short` is the one word the legend prints; `desc` is the phrase the guide does.
+And the guide agrees: open it with Y from a page that has spent a key and it
+prints that page's answer, not the menu's in general.
+
+**Nothing in the shipped tree spends one**, which is the answer rather than an
+omission. A button is worth taking only when what it would do is not reachable
+on screen, and a page of tiles almost always has room for one more tile — which
+costs nobody a reflex. Play / pause on `Now` is the example of when not to: the
+tile is right there.
+
+### The head: the clock, and whatever else you point at it
+
+`[[menu.head]]` is the read-only strip above the bar. Nothing on it is
+selectable — a clock is not a button — and a cell prints either a time it
+renders itself or the last thing a command said.
+
+```toml
+[[menu.head]]
+span = [2, 1]
+format = "%A %H:%M"           # strftime
+
+[[menu.head]]
+span = [4, 1]
+from = "omarchy-weather-status"
+ttl = 900                     # seconds before it is asked again
+empty = "Weather unavailable" # before the first answer, and after a failure
+```
+
+`ttl` is how fresh the answer has to be, which is not how often the menu
+repaints — the card redraws every couple of seconds whatever this says, and the
+weather is asked for once a quarter of an hour.
+
+**omapad owns nothing about the weather.** It runs the string you put in `from`
+and draws what comes back; `omarchy-weather-status` owns the lookup,
+`omarchy-weather-location` owns where you are, and the helper prints its own
+failure. Point the cell at something else and it says something else. A command
+that answers with nothing leaves the last answer up rather than blanking the
+cell.
 
 **Apps is the couch's list, not the machine's.** Four of its rows are named
 applications and the fifth is *everything installed*, because a controller menu
@@ -2053,41 +2285,98 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The tree that ships is ten rows deep at the top, grouped so that the ones you
-reach for from a sofa are the ones nearest the opening selection: **Apps** (Steam
-Big Picture, Discord, Spotify, YouTube, browser, terminal, everything
-installed) · Keyboard · **Windows** ·
-**Audio** (volume, devices, playback) · **Display** (brightness, scale, screensaver) ·
-**Controller** · **Workspace lock** · **Keep the controller** · **System** (start in, lock, suspend, log out, restart, power off) ·
-Omarchy menu. What you open, then what is on screen, then the room, then the pad,
-then the machine — and last, on its own, the way out into the Omarchy menu, which
-has everything else and wants a keyboard. The volume and brightness rows are
-`repeat = true`.
+The bar that ships is seven chips, in the order a thumb reaches for them:
+
+| Group | Holds |
+|---|---|
+| **Now** | the keyboard, volume, brightness, what is playing — and the workspace lock and *Keep the controller* while there is anything to use them on |
+| **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
+| **Windows** | fullscreen, next window, float / tile, close |
+| **Audio** | which speakers, which microphone |
+| **Display** | scale, screensaver |
+| **Controller** | everything about the pad — see below |
+| **System** | start in, lock, suspend, log out, restart, power off, and the way out into the Omarchy menu |
+
+What you change now, then what you open, then what is on screen, then the room,
+then the pad, then the machine. `Now` is where the menu opens, which is why the
+things you reach for while you are sitting in the room are on it rather than at
+the top of `Audio` and `Display` — those pages keep what you set when the room
+changes instead.
+
+### What the machine is doing
+
+`Volume`, `Brightness` and `Music` on `Now` read the **machine** rather than
+omapad: the real percentage, and the real track. They were five stepping rows
+and a mute row before, none of which could say what the number was.
+
+omapad knows nothing about PulseAudio, backlights or MPRIS. It runs a command
+and parses what comes back, and **every command is a setting**, under `[live]`:
+
+```toml
+[live]
+volume_read = 'pactl get-sink-volume "$(omarchy-audio-output-sink)"'
+volume_set = 'pactl set-sink-volume "$(omarchy-audio-output-sink)" %1%'
+brightness_set = "omarchy-brightness-display --no-osd %1%"
+media_read = "omarchy-shell media status"
+```
+
+`%1` is where the new value goes. An empty string is a reading this machine
+does not have: nothing is asked for it, and its tile draws blank.
+
+**Volume deliberately does not go through `omarchy-audio-output-volume`.** That
+helper always ends in `omarchy-osd`, so every press from the menu would raise
+Omarchy's own overlay *over the tile showing the same number*. It talks to the
+sink instead — the same one the helper itself resolves, so a speaker tuning
+chain is still respected. Put the helper in `volume_set` if you would rather
+have the OSD. Brightness keeps its helper, which offers `--no-osd`: DDC, Apple
+displays and backlights are three code paths omapad should not reimplement.
+
+Nothing is asked while the menu is shut, and nothing is asked at frame rate: a
+reading is read once when its tile appears, again after a press has changed it,
+and otherwise only while its own tile is selected.
+
+Any of them works from a button too — `live:volume=up`, `live:media=next` — the
+same grammar as `pad:`.
+
+**`Music` is one tile and A plays or pauses it**, because it has two states,
+the way a switch does. `Previous` and `Next` are two tiles either side of it,
+so left and right walk to them exactly as they walk to anything else. A
+direction the player says is closed ticks the motor rather than doing nothing
+quietly.
 
 ### The Controller submenu
 
 Everything about the pad itself is one row, because a controller is one thing:
 
-| Row | What it is |
+| Tile | What it is |
 |---|---|
 | Shortcuts | the [bindings guide](#the-bindings-guide) — what every button does |
-| Speed | how fast the two thumbs are: pointer faster/slower, scroll faster/slower |
-| Dead zone | how much of each stick does nothing: left stick wider/narrower, right stick wider/narrower |
-| Hide the pointer | whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again: on, off |
-| Vibration | the motor: on, off, stronger, weaker |
+| Sticks | **four bars and two dials** — pointer speed, scroll speed, how much of each stick does nothing, and where each thumb is right now |
+| Hide the pointer | **a switch** — whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again |
+| Vibration | **a switch** — the motor on or off |
+| Strength | **a bar** — how hard it buzzes |
 | Button labels | [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
-| Button style | [how they are drawn](#how-the-badges-are-drawn): filled, or the label punched out of a solid shape |
+| Button style | **walked in place** — [how they are drawn](#how-the-badges-are-drawn): Filled or Stencil |
 | Profile | which codes this pad is read with: detect it, Nintendo Pro, Xbox |
 | Remap the buttons | the [mapping screen](#controller-mapping) |
 
 What you look up is first, then what you feel, then what you set once and forget.
-The two speeds share one screen because they are the same decision made twice —
-and a submenu of two rows is not a place. The dead zones get their own screen
-rather than joining them, because they answer a different complaint — a stick
-that wanders on its own wants a wider zone, aim that starts late a narrower one
-— and because they are named for the two sticks rather than for the two jobs,
-which is what you are holding when you notice. Eight stepping rows on one
-screen is also a list nobody reads from a sofa.
+
+**A switch is a switch, not two rows that both tick.** `On` and `Off` as
+separate rows was always a switch written out longhand, and a tile that draws
+which way it is flipped says it in the space of one. A choice with two values
+is walked in place the same way: `‹ Stencil ›`, and A steps it.
+
+**A number is a bar.** Speed, dead zone and vibration strength were ten rows
+saying "faster" and "slower" across two screens, and not one of them could say
+what the number was or that it had stopped at the end of its range. They are
+five bars now, and `Sticks` is one page instead of two because four bars is
+not the list eight stepping rows was.
+
+`Button labels` and `Profile` keep their submenus on purpose. A tile that walks
+a choice shows one value, so it has nowhere to put the line under each choice
+saying how they differ — and those are the two where getting it wrong scrambles
+the face buttons, so that line is exactly what stops you.
 
 Everything but the guide is a setting rather than a command, and they
 are the ones that belong on the pad rather than in a file: which profile a pad
@@ -2747,7 +3036,7 @@ it, lower `pointer.recenter_limit` and reconnect.
 
 **The pointer drifts** — not enough dead zone on that stick: raise
 `pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller
-› Dead zone**, where you can watch the pointer settle as you step it.
+› Sticks**, where you can watch the pointer settle as you move the bar.
 
 **Steam presses keys at startup** — a virtual keyboard that declares `BTN_*`
 codes gets a `js*` node from the kernel, and Steam, scanning for controllers at

@@ -33,11 +33,42 @@ ripple.sock
   handshake, and what takes a surface off the screen when the daemon stops
   talking.
 - **The panel, not the daemon, decides that a line says nothing new.** Every
-  push is the whole surface, so a heartbeat and a press both hand the panel a
+  push is the whole surface — with one exception, below — so a heartbeat and a
+  press both hand the panel a
   great deal it already has. Sending a diff instead would cost the heartbeat
   its one job, so the filtering is on the drawing side: see
   [`../conventions/qml.md`](../conventions/qml.md) §5.4. Adding a field here
   needs nothing of the panel beyond a `fresh()` guard if it is a model.
+
+## The one exception: a surface that streams
+
+`menu.sock` carries a second, shorter line while a gauge is the tile in front:
+`{open, sel, g, live}` and **no `items` key at all**. It is not a diff - it is
+a different question, asked up to sixty times a second, and it is safe for
+exactly one reason: with nothing on it that is a model, `applyState` never
+reaches `fresh()`, so no delegate is rebuilt. The heartbeat still carries the
+whole surface, so nothing here depends on the stream to be correct.
+
+`sel` rides along rather than being inferred from the last full push: a stream
+has to be meaningful on its own, so the panel never correlates two of them.
+The floats are quantised in the daemon, which is what lets the daemon decline
+to send a frame that says what the last one said. See
+[`menu.md`](menu.md).
+
+## `kind` means three things, and they are not the same thing
+
+The word is spent three times across this tree, so which is which is written
+down here rather than guessed at from a field name:
+
+| Layer | Field | Means |
+|---|---|---|
+| config | `control` | which control a menu tile is |
+| `menu.sock` | `k` | which tile to draw |
+| `guide.sock`, `gamebar.sock` | `k` | which badge to draw |
+
+The TOML word is `control` rather than `kind` for exactly this reason: `kind`
+already had a meaning here, and a third one for the same word is the drift
+[`../conventions/naming.md`](../conventions/naming.md) exists to stop.
 
 ## Payload rules
 

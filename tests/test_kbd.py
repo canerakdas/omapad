@@ -23,7 +23,7 @@ ESC = keymap.resolve("esc")
 
 def shipped_config():
     missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
-    return config_module.load(path=missing, mapping=missing,
+    return config_module.load(path=missing, mapping=missing, layout=missing,
                               settings=missing)
 
 
@@ -264,10 +264,15 @@ class KeyRoutingTests(unittest.TestCase):
         # thing away. Backspace and Left are the level-climbers, on the menu
         # itself.
         self.daemon.set_menu(True)
-        self.daemon.menu.index = next(
-            i for i, item in enumerate(self.daemon.menu.items)
-            if item["items"] is not None
-        )
+        # Somewhere with a level above it: the bar is not one, so this has to
+        # be a tile that drills in rather than a chip.
+        for number, group in enumerate(self.daemon.menu.groups):
+            drilling = [tile for tile in self.daemon.menu.tiles
+                        if tile["item"]["items"] is not None]
+            if drilling:
+                self.daemon.menu.select_id(drilling[0]["item"]["id"])
+                break
+            self.daemon.menu_select_group(number + 1)
         self.daemon.menu_command("press")
         self.assertEqual(self.daemon.menu.depth, 1)
         self.key(ESC)
@@ -334,7 +339,7 @@ class ConfigTests(unittest.TestCase):
         with open(path, "w") as handle:
             handle.write(text)
         missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
-        return config_module.load(path=path, mapping=missing,
+        return config_module.load(path=path, mapping=missing, layout=missing,
                                   settings=missing)
 
     def test_escape_closes_by_default(self):

@@ -121,6 +121,16 @@ model goes through `fresh()`. A fresh component's `lastLine` is empty and its
 `seen` is bare, so a restarted shell still paints the first line it is given —
 the heartbeat's whole job survives.
 
+**The daemon does the same from its end**, and that is what makes a surface
+able to stream. `menu.sock` carries a second, short line — `{open, sel, g,
+live}`, with **no `items` key at all** — so `applyState` gets past `lastLine`,
+finds nothing that is a model, and never reaches `fresh()`: one binding
+re-runs and no delegate is rebuilt. It is this rule from the other side rather
+than a hole in it, and it is the only reason a 60 Hz surface is affordable
+here. Its cost is one rule of its own: **nothing may bind a layout width or
+height to a value that arrives at frame rate**, which is checked in
+`tests/test_shell_plugin.py` rather than left to review.
+
 ```qml
 property string lastLine: ""
 property var seen: ({})
@@ -218,13 +228,16 @@ the scale the daemon stamps on the payload. `Style.cornerRadius` and
 `Style.gapsOut` are NOT scaled — they are the compositor's geometry, shared
 with every window on screen.
 
-**8.3** Controller glyphs come from `ButtonArt.qml` painted by `BadgeArt.qml`.
-NEVER draw a button shape by hand, and never inline an SVG from
+**8.3** Controller glyphs come from `ButtonArt.qml`, and the parts a menu
+control tile is drawn from come from `ControlArt.qml`. Both are painted by
+`BadgeArt.qml`. NEVER draw a button shape by hand, and never inline an SVG from
 `assets/buttons/`: a badge takes the theme's colours, an SVG carries only the
 colour it was drawn with.
 
-**8.4** `ButtonArt.qml` is **generated**. Edit `assets/shapes/` or a table in
-`assets/generate.py` and re-run it.
+**8.4** Both are **generated**. Edit `assets/shapes/` or a table in
+`assets/generate.py` and re-run it. `ControlArt.qml` holds only the furniture
+of a control - what does not depend on its value; an arc that follows a number
+is geometry, and geometry is the panel's.
 
 **8.5** **Text set inside a button is centred on its capitals, never by
 `anchors.verticalCenter`.** That anchor centres the *line box*, and Fira Code's

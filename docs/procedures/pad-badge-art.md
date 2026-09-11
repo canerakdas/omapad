@@ -81,9 +81,48 @@ the game bar's menu door scales the standard menu mark against the word
 beside it by `ButtonArt.markCap`, so a mark drawn short lands short beside
 the word no matter what the door's numbers say.
 
+## Drawing a control part
+
+The menu's tiles hold values, and the parts they are drawn from live in the
+same `shapes/` directory - `dial-*`, `switch-*`, `chev-*`, `media-*`, `grip`.
+They go in `CONTROLS_TO_DRAW`, `(family, name, shape.svg)`, and come out in
+`shell-plugin/ControlArt.qml`.
+
+**This is not a font, and it is worth saying out loud.** `truetype.py` exists
+to turn *letters* into outlines so they can be punched out of a silhouette.
+Nothing in a dial has a letter in it, so nothing here goes near it - what is
+generated is the same path data with that step skipped. "Generate a font for
+these too" is the obvious reading of what the buttons do, and it is wrong.
+
+**Draw only the furniture** - what does not depend on the value:
+
+| Draw | Leave to the panel |
+|---|---|
+| the rim, the notches, the thumb dot | where the dot sits, and the shaded zone - a circle of variable radius, which is `radius: width / 2` rather than a drawing |
+| the switch's pill and knob | how far the knob has travelled |
+| the chevrons, the transport marks | which one is drawn or dimmed |
+
+A shape parameterised by a number cannot be drawn once. Same split `BadgeArt`
+already makes between a button and the label set into it - which is why
+`BadgeArt` paints these without knowing there are two files.
+
+The shape rules below all apply. Two do **not**:
+
+- `MARK_CAPS` and `MarksStandAtOneHeight`. None of these is a mark set into
+  a silhouette, and a chevron stands on nobody's baseline.
+- `LabelsStandAtOneHeight`. There are no labels.
+
+And one is theirs alone: **a shape with a hole in it is wound so the hole
+survives both fill rules.** A badge is painted non-zero normally and even-odd
+in the stencil style, so two same-wound circles are a ring in one and a disc
+in the other. The dial's rim is an outer arc with `sweep 1` and an inner with
+`sweep 0`; `AnnuliSurviveEitherFillRule` is what says so. It is `stick.svg`'s
+lesson one shape along.
+
 ## Drawing a shape
 
-- **Everything is fill. `Shape` raises on a stroke.** A stroke's weight is in
+- **Everything is fill. `Shape` raises on a stroke.** `<path>` and `<circle>`
+  only; a `<rect>` is refused, so draw a bar as a path. A stroke's weight is in
   pixels, not in the shape's units, so it stays a hairline on a badge twice
   the size and disappears entirely in the stencil style, where the surface
   paints the shape solid. A line that is part of the drawing is drawn as one:

@@ -35,6 +35,36 @@ def text_blocks(source):
     return blocks
 
 
+class LiveStreamTests(unittest.TestCase):
+    """The one rule whose failure costs everything the gauge phase bought."""
+
+    # Anything that makes the scene work out where things go. `x`, `y`,
+    # `scale`, `opacity` and a colour are the graphics scene's own and cost
+    # nothing; a width, a height, a margin or a spacing is a layout pass, and
+    # a layout pass sixty times a second throws away the whole point of a
+    # push that carries no items.
+    LAYOUT = re.compile(
+        r"^\s*(?:width|height|implicitWidth|implicitHeight|spacing"
+        r"|anchors\.\w*[Mm]argin|Layout\.\w+)\s*:.*\broot\.live\b")
+
+    def test_nothing_binds_a_layout_to_the_live_stream(self):
+        path = os.path.join(PLUGIN, "Menu.qml")
+        with open(path) as handle:
+            for number, line in enumerate(handle, 1):
+                self.assertIsNone(
+                    self.LAYOUT.match(line),
+                    "Menu.qml:%d lays out from root.live, which is a layout"
+                    " pass per frame" % number)
+
+    def test_the_rule_is_written_down_where_somebody_would_break_it(self):
+        # A test nobody can find the reason for is a test that gets deleted.
+        path = os.path.join(PLUGIN, "Menu.qml")
+        with open(path) as handle:
+            source = handle.read()
+        self.assertIn("property var live", source)
+        self.assertIn("LAYOUT WIDTH OR HEIGHT", source)
+
+
 class PlainTextTests(unittest.TestCase):
     def setUp(self):
         self.files = sorted(

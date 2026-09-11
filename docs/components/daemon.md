@@ -91,9 +91,16 @@ exponent - and then whichever role the layer gave the stick. The deadzone comes
 from `config.stick_deadzone(stick)`, which is per stick rather than per role:
 the slop is in the hardware, so the right one carries the same zone scrolling
 the desktop as it does walking a game's controls. Roles:
-`cursor`, `scroll`, `resize`, `move`, `snap`, `focus`, `swap` (`STICK_ROLES`).
-Each has its own emitter: `emit_cursor`, `emit_scroll` (with the ramp),
-`emit_window`, `snap_cursor`, `check_focus_stick`, `check_swap`.
+`cursor`, `scroll`, `resize`, `move`, `snap`, `focus`, `swap`, `menu`
+(`STICK_ROLES`). Each has its own emitter: `emit_cursor`, `emit_scroll` (with
+the ramp), `emit_window`, `snap_cursor`, `check_focus_stick`, `check_swap`,
+`check_menu_stick`.
+
+`menu` is the one role a *surface* names rather than a layer: every other
+implicit surface layer keeps the base roles - the pointer still works under
+the keyboard - and the menu does not, because it is the one with something for
+a thumb to do. `config.stick_roles()` has a branch for it, and
+[menu.md](menu.md) says what the two sticks are worth there.
 
 `move` is the one role with two answers, because Hyprland has two verbs and
 each ignores the other's window: `window.move` does nothing to a tiled window
@@ -163,6 +170,18 @@ close; `push_*_view()` pushes `model.view_state(...)` through the surface's
 asks for. `push_open_views()` redraws everything on screen when something
 global changes. `surface_top()` and `surface_command()` route a press to
 whichever surface is in front.
+
+**One surface also streams.** `push_menu_live()` sends a second, much shorter
+line on `menu.sock` while a gauge is the tile in front - no `items` key at
+all, so no delegate is rebuilt to move one dot. It is the only push in the
+daemon that is not the whole surface; [menu.md](menu.md) and
+[viewsock.md](viewsock.md) say why that is safe.
+
+The menu is also where the daemon does things a surface usually does not: it
+runs commands for what the machine is doing ([live.md](live.md)), writes a
+setting when a control settles, and writes an arrangement when a page is left.
+`needs_tick()` knows about all three, which is what keeps the loop at frame
+rate while a value is moving and off it the rest of the time.
 
 ## Traps
 

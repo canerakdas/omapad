@@ -28,6 +28,7 @@ class ThemeNameTests(unittest.TestCase):
                 handle.write('[cursor]\ntheme = "%s"\n' % theme)
             missing = os.path.join(directory, "no-such-file.toml")
             return config_module.load(path=path, mapping=missing,
+                                      layout=missing,
                                       settings=missing)
 
     def test_a_name_is_a_name(self):
