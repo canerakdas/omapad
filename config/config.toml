@@ -2042,9 +2042,14 @@ detail = "Sound, screen, what is playing"
   # The two tiles that used to sit at the top level, and why they are not
   # there any more. Item 48 put them there because a row you have to go and
   # find is a row that is not there - and the bar has no room for a verb.
-  # `open_on` answers it the other way round: while the condition holds, the
-  # menu opens *on* this tile, with nothing at all to walk to. That is nearer
-  # than a top-level row in a list of ten ever was.
+  # What answers it now is that the menu **comes back where it was**: use one
+  # of these once and it is what the next press opens on, which is nearer
+  # than a top-level row in a list of ten ever was and costs no rule.
+  #
+  # `open_on = true` is the other answer and is still there to be written:
+  # while the condition holds, the menu opens *on* that tile whatever it was
+  # doing last. Neither ships with it, because a menu that overrode where you
+  # left off would take the first answer away.
   #
   # The states a tile may wait for are `game`, `handed_over`, `locked` and
   # `kept`; any one of those listed is enough.
@@ -2055,7 +2060,6 @@ detail = "Sound, screen, what is playing"
   span = [3, 1]
   action = "lock:toggle"
   when = ["game", "handed_over"]
-  open_on = true
   stay = true
 
   # Its pair, for the case the hand-off is right about and nobody can use. A
@@ -2071,7 +2075,6 @@ detail = "Sound, screen, what is playing"
   span = [3, 1]
   action = "keep:toggle"
   when = ["handed_over", "kept"]
-  open_on = true
   stay = true
 
 [[menu.items]]

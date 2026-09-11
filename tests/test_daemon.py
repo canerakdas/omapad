@@ -1104,7 +1104,8 @@ class HandoverTests(DaemonTestCase):
         self.hand_over()
         self.daemon.set_menu(True)
         before = self.daemon.menu.selected
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, -1))
+        # Down: it opens on the first tile now, and up from there is the rim.
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
         self.assertNotEqual(self.daemon.menu.selected, before)
 
     def test_the_way_out_is_still_reachable(self):
@@ -1417,7 +1418,8 @@ class WorkspaceLockTests(DaemonTestCase):
         self.daemon.locked = True
         self.daemon.set_menu(True)
         before = self.daemon.menu.selected
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, -1))
+        # Down: it opens on the first tile now, and up from there is the rim.
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
         self.assertNotEqual(self.daemon.menu.selected, before)
 
     def test_a_trigger_and_b_locks_over_a_game(self):
@@ -1475,12 +1477,15 @@ class WorkspaceLockTests(DaemonTestCase):
         return [tile["item"]["label"] for tile in self.daemon.menu.tiles]
 
     def pick_the_row(self):
-        # `open_on` is what puts the selection here: the tile is offered only
-        # while there is something to lock to, and while there is, the menu
-        # opens on it with nothing at all to walk to.
+        # The tile is offered only while there is something to lock to, and
+        # it is on the chip the menu opens on. Walked to rather than opened
+        # on: the menu comes back where it was left, and a tile that overrode
+        # that would take that answer away - see `open_on`, which is still
+        # there for anyone who wants the other behaviour.
         self.daemon.set_menu(True)
         self.assertIn("Workspace lock", self.menu_labels())
-        self.assertEqual(self.daemon.menu.selected, "workspace-lock")
+        self.assertEqual(self.daemon.menu.group, 0)
+        self.assertTrue(self.daemon.menu.select_id("workspace-lock"))
 
     def test_the_row_is_not_offered_where_there_is_nothing_to_lock_to(self):
         # On a desktop the lock would hand the pad to a terminal and leave you
@@ -2441,14 +2446,46 @@ class MenuTests(DaemonTestCase):
         self.release("A")
         self.assertEqual(len(self.session.spawned), 1)
 
-    def test_it_always_opens_at_the_root(self):
+    def test_the_first_time_it_opens_on_the_first_tile(self):
+        # Nowhere to come back to yet, so the first chip and the first thing
+        # on it.
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.menu.depth, 0)
+        self.assertEqual(self.daemon.menu.group, 0)
+        self.assertEqual(self.daemon.menu.index, 0)
+
+    def test_afterwards_it_opens_where_it_was_left(self):
+        # Most of what a HUD is for is coming back: you turn the volume down,
+        # you go back to the game, and you come back to turn it down again.
+        self.open_menu()
+        walk_menu(self.daemon, ["Audio"],
+                  lambda: self.daemon.menu_select_group(0))
+        here = self.daemon.menu.selected
+        group = self.daemon.menu.group
+        self.daemon.set_menu(False)
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.menu.group, group)
+        self.assertEqual(self.daemon.menu.selected, here)
+
+    def test_it_comes_back_to_the_chip_and_not_into_the_page(self):
+        # The tile at the bottom of the stack, not the one in front: coming
+        # back inside a submenu you had drilled into is coming back somewhere
+        # you did not leave from.
         self.open_menu()
         self.drill("Audio")
         self.select("Devices")
         self.daemon.menu_command("press")
+        self.assertGreater(self.daemon.menu.depth, 0)
         self.daemon.set_menu(False)
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.depth, 0)
+        self.assertEqual(self.daemon.menu.selected, "devices")
+
+    def test_a_chip_that_has_gone_away_is_not_come_back_to(self):
+        self.open_menu()
+        self.daemon.set_menu(False)
+        self.daemon._menu_where = ("no-such-chip", "no-such-tile")
+        self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.group, 0)
         self.assertEqual(self.daemon.menu.index, 0)
 
@@ -5159,6 +5196,9 @@ class BarFollowsTheSurfaceTests(DaemonTestCase):
         self.assertIsNone(self.bar()["wsprev"])
 
     def test_and_closing_it_brings_them_back(self):
+        # A card leaves the bar up, so the workspaces it was showing are
+        # simply repainted rather than asked for again.
+        self.config.menu_fullscreen = False
         self.in_game_mode()
         self.daemon.gamebar.set_workspaces(
             [{"id": 1, "name": "1", "windows": 1}], 1)
@@ -5172,12 +5212,39 @@ class ScrimOverTheBarTests(DaemonTestCase):
 
     def test_a_payload_says_whether_a_bar_is_holding_a_strip(self):
         # The panel cannot see the bar - it is another window in the same
-        # shell - and the scrim it draws would cover the row of hints that
-        # says what its own face buttons do.
+        # shell - and the scrim a *card* draws would cover the row of hints
+        # that says what its own face buttons do.
         self.config.gamebar_enabled = True
+        self.config.menu_fullscreen = False
         self.daemon.set_mode("game")
         self.daemon.set_menu(True)
         self.assertTrue(self.menu_client.sent[-1]["bar"])
+
+    def test_a_fullscreen_hud_takes_the_bar_away_instead(self):
+        # It covers the strip and prints the same four buttons in that exact
+        # band, so leaving the bar up would be two rows of words crossfading
+        # in one place - which is what reads as a flicker when it opens.
+        self.config.gamebar_enabled = True
+        self.config.menu_fullscreen = True
+        self.daemon.set_mode("game")
+        self.assertTrue(self.daemon.gamebar_open)
+        self.daemon.set_menu(True)
+        self.assertFalse(self.daemon.gamebar_open)
+        self.assertFalse(self.menu_client.sent[-1]["bar"])
+        self.daemon.set_menu(False)
+        self.assertTrue(self.daemon.gamebar_open)
+
+    def test_the_bar_goes_before_the_menu_is_pushed(self):
+        # Order, not just outcome: the row has to be gone by the time the
+        # menu draws its own, or both are on screen for the length of a fade.
+        self.config.gamebar_enabled = True
+        self.config.menu_fullscreen = True
+        self.daemon.set_mode("game")
+        self.gamebar_client.sent.clear()
+        self.menu_client.sent.clear()
+        self.daemon.set_menu(True)
+        self.assertFalse(self.gamebar_client.sent[-1]["open"])
+        self.assertTrue(self.menu_client.sent[-1]["open"])
 
     def test_and_says_so_where_there_is_none(self):
         # False rather than absent: a panel that is never told keeps the last

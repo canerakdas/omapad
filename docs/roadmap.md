@@ -2173,6 +2173,12 @@ time and whatever command you point at it.
   and *Keep the controller*. `open_on` answers it the other way round: while
   the condition holds, the menu opens **on** that tile with nothing at all to
   walk to. Nearer than a top-level row in a list of ten ever was.
+
+  *(Answered again, and better, once the HUD was in a hand: the menu **comes
+  back where it was left**. Use the lock once and it is what the next press
+  opens on, at no cost to any other page - where `open_on` overrode where you
+  left off every time. Nothing ships with the key now; it is still there for
+  anyone who wants the other behaviour.)*
 - The shipped tree gained a **`Now`** group and lost its loose top-level rows.
   What you change while sitting in the room is on the chip the menu opens on;
   `Audio` and `Display` keep what you set when the room changes.

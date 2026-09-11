@@ -2035,7 +2035,8 @@ It covers the bars along the bottom too — it prints its own row of hints, so
 there is nothing down there worth leaving room for — and that row sits in
 **exactly the band the game bar's row sits in**, at the same height and the
 same distance from the edge. It is the same four words about the same four
-buttons, so nothing moves when the menu opens. At the top level there is
+buttons, so nothing moves when the menu opens — and omapad's own bar is taken
+down *before* the menu is drawn, so the two rows never crossfade in one place. At the top level there is
 no title: the chips already say where you are, and a line above them saying so
 again is the card telling you twice.
 
@@ -2095,10 +2096,18 @@ print. `[menu] keys = false` turns it off — in game mode omapad's own bar is
 already saying the same kind of thing across the screen, though only the
 legend can say what a page has spent a key on.
 
-**The bar holds places, not verbs.** That is why the workspace lock is a tile
-on `Now` rather than a chip of its own — and why, whenever there is something
-to lock to, the menu **opens on it**, with nothing at all to walk to. Any tile
-can ask for that with `open_on`; see below.
+**The menu comes back where it was.** Close it on the volume and the next
+press opens on the volume — you turn it down, go back to the game, and come
+back to turn it down again. The first press of a session opens on the first
+tile of the first chip.
+
+A tile can override that with `open_on = true` beside its `when`: while the
+condition holds, the menu opens *on* it whatever it was doing last. Nothing
+ships with it — coming back where you were is the better answer for the
+workspace lock too, and a tile that overrode it would take that away.
+
+**The bar holds places, not verbs**, which is why the workspace lock is a tile
+on `Now` rather than a chip of its own.
 
 ### Writing the menu to suit yourself
 

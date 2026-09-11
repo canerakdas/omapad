@@ -286,6 +286,9 @@ class Daemon:
         # nothing is moving on.
         self._menu_live_due = 0.0
         self._menu_live_last = None
+        # The chip and the tile the menu was on when it was last closed, so
+        # opening it again picks up where the last press left off.
+        self._menu_where = None
         # The last thing each head cell's command said, and when it may be
         # asked again. The head is read-only, so a stale answer is drawn
         # rather than blanked: a cell that empties because a helper was slow
@@ -803,11 +806,19 @@ class Daemon:
             )
 
     def apply_gamebar(self):
-        """The bar belongs to the couch, and not over an app driving itself."""
+        """The bar belongs to the couch, and not over an app driving itself.
+
+        Nor under a HUD that has printed the same row itself: a fullscreen
+        menu covers the strip the bar stands in and puts its own four buttons
+        in that exact band, so leaving the bar up would be two rows of words
+        crossfading in one place. A card leaves the strip alone and the bar
+        keeps answering for the screen around it.
+        """
         self.set_gamebar(
             self.mode == "game"
             and self.config.gamebar_enabled
             and not self.handed_over
+            and not (self.menu_open and self.config.menu_fullscreen)
         )
 
     # -- mode --------------------------------------------------------------
@@ -1805,20 +1816,30 @@ class Daemon:
             # what it is doing now.
             self._live_poll.clear()
             self._live_due.clear()
+            # Where it was, for the next press.
+            self._menu_where = self.menu.where()
         if opened:
             # What a row is allowed to ask about is read here, before the
             # first level is built, and stands for as long as the menu is up.
             self.menu.conditions = self.menu_conditions()
-            # A menu always opens at its root: coming back to where you left
-            # off is right inside one session of pointing at rows, and wrong
-            # the next time you summon it.
-            self.menu.reset()
+            # Back where it was, or the first tile of the first chip. Most of
+            # what a HUD is for is coming back: you turn the volume down, go
+            # back to the game, and come back to turn it down again.
+            self.menu.reset(self._menu_where)
             self.menu_group_enter()
             self.menu_head_refresh()
             # Both surfaces read the D-pad, and stacking the menu over the
             # keyboard leaves no way to tell which one a press belongs to.
             self.set_osk(False)
+            # Before the menu is pushed, never after: the bar stands in the
+            # band a fullscreen HUD prints its own row of hints in, and two
+            # rows of words crossfading in one place is what reads as a
+            # flicker when the menu opens.
+            self.apply_gamebar()
         self.push_menu_view()
+        if not opened:
+            # And back afterwards, for the same reason the other way round.
+            self.apply_gamebar()
         self.apply_grab()
         self.relabel_gamebar()
         log.info("menu: %s", "open" if opened else "closed")

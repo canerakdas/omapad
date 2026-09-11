@@ -427,6 +427,40 @@ all, so on a desktop with `decoration.blur.enabled = false` the rule is a
 no-op and `[menu] dim` is the whole of the contrast. Turning blur on globally
 is the person's call, not ours - it changes every window on the machine.
 
+### The bar goes first
+
+A fullscreen HUD covers the strip the game bar stands in and prints the same
+four buttons in that exact band, so `apply_gamebar()` takes the bar down while
+the menu is up - **before** the menu is pushed, never after. Two rows of words
+crossfading in one place is what reads as a flicker when the menu opens, and
+the order is what stops it.
+
+A card leaves the strip alone, so the bar stays and keeps answering for the
+screen around it - which is what `bar` on the payload has always been about.
+
+## Where it opens
+
+**It comes back where it was.** `where()` names the chip and the tile as ids,
+the daemon remembers them across a close, and `reset(where)` goes there. Most
+of what a HUD is for is coming back: you turn the volume down, you go back to
+the game, and you come back to turn it down again - a menu that started at the
+top every time would make you walk there every time.
+
+The tile it remembers is the one at the **bottom of the stack**, not the one
+in front: coming back inside a submenu you had drilled into would be coming
+back somewhere you did not leave from.
+
+With nowhere to come back to - the first press of a session, or a chip that
+has gone away since - a tile carrying `open_on` gets to say where it starts,
+and otherwise it is **the first tile of the first chip**.
+
+**Nothing in the shipped tree carries `open_on` any more.** It was item 48's
+answer - the workspace lock, near enough to reach over a game - and coming
+back where you were is the better one: use the tile once and it is what the
+next press opens on, at no cost to any other page. A tile that overrode where
+you left off would take that away. The key is still there for anyone who
+wants the other behaviour.
+
 ## The title, and when there is one
 
 At the top level there is none. The bar of chips is already saying where you

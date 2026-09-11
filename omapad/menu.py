@@ -1239,9 +1239,47 @@ class MenuModel:
 
     # -- drilling in and back out -------------------------------------------
 
-    def reset(self):
-        """The way the menu looks when it opens."""
+    def where(self):
+        """The chip and the tile to come back to, as ids. None for nowhere.
+
+        Ids rather than indices, because a chip can come and go with a `when`.
+        The tile at the *bottom* of the stack rather than the one in front:
+        coming back inside a submenu you had drilled into would be coming back
+        somewhere you did not leave from.
+        """
+        if not self.groups:
+            return None
+        return (self.groups[self.group]["id"],
+                self.stack[0][1] if self.stack else self.selected)
+
+    def go(self, where):
+        """Open on a named chip and tile. False where it is not there now."""
+        if not where:
+            return False
+        group, tile = where
+        for number, item in enumerate(self.groups):
+            if item["id"] != group:
+                continue
+            self.enter_group(number)
+            if tile is not None:
+                self.select_id(tile)
+            return True
+        return False
+
+    def reset(self, where=None):
+        """The way the menu looks when it opens.
+
+        `where` is where it was when it was last closed. Coming back to it is
+        most of what a HUD is for: you turn the volume down, you go back to
+        the game, and you come back to turn it down again - and a menu that
+        started at the top every time would make you walk there every time.
+
+        With nowhere to come back to, a tile carrying `open_on` gets to say
+        where it starts, and otherwise it is the first tile of the first chip.
+        """
         self.build_groups()
+        if self.go(where):
+            return
         group, tile = self.open_at()
         self.enter_group(group)
         if tile is not None:
