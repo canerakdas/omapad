@@ -128,6 +128,24 @@ all of them: a stick held over an app that has the pad would drive the pointer
 across it until the thumb came off. [handover](handover.md) says why they get
 no `reaches_past` to come back on.
 
+## What a theme change takes away
+
+`omarchy-theme-set` ends in `hyprctl reload`, and a reload **throws away every
+rule asked for at runtime** - the blur behind omapad's own surfaces is one of
+those. The game-mode pointer is the other thing that does not survive: it is a
+file `cursor.py` drew from the palette that was in force, and a shell
+repainting itself cannot redraw a cursor theme on disk.
+
+Neither is something the surfaces' heartbeat can fix, so `check_theme(now)`
+looks at the theme's own colours file - the same one `cursor.py` reads - and
+when its target or its mtime moves, asks for both again. `prepare_cursor()`
+compares a stamp on disk, so a change that was not a colour change costs a
+file read.
+
+**Polled, not subscribed to.** One `stat` every `THEME_POLL` on the beat the
+surfaces already heartbeat at is cheaper than a second socket to keep alive,
+and the file is the thing that actually changed.
+
 ## Mode, grab and handover
 
 - `set_mode()` switches desktop/game: it hides Omarchy's bar, raises the

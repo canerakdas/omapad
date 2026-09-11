@@ -40,6 +40,14 @@ is what the theme picked to be read against its own background, which is
 exactly a pointer's job; the background is what keeps it readable over a window
 that is not the theme's.
 
+**A theme changed under it does not reach it on its own.** This is a file on
+disk, not a binding a shell repaints, so the drawing is stale until something
+draws it again. Entering game mode does - `apply_cursor` re-preps every time -
+and so does [`daemon.md`](daemon.md)'s `check_theme`, which is the case that
+matters: the theme most often changes while somebody is *already* sitting in
+game mode looking at the pointer. The stamp on disk makes the redraw a file
+read wherever the colours have not actually moved.
+
 ## Surface
 
 `render(size, ...)` draws one image (`_coverage` antialiases by

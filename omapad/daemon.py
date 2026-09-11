@@ -128,6 +128,13 @@ EDIT_LEGEND = ("A", "B", "X", "Y", "L", "R")
 # than anything to taste.
 MENU_SCRUB_HOLD = 0.2
 
+# How often the desktop's theme is looked at. One `stat` of a file, on the
+# same beat the surfaces already heartbeat at, so a pointer drawn from the old
+# palette catches up before anybody has finished looking at the new one. Not a
+# setting: it is the cadence of a file check, and nobody wants it different -
+# what it decides is a delay too short to see.
+THEME_POLL = 2.0
+
 
 def _nothing(lines):
     """A command whose answer nobody wants. The write is the whole of it."""
@@ -289,6 +296,11 @@ class Daemon:
         # The chip and the tile the menu was on when it was last closed, so
         # opening it again picks up where the last press left off.
         self._menu_where = None
+        # What the desktop's theme was when we last looked, and when to look
+        # again. A theme change is the one thing that undoes what omapad has
+        # asked the desktop for - see `check_theme`.
+        self._theme_seen = None
+        self._theme_next_check = 0.0
         # The last thing each head cell's command said, and when it may be
         # asked again. The head is read-only, so a stale answer is drawn
         # rather than blanked: a cell that empties because a helper was slow
@@ -4163,7 +4175,50 @@ class Daemon:
         self.apply_bar()
         self.apply_idle()
         self.apply_blur()
+        self._theme_seen = self.theme_stamp()
         self.check_pointer_hiding()
+
+    def theme_stamp(self):
+        """Something that changes when the desktop's theme does, or None.
+
+        The symlink's target as well as the file's time: a theme switched and
+        switched back lands on a file that has not been written since.
+        """
+        path = cursor_theme.theme_path()
+        try:
+            return (os.path.realpath(path), os.stat(path).st_mtime_ns)
+        except OSError:
+            return None
+
+    def check_theme(self, now):
+        """Ask again for the two things a theme change takes away.
+
+        `omarchy-theme-set` ends in `hyprctl reload`, and a reload throws away
+        every rule asked for at runtime - the blur behind our own surfaces is
+        one of those. The game-mode pointer is the other: it is a file omapad
+        drew from the palette that was in force, and a shell repainting itself
+        cannot put either back.
+
+        Polled rather than subscribed to, because one `stat` on the beat the
+        surfaces already heartbeat at is cheaper than a second socket to keep
+        alive - and because the file is the thing that changed, which is what
+        `cursor.py` already reads the theme out of.
+        """
+        if now < self._theme_next_check:
+            return
+        self._theme_next_check = now + THEME_POLL
+        stamp = self.theme_stamp()
+        if stamp is None or stamp == self._theme_seen:
+            return
+        first = self._theme_seen is None
+        self._theme_seen = stamp
+        if first:
+            return  # the first look is where we came in, not a change
+        log.info("the desktop theme changed; asking for ours again")
+        self.apply_blur()
+        # Redrawn only where the colours really moved: `prepare_cursor`
+        # compares a stamp on disk, so this is a file read where nothing has.
+        self.apply_cursor()
 
     def apply_blur(self):
         """Ask the compositor to blur behind our own surfaces.
@@ -4333,6 +4388,7 @@ class Daemon:
                     # Most apps open the pad a moment after they come up, not
                     # while they are still being mapped.
                     self.update_handover()
+                self.check_theme(now)
                 if now >= self._status_next_heartbeat:
                     self.push_status_view()
                 if self.gamebar_open and now >= self._gamebar_next_heartbeat:

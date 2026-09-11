@@ -3237,6 +3237,77 @@ class FullscreenTests(DaemonTestCase):
         self.assertEqual(self.hypr.evaluated, [])
 
 
+class ThemeChangeTests(DaemonTestCase):
+    """What a `hyprctl reload` takes away, and asking for it again."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-theme-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.colors = os.path.join(directory, "colors.toml")
+        self.write('foreground = "#112233"')
+        patch = unittest.mock.patch.object(
+            daemon_module.cursor_theme, "theme_path", lambda: self.colors)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.daemon._theme_seen = self.daemon.theme_stamp()
+
+    def write(self, text):
+        with open(self.colors, "w") as handle:
+            handle.write(text + "\n")
+
+    def later(self, seconds=daemon_module.THEME_POLL + 1.0):
+        return time.monotonic() + seconds
+
+    def test_nothing_happens_while_the_theme_stands_still(self):
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+
+    def test_a_changed_theme_asks_for_the_blur_again(self):
+        # `omarchy-theme-set` ends in `hyprctl reload`, and a reload throws
+        # away every rule asked for at runtime - ours included.
+        self.write('foreground = "#445566"')
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(len(self.hypr.evaluated), 1)
+        self.assertIn("blur = true", self.hypr.evaluated[0])
+
+    def test_it_is_not_asked_more_often_than_the_poll(self):
+        # One `stat` on the beat the surfaces heartbeat at, not one per turn
+        # of a loop running at frame rate.
+        now = self.later()
+        self.daemon.check_theme(now)
+        self.write('foreground = "#445566"')
+        self.hypr.evaluated = []
+        self.daemon.check_theme(now + daemon_module.THEME_POLL / 2)
+        self.assertEqual(self.hypr.evaluated, [])
+        self.daemon.check_theme(now + daemon_module.THEME_POLL + 0.1)
+        self.assertEqual(len(self.hypr.evaluated), 1)
+
+    def test_the_first_look_is_not_a_change(self):
+        # Where we came in, not something that moved under us.
+        self.daemon._theme_seen = None
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+
+    def test_a_theme_that_is_not_there_is_not_a_change_either(self):
+        os.unlink(self.colors)
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+
+    def test_the_pointer_is_redrawn_without_a_mode_switch(self):
+        # The case that matters: the theme most often changes while somebody
+        # is already sitting in game mode looking at the pointer.
+        self.write('foreground = "#445566"')
+        with unittest.mock.patch.object(
+                self.daemon, "apply_cursor") as redraw:
+            self.daemon.check_theme(self.later())
+        self.assertEqual(redraw.call_count, 1)
+
+
 class EditModeTests(DaemonTestCase):
     """Rearranging a page from the pad, and what it writes down."""
 

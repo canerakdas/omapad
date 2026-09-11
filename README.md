@@ -2053,7 +2053,9 @@ blur = true                   # ask the compositor to blur behind our surfaces
 `blur` is a **request**. omapad asks Hyprland for a layer rule on its own
 surfaces and nothing else; Hyprland blurs only where blur is on at all, so on
 a desktop that has turned it off the rule does nothing and `dim` is the whole
-of the contrast. Turning blur on globally is your call — it changes every
+of the contrast. Changing the Omarchy theme reloads Hyprland, which throws
+that rule away — omapad notices and asks again, along with redrawing the
+game-mode pointer in the new palette. Turning blur on globally is your call — it changes every
 window on the machine:
 
 ```lua
