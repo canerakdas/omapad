@@ -142,8 +142,10 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     """A ring drawn as two same-wound circles is a disc in the filled style.
 
     The rim of a stick was a stroked circle for exactly as long as it took
-    somebody to turn the stencil style on and find the stick had no rim. The
-    same trap one shape along: a badge is painted `WindingFill` normally and
+    somebody to turn the stencil style on and find the stick had no rim - and
+    then a solid pill, because a ring among solid silhouettes reads as a
+    different colour. The trap outlived the shape: a badge is painted
+    `WindingFill` normally and
     `OddEvenFill` when the label is knocked out of it, so a hole only survives
     both where the two subpaths are wound the opposite way round.
     """

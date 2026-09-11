@@ -82,7 +82,7 @@ do **not** apply — none of these is a mark set into a silhouette. One rule of
 their own: a shape with a hole in it (the dial's rim) is wound so the hole
 survives **both** fill rules, because a
 badge is painted non-zero normally and even-odd in the stencil style. That is
-the trap `stick.svg`'s rim already taught, and
+the trap `stick.svg`'s rim taught before it lost it, and
 `tests/test_assets.py::AnnuliSurviveEitherFillRule` is what says so now.
 
 ## Adding a button

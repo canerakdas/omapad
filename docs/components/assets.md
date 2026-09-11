@@ -21,7 +21,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/sys-round.svg` | The small round button, which is every one of them but PlayStation's Create and Options. |
 | `shapes/sys-guide.svg` | The Xbox button, drawn 36 of 40 against the 24 the rest get - it is larger than every other button on that pad, face buttons included. Nothing else earns it. |
 | `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
-| `shapes/stick.svg` | The stick, seen from above: a pill inside its own rim, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. The rim is three subpaths of the same fill, not a stroke. |
+| `shapes/stick.svg` | The stick, seen from above: one pill, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. It had a rim once, and lost it: every other badge on the pad is a solid silhouette with its label punched out, and one that was a ring read as a different colour in a row of them. |
 | `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |

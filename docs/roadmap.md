@@ -2600,6 +2600,16 @@ layer.
 of places, a grid of tiles that hold values, a legend, four things the motor
 can say, and a page you arrange yourself.
 
+**And then it was looked at from the sofa**, which is the only place any of
+this was ever going to be settled. What came back: fill the screen and draw no
+panel; blur and darken what is behind; put the row of hints where the game
+bar's row already is and take the bar down before the menu draws, or the two
+crossfade in one band; come back where it was left; stop saying `Go…` above a
+bar of chips that says it already; and **one badge treatment, not two** - every
+badge on the pad is a solid silhouette with its label punched out, so the
+stick's rim had to go. A ring among them reads as a different colour rather
+than as a different button.
+
 ## Suggested order
 
 Done: **01–09**, **11**, **13–49**. The button scheme (07) settled first because it
