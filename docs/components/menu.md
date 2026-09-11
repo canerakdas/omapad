@@ -387,11 +387,16 @@ Fullscreen changes four things, and each is the same argument:
   a card that swallowed the screen would read as a page, which is what this
   asks for.
 
-- **The legend moves to the bottom right**, where a console puts its prompts,
-  and the grid takes the space above it whether or not it fills it - a legend
-  that floated up under a short page would not be at the foot of anything. On
-  a card it stays centred under the tiles, because a card's foot is its
-  middle.
+- **The legend moves into the game bar's own band.** Not the bottom right
+  corner: the same four words about the same four buttons must not move when
+  the menu opens, and a row that jumped an inch up the screen would read as a
+  different row. So it takes the bar's height (`barh` on the payload, which
+  is `[gamebar] height`) and the bar's edge padding, and sits flush at the
+  foot - whether or not the bar is actually up, because "where the bar would
+  be" is the answer either way. On a card it stays centred under the tiles,
+  because a card's foot is its middle.
+- The grid takes the space above it whether or not it fills it: a legend that
+  floated up under a short page would not be at the foot of anything.
 - **The bars underneath are covered.** `exclusionMode` stops asking for what
   is left once every bar has taken its strip: a fullscreen HUD prints its own
   row of hints, so there is nothing down there worth leaving room for, and a

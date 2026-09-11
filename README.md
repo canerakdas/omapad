@@ -2032,8 +2032,10 @@ fullscreen = true             # false gives back the centred card
 
 The tiles carry their own background, so they read over a game or a wallpaper.
 It covers the bars along the bottom too — it prints its own row of hints, so
-there is nothing down there worth leaving room for — and that row sits in the
-**bottom right**, where a console puts its prompts. At the top level there is
+there is nothing down there worth leaving room for — and that row sits in
+**exactly the band the game bar's row sits in**, at the same height and the
+same distance from the edge. It is the same four words about the same four
+buttons, so nothing moves when the menu opens. At the top level there is
 no title: the chips already say where you are, and a line above them saying so
 again is the card telling you twice.
 

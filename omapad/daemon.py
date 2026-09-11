@@ -1855,6 +1855,12 @@ class Daemon:
         # of every surface, and this is true of one.
         state["full"] = self.config.menu_fullscreen
         state["dim"] = self.config.menu_dim
+        # How tall the game bar is, so a fullscreen HUD can put its own row of
+        # hints in exactly the band the bar's row sits in. The buttons must
+        # not move when the menu opens: it is the same four words about the
+        # same four buttons, and a row that jumped an inch up the screen would
+        # read as a different row.
+        state["barh"] = self.config.gamebar_height
         self.menu_client.send(self.scaled(state))
 
     def menu_head_refresh(self):

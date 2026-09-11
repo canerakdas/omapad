@@ -56,6 +56,14 @@ Item {
   // the blur; with blur off it is the whole of the contrast, which is why it
   // is a setting rather than a number picked here.
   property real dim: 0.6
+  // The game bar's own height and edge padding, so a fullscreen HUD can put
+  // its row of hints in the band the bar's row sits in. Mirrored from
+  // GameBar.qml rather than shared, because the two surfaces are separate
+  // components - if one of these changes there, it changes here.
+  property int barh: 32
+  readonly property int barSideMargin: metrics.space(18)
+  readonly property int barBand: Math.max(metrics.space(root.barh),
+    root.badgeUnit + metrics.space(3) * 2)
   property bool editing: false
   property string picked: ""
   // Which way a badge is drawn, from the daemon: the same question the guide
@@ -154,6 +162,11 @@ Item {
     ? root.headerHeight + root.contentSpacing : 0
   readonly property int legendHeight: root.keys.length > 0
     ? Math.max(root.badgeUnit, metrics.font.caption) + metrics.space(6) : 0
+  // What the legend takes off the bottom. On a card it is its own height and
+  // the gap above it; on the whole screen it is the game bar's band, because
+  // that is where the row it replaces was.
+  readonly property int legendBand: root.legendHeight <= 0 ? 0
+    : (root.full ? root.barBand : root.legendHeight + root.contentSpacing)
   // The gap between tiles, and the height of one cell. A cell is taller than
   // it is wide on purpose: a tile carries an icon over a label, and a square
   // one leaves the label nowhere to go on a six-column card.
@@ -199,8 +212,7 @@ Item {
            ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
         - root.headerSpace
         - root.chipHeight - root.contentSpacing
-        - (root.legendHeight > 0
-           ? root.legendHeight + root.contentSpacing : 0)
+        - root.legendBand
       : Math.round(panel.height * 0.55)
     if (root.full) return Math.max(root.cellHeight, cap)
     var whole = Math.max(1, Math.floor(
@@ -258,6 +270,7 @@ Item {
       if (s.live !== undefined) root.live = s.live
       if (s.full !== undefined) root.full = !!s.full
       if (s.dim !== undefined) root.dim = Number(s.dim)
+      if (s.barh !== undefined) root.barh = Number(s.barh) || 32
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
       if (s.open !== undefined) root.opened = !!s.open
@@ -593,8 +606,7 @@ Item {
              ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
           + root.headerSpace
           + root.chipHeight + root.contentSpacing + root.gridHeight
-          + (root.legendHeight > 0
-             ? root.contentSpacing + root.legendHeight : 0),
+          + root.legendBand,
         parent.height - Style.gapsOut * 2)
       // Nothing of its own when it is the screen: the scrim behind is what
       // the tiles are read against, and a panel drawn over it would be the
@@ -671,6 +683,7 @@ Item {
         anchors.topMargin: card.borderTop + root.contentMargin
         anchors.rightMargin: card.borderRight + root.contentMargin
         anchors.bottomMargin: card.borderBottom + root.contentMargin
+          + root.legendBand
         anchors.leftMargin: card.borderLeft + root.contentMargin
         spacing: root.contentSpacing
 
@@ -1323,53 +1336,68 @@ Item {
           }
         }
 
-        // What the face buttons do here. Last in the card, and page-scoped:
-        // the game bar says the same kind of thing across the whole screen,
-        // and this is the only one that can say what a page has spent X or Y
-        // on. `[menu] keys = false` turns it off for anyone running both.
-        Item {
-          width: parent.width
-          height: root.legendHeight
-          visible: root.legendHeight > 0
+      }
 
-          // Centred under a card, because a card is a thing you are looking
-          // at and its foot is the middle. On the whole screen the eye is
-          // everywhere, and the corner a console puts its prompts in is the
-          // bottom right - so that is where they go.
-          Row {
-            id: legendRow
-            anchors.verticalCenter: parent.verticalCenter
-            // Placed rather than anchored: an anchor switched between two
-            // sides by a ternary leaves both unset and the row lands
-            // nowhere, which is a thing that happens silently.
-            x: root.full
-              ? parent.width - legendRow.width
-              : Math.round((parent.width - legendRow.width) / 2)
-            spacing: metrics.space(16)
+      // What the face buttons do here, page-scoped: the game bar says the
+      // same kind of thing across the whole screen, and this is the only one
+      // that can say what a page has spent X or Y on. `[menu] keys = false`
+      // turns it off for anyone running both.
+      //
+      // Anchored to the foot rather than flowing after the tiles, and on a
+      // fullscreen HUD it sits in the **game bar's own band**: it is the same
+      // four words about the same four buttons, so it must not move when the
+      // menu opens. A row that jumped an inch up the screen would read as a
+      // different row.
+      Item {
+        id: legend
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.full
+          ? 0 : card.borderBottom + root.contentMargin
+        anchors.leftMargin: root.full
+          ? 0 : card.borderLeft + root.contentMargin
+        anchors.rightMargin: root.full
+          ? 0 : card.borderRight + root.contentMargin
+        height: root.legendBand
+        visible: root.legendHeight > 0
 
-            Repeater {
-              model: root.keys
+        // Centred under a card, because a card is a thing you are looking at
+        // and its foot is the middle. On the screen it takes the bar's own
+        // edge padding, so the row lands where the bar's row was.
+        Row {
+          id: legendRow
+          anchors.verticalCenter: parent.verticalCenter
+          // Placed rather than anchored: an anchor switched between two sides
+          // by a ternary leaves both unset and the row lands nowhere, which
+          // is a thing that happens silently.
+          x: root.full
+            ? parent.width - legendRow.width - root.barSideMargin
+            : Math.round((parent.width - legendRow.width) / 2)
+          spacing: metrics.space(16)
 
-              delegate: Row {
-                id: hint
-                required property var modelData
-                spacing: metrics.space(5)
+          Repeater {
+            model: root.keys
 
-                Badge {
-                  label: hint.modelData.b
-                  kind: hint.modelData.k
-                  anchors.verticalCenter: parent.verticalCenter
-                }
+            delegate: Row {
+              id: hint
+              required property var modelData
+              spacing: metrics.space(5)
 
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: hint.modelData.n
-                  textFormat: Text.PlainText
-                  color: Color.menu.text
-                  opacity: 0.66
-                  font.family: metrics.font.family
-                  font.pixelSize: metrics.font.caption
-                }
+              Badge {
+                label: hint.modelData.b
+                kind: hint.modelData.k
+                anchors.verticalCenter: parent.verticalCenter
+              }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: hint.modelData.n
+                textFormat: Text.PlainText
+                color: Color.menu.text
+                opacity: 0.66
+                font.family: metrics.font.family
+                font.pixelSize: metrics.font.caption
               }
             }
           }
