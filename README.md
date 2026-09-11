@@ -2031,10 +2031,34 @@ fullscreen = true             # false gives back the centred card
 ```
 
 The tiles carry their own background, so they read over a game or a wallpaper.
-What is *not* on a tile — the clock, the weather, the legend's words — is read
-against whatever is behind the menu, which over a window full of text will
-compete. Set `fullscreen = false` for the card, which is the better shape at a
-desk.
+It covers the bars along the bottom too — it prints its own row of hints, so
+there is nothing down there worth leaving room for — and that row sits in the
+**bottom right**, where a console puts its prompts. At the top level there is
+no title: the chips already say where you are, and a line above them saying so
+again is the card telling you twice.
+
+Two things decide how much of the desktop you still see:
+
+```toml
+[menu]
+dim = 0.6                     # how dark behind, over the theme's own scrim
+
+[ui]
+blur = true                   # ask the compositor to blur behind our surfaces
+```
+
+`blur` is a **request**. omapad asks Hyprland for a layer rule on its own
+surfaces and nothing else; Hyprland blurs only where blur is on at all, so on
+a desktop that has turned it off the rule does nothing and `dim` is the whole
+of the contrast. Turning blur on globally is your call — it changes every
+window on the machine:
+
+```lua
+-- ~/.config/hypr/looknfeel.lua
+hl.config({ decoration = { blur = { enabled = true, size = 8, passes = 3 } } })
+```
+
+Set `fullscreen = false` for the card, which is the better shape at a desk.
 
 ### Arranging a page from the pad
 

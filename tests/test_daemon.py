@@ -99,6 +99,9 @@ class FakeHypr:
         self.calls = []
         self.warps = []
         self.cursors = []
+        # Lua run in the compositor's config namespace - the layer rule that
+        # asks for a blur behind our own surfaces, and nothing else.
+        self.evaluated = []
         # What `j/<command>` answers with, so a snap can be posed a whole
         # desktop without one being on screen.
         self.answers = {}
@@ -106,6 +109,10 @@ class FakeHypr:
         # be held to it.
         self.queries = []
         self.position = (0.0, 0.0)
+
+    def evaluate(self, expression):
+        self.evaluated.append(expression)
+        return "ok"
 
     def dispatch(self, expression):
         self.calls.append(expression)
@@ -3165,7 +3172,32 @@ class FullscreenTests(DaemonTestCase):
 
     def test_the_model_knows_nothing_about_it(self):
         # `menu.py` holds state and geometry and reads no config.
-        self.assertNotIn("full", self.daemon.menu.view_state(True))
+        state = self.daemon.menu.view_state(True)
+        self.assertNotIn("full", state)
+        self.assertNotIn("dim", state)
+
+    def test_how_dark_it_goes_travels_with_it(self):
+        # The shell cannot read the config, so a number it draws with has to
+        # arrive in the payload like the scale does.
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["dim"],
+                         self.config.menu_dim)
+
+    def test_the_blur_is_asked_for_once_at_start(self):
+        # A layer rule on our own namespace and nothing else: asking for a
+        # blur behind your own panel is not reaching into somebody's setup.
+        self.hypr.evaluated = []
+        self.daemon.apply_blur()
+        self.assertEqual(len(self.hypr.evaluated), 1)
+        self.assertIn("omapad-", self.hypr.evaluated[0])
+        self.assertIn("blur = true", self.hypr.evaluated[0])
+        self.assertNotIn("decoration", self.hypr.evaluated[0])
+
+    def test_a_desktop_that_wants_no_blur_is_asked_nothing(self):
+        self.config.ui_blur = False
+        self.hypr.evaluated = []
+        self.daemon.apply_blur()
+        self.assertEqual(self.hypr.evaluated, [])
 
 
 class EditModeTests(DaemonTestCase):

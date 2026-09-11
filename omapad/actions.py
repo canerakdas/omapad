@@ -269,6 +269,18 @@ class Hypr:
     def dispatch(self, expression):
         return self.request("/dispatch " + expression)
 
+    def evaluate(self, expression):
+        """Run one Lua expression in the compositor's own config namespace.
+
+        `/dispatch` is for what a binding does; this is for what a *window*
+        asks to look like, which is config rather than action - a layer rule
+        on our own namespace, and nothing else. It is the one thing here that
+        writes to Hyprland's configuration, and it writes only about surfaces
+        this program owns: asking for a blur behind your own panel is not
+        reaching into somebody's setup, and nothing here touches a global.
+        """
+        return self.request("/eval " + expression)
+
     def query(self, command):
         """A `j/` query, parsed. None when the compositor is not there.
 

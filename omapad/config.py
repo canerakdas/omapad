@@ -1063,6 +1063,18 @@ class Config:
             raise ConfigError(
                 "ui.badge_style must be one of %s" % ", ".join(BADGE_STYLES)
             )
+        # Whether omapad asks the compositor to blur behind its own surfaces.
+        # A request, not a promise: Hyprland only blurs where blur is on at
+        # all, so this does nothing on a desktop that has turned it off, and
+        # `[menu] dim` is what has to carry the contrast there.
+        self.ui_blur = bool(ui.get("blur", True))
+        self.ui_blur_rule = str(ui.get("blur_rule", "")).strip() or (
+            'hl.layer_rule({ match = { namespace = "omapad-.*" },'
+            ' blur = true, ignore_alpha = %s })'
+        )
+        self.ui_blur_alpha = float(ui.get("blur_alpha", 0.15))
+        if not 0.0 <= self.ui_blur_alpha <= 1.0:
+            raise ConfigError("ui.blur_alpha must be between 0 and 1")
 
         osk = data.get("osk", {})
         self.osk_socket = osk.get("socket") or None
@@ -1188,6 +1200,14 @@ class Config:
         # picking a thing" and "I am in the panel" - and on a television
         # across a room the second one is what a HUD is for.
         self.menu_fullscreen = bool(menu.get("fullscreen", True))
+        # How dark the screen behind the card goes, over whatever the theme's
+        # own scrim already does. A fullscreen HUD draws no panel, so this is
+        # the only thing standing between a tile's label and a window full of
+        # text - and with the compositor blurring as well, it is the tint over
+        # the blur rather than the whole of the contrast.
+        self.menu_dim = float(menu.get("dim", 0.6))
+        if not 0.0 <= self.menu_dim <= 1.0:
+            raise ConfigError("menu.dim must be between 0 and 1")
         self.menu_live_hz = int(menu.get("live_hz", 60))
         if self.menu_live_hz <= 0:
             raise ConfigError("menu.live_hz must be positive")

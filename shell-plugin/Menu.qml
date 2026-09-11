@@ -51,6 +51,11 @@ Item {
   // setting, from the daemon: a card reads as a menu and a whole screen reads
   // as a page, and across a room the second one is what a HUD is for.
   property bool full: false
+  // How dark the screen behind goes, over whatever the theme's own scrim
+  // already does. With the compositor blurring as well this is the tint over
+  // the blur; with blur off it is the whole of the contrast, which is why it
+  // is a setting rather than a number picked here.
+  property real dim: 0.6
   property bool editing: false
   property string picked: ""
   // Which way a badge is drawn, from the daemon: the same question the guide
@@ -141,6 +146,12 @@ Item {
     metrics.font.title + metrics.spacing.controlPaddingY * 2)
   readonly property int chipHeight: Math.max(metrics.space(38),
     metrics.font.body + metrics.spacing.controlPaddingY * 2)
+  // What the title line costs, which is nothing at the top level: the bar of
+  // chips says where you are there, and a line above it saying so again is
+  // the card telling you twice.
+  readonly property bool titled: root.depth > 0 || root.clock.length > 0
+  readonly property int headerSpace: root.titled
+    ? root.headerHeight + root.contentSpacing : 0
   readonly property int legendHeight: root.keys.length > 0
     ? Math.max(root.badgeUnit, metrics.font.caption) + metrics.space(6) : 0
   // The gap between tiles, and the height of one cell. A cell is taller than
@@ -176,16 +187,22 @@ Item {
   // Cut to whole rows either way: clamping the height alone puts the fold
   // through the middle of a tile, which reads as bad padding rather than as
   // "there is more below".
+  // What the grid is *given*. On a card it is cut to whole rows so the fold
+  // never runs through the middle of a tile; on the whole screen it takes the
+  // space whether or not it fills it, because what sits under it is the
+  // legend and a legend that floated up under a short page would not be at
+  // the foot of anything.
   readonly property int gridHeight: {
     var cap = root.full
       ? panel.height - root.contentMargin * 2
         - (root.headRows > 0
            ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
-        - root.headerHeight - root.contentSpacing
+        - root.headerSpace
         - root.chipHeight - root.contentSpacing
         - (root.legendHeight > 0
            ? root.legendHeight + root.contentSpacing : 0)
       : Math.round(panel.height * 0.55)
+    if (root.full) return Math.max(root.cellHeight, cap)
     var whole = Math.max(1, Math.floor(
       (cap + root.cellGap) / (root.cellHeight + root.cellGap)))
     return root.rowsHeight(Math.max(1, Math.min(root.rows, whole)))
@@ -240,6 +257,7 @@ Item {
       if (s.sel !== undefined) root.sel = String(s.sel)
       if (s.live !== undefined) root.live = s.live
       if (s.full !== undefined) root.full = !!s.full
+      if (s.dim !== undefined) root.dim = Number(s.dim)
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
       if (s.open !== undefined) root.opened = !!s.open
@@ -527,7 +545,14 @@ Item {
     // exclusive zone it defaults to asks for what is left once every bar has
     // taken its strip, so the scrim stops where the game bar starts instead
     // of dimming the row of hints that answers this menu.
-    exclusionMode: root.overBar ? ExclusionMode.Normal : ExclusionMode.Ignore
+    // `Normal` asks for what is left once every bar has taken its strip, so
+    // a card's scrim stops where the game bar starts instead of dimming the
+    // row of hints that answers this menu. A fullscreen HUD prints that row
+    // itself, so there is nothing down there worth leaving room for - it
+    // takes the whole screen and covers both bars, which is what "fullscreen"
+    // has to mean or the thing is a screen with a strip cut off it.
+    exclusionMode: (root.overBar && !root.full)
+      ? ExclusionMode.Normal : ExclusionMode.Ignore
 
     // This is the one omapad surface that takes the pointer: hover selects a
     // tile, a click picks one, a click on the scrim leaves. The keyboard and
@@ -535,6 +560,16 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: Color.menu.scrim
+      opacity: root.opened ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: 110 } }
+    }
+
+    // And then as much again as `[menu] dim` asks for, in the theme's own
+    // background rather than in black: darkening a themed surface towards
+    // something that is not in the theme is how a warm palette goes grey.
+    Rectangle {
+      anchors.fill: parent
+      color: Util.alpha(Color.menu.background, root.dim)
       opacity: root.opened ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: 110 } }
     }
@@ -556,7 +591,7 @@ Item {
         card.borderTop + card.borderBottom + root.contentMargin * 2
           + (root.headRows > 0
              ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
-          + root.headerHeight + root.contentSpacing
+          + root.headerSpace
           + root.chipHeight + root.contentSpacing + root.gridHeight
           + (root.legendHeight > 0
              ? root.contentSpacing + root.legendHeight : 0),
@@ -679,9 +714,16 @@ Item {
         // Where you are, and - since game mode takes Omarchy's bar away and
         // the pad can reach no other clock - whatever the head has no room
         // for. The clock here is empty in the shipped config: it moved up.
+        //
+        // **Only once you have gone somewhere.** At the top level the bar of
+        // chips is already saying where you are, in the same words and an
+        // inch below; a line above it saying "Go…" is the card telling you
+        // twice. Drilled in, the bar is dimmed on the chip you came from and
+        // this is the only thing that names the page you are on.
         Item {
           width: parent.width
-          height: root.headerHeight
+          height: visible ? root.headerHeight : 0
+          visible: root.titled
 
           Text {
             anchors.left: parent.left
@@ -1290,8 +1332,19 @@ Item {
           height: root.legendHeight
           visible: root.legendHeight > 0
 
+          // Centred under a card, because a card is a thing you are looking
+          // at and its foot is the middle. On the whole screen the eye is
+          // everywhere, and the corner a console puts its prompts in is the
+          // bottom right - so that is where they go.
           Row {
-            anchors.centerIn: parent
+            id: legendRow
+            anchors.verticalCenter: parent.verticalCenter
+            // Placed rather than anchored: an anchor switched between two
+            // sides by a ternary leaves both unset and the row lands
+            // nowhere, which is a thing that happens silently.
+            x: root.full
+              ? parent.width - legendRow.width
+              : Math.round((parent.width - legendRow.width) / 2)
             spacing: metrics.space(16)
 
             Repeater {

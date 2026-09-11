@@ -1875,6 +1875,13 @@ live_hz = 60
 # `false` gives back the centred card, which is the better shape at a desk.
 fullscreen = true
 
+# How dark the screen behind the menu goes, on top of whatever the theme's own
+# scrim already does. With the compositor blurring behind us as well this is
+# the tint over the blur; with blur off it is the whole of what stands between
+# a tile's label and a window full of text. Raise it if the desktop shows
+# through too much, lower it to see more of what is behind.
+dim = 0.6
+
 # A tile can list its own page instead of holding one: `from` is a command, and
 # every line it prints becomes a tile (see the audio outputs below). The
 # command runs when the page is entered, off to one side: the page opens at

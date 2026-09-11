@@ -1854,6 +1854,7 @@ class Daemon:
         # reads no config. Not in `scaled()` either - that is for what is true
         # of every surface, and this is true of one.
         state["full"] = self.config.menu_fullscreen
+        state["dim"] = self.config.menu_dim
         self.menu_client.send(self.scaled(state))
 
     def menu_head_refresh(self):
@@ -4134,7 +4135,30 @@ class Daemon:
         self.apply_cursor()
         self.apply_bar()
         self.apply_idle()
+        self.apply_blur()
         self.check_pointer_hiding()
+
+    def apply_blur(self):
+        """Ask the compositor to blur behind our own surfaces.
+
+        A layer rule on our own namespace and nothing else - asking for a blur
+        behind your own panel is not reaching into somebody's setup. It is a
+        *request*: Hyprland blurs only where blur is on at all, so this does
+        nothing on a desktop that has turned it off, and `[menu] dim` is what
+        carries the contrast there.
+
+        Best-effort like everything else that talks to the compositor: no
+        Hyprland is a working daemon, and a rule that did not take is a menu
+        that looks plainer rather than one that does not open.
+        """
+        if not self.config.ui_blur:
+            return
+        answer = self.hypr.evaluate(
+            self.config.ui_blur_rule % self.config.ui_blur_alpha
+        )
+        if answer is None or answer.strip() != "ok":
+            log.info("the compositor did not take the blur rule: %s",
+                     (answer or "no answer").strip()[:80])
 
     def run(self):
         self.start()

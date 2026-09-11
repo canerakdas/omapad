@@ -387,10 +387,49 @@ Fullscreen changes four things, and each is the same argument:
   a card that swallowed the screen would read as a page, which is what this
   asks for.
 
+- **The legend moves to the bottom right**, where a console puts its prompts,
+  and the grid takes the space above it whether or not it fills it - a legend
+  that floated up under a short page would not be at the foot of anything. On
+  a card it stays centred under the tiles, because a card's foot is its
+  middle.
+- **The bars underneath are covered.** `exclusionMode` stops asking for what
+  is left once every bar has taken its strip: a fullscreen HUD prints its own
+  row of hints, so there is nothing down there worth leaving room for, and a
+  screen with a strip cut off it is not fullscreen. The menu is on
+  `WlrLayer.Overlay` and both bars are on `Top`, so covering them is a size
+  rather than a fight.
+
 **What it costs:** anything not on a tile - the head's clock and weather, the
-title, the legend's words - is read against whatever is behind the menu. Over
-a game or a wallpaper that is the look; over a window full of text it
-competes. The card is one setting away.
+title, the legend's words - is read against whatever is behind the menu. Two
+things answer that, and both are settings.
+
+## What is behind, and how much of it
+
+`[menu] dim` is how dark the screen behind goes, over whatever the theme's own
+scrim already does. It is drawn in `Color.menu.background` rather than in
+black: darkening a themed surface towards something that is not in the theme
+is how a warm palette goes grey.
+
+`[ui] blur` asks the **compositor** to blur behind omapad's own surfaces -
+`hl.layer_rule` on the `omapad-.*` namespace, sent once at start over the same
+IPC socket the `hypr:` actions use. That is the only place in this program
+that writes to Hyprland's configuration, and it writes about windows this
+program owns: asking for a blur behind your own panel is not reaching into
+somebody's setup, and nothing here touches a global.
+
+**It is a request, not a promise.** Hyprland blurs only where blur is on at
+all, so on a desktop with `decoration.blur.enabled = false` the rule is a
+no-op and `[menu] dim` is the whole of the contrast. Turning blur on globally
+is the person's call, not ours - it changes every window on the machine.
+
+## The title, and when there is one
+
+At the top level there is none. The bar of chips is already saying where you
+are, in the same words and an inch below; a line above it saying `Go…` is the
+card telling you twice. Drilled in, the bar is dimmed on the chip you came
+from and the title is the only thing naming the page - so that is where it
+appears, and `headerSpace` is zero everywhere else so nothing is left holding
+its place.
 
 ## Rearranging a page
 
