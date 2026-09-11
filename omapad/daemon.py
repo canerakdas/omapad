@@ -1845,12 +1845,16 @@ class Daemon:
 
     def push_menu_view(self):
         self._menu_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
-        self.menu_client.send(self.scaled(
-            self.menu.view_state(
-                self.menu_open, self.action_state, self.action_value,
-                self._menu_head_text, self.menu_legend(), self.menu_control
-            )
-        ))
+        state = self.menu.view_state(
+            self.menu_open, self.action_state, self.action_value,
+            self._menu_head_text, self.menu_legend(), self.menu_control
+        )
+        # Stamped here rather than in the model: whether the card fills the
+        # screen is a setting, and `menu.py` holds state and geometry and
+        # reads no config. Not in `scaled()` either - that is for what is true
+        # of every surface, and this is true of one.
+        state["full"] = self.config.menu_fullscreen
+        self.menu_client.send(self.scaled(state))
 
     def menu_head_refresh(self):
         """Ask each head cell's command for anything that has gone stale.

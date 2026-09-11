@@ -2019,6 +2019,23 @@ A tile that *sets* something is **ticked** while that something is what is in
 force, so a page of choices says which one you are on rather than making you
 guess.
 
+### A card, or the whole screen
+
+The menu fills the screen and draws no panel of its own: the tiles float over
+whatever is behind them. A card reads as a menu and a whole screen reads as a
+page, and from a sofa the second one is what you want.
+
+```toml
+[menu]
+fullscreen = true             # false gives back the centred card
+```
+
+The tiles carry their own background, so they read over a game or a wallpaper.
+What is *not* on a tile — the clock, the weather, the legend's words — is read
+against whatever is behind the menu, which over a window full of text will
+compete. Set `fullscreen = false` for the card, which is the better shape at a
+desk.
+
 ### Arranging a page from the pad
 
 **Hold Y** on any page and its tiles become yours. Every button on the card

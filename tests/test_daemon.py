@@ -3146,6 +3146,28 @@ class GaugeTests(DaemonTestCase):
         self.assertGreater(self.config.pointer_speed, before)
 
 
+class FullscreenTests(DaemonTestCase):
+    """Whether the card is a card or the screen, which the panel cannot ask."""
+
+    def test_the_payload_says_which_shape_the_card_takes(self):
+        self.daemon.set_menu(True)
+        self.assertTrue(self.menu_client.sent[-1]["full"])
+        self.config.menu_fullscreen = False
+        self.daemon.push_menu_view()
+        self.assertFalse(self.menu_client.sent[-1]["full"])
+
+    def test_it_is_stamped_on_the_menu_rather_than_on_every_surface(self):
+        # `scaled()` is for what is true of every surface; this is true of
+        # one, so it goes on the menu's own payload and nowhere else.
+        self.daemon.set_menu(True)
+        self.daemon.set_guide(True)
+        self.assertNotIn("full", self.guide_client.sent[-1])
+
+    def test_the_model_knows_nothing_about_it(self):
+        # `menu.py` holds state and geometry and reads no config.
+        self.assertNotIn("full", self.daemon.menu.view_state(True))
+
+
 class EditModeTests(DaemonTestCase):
     """Rearranging a page from the pad, and what it writes down."""
 

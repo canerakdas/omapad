@@ -47,6 +47,10 @@ Item {
   // Whether the page in front is being rearranged, and which tile is being
   // carried. Both are the daemon's: the model holds the arrangement, and this
   // only draws what it is told.
+  // Whether the card fills the screen and draws no panel of its own. A
+  // setting, from the daemon: a card reads as a menu and a whole screen reads
+  // as a page, and across a room the second one is what a HUD is for.
+  property bool full: false
   property bool editing: false
   property string picked: ""
   // Which way a badge is drawn, from the daemon: the same question the guide
@@ -127,7 +131,11 @@ Item {
     capProbe.height / 2 - capProbe.baselineOffset
     - (capInk.tightBoundingRect.y + capInk.tightBoundingRect.height / 2))
 
-  readonly property int contentMargin: metrics.spacing.panelPadding
+  // A fullscreen card needs more than a card's padding: with none, the first
+  // tile sits against the edge of the screen, which on a television is the
+  // part of it that is not there.
+  readonly property int contentMargin: root.full
+    ? metrics.space(40) : metrics.spacing.panelPadding
   readonly property int contentSpacing: metrics.spacing.md
   readonly property int headerHeight: Math.max(metrics.space(34),
     metrics.font.title + metrics.spacing.controlPaddingY * 2)
@@ -159,12 +167,25 @@ Item {
     return n > 0 ? n * root.cellHeight + (n - 1) * root.cellGap : 0
   }
 
-  // A card that swallows the screen reads as a page rather than a menu, so a
-  // long group scrolls behind the fold instead of growing past this. Cut to
-  // whole rows: clamping the height alone puts the fold through the middle of
-  // a tile, which reads as bad padding rather than as "there is more below".
+  // How much of the screen the grid may have before a long group scrolls
+  // behind the fold. A card stops at a little over half, because a card that
+  // swallowed the screen would read as a page rather than as a menu - which
+  // is exactly what `full` asks for, so there it takes whatever the head, the
+  // bar and the legend leave.
+  //
+  // Cut to whole rows either way: clamping the height alone puts the fold
+  // through the middle of a tile, which reads as bad padding rather than as
+  // "there is more below".
   readonly property int gridHeight: {
-    var cap = Math.round(panel.height * 0.55)
+    var cap = root.full
+      ? panel.height - root.contentMargin * 2
+        - (root.headRows > 0
+           ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
+        - root.headerHeight - root.contentSpacing
+        - root.chipHeight - root.contentSpacing
+        - (root.legendHeight > 0
+           ? root.legendHeight + root.contentSpacing : 0)
+      : Math.round(panel.height * 0.55)
     var whole = Math.max(1, Math.floor(
       (cap + root.cellGap) / (root.cellHeight + root.cellGap)))
     return root.rowsHeight(Math.max(1, Math.min(root.rows, whole)))
@@ -218,6 +239,7 @@ Item {
       if (s.g !== undefined) root.group = Number(s.g) || 0
       if (s.sel !== undefined) root.sel = String(s.sel)
       if (s.live !== undefined) root.live = s.live
+      if (s.full !== undefined) root.full = !!s.full
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
       if (s.open !== undefined) root.opened = !!s.open
@@ -528,8 +550,9 @@ Item {
       // Wider than the Omarchy menu's 320, which is the one measurement the
       // grid could not keep: six columns of anything readable do not fit in
       // a column's width.
-      width: Math.min(metrics.space(560), parent.width - Style.gapsOut * 2)
-      height: Math.min(
+      width: root.full ? parent.width
+        : Math.min(metrics.space(560), parent.width - Style.gapsOut * 2)
+      height: root.full ? parent.height : Math.min(
         card.borderTop + card.borderBottom + root.contentMargin * 2
           + (root.headRows > 0
              ? root.rowsHeight(root.headRows) + root.contentSpacing : 0)
@@ -538,10 +561,14 @@ Item {
           + (root.legendHeight > 0
              ? root.contentSpacing + root.legendHeight : 0),
         parent.height - Style.gapsOut * 2)
-      color: Color.menu.background
-      borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border,
-        Math.max(1, metrics.space(2)))
-      radius: Style.cornerRadius
+      // Nothing of its own when it is the screen: the scrim behind is what
+      // the tiles are read against, and a panel drawn over it would be the
+      // same rectangle painted twice.
+      color: root.full ? "transparent" : Color.menu.background
+      borderSpec: root.full ? Border.none()
+        : Border.surfaceSpec("menu", "border", Color.menu.border,
+                             Math.max(1, metrics.space(2)))
+      radius: root.full ? 0 : Style.cornerRadius
       opacity: root.opened ? 1 : 0
       Behavior on opacity { NumberAnimation { duration: 110 } }
 
@@ -724,8 +751,13 @@ Item {
                 width: chipLabel.implicitWidth + metrics.space(22)
                 height: root.chipHeight
                 radius: Style.cornerRadius
+                // Transparent is right on a card and wrong on a screen: the
+                // bar is a row of words with a desktop behind it, and the
+                // chip you are on has to be the one that reads.
                 color: chip.here
-                  ? Color.menu.selectedBackground : "transparent"
+                  ? Color.menu.selectedBackground
+                  : (root.full ? Util.alpha(Color.menu.background, 0.75)
+                               : "transparent")
                 borderSpec: chip.here
                   ? root.selectedBorderSpec : Border.none()
 
@@ -806,11 +838,18 @@ Item {
               // column is bounded by the rows above and below it; a tile has
               // air on four sides, and six of them drawn on nothing read as a
               // scatter rather than as a grid.
+              // A tile that is not selected still needs a ground, and on a
+              // fullscreen card it needs a solid one: the six percent that
+              // reads as a tile against an opaque panel reads as nothing at
+              // all against a desktop. With no page behind them the tiles are
+              // the only thing there is, so they carry their own.
               color: (tile.taken || tile.carried)
-                ? Util.alpha(Color.accent, 0.32)
+                ? Util.alpha(Color.accent, root.full ? 0.55 : 0.32)
                 : (tile.selected
-                   ? Util.alpha(Color.accent, 0.20)
-                   : Util.alpha(Color.menu.text, 0.06))
+                   ? Util.alpha(Color.accent, root.full ? 0.42 : 0.20)
+                   : (root.full
+                      ? Util.alpha(Color.menu.background, 0.88)
+                      : Util.alpha(Color.menu.text, 0.06)))
               // A tile that has been taken off the page is drawn where it
               // sits, faded, rather than moved anywhere: there is nothing to
               // go and find, and putting it back is the same press that took

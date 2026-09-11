@@ -359,6 +359,39 @@ before it does.
 same choice `check_flick` makes, because this asks where the thumb is rather
 than how fast to move a pointer.
 
+## A card, or the screen
+
+`[menu] fullscreen` decides which, and the daemon stamps it on the payload as
+`full` - menu-only, so it goes in `push_menu_view` rather than in `scaled()`,
+and not in the model, which reads no config.
+
+**A card reads as a menu and a whole screen reads as a page** - the difference
+between *I am picking a thing* and *I am in the panel*. Across a room the
+second one is what a HUD is for, so it ships fullscreen; `false` gives back
+the centred card, which is the better shape at a desk.
+
+Fullscreen changes four things, and each is the same argument:
+
+- The card fills the panel and draws **no fill, no border and no radius**. The
+  scrim behind is what there is, and a panel painted over it would be the same
+  rectangle twice.
+- **The tiles carry their own ground.** The six percent that reads as a tile
+  against an opaque card reads as nothing at all against a desktop; with no
+  page behind them the tiles are the only thing there is. The chips get the
+  same, for the same reason.
+- `contentMargin` grows. With a card's padding the first tile sits against the
+  edge of the screen, which on a television is the part of it that is not
+  there.
+- `gridHeight` stops capping at a little over half the screen and takes
+  whatever the head, the bar and the legend leave. That cap existed *because*
+  a card that swallowed the screen would read as a page, which is what this
+  asks for.
+
+**What it costs:** anything not on a tile - the head's clock and weather, the
+title, the legend's words - is read against whatever is behind the menu. Over
+a game or a wallpaper that is the look; over a window full of text it
+competes. The card is one setting away.
+
 ## Rearranging a page
 
 The tiles are the person's, not the config's. **Hold Y** on any page and every

@@ -1868,6 +1868,13 @@ right_stick = "cursor"
 # how many turns the loop takes in a second - `omapad check` says so.
 live_hz = 60
 
+# Whether the card fills the screen, drawing no panel of its own - just the
+# tiles over the dimmed desktop. A card reads as a menu and a whole screen
+# reads as a page, which is the difference between "I am picking a thing" and
+# "I am in the panel"; across a room the second one is what a HUD is for.
+# `false` gives back the centred card, which is the better shape at a desk.
+fullscreen = true
+
 # A tile can list its own page instead of holding one: `from` is a command, and
 # every line it prints becomes a tile (see the audio outputs below). The
 # command runs when the page is entered, off to one side: the page opens at

@@ -1183,6 +1183,11 @@ class Config:
         # rather than a second clock: the loop already runs at `poll_hz` while
         # anything needs a tick, and this only decides how many of those turns
         # carry a push.
+        # Whether the card fills the screen. A card reads as a menu and a
+        # whole screen reads as a page, which is the difference between "I am
+        # picking a thing" and "I am in the panel" - and on a television
+        # across a room the second one is what a HUD is for.
+        self.menu_fullscreen = bool(menu.get("fullscreen", True))
         self.menu_live_hz = int(menu.get("live_hz", 60))
         if self.menu_live_hz <= 0:
             raise ConfigError("menu.live_hz must be positive")
