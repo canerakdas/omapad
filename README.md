@@ -2190,7 +2190,10 @@ page is; six by default, and worth turning down for a small screen.
 whatever the columns leave, and this is how tall one cell is. Raise it and a
 tile carries its icon over its label with room to spare; lower it and the page
 reads as a denser list, and below the room for both the icon steps out and the
-label has the tile to itself. A
+label has the tile to itself. Below the room a *switch* and its label need,
+though, nothing steps out — a tile's contents are not clipped, they hang over
+the edge of it — so the default is the height the tallest control actually
+comes to and not a round number. A
 `row_break` tile ends the row it is in, which is the way to group tiles that
 belong together. It is deliberately not a one-cell spacer: a spacer holds a
 hole open at six columns and shifts everything under it at four, and the same

@@ -1050,8 +1050,8 @@ Item {
               // the page looking broken rather than dense. The label is what
               // survives: it is the half that says which tile this is.
               readonly property bool roomForIcon:
-                tile.height - metrics.gap.md >= iconText.implicitHeight
-                  + labelText.implicitHeight + metrics.gap.xxs
+                tile.height - metrics.gap.lg >= iconText.implicitHeight
+                  + labelText.implicitHeight + metrics.gap.xs
 
               x: root.cellX(tile.modelData.x)
               y: root.cellY(tile.modelData.y)
@@ -1154,8 +1154,8 @@ Item {
               // same thing twice in the room it has for one.
               Column {
                 anchors.centerIn: parent
-                width: parent.width - metrics.gap.lg
-                spacing: metrics.gap.xxs
+                width: parent.width - metrics.gap.xl
+                spacing: metrics.gap.xs
 
                 Text {
                   id: iconText
@@ -1209,7 +1209,7 @@ Item {
                 Item {
                   id: switchArt
                   visible: tile.modelData.k === "toggle"
-                  readonly property int unit: metrics.gap.xl
+                  readonly property int unit: metrics.gap.xxl
                   width: Math.round(switchArt.unit * 64 / 40)
                   height: switchArt.unit
                   anchors.horizontalCenter: parent.horizontalCenter
@@ -1239,11 +1239,11 @@ Item {
                 // buttons on the same card.
                 Row {
                   visible: tile.modelData.k === "choice"
-                  spacing: metrics.gap.sm
+                  spacing: metrics.gap.md
                   anchors.horizontalCenter: parent.horizontalCenter
 
                   BadgeArt {
-                    width: metrics.gap.md
+                    width: metrics.gap.lg
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     drawn: controlArt.find("chev", "left")
@@ -1262,7 +1262,7 @@ Item {
                   }
 
                   BadgeArt {
-                    width: metrics.gap.md
+                    width: metrics.gap.lg
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     drawn: controlArt.find("chev", "right")
@@ -1283,12 +1283,12 @@ Item {
                   id: dial
                   visible: tile.gauge
                   width: parent.width
-                  spacing: metrics.gap.xxs
+                  spacing: metrics.gap.xs
 
                   Item {
                     id: face
                     width: Math.min(parent.width, tile.height
-                                    - metrics.gap.xxxl)
+                                    - metrics.gap.huge)
                     height: face.width
                     anchors.horizontalCenter: parent.horizontalCenter
                     // How far the dot may travel from the middle: the face's
@@ -1382,10 +1382,10 @@ Item {
                   id: playing
                   visible: tile.media
                   width: parent.width
-                  spacing: metrics.gap.xxs
+                  spacing: metrics.gap.xs
 
                   BadgeArt {
-                    width: metrics.gap.xl
+                    width: metrics.gap.xxl
                     height: width
                     anchors.horizontalCenter: parent.horizontalCenter
                     drawn: controlArt.find(
@@ -1436,7 +1436,7 @@ Item {
                   id: slider
                   visible: tile.slider
                   width: parent.width
-                  spacing: metrics.gap.xxs
+                  spacing: metrics.gap.xs
 
                   Item {
                     width: parent.width
@@ -1446,7 +1446,7 @@ Item {
                       id: sliderName
                       anchors.left: parent.left
                       anchors.right: sliderValue.left
-                      anchors.rightMargin: metrics.gap.xs
+                      anchors.rightMargin: metrics.gap.sm
                       text: tile.modelData.l
                       textFormat: Text.PlainText
                       color: tile.selected
@@ -1474,7 +1474,7 @@ Item {
                   Rectangle {
                     id: sliderTrack
                     width: parent.width
-                    height: Math.max(2, metrics.gap.xs)
+                    height: Math.max(2, metrics.gap.sm)
                     radius: height / 2
                     color: Util.alpha(Color.menu.text, 0.18)
 
@@ -1504,7 +1504,7 @@ Item {
                   id: reading
                   visible: tile.readout
                   width: parent.width
-                  spacing: metrics.gap.xxs
+                  spacing: metrics.gap.xs
 
                   Item {
                     width: parent.width
@@ -1514,7 +1514,7 @@ Item {
                       id: readingName
                       anchors.left: parent.left
                       anchors.right: readingValue.left
-                      anchors.rightMargin: metrics.gap.xs
+                      anchors.rightMargin: metrics.gap.sm
                       text: tile.modelData.l
                       textFormat: Text.PlainText
                       color: tile.selected
@@ -1551,7 +1551,7 @@ Item {
                   Rectangle {
                     visible: tile.modelData.v !== undefined
                     width: parent.width
-                    height: Math.max(2, metrics.gap.xs)
+                    height: Math.max(2, metrics.gap.sm)
                     radius: height / 2
                     color: Util.alpha(Color.menu.text, 0.18)
 
@@ -1577,12 +1577,12 @@ Item {
               // means anything while a page is being rearranged.
               BadgeArt {
                 visible: tile.carried
-                width: metrics.gap.lg
+                width: metrics.gap.xl
                 height: width
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.rightMargin: metrics.gap.sm
-                anchors.topMargin: metrics.gap.sm
+                anchors.rightMargin: metrics.gap.md
+                anchors.topMargin: metrics.gap.md
                 drawn: controlArt.find("tile", "grip")
                 fill: Color.menu.selectedText
               }
@@ -1601,8 +1601,8 @@ Item {
                 font.pixelSize: metrics.type.body
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.rightMargin: metrics.gap.sm
-                anchors.topMargin: metrics.gap.xs
+                anchors.rightMargin: metrics.gap.md
+                anchors.topMargin: metrics.gap.sm
               }
 
               // Hover names the tile under the cursor, a click picks it - the

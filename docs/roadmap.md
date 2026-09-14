@@ -2967,12 +2967,29 @@ scale is what stops sizes drifting to whatever looked right that afternoon; it
 was never going to say which rung a clock wants, and reaching for the tidy
 answer over the legible one is the failure mode of having a system at all.
 
-Two things did **not** move, and both for the reason that they are not the
-card's rhythm. The fullscreen margin stays at `huge`: it is a television's
-overscan, which is a fact about the screen rather than a proportion. And a
-tile's insides stay where they are - a cell is `menu.cell_height` tall whatever
-the ladder does, and a switch grown a rung would have overflowed a tile at
-`[ui] scale = 1`. A ladder is climbed where there is room to climb it.
+The fullscreen margin did **not** move, and for a reason worth keeping: it is
+a television's overscan, a fact about the screen rather than a proportion of
+the layout, so it has no business travelling with a rhythm.
+
+**A tile's insides did not move either, and that turned out to be the wrong
+call** - *şimdi menüdeki tile'lara da aynı spacing'leri uygula.* The reason
+they were held back was real: a cell is `[menu] cell_height` tall whatever the
+ladder does, and a switch grown a rung came to more than a cell at `[ui] scale
+= 1`. But the conclusion drawn from it - leave the tiles behind - was the
+wrong half of the problem to give way. **A cell shorter than its own contents
+does not make them smaller.** `Column` has no clip, so they hang over the edge
+of the ground the tile is drawn on, and the old 34 was already a pixel under
+what a switch and its label came to; nobody had noticed because a pixel is not
+a thing you see.
+
+So the tile's insides went up a rung with everything else - the gap under a
+label, the switch, the chevrons either side of a value, the slider's track,
+the dial's face, the mark in a carried tile's corner - and `cell_height`'s
+default went with them, to 45, which is a rung of the same ladder. **It is the
+one setting whose default is derived rather than chosen**, because it is the
+room the ladder needs rather than a preference about density, and the comment
+beside it now says so. Type was left alone: the ask was the spacing, and the
+sizes had already been settled two items ago.
 
 **And the clock became the thing the head is for.** It was `format = "%A %H:%M"`
 in a cell one row tall - the day and the time on one line at 13px, in the

@@ -999,6 +999,15 @@ rather than pushing the label out past the ground it is drawn on - the label
 is the half that says which tile this is, and `cell_height` being a setting is
 what makes a tile that short reachable at all.
 
+**`cell_height`'s default is a rung of the silver ladder, and it has to be.**
+A tile's insides are on that ladder - the gap under a label, the switch below
+it, the chevrons either side of a value - so the room they need is decided by
+it too, and a switch and its label come to a little over forty pixels. A cell
+shorter than its own contents does not make them smaller: `Column` has no
+clip, so they hang over the edge of the ground the tile is drawn on. It is the
+one setting that moves when the ladder does, which is also why it is the one
+whose default is worth re-deriving rather than nudging.
+
 Settings: `[menu] title`, `clock`, `columns`, `cell_height`, `bias`, `keys`,
 `tile_corner`,
 `repeat_delay_ms`, `repeat_rate_ms`, `group_settle_ms`, `list_timeout_ms`,

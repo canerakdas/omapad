@@ -1947,7 +1947,13 @@ columns = 6
 # has the tile, so a low number is a page of words rather than a page of
 # clipping. Unscaled: `[ui] scale` and `game_scale` multiply it like every
 # other measurement on the surface.
-cell_height = 34
+#
+# The default is a rung of the same ladder the tile's insides are set on, and
+# it has to be: a switch, its label and the air between them come to a little
+# over forty pixels there, and a cell shorter than its own contents does not
+# make them smaller - it lets them out over the edge of the tile. So this is
+# the one setting that moves when the ladder does.
+cell_height = 45
 # What a tile off to the side costs against one straight ahead, both measured
 # edge to edge - the same question `[snap] bias` answers about windows, and its
 # own number because tiles are small and touching where windows are large and
