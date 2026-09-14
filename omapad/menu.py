@@ -604,16 +604,27 @@ def _filled(template, values):
 def build_head(entries, where="menu.head", columns=COLUMNS):
     """Normalise `[[menu.head]]` into the read-only grid above the bar.
 
-    A cell either prints a time - `format` in strftime - or the last thing a
-    command printed. `ttl` is how long that answer stays fresh, which is not
-    the same clock as the heartbeat: the surface is redrawn every couple of
-    seconds, and the weather is asked for every fifteen minutes.
+    **A cell is up to three lines and every one of them is the same kind of
+    thing**: a time it renders itself (`format`, in strftime) or the last
+    thing a command printed (`from`). `over` sits above the cell's own line
+    and `under` below it, both set small; the middle one is the headline and
+    is what the cell's height is spent on.
 
-    A `format` cell may carry `under`, a second format set small beneath the
-    first: the time over the day is one thing read at two sizes, and two cells
-    could not say that - the head is packed first fit, so nothing here can
-    promise that the cell holding the day lands under the cell holding the
-    time rather than beside it.
+    Three lines in one cell rather than three cells, because the head is
+    packed first fit - nothing here can promise that the cell holding the day
+    lands under the one holding the time rather than beside it. A name over a
+    clock over a weekday is one thing read at three sizes, and only a cell can
+    say that.
+
+    A line written as a bare string is a `format`, which is the common case
+    and keeps `under = "%A"` the whole of what a weekday costs. A table is the
+    long form, and it is how a line becomes a command:
+
+        over = { from = "id -un", ttl = 0 }
+
+    `ttl` is how long an answer stays fresh, which is not the same clock as
+    the heartbeat: the surface is redrawn every couple of seconds, the weather
+    is asked for every fifteen minutes, and a name is asked for once.
 
     Nothing here runs anything, and nothing here knows what weather is. The
     command is a string from the config; somebody else owns the network, the
@@ -625,43 +636,19 @@ def build_head(entries, where="menu.head", columns=COLUMNS):
         path = "%s[%d]" % (where, index)
         if not isinstance(entry, dict):
             raise MenuError("%s must be a table" % path)
-        fmt = str(entry.get("format", "")).strip()
-        source = str(entry.get("from", "")).strip()
-        under = str(entry.get("under", "")).strip()
-        if bool(fmt) == bool(source):
-            raise MenuError(
-                "%s prints either a 'format' or a 'from', not both or neither"
-                % path
-            )
-        # A second line under a command's answer would be a second command,
-        # with its own `ttl` and its own failure to word - so it is refused
-        # here rather than half-supported.
-        if under and not fmt:
-            raise MenuError(
-                "%s: 'under' is a second line under a 'format', not a 'from'"
-                % path
-            )
-        for spec in (fmt, under):
-            if not spec:
-                continue
-            try:
-                time.strftime(spec)
-            except ValueError as exc:
-                raise MenuError("%s: %s" % (path, exc)) from exc
+        line = _head_line(entry, path, where)
         item = {
             "control": "",
-            "id": str(entry.get("id", "")).strip() or slug(fmt or source),
-            "format": fmt,
-            # The line under it, in strftime as well. Empty is a cell of one
-            # line, which is nearly all of them.
-            "under": under,
-            "from": source,
+            "id": (str(entry.get("id", "")).strip()
+                   or slug(line["format"] or line["from"])),
+            "format": line["format"],
+            "from": line["from"],
             # How long an answer stays fresh, in seconds. Zero asks once.
-            "ttl": _ttl(entry.get("ttl"), path),
+            "ttl": line["ttl"],
             # What the cell says before the first answer, and after a command
             # that had nothing to say. A blank cell in a grid reads as a
             # drawing fault rather than as a command that failed.
-            "empty": str(entry.get("empty", "")).strip(),
+            "empty": line["empty"],
         }
         item["span"] = _span(entry, "", path, columns)
         if item["id"] in seen:
@@ -670,8 +657,70 @@ def build_head(entries, where="menu.head", columns=COLUMNS):
                 % (path, item["id"])
             )
         seen[item["id"]] = True
+        item["line"] = dict(line, id=item["id"])
+        # The small lines are named after the cell, so the daemon has
+        # somewhere to file what each command said without the config having
+        # to name three things to get one clock.
+        for key in ("over", "under"):
+            spec = entry.get(key)
+            if spec is None or (isinstance(spec, str) and not spec.strip()):
+                item[key] = None
+                continue
+            sub = _head_line(spec, "%s.%s" % (path, key), where)
+            sub["id"] = "%s.%s" % (item["id"], key)
+            if sub["id"] in seen:
+                raise MenuError(
+                    "%s: two cells here are called %r - give one an 'id'"
+                    % (path, sub["id"])
+                )
+            seen[sub["id"]] = True
+            item[key] = sub
         items.append(item)
     return items
+
+
+def _head_line(spec, path, where):
+    """One line of a head cell, from a bare format or from the long form.
+
+    The same two sources at every level, deliberately: a cell that could
+    print a command's answer while the line under it could only print a time
+    would be two grammars wearing one name, and the first thing anybody would
+    want there is the one it does not have.
+    """
+    if isinstance(spec, str):
+        spec = {"format": spec}
+    if not isinstance(spec, dict):
+        raise MenuError("%s is a strftime format or a table" % path)
+    fmt = str(spec.get("format", "")).strip()
+    source = str(spec.get("from", "")).strip()
+    if bool(fmt) == bool(source):
+        raise MenuError(
+            "%s prints either a 'format' or a 'from', not both or neither"
+            % path
+        )
+    if fmt:
+        try:
+            time.strftime(fmt)
+        except ValueError as exc:
+            raise MenuError("%s: %s" % (path, exc)) from exc
+    return {
+        "id": "",
+        "format": fmt,
+        "from": source,
+        "ttl": _ttl(spec.get("ttl"), path),
+        "empty": str(spec.get("empty", "")).strip(),
+    }
+
+
+def head_sources(cell):
+    """Every line of a head cell that is a command, with its id and its ttl.
+
+    One place that knows a cell has three lines, so the daemon asks for what
+    has gone stale without learning the shape of a cell.
+    """
+    for line in (cell.get("line"), cell.get("over"), cell.get("under")):
+        if line and line["from"]:
+            yield line
 
 
 def _ttl(spec, path):
@@ -1509,23 +1558,35 @@ class MenuModel:
         out = []
         for tile in tiles:
             item = tile["item"]
-            under = ""
-            if item["format"]:
-                text = self._strftime(item["format"])
-                under = self._strftime(item["under"])
-            else:
-                text = (texts or {}).get(item["id"]) or item["empty"]
             cell = {
-                "t": drawable(text),
+                "t": drawable(self._head_text(item["line"], texts)),
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
             }
-            # Left out where there is none, so a one-line cell costs the wire
-            # nothing and the panel's `u !== undefined` is the whole test.
-            if under:
-                cell["u"] = drawable(under)
+            # A line the cell does not have is left off the wire rather than
+            # sent empty, so `o !== undefined` is the whole of the panel's
+            # test for whether a cell stacks - and a one-line cell, which is
+            # nearly all of them, costs what it always did.
+            for key, short in (("over", "o"), ("under", "u")):
+                text = self._head_text(item[key], texts)
+                if text:
+                    cell[short] = drawable(text)
             out.append(cell)
         return out, rows
+
+    def _head_text(self, line, texts):
+        """What one line of a head cell says right now.
+
+        A format is rendered here, because that costs nothing and a clock that
+        waited on the daemon would be a clock that is wrong between presses. A
+        command's answer is whatever the daemon last heard: running one is not
+        this module's business.
+        """
+        if not line:
+            return ""
+        if line["format"]:
+            return self._strftime(line["format"])
+        return (texts or {}).get(line["id"]) or line["empty"]
 
     @staticmethod
     def _strftime(spec):

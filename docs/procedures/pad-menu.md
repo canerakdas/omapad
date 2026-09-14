@@ -310,9 +310,10 @@ a command said, and that is all it does.
 
 ```toml
 [[menu.head]]
-span = [2, 2]
-format = "%H:%M"              # strftime
-under = "%A"                  # a second line under it, small and in capitals
+span = [2, 3]
+over = { from = "id -un", ttl = 0 }   # a line above, small and in capitals
+format = "%H:%M"                      # the headline - strftime
+under = "%A"                          # and a line below it
 
 [[menu.head]]
 span = [4, 1]
@@ -321,20 +322,35 @@ ttl = 900                     # seconds before it is asked again
 empty = "Weather unavailable" # before the first answer, and after a failure
 ```
 
-A cell prints **either** a `format` or a `from`, never both and never neither.
+**A cell is up to three lines and every one of them is the same kind of
+thing**: a `format` or a `from`. `over` sits above the cell's own line and
+`under` below it, both set small. A bare string is a `format`, which keeps
+`under = "%A"` the whole of what a weekday costs; a table is the long form,
+and it is how a line becomes a command:
+
+```toml
+over = { from = "id -un", ttl = 0 }
+```
+
+Three lines in one cell rather than three cells, because the head packs first
+fit like everything else here: two cells could land side by side as easily as
+stacked.
+
 `ttl` is data freshness, not redraw: the card repaints every couple of seconds
-whatever this says.
+whatever this says. **Zero never goes stale** and is asked once a session -
+which is what a name or a hostname wants, and what a clock would be wrong to
+use, because a `format` is rendered on every redraw and costs nothing.
 
-`under` is a second `format`, and only a `format` takes one - a second line
-under a command's answer would be a second command. One cell rather than two,
-because the head packs first fit like everything else here: two cells could
-land side by side as easily as stacked.
+**A cell more than one row tall prints a headline**, the biggest thing the
+surface draws, with `over` and `under` small and in capitals around it; a cell
+one row tall prints a line of text. The height is the whole of that decision,
+so the way to turn the clock down is to give it fewer rows - and a `from` cell
+stays one row tall unless you want its answer set like a headline.
 
-**A cell two rows tall prints a headline**, the biggest thing the surface
-draws, with `under` small and in capitals beneath it; a cell one row tall
-prints a line of text. The height is the whole of that decision, so the way to
-turn the clock down is to give it fewer rows, and a `from` cell stays one row
-tall unless you want its answer set like a headline.
+**Give a stacked cell the rows its lines need.** The shipped clock is three
+because a name, a time at the top of the ladder and a weekday do not fit in
+two, and a cell that asked for a headline without the room would clip rather
+than shrink.
 
 **A `from` cell owns nothing.** The command is a string from the config, and
 whatever it names owns the network, the location, the caching and what to say

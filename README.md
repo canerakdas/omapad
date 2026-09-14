@@ -2300,9 +2300,10 @@ renders itself or the last thing a command said.
 
 ```toml
 [[menu.head]]
-span = [2, 2]
-format = "%H:%M"              # strftime
-under = "%A"                  # a second line, small and in capitals
+span = [2, 3]
+over = { from = "id -un", ttl = 0 }   # a line above, small and in capitals
+format = "%H:%M"                      # the headline — strftime
+under = "%A"                          # and a line below it
 
 [[menu.head]]
 span = [4, 1]
@@ -2311,25 +2312,32 @@ ttl = 900                     # seconds before it is asked again
 empty = "Weather unavailable" # before the first answer, and after a failure
 ```
 
-`under` is a second format set beneath the first, and it is one cell rather
-than two because the head packs first fit — two cells could land side by side
-as easily as stacked, and the time over the day is one thing read at two sizes
-anyway. It goes with a `format`; under a `from` it would be a second command.
+**A cell is up to three lines and every one of them is the same kind of
+thing** — a time it renders itself, or the last thing a command said. A bare
+string is a `format`, which is what `under = "%A"` is; a table is the long
+form, and it is how a line becomes a command instead. Three lines in one cell
+rather than three cells, because the head packs first fit — two cells could
+land side by side as easily as stacked, and a name over a clock over a weekday
+is one thing read at three sizes.
 
-**A cell two rows tall prints a headline.** The clock is `[2, 2]` because the
-time is the one thing on this surface meant to be read from the far side of the
-room, and one row is not enough height to set it that big. At `[2, 1]` the same
-cell prints a line of text, so shortening it is a way of turning the clock
-down rather than a way of breaking it.
+**A cell more than one row tall prints a headline.** The clock is `[2, 3]`
+because the time is the one thing on this surface meant to be read from the far
+side of the room, and it needs the height with a name over it and a day under
+it. At `[2, 1]` the same cell prints a line of text, so shortening it is how
+you turn the clock down rather than a way of breaking it.
 
 `ttl` is how fresh the answer has to be, which is not how often the menu
 repaints — the card redraws every couple of seconds whatever this says, and the
-weather is asked for once a quarter of an hour.
+weather is asked for once a quarter of an hour. **Zero never goes stale**, so
+it is asked once a session: your name is not going to change under the menu.
 
 **omapad owns nothing about the weather.** It runs the string you put in `from`
 and draws what comes back; `omarchy-weather-status` owns the lookup,
-`omarchy-weather-location` owns where you are, and the helper prints its own
-failure. Point the cell at something else and it says something else. A command
+`omarchy-weather-icon` owns the condition glyph — the same one Omarchy's own
+bar draws — `omarchy-weather-location` owns where you are, and each prints its
+own failure. The shipped cell pipes them through a `sed` that drops the place
+and puts the glyph where the word `Temp` was, which is wording rather than
+weather. Point the cell at something else and it says something else. A command
 that answers with nothing leaves the last answer up rather than blanking the
 cell.
 

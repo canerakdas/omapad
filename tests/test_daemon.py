@@ -5395,6 +5395,74 @@ class BarFollowsTheSurfaceTests(DaemonTestCase):
         self.assertTrue(self.bar()["workspaces"])
 
 
+class HeadRefreshTests(DaemonTestCase):
+    """What each line of a head cell asks for, and how often."""
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.session.lines = ["fishy"]
+
+    def head(self, entries):
+        self.daemon.menu.head = menu_module.build_head(entries)
+        self.daemon.menu_open = True
+
+    def asked(self):
+        return list(self.session.captured)
+
+    def test_every_line_that_is_a_command_is_asked_for(self):
+        # Not the cell: a clock can carry a name over it and a weekday under
+        # it, and the name is a command the same way the weather is.
+        self.head([{"format": "%H:%M", "over": {"from": "id -un"},
+                    "under": "%A"},
+                   {"from": "weather"}])
+        self.daemon.menu_head_refresh()
+        self.assertEqual(self.asked(), ["id -un", "weather"])
+
+    def test_each_line_files_its_answer_under_its_own_name(self):
+        self.head([{"id": "clock", "format": "%H:%M",
+                    "over": {"from": "id -un"}}])
+        self.daemon.menu_head_refresh()
+        for key, lines in self.commands.drain():
+            self.daemon._command_jobs.pop(key)(lines)
+        cells, _ = self.daemon.menu.head_state(self.daemon._menu_head_text)
+        self.assertEqual(cells[0]["o"], "fishy")
+
+    def test_a_line_that_never_goes_stale_is_asked_once(self):
+        # `ttl = 0` is a name or a hostname: it is not going to change under
+        # the menu, and asking every second for one is a subprocess a second.
+        self.head([{"format": "%H:%M", "over": {"from": "id -un", "ttl": 0}}])
+        self.daemon.menu_head_refresh()
+        for key, lines in self.commands.drain():
+            self.daemon._command_jobs.pop(key)(lines)
+        # Well past any ttl a second would have bought it.
+        self.daemon.menu_head_refresh()
+        self.assertEqual(self.asked(), ["id -un"])
+        self.assertEqual(self.daemon._menu_head_due["h-m.over"],
+                         float("inf"))
+
+    def test_but_one_that_answered_with_nothing_is_asked_again(self):
+        # The due is written before the answer lands, so a command that is
+        # slow is not asked twice over - but one that failed must not leave
+        # the cell empty until the daemon restarts.
+        self.session.lines = []
+        self.head([{"format": "%H:%M", "over": {"from": "id -un", "ttl": 0}}])
+        self.daemon.menu_head_refresh()
+        for key, lines in self.commands.drain():
+            self.daemon._command_jobs.pop(key)(lines)
+        self.daemon._menu_head_due["h-m.over"] = 0.0
+        self.daemon.menu_head_refresh()
+        self.assertEqual(self.asked(), ["id -un", "id -un"])
+
+    def test_nothing_is_asked_for_while_the_menu_is_down(self):
+        # A daemon nobody is looking at must not spawn a weather lookup for
+        # ever.
+        self.head([{"from": "weather"}])
+        self.daemon.menu_open = False
+        self.daemon.menu_head_refresh()
+        self.assertEqual(self.asked(), [])
+
+
 class ScrimOverTheBarTests(DaemonTestCase):
     """A surface that dims the desktop must not dim omapad's own bar."""
 

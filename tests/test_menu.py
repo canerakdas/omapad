@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import actions, config as config_module
 from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, arrange, build,
-                         build_head, effective_span, listed, place, slug)
+                         build_head, effective_span, head_sources, listed,
+                         place, slug)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -1578,11 +1579,38 @@ class HeadTests(unittest.TestCase):
         cells, _ = MenuModel([], head=head).head_state()
         self.assertNotIn("u", cells[0])
 
-    def test_a_second_line_under_a_command_is_refused(self):
-        # It would be a second command, with its own ttl and its own failure
-        # to word - so it is said here rather than half-supported.
+    def test_a_line_can_be_a_command_as_easily_as_a_time(self):
+        # The same two sources at every level: a cell that could print a
+        # command's answer while the line under it could only print a time
+        # would be two grammars wearing one name.
+        head = build_head([{"format": "%H:%M",
+                            "over": {"from": "id -un", "ttl": 0}}])
+        model = MenuModel([], head=head)
+        cells, _ = model.head_state({"h-m.over": "fishy"})
+        self.assertEqual(cells[0]["o"], "fishy")
+
+    def test_a_small_line_is_named_after_the_cell_it_is_in(self):
+        # So the daemon has somewhere to file what each command said without
+        # the config having to name three things to get one clock.
+        head = build_head([{"id": "clock", "format": "%H:%M",
+                            "over": {"from": "id -un"},
+                            "under": {"from": "hostname"}}])
+        self.assertEqual([line["id"] for line in head_sources(head[0])],
+                         ["clock.over", "clock.under"])
+
+    def test_only_the_lines_that_are_commands_are_asked_for(self):
+        head = build_head([{"from": "weather", "under": "%A"}])
+        self.assertEqual([line["id"] for line in head_sources(head[0])],
+                         ["weather"])
+
+    def test_a_line_prints_one_thing_or_the_other(self):
         with self.assertRaises(MenuError):
-            build_head([{"from": "weather", "under": "%A"}])
+            build_head([{"format": "%H:%M",
+                         "under": {"format": "%A", "from": "x"}}])
+        with self.assertRaises(MenuError):
+            build_head([{"format": "%H:%M", "under": {"ttl": 60}}])
+        with self.assertRaises(MenuError):
+            build_head([{"format": "%H:%M", "under": 3}])
 
     def test_a_cell_prints_one_thing_or_the_other(self):
         with self.assertRaises(MenuError):

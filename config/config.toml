@@ -2046,36 +2046,61 @@ list_limit = 24               # and how many of its lines reach the page
 # Nothing here is selectable. A clock is not a button, and a cursor that can
 # wander into one is a cursor that has to come back out again.
 #
-# A cell prints either a `format` - strftime, rendered here - or the last thing
-# a command said. `ttl` is how long that answer stays fresh, which is not the
-# same clock as the redraw: the card repaints every couple of seconds and the
-# weather is asked for every quarter of an hour.
+# A cell is up to three lines and every one of them is the same kind of thing:
+# a time it renders itself (`format`, strftime) or the last thing a command
+# said (`from`). `over` sits above the cell's own line and `under` below it,
+# both set small and in capitals; the middle one is the headline, and it is
+# what the cell's height is spent on.
 #
-# A `format` cell can also carry `under`: a second format, set small and in
-# capitals beneath the first. It is one cell rather than two because the head
-# packs first fit - two cells could land side by side as easily as stacked -
-# and because the time over the day is one thing read at two sizes.
+# A line written as a bare string is a `format`, which is the common case -
+# `under = "%A"` is the whole of what a weekday costs. A table is the long
+# form, and it is how a line becomes a command instead:
 #
-# A cell given a second row prints its first line as a headline; a cell one row
-# tall prints a line of text. Which is why the clock is `[2, 2]`: the time is
-# the one thing on this surface meant to be read from the far side of the room,
-# and a row is not enough height to set it that big.
+#     over = { from = "id -un", ttl = 0 }
 #
-# The weather cell is the whole reason this is a command rather than a feature.
+# Three lines in one cell rather than three cells, because the head is packed
+# first fit: nothing can promise that the cell holding the day lands under the
+# one holding the time rather than beside it.
+#
+# `ttl` is how long an answer stays fresh, which is not the same clock as the
+# redraw: the card repaints every couple of seconds, the weather is asked for
+# every quarter of an hour, and a name is asked for once.
+#
+# A cell given more than one row prints its first line as a headline; a cell
+# one row tall prints a line of text. Which is why the clock is three rows
+# tall: the time is the one thing on this surface meant to be read from the
+# far side of the room, and a name over it and a weekday under it need the
+# rest of the height.
+#
+# The weather is the whole reason this is a command rather than a feature.
 # omapad owns no network, no location and no cache: `omarchy-weather-status`
-# does the lookup, `omarchy-weather-location` decides where, and the helper
-# prints "Weather unavailable" when it cannot reach anything. Point it at
-# something else and this cell says something else.
+# does the reading, `omarchy-weather-icon` does the condition - the same glyph
+# Omarchy's own bar draws, and it knows whether the sun is up -
+# `omarchy-weather-location` decides where, and each prints its own failure.
+# Point this at something else and the cell says something else.
+#
+# What the `sed` does is wording, which is omapad's business. The place goes
+# (you know where you are), the word `Temp` becomes the condition glyph, and
+# `Wind` goes because the arrow after it already says so:
+#
+#     Istanbul  ·  Temp 20°C  ·  Wind ↓15km/h      →        20°C  ·  ↓15km/h
+#
+# The two helpers are a pipeline rather than one after the other so their two
+# network calls overlap - half a second instead of most of a second, against
+# a `list_timeout_ms` that has to cover both. A failure has no place, no
+# `Temp` and no `Wind` in it, so the sentence the helper wrote passes straight
+# through.
 # ---------------------------------------------------------------------------
 
 [[menu.head]]
-span = [2, 2]
+span = [2, 3]
+over = { from = "id -un", ttl = 0 }
 format = "%H:%M"
 under = "%A"
 
 [[menu.head]]
 span = [4, 1]
-from = "omarchy-weather-status"
+from = """omarchy-weather-status | { i=$(omarchy-weather-icon); sed "s|^[^·]*·  ||; s|Temp |$i  |; s|Wind ||"; }"""
 ttl = 900
 empty = "Weather unavailable"
 

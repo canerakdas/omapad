@@ -25,7 +25,7 @@ from .guide import GuideModel
 from .hud import HudModel
 from .mapping import MappingModel, render as render_mapping
 from .menu import (CONTROL_KINDS, MenuError, MenuModel, build as build_menu,
-                   build_head, listed)
+                   build_head, head_sources, listed)
 from .osk import OskModel, badge_index
 from . import paths
 from .ripple import RippleModel
@@ -1953,30 +1953,39 @@ class Daemon:
             return
         now = time.monotonic()
         for cell in self.menu.head:
-            if not cell["from"]:
-                continue
-            due = self._menu_head_due.get(cell["id"], 0.0)
-            if due and now < due:
-                continue
-            # Written before the answer lands, so a command that takes longer
-            # than its own ttl is not asked twice over.
-            self._menu_head_due[cell["id"]] = now + max(cell["ttl"], 1.0)
-            self.menu_head_read(cell)
+            # Every line of a cell, not the cell: a clock can carry a name
+            # over it and a weekday under it, and the name is a command like
+            # the weather is. `head_sources` is what knows that shape.
+            for line in head_sources(cell):
+                due = self._menu_head_due.get(line["id"], 0.0)
+                if due and now < due:
+                    continue
+                # Written before the answer lands, so a command that takes
+                # longer than its own ttl is not asked twice over.
+                self._menu_head_due[line["id"]] = now + max(line["ttl"], 1.0)
+                self.menu_head_read(line)
 
-    def menu_head_read(self, cell):
+    def menu_head_read(self, line):
         def took(lines):
-            text = " ".join(line.strip() for line in lines if line.strip())
+            text = " ".join(part.strip() for part in lines if part.strip())
             if text:
                 # A command that printed nothing leaves the last answer where
                 # it is: a blank cell says less than a stale one.
-                self._menu_head_text[cell["id"]] = text
+                self._menu_head_text[line["id"]] = text
+                if line["ttl"] <= 0:
+                    # Zero is a line that never goes stale - a name, a
+                    # hostname - so its answer is kept for the session. Set
+                    # here rather than above, so a command that failed is
+                    # asked again rather than the cell being empty until the
+                    # daemon restarts.
+                    self._menu_head_due[line["id"]] = float("inf")
             self.push_menu_view()
 
         if not self.submit_command(
-            cell["from"], took, self.config.menu_list_timeout
+            line["from"], took, self.config.menu_list_timeout
         ):
             took(self.session.capture(
-                cell["from"], self.config.menu_list_timeout
+                line["from"], self.config.menu_list_timeout
             ))
 
     def menu_fill(self, item):

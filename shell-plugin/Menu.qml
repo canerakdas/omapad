@@ -779,6 +779,8 @@ Item {
               // than a cell saying twice how big it wants to be, and a
               // config that leaves the clock a row tall still reads.
               readonly property bool tall: headCell.modelData.h > 1
+              readonly property string over:
+                headCell.modelData.o !== undefined ? headCell.modelData.o : ""
               readonly property string under:
                 headCell.modelData.u !== undefined ? headCell.modelData.u : ""
 
@@ -803,6 +805,31 @@ Item {
                 y: headCell.tall
                   ? 0 : Math.round((parent.height - headText.height) / 2)
                 spacing: metrics.gap.xxs
+
+                Text {
+                  visible: headCell.over.length > 0
+                  width: parent.width
+                  text: headCell.over
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  opacity: 0.52
+                  font.family: metrics.font.family
+                  font.pixelSize: metrics.type.body
+                  // The one place this surface sets capitals, and a
+                  // typographic decision rather than a worded one: the
+                  // config says `%A` and `id -un` and every locale's own
+                  // weekday and every machine's own name comes back as it
+                  // is. Tracked out, because caps set at a text size without
+                  // it read as a word with its letters touching.
+                  //
+                  // An eighth of the letter rather than a rung of the
+                  // ladder: tracking belongs to the typeface's proportions,
+                  // and the smallest step this ladder has is already wider
+                  // than the space between two words.
+                  font.capitalization: Font.AllUppercase
+                  font.letterSpacing: metrics.type.body / 8
+                  elide: Text.ElideRight
+                }
 
                 Text {
                   width: parent.width
@@ -835,9 +862,10 @@ Item {
                   font.pixelSize: metrics.type.body
                   // The one place this surface sets capitals, and a
                   // typographic decision rather than a worded one: the
-                  // config says `%A` and every locale's own weekday comes
-                  // back. Tracked out, because caps set at a text size
-                  // without it read as a word with its letters touching.
+                  // config says `%A` and `id -un` and every locale's own
+                  // weekday and every machine's own name comes back as it
+                  // is. Tracked out, because caps set at a text size without
+                  // it read as a word with its letters touching.
                   //
                   // An eighth of the letter rather than a rung of the
                   // ladder: tracking belongs to the typeface's proportions,

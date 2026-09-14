@@ -768,28 +768,48 @@ touching, and `tests/test_menu.py`'s golden fixtures are what it was set from.
 selectable** - a clock is not a button, and a cursor that can wander into one
 is a cursor that has to come back out again.
 
-A cell prints either a `format`, which is strftime and rendered in the model,
-or the last thing a command said, which the daemon supplies. `ttl` is how long
-that answer stays fresh, and **it is not the heartbeat**: the surface redraws
-every couple of seconds and the weather is asked for every quarter of an hour.
+**A cell is up to three lines and every one of them is the same kind of
+thing**: a `format`, which is strftime and rendered in the model, or the last
+thing a command said, which the daemon supplies. `over` sits above the cell's
+own line and `under` below it, sent as `o` and `u`; a cell without one sends
+neither at all, so `o !== undefined` is the whole of the panel's test for
+whether it stacks.
 
-A `format` cell may also carry `under`, a second format rendered the same way
-and sent as the cell's `u`; a cell without one sends no `u` at all, so
-`u !== undefined` is the whole of the panel's test for whether it stacks. It
-is one cell holding two lines rather than two cells because `place()` packs
-the head first fit - nothing here can promise the cell holding the day lands
-under the cell holding the time rather than beside it. Under a `from` it is
-refused: a second line under a command's answer would be a second command,
-with its own `ttl` and its own failure to word.
+The same two sources at every level, deliberately. A cell that could print a
+command's answer while the line under it could only print a time would be two
+grammars wearing one name, and the first thing anybody would want there is the
+one it does not have - a name over a clock is not a time. A bare string is a
+`format`, which keeps `under = "%A"` the whole of what a weekday costs; a table
+is the long form, and it is how a line becomes a command:
 
-**The cell's height is what decides its treatment**, not a key saying so. Two
-rows and the panel sets the first line at the top of the ladder
-(`metrics.type.vast`) and the line under it small and in capitals; one row and
-it is a line of text at `metrics.type.lead`. Which is why the shipped clock is
-`span = [2, 2]` - a cell one row tall has nowhere to put a headline, and a
-cell that asked for one anyway would clip. The capitals are the panel's
-decision and not the config's: `%A` returns whatever the locale's own weekday
-is, and casing it is typography.
+```toml
+over = { from = "id -un", ttl = 0 }
+```
+
+Three lines in one cell rather than three cells, because `place()` packs the
+head first fit - nothing can promise that the cell holding the day lands under
+the one holding the time rather than beside it. **`head_sources(cell)` is the
+one thing that knows a cell has three lines**, so `daemon.menu_head_refresh`
+asks for whatever has gone stale without learning the shape of a cell, and each
+line files its answer under an id named after the cell (`clock.over`).
+
+`ttl` is how long an answer stays fresh, and **it is not the heartbeat**: the
+surface redraws every couple of seconds and the weather is asked for every
+quarter of an hour. **Zero means it never goes stale** - a name, a hostname -
+so it is asked once a session. The due is written before the answer lands, so a
+slow command is not asked twice over, and the *never again* is written when an
+answer arrives rather than when one is asked for: a command that failed is
+tried again instead of leaving the cell empty until the daemon restarts.
+
+**The cell's height is what decides its treatment**, not a key saying so. More
+than one row and the panel sets the middle line at the top of the ladder
+(`metrics.type.vast`) with `over` and `under` small and in capitals around it;
+one row and it is a line of text at `metrics.type.lead`. Which is why the
+shipped clock is three rows tall - a name over it and a weekday under it need
+the height - and why the weather is one: a cell that asked for a headline
+without the room would clip. The capitals are the panel's decision and not the
+config's: `%A` returns whatever the locale's own weekday is, `id -un` whatever
+the machine calls you, and casing either is typography.
 
 `from` + `ttl` is not new - it is what a `[profile.<app>.osk]` page already
 uses, one surface along - but the two share syntax and validation, not
@@ -799,11 +819,21 @@ turns output into one drawn string.
 **Why the weather is here at all**, when `roadmap.md` refused it. It was
 refused because *"putting it here means network I/O in an input daemon, with
 caching, failures and a location to own"*, and none of that lands here.
-`omarchy-weather-status` owns the lookup, `omarchy-weather-location` owns the
-location, and the helper prints its own failure. omapad runs a string from the
-config and draws what comes back; it never learns what weather is. A cell whose
-command answers with nothing keeps the last answer rather than blanking - a
-blank cell in a grid reads as a drawing fault rather than as a slow helper.
+`omarchy-weather-status` owns the lookup, `omarchy-weather-icon` owns the
+condition - the same glyph Omarchy's own bar draws, and it knows whether the
+sun is up - `omarchy-weather-location` owns where, and each prints its own
+failure. omapad runs a string from the config and draws what comes back; it
+never learns what weather is. A cell whose command answers with nothing keeps
+the last answer rather than blanking - a blank cell in a grid reads as a
+drawing fault rather than as a slow helper.
+
+What the shipped cell's `sed` does is **wording**, which is omapad's business
+where the lookup is not: it drops the place, puts the condition glyph where the
+word `Temp` was, and drops `Wind` because the arrow after it already says so.
+The two helpers are one pipeline rather than one after the other so their
+network calls overlap - half a second rather than most of a second, against a
+`list_timeout_ms` that has to cover both. A failure has no place, no `Temp` and
+no `Wind` in it, so the sentence the helper wrote passes straight through.
 
 ## Tiles that are not always there
 
