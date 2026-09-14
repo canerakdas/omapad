@@ -229,7 +229,7 @@ the scale the daemon stamps on the payload. `Style.cornerRadius` and
 with every window on screen.
 
 **8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` (five
-sizes: 10, 12, 16, 24, 38) and `metrics.gap` (nine: 3, 4, 6, 8, 11, 16, 23,
+sizes: 10, 12, 16, 24, 58) and `metrics.gap` (nine: 3, 4, 6, 8, 11, 16, 23,
 32, 45) are omapad's, both hung off the shell's smallest values; `metrics.font`
 and `metrics.spacing` are the shell's own. NEVER mix the two in one file: the
 whole point of the ladder is that a surface read from a sofa has few sizes and

@@ -805,8 +805,8 @@ tried again instead of leaving the cell empty until the daemon restarts.
 than one row and the panel sets the middle line at the top of the ladder
 (`metrics.type.vast`) with `over` and `under` small and in capitals around it;
 one row and it is a line of text at `metrics.type.lead`. Which is why the
-shipped clock is three rows tall - a name over it and a weekday under it need
-the height - and why the weather is one: a cell that asked for a headline
+shipped clock is four rows tall - a name over it and a weekday under it need
+the height around a headline set at the top of the scale - and why the weather is one: a cell that asked for a headline
 without the room would clip. The capitals are the panel's decision and not the
 config's: `%A` returns whatever the locale's own weekday is, `id -un` whatever
 the machine calls you, and casing either is typography.

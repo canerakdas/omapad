@@ -95,10 +95,13 @@ rather than a button.
   (≈1.2465) instead, because there 10 against 12 is a real difference and a
   surface needs both - a detail line has to be smaller than the label over it
   and still legible, and one √2 rung puts those five pixels apart. Its five
-  named sizes are rungs 0, 1, 2, 4 and 6 off `Style.font.caption`: 10, 12, 16,
-  24, 38, which is where the shell's caption, body and heading already were,
-  because those three were the ones that were right. Four rungs is the silver
-  ratio itself, so `loud` is `fine` at 1 + √2 and `vast` is `lead` at it.
+  named sizes are rungs 0, 1, 2, 4 and 8 off `Style.font.caption`: 10, 12, 16,
+  24, 58. The first three are where the shell's caption, body and heading
+  already were, because those three were the ones that were right. Four rungs
+  is the silver ratio itself, so the top of the ladder is the ratio twice over:
+  `loud` is `fine` at 1 + √2 and `vast` is `loud` at it again, which makes the
+  distance from the smallest thing a surface prints to the largest two silver
+  ratios and nothing else.
 
   `metrics.rung(base, n)` walks the space ladder and `metrics.step(base, n)`
   the type one, for the places that need a size between the named ones - a

@@ -87,8 +87,8 @@ QtObject {
   // a detail line under a label has to be smaller than it and still legible,
   // and one rung of sqrt(2) puts those two five pixels apart. Four rungs is
   // the silver ratio itself, which is what makes it that root rather than any
-  // other: `loud` is `fine` at 1 + sqrt(2), and `vast` is `lead` at it. The
-  // clock set over its weekday is that split, drawn.
+  // other: `loud` is `fine` at 1 + sqrt(2) and `vast` is `loud` at it again.
+  // The clock set over its weekday is that split, drawn.
   //
   // Both are anchored on the shell's own smallest value rather than its body
   // text and its middle gap. The smallest thing a surface prints is the one
@@ -110,23 +110,27 @@ QtObject {
     return base * Math.pow(metrics.silver, n / 4)
   }
 
-  // Five sizes, anchored on the shell's caption: 10, 12, 16, 24, 38 at the
-  // default theme and scale - which is where the shell's own caption, body
-  // and heading already were, because those three were the ones that were
-  // right. Named for the job rather than numbered, because there are only
-  // five and each is a decision about what a thing is: `fine` is a mark
+  // Five sizes, anchored on the shell's caption: 10, 12, 16, 24, 58 at the
+  // default theme and scale. The first three are where the shell's own
+  // caption, body and heading already were, because those three were the ones
+  // that were right. Named for the job rather than numbered, because there are
+  // only five and each is a decision about what a thing is: `fine` is a mark
   // beside something, `body` is what a label and a chip are set in, `vast` is
   // the one thing on the surface read from the far side of the room.
   //
-  // They are rungs 0, 1, 2, 4 and 6 - not consecutive, because the ladder is
-  // finer than the set of jobs a surface has. The gaps are where a size would
-  // have been too close to its neighbour to mean anything different.
+  // They are rungs 0, 1, 2, 4 and 8 - not consecutive, because the ladder is
+  // finer than the set of jobs a surface has, and the gaps are where a size
+  // would have been too close to its neighbour to mean anything different. The
+  // spacing of the last three is the ratio itself twice over: `loud` is `fine`
+  // at 1 + sqrt(2) and `vast` is `loud` at it again, so the distance from the
+  // smallest thing a surface prints to the largest is two silver ratios and
+  // nothing else.
   readonly property QtObject type: QtObject {
     readonly property int fine: metrics.px(Style.font.caption)
     readonly property int body: metrics.px(metrics.step(Style.font.caption, 1))
     readonly property int lead: metrics.px(metrics.step(Style.font.caption, 2))
     readonly property int loud: metrics.px(metrics.step(Style.font.caption, 4))
-    readonly property int vast: metrics.px(metrics.step(Style.font.caption, 6))
+    readonly property int vast: metrics.px(metrics.step(Style.font.caption, 8))
   }
 
   // Nine gaps, anchored on the shell's `sm`: 3, 4, 6, 8, 11, 16, 23, 32, 45.

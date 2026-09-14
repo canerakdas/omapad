@@ -2300,7 +2300,7 @@ renders itself or the last thing a command said.
 
 ```toml
 [[menu.head]]
-span = [2, 3]
+span = [2, 4]
 over = { from = "id -un", ttl = 0 }   # a line above, small and in capitals
 format = "%H:%M"                      # the headline — strftime
 under = "%A"                          # and a line below it
@@ -2320,10 +2320,11 @@ rather than three cells, because the head packs first fit — two cells could
 land side by side as easily as stacked, and a name over a clock over a weekday
 is one thing read at three sizes.
 
-**A cell more than one row tall prints a headline.** The clock is `[2, 3]`
+**A cell more than one row tall prints a headline.** The clock is `[2, 4]`
 because the time is the one thing on this surface meant to be read from the far
-side of the room, and it needs the height with a name over it and a day under
-it. At `[2, 1]` the same cell prints a line of text, so shortening it is how
+side of the room — it is set at the very top of the scale, and it needs the
+height with a name over it and a day under it. A cell with fewer rows than its
+lines need clips rather than shrinking. At `[2, 1]` the same cell prints a line of text, so shortening it is how
 you turn the clock down rather than a way of breaking it.
 
 `ttl` is how fresh the answer has to be, which is not how often the menu

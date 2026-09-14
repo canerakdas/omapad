@@ -181,13 +181,14 @@ Item {
   // tile sits against the edge of the screen, which on a television is the
   // part of it that is not there.
   readonly property int contentMargin: root.full
-    ? metrics.gap.huge : metrics.gap.xl
+    ? metrics.gap.huge : metrics.gap.xxl
   // The gap between the bands of the card - the head, the title line, the bar
   // of chips, the grid. Five rungs above `cellGap`, because that is the whole
-  // of what says the head is not the first row of the grid: the tiles are
-  // three pixels apart and these are sixteen, and a band reads as a band at
-  // that distance rather than as a row that has drifted.
-  readonly property int contentSpacing: metrics.gap.xl
+  // of what says the head is not the first row of the grid: a band reads as a
+  // band at that distance rather than as a row that has drifted. It is the
+  // distance that matters and not the number, so both ends of it moved up a
+  // rung together when the head gained a headline worth standing back from.
+  readonly property int contentSpacing: metrics.gap.xxl
   readonly property int headerHeight: Math.max(metrics.gap.xxxl,
     metrics.type.lead + metrics.gap.sm * 2)
   readonly property int chipHeight: Math.max(metrics.gap.xxxl,
@@ -209,7 +210,7 @@ Item {
   // setting and the width is what `cols` leaves, so how a tile is shaped is
   // the two of them together: tall enough and a tile carries an icon over a
   // label, short enough and the label has the tile on its own.
-  readonly property int cellGap: metrics.gap.xxs
+  readonly property int cellGap: metrics.gap.xs
   readonly property int cellHeight: metrics.space(root.cellUnit)
   readonly property var selectedBorderSpec: Border.surfaceSpec(
     "menu", "selected-border", Color.menu.selectedBorder, 0)
@@ -804,7 +805,11 @@ Item {
                 // that is only a line of text is centred in its row.
                 y: headCell.tall
                   ? 0 : Math.round((parent.height - headText.height) / 2)
-                spacing: metrics.gap.xxs
+                // Two rungs above the gap between tiles, because this is
+                // leading rather than a gap between things: what it separates
+                // is three sizes of one block, and the block's own headline
+                // is the tallest thing the surface sets.
+                spacing: metrics.gap.sm
 
                 Text {
                   visible: headCell.over.length > 0

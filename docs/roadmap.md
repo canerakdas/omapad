@@ -2897,7 +2897,7 @@ a tile's detail line were within three pixels of each other.
 
 So `Metrics` gained a ladder of its own, and the silver ratio sets the rung.
 Nine gaps (3, 4, 6, 8, 11, 16, 23, 32, 45) and five type sizes (10, 12, 16,
-24, 38), both anchored at the *small* end - the smallest thing a surface
+24, 58), both anchored at the *small* end - the smallest thing a surface
 prints is the one that must not shrink, and a ladder hung from body text has
 nowhere legible to put a detail line.
 
@@ -2917,14 +2917,15 @@ a detail line has to be smaller than the label over it and still legible from
 the same distance, which is a 20% difference, not a 41% one.
 
 So type climbs by the **fourth root** of the ratio, ≈1.2465, and the named
-sizes are rungs 0, 1, 2, 4 and 6 - not consecutive, because the ladder is
-finer than the set of jobs a surface has. That lands on 10, 12, 16, 24, 38,
-which is exactly where the shell's `caption`, `body` and `heading` already
+sizes are rungs 0, 1, 2, 4 and 8 - not consecutive, because the ladder is
+finer than the set of jobs a surface has. The first three land on 10, 12 and
+16, which is exactly where the shell's `caption`, `body` and `heading` already
 were. Those three were never the problem; using five sizes within six pixels
 of each other was. And four rungs is the silver ratio itself, which is what
-makes it that root and not any other: `loud` is `fine` at 1 + √2, `vast` is
-`lead` at it, and `metrics.silver` is there for the split a headline over its
-second line is.
+makes it that root and not any other: `loud` is `fine` at 1 + √2 and `vast` is
+`loud` at it again, so the whole ladder from the smallest thing a surface
+prints to the largest is two silver ratios. `metrics.silver` is there for the
+split a headline over its second line is.
 
 The rest of the value is that this is a *decision*, written in one place,
 rather than sixteen call sites each having had one. `metrics.rung` and
@@ -2950,6 +2951,23 @@ shared size, not by stepping down one.
 
 Two other numbers stayed off as well: the card's own width, and two stroke
 weights.
+
+**And then the ladder was climbed rather than rebuilt**, which is the point of
+having one: *saat daha büyük olsun, spacingler artsın silver ratioya göre.*
+`vast` moved from rung 6 to rung 8 - 38 to 58 - and the top of the ladder
+became the ratio twice over, `loud` at 1 + √2 above `fine` and `vast` at it
+again above `loud`. The card's rhythm went up a rung with it: the gap between
+bands `xl` → `xxl`, the gap between tiles `xxs` → `xs`, a card's own padding
+`xl` → `xxl`, and the leading inside a stacked head cell `xxs` → `sm`, which is
+two rungs because what it separates is three sizes of one block rather than two
+things side by side.
+
+Two things did **not** move, and both for the reason that they are not the
+card's rhythm. The fullscreen margin stays at `huge`: it is a television's
+overscan, which is a fact about the screen rather than a proportion. And a
+tile's insides stay where they are - a cell is `menu.cell_height` tall whatever
+the ladder does, and a switch grown a rung would have overflowed a tile at
+`[ui] scale = 1`. A ladder is climbed where there is room to climb it.
 
 **And the clock became the thing the head is for.** It was `format = "%A %H:%M"`
 in a cell one row tall - the day and the time on one line at 13px, in the
@@ -2993,7 +3011,7 @@ own line in the middle, `under` below, and each is a `format` or a `from`:
 
 ```toml
 [[menu.head]]
-span = [2, 3]
+span = [2, 4]
 over = { from = "id -un", ttl = 0 }
 format = "%H:%M"
 under = "%A"
