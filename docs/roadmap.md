@@ -2881,9 +2881,75 @@ the visible grid while the button was still being pressed. The key carries the
 cell now. A guard on identity where the question is position: the same shape
 of mistake as an index for a tile id, one surface along.
 
+### 53. Six sizes that are all the same size · ✅ Done · M
+
+Asked for from the sofa: *menünün stilini toplayacağız, öncelikle spacingler
+ve tipografi için silver ratio kullanacağız. sol köşede sade saat yazsın, gün
+bilgisi saat altında.*
+
+**The menu had no scale of its own.** It took Omarchy's - `caption` 10,
+`bodySmall` 11, `body` 12, `subtitle` 13, `title` 14, `heading` 16 - and used
+five of the six on one card, plus fifteen loose `metrics.space(N)` calls
+between 2 and 40. That is a scale designed to be read at a keyboard, where a
+pixel of difference *is* a difference. Across a room it is one size printed
+six ways, and the card had no hierarchy at all: the clock, a tile's label and
+a tile's detail line were within three pixels of each other.
+
+So `Metrics` gained **one ladder for type and space**, and the rung is √2.
+Five type sizes (10, 14, 20, 28, 40) and nine gaps (3, 4, 6, 8, 11, 16, 23,
+32, 45), each one rung above the last, both anchored at the *small* end -
+the smallest thing a surface prints is the one that must not shrink, and a
+ladder hung from body text puts its bottom rung at 8px.
+
+Why √2 rather than a number that looked right:
+
+- It is the silver ratio's step, and it **doubles in exactly two rungs** - so
+  the ladder keeps landing on 4, 8, 16, 32 and 10, 20, 40 rather than drifting
+  off the familiar numbers and taking every rounding decision with it.
+- The ratio itself, 1 + √2 ≈ 2.414, is a rung plus the one under it. Which
+  means a line set over a smaller one in that proportion is in the same
+  proportion as the ladder it was cut from - and `metrics.silver` is there for
+  exactly that split.
+- It is a *decision*, written in one place, rather than sixteen call sites
+  each having had one. Half the value here is that `metrics.rung(base, n)`
+  makes an off-rung size say it is a step down the same ladder instead of
+  being arithmetic that happens to come out right.
+
+**A surface is on one ladder or the other, never both.** `Menu.qml` is across
+and says so in its header; the guide, the keyboard, the mapping screen and the
+game bar are not yet. Three numbers on the menu stayed off it and say why: the
+card's own width, two stroke weights, and the edge padding mirrored from the
+game bar so the legend lands in the band the bar's row sits in.
+
+**And the clock became the thing the head is for.** It was `format = "%A %H:%M"`
+in a cell one row tall - the day and the time on one line at 13px, in the
+corner, saying both at the strength of neither. A `[[menu.head]]` cell now
+takes `under`, a second strftime format set beneath the first, and **the
+cell's height decides its treatment**: two rows and the first line is set at
+the top of the ladder with `under` small and in capitals beneath it, one row
+and it is a line of text. So the shipped clock is `[2, 2]`, `%H:%M` over `%A`,
+and turning it down is giving it fewer rows rather than a new key.
+
+One cell holding two lines rather than two cells, because the head packs first
+fit like everything else here - two cells could land side by side as easily as
+stacked. `under` goes with a `format` and is refused under a `from`: a second
+line under a command's answer would be a second command, with its own `ttl`
+and its own failure to word. The capitals are the panel's and not the
+config's - `%A` returns whatever the locale's own weekday is, and casing it is
+typography.
+
+**Two things the screen said that the code did not.** The bands of the card
+were `md` apart - six pixels, against three between tiles - so the head read
+as the grid's first row rather than as a band of its own; they are `xl` now,
+five rungs clear of the cell gap. And the head's text carried a tile's inset
+without a tile's ground behind it, which put the clock four pixels right of
+the first chip and the first tile. A head cell prints on nothing, so it lines
+up with the cell's own edge; only the far side is held off, far enough that a
+line elides before it reaches the cell beside it.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–52**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–53**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

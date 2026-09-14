@@ -2051,6 +2051,16 @@ list_limit = 24               # and how many of its lines reach the page
 # same clock as the redraw: the card repaints every couple of seconds and the
 # weather is asked for every quarter of an hour.
 #
+# A `format` cell can also carry `under`: a second format, set small and in
+# capitals beneath the first. It is one cell rather than two because the head
+# packs first fit - two cells could land side by side as easily as stacked -
+# and because the time over the day is one thing read at two sizes.
+#
+# A cell given a second row prints its first line as a headline; a cell one row
+# tall prints a line of text. Which is why the clock is `[2, 2]`: the time is
+# the one thing on this surface meant to be read from the far side of the room,
+# and a row is not enough height to set it that big.
+#
 # The weather cell is the whole reason this is a command rather than a feature.
 # omapad owns no network, no location and no cache: `omarchy-weather-status`
 # does the lookup, `omarchy-weather-location` decides where, and the helper
@@ -2059,8 +2069,9 @@ list_limit = 24               # and how many of its lines reach the page
 # ---------------------------------------------------------------------------
 
 [[menu.head]]
-span = [2, 1]
-format = "%A %H:%M"
+span = [2, 2]
+format = "%H:%M"
+under = "%A"
 
 [[menu.head]]
 span = [4, 1]

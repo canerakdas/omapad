@@ -773,6 +773,24 @@ or the last thing a command said, which the daemon supplies. `ttl` is how long
 that answer stays fresh, and **it is not the heartbeat**: the surface redraws
 every couple of seconds and the weather is asked for every quarter of an hour.
 
+A `format` cell may also carry `under`, a second format rendered the same way
+and sent as the cell's `u`; a cell without one sends no `u` at all, so
+`u !== undefined` is the whole of the panel's test for whether it stacks. It
+is one cell holding two lines rather than two cells because `place()` packs
+the head first fit - nothing here can promise the cell holding the day lands
+under the cell holding the time rather than beside it. Under a `from` it is
+refused: a second line under a command's answer would be a second command,
+with its own `ttl` and its own failure to word.
+
+**The cell's height is what decides its treatment**, not a key saying so. Two
+rows and the panel sets the first line at the top of the ladder
+(`metrics.type.vast`) and the line under it small and in capitals; one row and
+it is a line of text at `metrics.type.lead`. Which is why the shipped clock is
+`span = [2, 2]` - a cell one row tall has nowhere to put a headline, and a
+cell that asked for one anyway would clip. The capitals are the panel's
+decision and not the config's: `%A` returns whatever the locale's own weekday
+is, and casing it is typography.
+
 `from` + `ttl` is not new - it is what a `[profile.<app>.osk]` page already
 uses, one surface along - but the two share syntax and validation, not
 internals: a submenu source turns lines into selectable tiles, a head source

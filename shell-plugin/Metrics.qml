@@ -64,6 +64,68 @@ QtObject {
     return Math.ceil(n / metrics.badgeGrid) * metrics.badgeGrid
   }
 
+  // -- the silver ladder ----------------------------------------------------
+  //
+  // One ladder for type and for space, with the silver ratio deciding the rung.
+  //
+  // The shell's own scale is a list of near neighbours - 10, 11, 12, 13, 14,
+  // 16 - and that is six sizes at a keyboard and one size from a sofa: a pixel
+  // of difference is not a difference across a room. A surface read from there
+  // wants fewer sizes further apart, so the only decision left is how far
+  // apart, and sqrt(2) is that distance. It is the rung of the silver ratio,
+  // it doubles in exactly two steps - so the ladder keeps landing on the
+  // familiar whole numbers rather than drifting off them - and the ratio
+  // itself, 1 + sqrt(2), is a rung plus the one under it. Which is why a line
+  // set over a smaller one at 2.414:1 is in the same proportion as the ladder
+  // it was cut from: the clock over its weekday is that split, drawn.
+  //
+  // The anchors are the shell's own smallest values rather than its body text
+  // and its middle gap. The smallest thing a surface prints is the one that
+  // must not shrink, and a ladder hung from the middle puts its bottom rung
+  // at 8px and its next one above body at 17.
+  //
+  // A surface uses this ladder **or** `font` and `spacing` above, never a
+  // mixture: half a surface on one scale and half on another is what this is
+  // here to end. The menu is the first surface across.
+  readonly property real silver: 1 + Math.sqrt(2)
+
+  // `base` scaled by `n` rungs, before rounding. Negative goes down a rung.
+  function rung(base, n) {
+    return base * Math.pow(Math.SQRT2, n)
+  }
+
+  // Five sizes, anchored on the shell's caption: 10, 14, 20, 28, 40 at the
+  // default theme and scale. Named for the job rather than numbered, because
+  // there are only five and each one is a decision about what a thing is -
+  // `fine` is a mark beside something, `vast` is the one thing on the surface
+  // read from the far side of the room.
+  readonly property QtObject type: QtObject {
+    readonly property int fine: metrics.px(Style.font.caption)
+    readonly property int body: metrics.px(metrics.rung(Style.font.caption, 1))
+    readonly property int lead: metrics.px(metrics.rung(Style.font.caption, 2))
+    readonly property int loud: metrics.px(metrics.rung(Style.font.caption, 3))
+    readonly property int vast: metrics.px(metrics.rung(Style.font.caption, 4))
+  }
+
+  // Nine gaps, anchored on the shell's `sm`: 3, 4, 6, 8, 11, 16, 23, 32, 45.
+  // Sized names rather than job names, and the shell's own vocabulary for
+  // them, because nine of anything is only readable at the call site if the
+  // name says which way is bigger.
+  readonly property QtObject gap: QtObject {
+    // A hairline is one device pixel by definition, the same as above: it is
+    // not on the ladder and scaling it would make it a rule.
+    readonly property int hairline: Style.spacing.hairline
+    readonly property int xxs: metrics.space(metrics.rung(4, -1))
+    readonly property int xs: metrics.space(4)
+    readonly property int sm: metrics.space(metrics.rung(4, 1))
+    readonly property int md: metrics.space(8)
+    readonly property int lg: metrics.space(metrics.rung(4, 3))
+    readonly property int xl: metrics.space(16)
+    readonly property int xxl: metrics.space(metrics.rung(4, 5))
+    readonly property int xxxl: metrics.space(32)
+    readonly property int huge: metrics.space(metrics.rung(4, 7))
+  }
+
   readonly property QtObject font: QtObject {
     // The family is the session's, at any size.
     readonly property string family: Style.font.family

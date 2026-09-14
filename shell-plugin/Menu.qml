@@ -19,6 +19,12 @@
 // the keyboard and the pointer while it is open, the way the Omarchy menu
 // does: Exclusive focus so the arrows reach it rather than the window under
 // the scrim, hover to select, a click to pick, a click outside to leave.
+//
+// Every size on it comes off `Metrics`' silver ladder - `metrics.type` and
+// `metrics.gap`, never `metrics.font` or `metrics.spacing` - and the three
+// things that do not are the ones that belong to something else: the card's
+// own width, two stroke weights, and the edge padding mirrored from the game
+// bar so the legend lands in the band the bar's row sits in.
 import QtQuick
 import QtQuick.Shapes
 import Quickshell
@@ -135,7 +141,7 @@ Item {
   }
 
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.space(18), metrics.font.bodySmall + metrics.space(7)))
+    Math.max(metrics.gap.xl, metrics.type.body + metrics.gap.md))
 
   // A typed badge label centred in its shape is centred by its *line box*,
   // and the line box is not centred on the capitals inside it - the letter
@@ -149,7 +155,7 @@ Item {
     text: "H"
     textFormat: Text.PlainText
     font.family: buttonArt.family
-    font.pixelSize: metrics.font.caption
+    font.pixelSize: metrics.type.fine
     font.weight: Font.Medium
   }
   TextMetrics {
@@ -165,12 +171,17 @@ Item {
   // tile sits against the edge of the screen, which on a television is the
   // part of it that is not there.
   readonly property int contentMargin: root.full
-    ? metrics.space(40) : metrics.spacing.panelPadding
-  readonly property int contentSpacing: metrics.spacing.md
-  readonly property int headerHeight: Math.max(metrics.space(34),
-    metrics.font.title + metrics.spacing.controlPaddingY * 2)
-  readonly property int chipHeight: Math.max(metrics.space(38),
-    metrics.font.body + metrics.spacing.controlPaddingY * 2)
+    ? metrics.gap.huge : metrics.gap.xl
+  // The gap between the bands of the card - the head, the title line, the bar
+  // of chips, the grid. Five rungs above `cellGap`, because that is the whole
+  // of what says the head is not the first row of the grid: the tiles are
+  // three pixels apart and these are sixteen, and a band reads as a band at
+  // that distance rather than as a row that has drifted.
+  readonly property int contentSpacing: metrics.gap.xl
+  readonly property int headerHeight: Math.max(metrics.gap.xxxl,
+    metrics.type.lead + metrics.gap.sm * 2)
+  readonly property int chipHeight: Math.max(metrics.gap.xxxl,
+    metrics.type.body + metrics.gap.lg * 2)
   // What the title line costs, which is nothing at the top level: the bar of
   // chips says where you are there, and a line above it saying so again is
   // the card telling you twice.
@@ -178,7 +189,7 @@ Item {
   readonly property int headerSpace: root.titled
     ? root.headerHeight + root.contentSpacing : 0
   readonly property int legendHeight: root.keys.length > 0
-    ? Math.max(root.badgeUnit, metrics.font.caption) + metrics.space(6) : 0
+    ? Math.max(root.badgeUnit, metrics.type.fine) + metrics.gap.sm : 0
   // What the legend takes off the bottom. On a card it is its own height and
   // the gap above it; on the whole screen it is the game bar's band, because
   // that is where the row it replaces was.
@@ -188,7 +199,7 @@ Item {
   // setting and the width is what `cols` leaves, so how a tile is shaped is
   // the two of them together: tall enough and a tile carries an icon over a
   // label, short enough and the label has the tile on its own.
-  readonly property int cellGap: metrics.spacing.xs
+  readonly property int cellGap: metrics.gap.xxs
   readonly property int cellHeight: metrics.space(root.cellUnit)
   readonly property var selectedBorderSpec: Border.surfaceSpec(
     "menu", "selected-border", Color.menu.selectedBorder, 0)
@@ -566,7 +577,7 @@ Item {
       visible: badge.drawn === null
       // Placed on whole pixels rather than centred by the anchors: a text
       // item on a half pixel is the one blur antialiasing cannot help.
-      width: badge.width - metrics.space(5)
+      width: badge.width - metrics.gap.sm
       height: Math.ceil(typed.implicitHeight)
       x: Math.round((badge.width - typed.contentWidth) / 2)
       y: Math.round((badge.height - typed.height) / 2) + root.capNudge
@@ -574,9 +585,10 @@ Item {
       textFormat: Text.PlainText
       color: root.stencil ? Color.menu.background : Color.bar.text
       font.family: buttonArt.family
-      font.pixelSize: metrics.font.caption
+      font.pixelSize: metrics.type.fine
       fontSizeMode: Text.HorizontalFit
-      minimumPixelSize: Math.max(6, metrics.font.caption - metrics.space(2))
+      minimumPixelSize: Math.max(6, Math.round(
+        metrics.rung(metrics.type.fine, -1)))
       font.weight: Font.Medium
     }
   }
@@ -746,18 +758,76 @@ Item {
               width: root.cellSpan(headCell.modelData.w)
               height: root.rowsHeight(headCell.modelData.h)
 
-              Text {
-                anchors.fill: parent
-                anchors.leftMargin: metrics.space(4)
-                anchors.rightMargin: metrics.space(4)
-                text: headCell.modelData.t
-                textFormat: Text.PlainText
-                color: Color.menu.text
-                opacity: 0.72
-                font.family: metrics.font.family
-                font.pixelSize: metrics.font.subtitle
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
+              // What a cell has room to be. A cell given a second row is a
+              // cell that was asked for a headline - the clock is the whole
+              // reason the head exists - and one row is a cell that was asked
+              // for a line of text. So the rung follows the height rather
+              // than a cell saying twice how big it wants to be, and a
+              // config that leaves the clock a row tall still reads.
+              readonly property bool tall: headCell.modelData.h > 1
+              readonly property string under:
+                headCell.modelData.u !== undefined ? headCell.modelData.u : ""
+
+              Column {
+                id: headText
+                // Flush left, unlike a tile: a tile's label is centred inside
+                // a ground that is already inset from its cell, and this
+                // prints on nothing at all - so the cell's own edge is what
+                // it lines up with, and the first cell's first letter lands
+                // on the same column as the first chip and the first tile.
+                // Only the far side is held off, far enough that a line
+                // elides before it reaches the cell beside it.
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.rightMargin: metrics.gap.sm
+                // Placed rather than anchored, because an anchor chosen by a
+                // ternary leaves both sides unset and the column lands
+                // nowhere. A headline sits at the top of its box so that its
+                // own line, and not the slack under the line beneath it,
+                // is what the one-row cells beside it line up with; a cell
+                // that is only a line of text is centred in its row.
+                y: headCell.tall
+                  ? 0 : Math.round((parent.height - headText.height) / 2)
+                spacing: metrics.gap.xxs
+
+                Text {
+                  width: parent.width
+                  text: headCell.modelData.t
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  // Full weight where the rest of the surface runs at 0.72:
+                  // a headline dimmed to the strength of a label is a
+                  // headline that has to be looked for.
+                  opacity: headCell.tall ? 0.92 : 0.72
+                  font.family: metrics.font.family
+                  font.pixelSize: headCell.tall
+                    ? metrics.type.vast : metrics.type.lead
+                  // Time set at this size is read as a shape rather than
+                  // spelled out, and the shape has to hold still: with
+                  // proportional figures the whole line re-centres every
+                  // minute as a 1 replaces an 8.
+                  font.features: ({ "tnum": 1 })
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  visible: headCell.under.length > 0
+                  width: parent.width
+                  text: headCell.under
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  opacity: 0.52
+                  font.family: metrics.font.family
+                  font.pixelSize: metrics.type.body
+                  // The one place this surface sets capitals, and a
+                  // typographic decision rather than a worded one: the
+                  // config says `%A` and every locale's own weekday comes
+                  // back. Tracked out, because caps set at a text size
+                  // without it read as a word with its letters touching.
+                  font.capitalization: Font.AllUppercase
+                  font.letterSpacing: metrics.rung(metrics.type.body, -6)
+                  elide: Text.ElideRight
+                }
               }
             }
           }
@@ -780,7 +850,7 @@ Item {
           Text {
             anchors.left: parent.left
             anchors.right: clockLabel.left
-            anchors.rightMargin: metrics.space(8)
+            anchors.rightMargin: metrics.gap.md
             anchors.verticalCenter: parent.verticalCenter
             // The trailing ellipsis is the Omarchy menu's own idiom for "this
             // is where you are, pick something".
@@ -789,7 +859,7 @@ Item {
             color: Color.menu.text
             opacity: 0.58
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.heading
+            font.pixelSize: metrics.type.lead
             elide: Text.ElideRight
           }
 
@@ -803,7 +873,7 @@ Item {
             color: Color.menu.text
             opacity: 0.42
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.bodySmall
+            font.pixelSize: metrics.type.body
           }
         }
 
@@ -830,7 +900,7 @@ Item {
           Row {
             id: chips
             height: bar.height
-            spacing: metrics.spacing.xs
+            spacing: metrics.gap.xxs
 
             Repeater {
               model: root.groups
@@ -842,7 +912,7 @@ Item {
 
                 readonly property bool here: chip.index === root.group
 
-                width: chipLabel.implicitWidth + metrics.space(22)
+                width: chipLabel.implicitWidth + metrics.gap.xxl
                 height: root.chipHeight
                 radius: Style.cornerRadius
                 // Transparent is right on a card and wrong on a screen: the
@@ -865,7 +935,7 @@ Item {
                     ? Color.menu.selectedText : Color.menu.text
                   opacity: chip.here ? 1 : 0.62
                   font.family: metrics.font.family
-                  font.pixelSize: metrics.font.body
+                  font.pixelSize: metrics.type.body
                   font.weight: chip.here ? Font.Medium : Font.Normal
                 }
 
@@ -928,8 +998,8 @@ Item {
               // the page looking broken rather than dense. The label is what
               // survives: it is the half that says which tile this is.
               readonly property bool roomForIcon:
-                tile.height - metrics.space(8) >= iconText.implicitHeight
-                  + labelText.implicitHeight + metrics.space(2)
+                tile.height - metrics.gap.md >= iconText.implicitHeight
+                  + labelText.implicitHeight + metrics.gap.xxs
 
               x: root.cellX(tile.modelData.x)
               y: root.cellY(tile.modelData.y)
@@ -1032,8 +1102,8 @@ Item {
               // same thing twice in the room it has for one.
               Column {
                 anchors.centerIn: parent
-                width: parent.width - metrics.space(12)
-                spacing: metrics.space(2)
+                width: parent.width - metrics.gap.lg
+                spacing: metrics.gap.xxs
 
                 Text {
                   id: iconText
@@ -1045,7 +1115,7 @@ Item {
                   color: tile.selected
                     ? Color.menu.selectedText : Color.menu.text
                   font.family: metrics.font.family
-                  font.pixelSize: metrics.font.iconLarge
+                  font.pixelSize: metrics.type.lead
                 }
 
                 Text {
@@ -1059,7 +1129,7 @@ Item {
                   color: tile.selected
                     ? Color.menu.selectedText : Color.menu.text
                   font.family: metrics.font.family
-                  font.pixelSize: metrics.font.bodySmall
+                  font.pixelSize: metrics.type.body
                   font.weight: Font.Medium
                   elide: Text.ElideRight
                   maximumLineCount: 2
@@ -1076,7 +1146,7 @@ Item {
                   color: Color.menu.text
                   opacity: 0.52
                   font.family: metrics.font.family
-                  font.pixelSize: metrics.font.caption
+                  font.pixelSize: metrics.type.fine
                   elide: Text.ElideRight
                 }
 
@@ -1087,7 +1157,7 @@ Item {
                 Item {
                   id: switchArt
                   visible: tile.modelData.k === "toggle"
-                  readonly property int unit: metrics.space(18)
+                  readonly property int unit: metrics.gap.xl
                   width: Math.round(switchArt.unit * 64 / 40)
                   height: switchArt.unit
                   anchors.horizontalCenter: parent.horizontalCenter
@@ -1117,11 +1187,11 @@ Item {
                 // buttons on the same card.
                 Row {
                   visible: tile.modelData.k === "choice"
-                  spacing: metrics.space(5)
+                  spacing: metrics.gap.sm
                   anchors.horizontalCenter: parent.horizontalCenter
 
                   BadgeArt {
-                    width: metrics.space(9)
+                    width: metrics.gap.md
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     drawn: controlArt.find("chev", "left")
@@ -1135,12 +1205,12 @@ Item {
                     textFormat: Text.PlainText
                     color: Color.accent
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.caption
+                    font.pixelSize: metrics.type.fine
                     font.weight: Font.Medium
                   }
 
                   BadgeArt {
-                    width: metrics.space(9)
+                    width: metrics.gap.md
                     height: width
                     anchors.verticalCenter: parent.verticalCenter
                     drawn: controlArt.find("chev", "right")
@@ -1161,12 +1231,12 @@ Item {
                   id: dial
                   visible: tile.gauge
                   width: parent.width
-                  spacing: metrics.space(2)
+                  spacing: metrics.gap.xxs
 
                   Item {
                     id: face
                     width: Math.min(parent.width, tile.height
-                                    - metrics.space(30))
+                                    - metrics.gap.xxxl)
                     height: face.width
                     anchors.horizontalCenter: parent.horizontalCenter
                     // How far the dot may travel from the middle: the face's
@@ -1247,7 +1317,7 @@ Item {
                     color: tile.selected
                       ? Color.menu.selectedText : Color.menu.text
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.caption
+                    font.pixelSize: metrics.type.fine
                     elide: Text.ElideRight
                   }
                 }
@@ -1260,10 +1330,10 @@ Item {
                   id: playing
                   visible: tile.media
                   width: parent.width
-                  spacing: metrics.space(2)
+                  spacing: metrics.gap.xxs
 
                   BadgeArt {
-                    width: metrics.space(16)
+                    width: metrics.gap.xl
                     height: width
                     anchors.horizontalCenter: parent.horizontalCenter
                     drawn: controlArt.find(
@@ -1280,7 +1350,7 @@ Item {
                     color: tile.selected
                       ? Color.menu.selectedText : Color.menu.text
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.bodySmall
+                    font.pixelSize: metrics.type.body
                     font.weight: Font.Medium
                     elide: Text.ElideRight
                   }
@@ -1295,7 +1365,7 @@ Item {
                     color: Color.menu.text
                     opacity: 0.52
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.caption
+                    font.pixelSize: metrics.type.fine
                     elide: Text.ElideRight
                   }
                 }
@@ -1314,7 +1384,7 @@ Item {
                   id: slider
                   visible: tile.slider
                   width: parent.width
-                  spacing: metrics.space(3)
+                  spacing: metrics.gap.xxs
 
                   Item {
                     width: parent.width
@@ -1324,13 +1394,13 @@ Item {
                       id: sliderName
                       anchors.left: parent.left
                       anchors.right: sliderValue.left
-                      anchors.rightMargin: metrics.space(4)
+                      anchors.rightMargin: metrics.gap.xs
                       text: tile.modelData.l
                       textFormat: Text.PlainText
                       color: tile.selected
                         ? Color.menu.selectedText : Color.menu.text
                       font.family: metrics.font.family
-                      font.pixelSize: metrics.font.bodySmall
+                      font.pixelSize: metrics.type.body
                       font.weight: Font.Medium
                       elide: Text.ElideRight
                     }
@@ -1344,7 +1414,7 @@ Item {
                       textFormat: Text.PlainText
                       color: Color.accent
                       font.family: metrics.font.family
-                      font.pixelSize: metrics.font.caption
+                      font.pixelSize: metrics.type.fine
                       font.weight: Font.Medium
                     }
                   }
@@ -1352,7 +1422,7 @@ Item {
                   Rectangle {
                     id: sliderTrack
                     width: parent.width
-                    height: Math.max(2, metrics.space(4))
+                    height: Math.max(2, metrics.gap.xs)
                     radius: height / 2
                     color: Util.alpha(Color.menu.text, 0.18)
 
@@ -1382,7 +1452,7 @@ Item {
                   id: reading
                   visible: tile.readout
                   width: parent.width
-                  spacing: metrics.space(3)
+                  spacing: metrics.gap.xxs
 
                   Item {
                     width: parent.width
@@ -1392,13 +1462,13 @@ Item {
                       id: readingName
                       anchors.left: parent.left
                       anchors.right: readingValue.left
-                      anchors.rightMargin: metrics.space(4)
+                      anchors.rightMargin: metrics.gap.xs
                       text: tile.modelData.l
                       textFormat: Text.PlainText
                       color: tile.selected
                         ? Color.menu.selectedText : Color.menu.text
                       font.family: metrics.font.family
-                      font.pixelSize: metrics.font.bodySmall
+                      font.pixelSize: metrics.type.body
                       font.weight: Font.Medium
                       elide: Text.ElideRight
                     }
@@ -1416,7 +1486,7 @@ Item {
                       textFormat: Text.PlainText
                       color: Color.accent
                       font.family: metrics.font.family
-                      font.pixelSize: metrics.font.caption
+                      font.pixelSize: metrics.type.fine
                       font.weight: Font.Medium
                     }
                   }
@@ -1429,7 +1499,7 @@ Item {
                   Rectangle {
                     visible: tile.modelData.v !== undefined
                     width: parent.width
-                    height: Math.max(2, metrics.space(4))
+                    height: Math.max(2, metrics.gap.xs)
                     radius: height / 2
                     color: Util.alpha(Color.menu.text, 0.18)
 
@@ -1455,12 +1525,12 @@ Item {
               // means anything while a page is being rearranged.
               BadgeArt {
                 visible: tile.carried
-                width: metrics.space(10)
+                width: metrics.gap.lg
                 height: width
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.rightMargin: metrics.space(5)
-                anchors.topMargin: metrics.space(5)
+                anchors.rightMargin: metrics.gap.sm
+                anchors.topMargin: metrics.gap.sm
                 drawn: controlArt.find("tile", "grip")
                 fill: Color.menu.selectedText
               }
@@ -1476,11 +1546,11 @@ Item {
                 opacity: tile.modelData.sub
                   ? 0.36 : (tile.ticked && !tile.holds ? 0.95 : 0)
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.body
+                font.pixelSize: metrics.type.body
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.rightMargin: metrics.space(6)
-                anchors.topMargin: metrics.space(4)
+                anchors.rightMargin: metrics.gap.sm
+                anchors.topMargin: metrics.gap.xs
               }
 
               // Hover names the tile under the cursor, a click picks it - the
@@ -1546,7 +1616,7 @@ Item {
           x: root.full
             ? parent.width - legendRow.width - root.barSideMargin
             : Math.round((parent.width - legendRow.width) / 2)
-          spacing: metrics.space(16)
+          spacing: metrics.gap.xl
 
           Repeater {
             model: root.keys
@@ -1554,7 +1624,7 @@ Item {
             delegate: Row {
               id: hint
               required property var modelData
-              spacing: metrics.space(5)
+              spacing: metrics.gap.sm
 
               LegendBadge {
                 label: hint.modelData.b
@@ -1572,7 +1642,7 @@ Item {
                 color: Color.bar.text
                 opacity: 0.85
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.caption
+                font.pixelSize: metrics.type.fine
               }
             }
           }

@@ -2300,8 +2300,9 @@ renders itself or the last thing a command said.
 
 ```toml
 [[menu.head]]
-span = [2, 1]
-format = "%A %H:%M"           # strftime
+span = [2, 2]
+format = "%H:%M"              # strftime
+under = "%A"                  # a second line, small and in capitals
 
 [[menu.head]]
 span = [4, 1]
@@ -2309,6 +2310,17 @@ from = "omarchy-weather-status"
 ttl = 900                     # seconds before it is asked again
 empty = "Weather unavailable" # before the first answer, and after a failure
 ```
+
+`under` is a second format set beneath the first, and it is one cell rather
+than two because the head packs first fit — two cells could land side by side
+as easily as stacked, and the time over the day is one thing read at two sizes
+anyway. It goes with a `format`; under a `from` it would be a second command.
+
+**A cell two rows tall prints a headline.** The clock is `[2, 2]` because the
+time is the one thing on this surface meant to be read from the far side of the
+room, and one row is not enough height to set it that big. At `[2, 1]` the same
+cell prints a line of text, so shortening it is a way of turning the clock
+down rather than a way of breaking it.
 
 `ttl` is how fresh the answer has to be, which is not how often the menu
 repaints — the card redraws every couple of seconds whatever this says, and the

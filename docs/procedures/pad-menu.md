@@ -310,8 +310,9 @@ a command said, and that is all it does.
 
 ```toml
 [[menu.head]]
-span = [2, 1]
-format = "%A %H:%M"           # strftime
+span = [2, 2]
+format = "%H:%M"              # strftime
+under = "%A"                  # a second line under it, small and in capitals
 
 [[menu.head]]
 span = [4, 1]
@@ -323,6 +324,17 @@ empty = "Weather unavailable" # before the first answer, and after a failure
 A cell prints **either** a `format` or a `from`, never both and never neither.
 `ttl` is data freshness, not redraw: the card repaints every couple of seconds
 whatever this says.
+
+`under` is a second `format`, and only a `format` takes one - a second line
+under a command's answer would be a second command. One cell rather than two,
+because the head packs first fit like everything else here: two cells could
+land side by side as easily as stacked.
+
+**A cell two rows tall prints a headline**, the biggest thing the surface
+draws, with `under` small and in capitals beneath it; a cell one row tall
+prints a line of text. The height is the whole of that decision, so the way to
+turn the clock down is to give it fewer rows, and a `from` cell stays one row
+tall unless you want its answer set like a headline.
 
 **A `from` cell owns nothing.** The command is a string from the config, and
 whatever it names owns the network, the location, the caching and what to say

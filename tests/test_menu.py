@@ -3,6 +3,7 @@
 import os
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1560,6 +1561,28 @@ class HeadTests(unittest.TestCase):
         model = MenuModel([], head=head)
         cells, _ = model.head_state()
         self.assertEqual(cells[0]["t"], "Weather unavailable")
+
+    def test_a_cell_can_carry_a_second_line_under_the_first(self):
+        head = build_head([{"format": "%H:%M", "under": "%A",
+                            "span": [2, 2]}])
+        model = MenuModel([], head=head)
+        cells, rows = model.head_state()
+        self.assertRegex(cells[0]["t"], r"^\d{2}:\d{2}$")
+        self.assertEqual(cells[0]["u"], time.strftime("%A"))
+        self.assertEqual(rows, 2)
+
+    def test_a_cell_with_one_line_carries_no_second_one(self):
+        # Left off the wire rather than sent empty: `u !== undefined` is the
+        # whole of the panel's test for whether a cell stacks.
+        head = build_head([{"format": "%H:%M"}])
+        cells, _ = MenuModel([], head=head).head_state()
+        self.assertNotIn("u", cells[0])
+
+    def test_a_second_line_under_a_command_is_refused(self):
+        # It would be a second command, with its own ttl and its own failure
+        # to word - so it is said here rather than half-supported.
+        with self.assertRaises(MenuError):
+            build_head([{"from": "weather", "under": "%A"}])
 
     def test_a_cell_prints_one_thing_or_the_other(self):
         with self.assertRaises(MenuError):

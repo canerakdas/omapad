@@ -228,6 +228,23 @@ the scale the daemon stamps on the payload. `Style.cornerRadius` and
 `Style.gapsOut` are NOT scaled — they are the compositor's geometry, shared
 with every window on screen.
 
+**8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` and
+`metrics.gap` are omapad's — five type sizes and nine gaps, each a √2 rung
+above the last, hung off the shell's smallest values — and `metrics.font` and
+`metrics.spacing` are the shell's own. NEVER mix the two in one file: the
+whole point of the ladder is that a surface read from a sofa has few sizes and
+they are far apart, and one call site left on the shell's scale puts a 13 next
+to a 20 where the difference reads as a mistake. `Menu.qml` is across and says
+so in its header; the rest are not. A number that belongs to something else —
+a stroke weight, a card's own width, a measurement mirrored from another
+surface — stays off the ladder and says in a comment which.
+
+**8.2.2** Off-rung sizes come from `metrics.rung(base, n)`, never from
+arithmetic on a rung. `metrics.type.fine - metrics.gap.xxs` happens to be the
+right number and says nothing; `metrics.rung(metrics.type.fine, -1)` says it
+is a step down the same ladder. `metrics.silver` (1 + √2) is the proportion
+for one line set over another.
+
 **8.3** Controller glyphs come from `ButtonArt.qml`, and the parts a menu
 control tile is drawn from come from `ControlArt.qml`. Both are painted by
 `BadgeArt.qml`. NEVER draw a button shape by hand, and never inline an SVG from

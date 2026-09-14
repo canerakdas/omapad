@@ -609,6 +609,12 @@ def build_head(entries, where="menu.head", columns=COLUMNS):
     the same clock as the heartbeat: the surface is redrawn every couple of
     seconds, and the weather is asked for every fifteen minutes.
 
+    A `format` cell may carry `under`, a second format set small beneath the
+    first: the time over the day is one thing read at two sizes, and two cells
+    could not say that - the head is packed first fit, so nothing here can
+    promise that the cell holding the day lands under the cell holding the
+    time rather than beside it.
+
     Nothing here runs anything, and nothing here knows what weather is. The
     command is a string from the config; somebody else owns the network, the
     location and what to say when it cannot be reached.
@@ -621,20 +627,34 @@ def build_head(entries, where="menu.head", columns=COLUMNS):
             raise MenuError("%s must be a table" % path)
         fmt = str(entry.get("format", "")).strip()
         source = str(entry.get("from", "")).strip()
+        under = str(entry.get("under", "")).strip()
         if bool(fmt) == bool(source):
             raise MenuError(
                 "%s prints either a 'format' or a 'from', not both or neither"
                 % path
             )
-        if fmt:
+        # A second line under a command's answer would be a second command,
+        # with its own `ttl` and its own failure to word - so it is refused
+        # here rather than half-supported.
+        if under and not fmt:
+            raise MenuError(
+                "%s: 'under' is a second line under a 'format', not a 'from'"
+                % path
+            )
+        for spec in (fmt, under):
+            if not spec:
+                continue
             try:
-                time.strftime(fmt)
+                time.strftime(spec)
             except ValueError as exc:
                 raise MenuError("%s: %s" % (path, exc)) from exc
         item = {
             "control": "",
             "id": str(entry.get("id", "")).strip() or slug(fmt or source),
             "format": fmt,
+            # The line under it, in strftime as well. Empty is a cell of one
+            # line, which is nearly all of them.
+            "under": under,
             "from": source,
             # How long an answer stays fresh, in seconds. Zero asks once.
             "ttl": _ttl(entry.get("ttl"), path),
@@ -1489,19 +1509,38 @@ class MenuModel:
         out = []
         for tile in tiles:
             item = tile["item"]
+            under = ""
             if item["format"]:
-                try:
-                    text = time.strftime(item["format"])
-                except ValueError:
-                    text = ""
+                text = self._strftime(item["format"])
+                under = self._strftime(item["under"])
             else:
                 text = (texts or {}).get(item["id"]) or item["empty"]
-            out.append({
+            cell = {
                 "t": drawable(text),
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
-            })
+            }
+            # Left out where there is none, so a one-line cell costs the wire
+            # nothing and the panel's `u !== undefined` is the whole test.
+            if under:
+                cell["u"] = drawable(under)
+            out.append(cell)
         return out, rows
+
+    @staticmethod
+    def _strftime(spec):
+        """A format rendered, or nothing if the platform refuses it.
+
+        `build_head` already rendered every format once, so reaching the
+        except here means a directive that works in January and not in June -
+        and a head cell is redrawn twice a second, which is no place to raise.
+        """
+        if not spec:
+            return ""
+        try:
+            return time.strftime(spec)
+        except ValueError:
+            return ""
 
     def live_state(self, opened, live):
         """The short push: where a thumb is, and nothing else.

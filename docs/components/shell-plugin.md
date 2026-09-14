@@ -78,6 +78,24 @@ rather than a button.
   they are the compositor's own geometry, and a surface rounded harder than
   the windows beside it just looks wrong.
 
+  **`metrics.type` and `metrics.gap` are the silver ladder**, and a surface
+  uses them or it uses `metrics.font` and `metrics.spacing` - never a mixture,
+  because half a surface on one scale and half on another is what the ladder
+  is here to end. The shell's own sizes are a list of near neighbours (10, 11,
+  12, 13, 14, 16), which is six sizes at a keyboard and one size from a sofa:
+  a pixel of difference is not a difference across a room. So the ladder is
+  fewer sizes further apart, and the rung is √2 - the silver ratio's step,
+  which doubles in exactly two of them and so keeps landing on familiar whole
+  numbers. `type` is five named sizes hung off `Style.font.caption` (10, 14,
+  20, 28, 40) and `gap` is nine off `Style.spacing.sm` (3, 4, 6, 8, 11, 16,
+  23, 32, 45), both through the surface's own scale like everything else here.
+  Anchored at the small end because the smallest thing a surface prints is the
+  one that must not shrink. `metrics.rung(base, n)` is the ladder itself,
+  for the places that need a step rather than a rung - a shrink-to-fit floor,
+  the tracking under a line of capitals - and `metrics.silver` is 1 + √2, the
+  proportion to split one line over another by. `Menu.qml` is across; the
+  other surfaces are not yet.
+
   `metrics.badge(px)` is the other exception: a badge box has to be whole
   pixels on **both** sides, because BadgeArt scales the drawing by one factor
   taken from the width. Every shape is 32 units tall but a system button is 40
