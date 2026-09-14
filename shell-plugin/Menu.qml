@@ -21,10 +21,13 @@
 // the scrim, hover to select, a click to pick, a click outside to leave.
 //
 // Every size on it comes off `Metrics`' silver ladder - `metrics.type` and
-// `metrics.gap`, never `metrics.font` or `metrics.spacing` - and the three
-// things that do not are the ones that belong to something else: the card's
-// own width, two stroke weights, and the edge padding mirrored from the game
-// bar so the legend lands in the band the bar's row sits in.
+// `metrics.gap`, never `metrics.font` or `metrics.spacing` - except where a
+// measurement belongs to something else. Those are the card's own width, two
+// stroke weights, and **the whole of the legend along the foot**: badge,
+// letter, word and both spacings are GameBar.qml's expressions mirrored
+// character for character, because on a fullscreen HUD that row sits in the
+// bar's band saying the same four words about the same four buttons. A badge
+// that grew when the menu opened would read as a different row.
 import QtQuick
 import QtQuick.Shapes
 import Quickshell
@@ -140,8 +143,15 @@ Item {
     id: tileArt
   }
 
+  // The badge the legend is drawn at, and the one thing on this surface that
+  // is **not** off the ladder. It is GameBar.qml's own expression, character
+  // for character: on a fullscreen HUD this row sits in the bar's band saying
+  // the same four words about the same four buttons, so a badge that grew
+  // when the menu opened would read as a different row. Mirrored rather than
+  // shared, the same as `barh` and `barSideMargin` above - if it changes
+  // there it changes here.
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.gap.xl, metrics.type.body + metrics.gap.md))
+    Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
 
   // A typed badge label centred in its shape is centred by its *line box*,
   // and the line box is not centred on the capitals inside it - the letter
@@ -155,7 +165,7 @@ Item {
     text: "H"
     textFormat: Text.PlainText
     font.family: buttonArt.family
-    font.pixelSize: metrics.type.fine
+    font.pixelSize: Math.round(root.badgeUnit * 0.44)
     font.weight: Font.Medium
   }
   TextMetrics {
@@ -189,7 +199,7 @@ Item {
   readonly property int headerSpace: root.titled
     ? root.headerHeight + root.contentSpacing : 0
   readonly property int legendHeight: root.keys.length > 0
-    ? Math.max(root.badgeUnit, metrics.type.fine) + metrics.gap.sm : 0
+    ? Math.max(root.badgeUnit, metrics.font.bodySmall) + metrics.space(6) : 0
   // What the legend takes off the bottom. On a card it is its own height and
   // the gap above it; on the whole screen it is the game bar's band, because
   // that is where the row it replaces was.
@@ -577,7 +587,7 @@ Item {
       visible: badge.drawn === null
       // Placed on whole pixels rather than centred by the anchors: a text
       // item on a half pixel is the one blur antialiasing cannot help.
-      width: badge.width - metrics.gap.sm
+      width: badge.width - Math.round(badge.unit * 0.24)
       height: Math.ceil(typed.implicitHeight)
       x: Math.round((badge.width - typed.contentWidth) / 2)
       y: Math.round((badge.height - typed.height) / 2) + root.capNudge
@@ -585,10 +595,14 @@ Item {
       textFormat: Text.PlainText
       color: root.stencil ? Color.menu.background : Color.bar.text
       font.family: buttonArt.family
-      font.pixelSize: metrics.type.fine
+      // Off the badge rather than off the ladder, the bar's own numbers: a
+      // three character label has to fit the shape one letter does, and it
+      // does that by being squeezed to the width at one shared size rather
+      // than by stepping down one - which made a row of badges read as two
+      // type sizes.
+      font.pixelSize: Math.round(badge.unit * 0.44)
       fontSizeMode: Text.HorizontalFit
-      minimumPixelSize: Math.max(6, Math.round(
-        metrics.step(metrics.type.fine, -1)))
+      minimumPixelSize: Math.max(6, Math.round(badge.unit * 0.26))
       font.weight: Font.Medium
     }
   }
@@ -1621,7 +1635,8 @@ Item {
           x: root.full
             ? parent.width - legendRow.width - root.barSideMargin
             : Math.round((parent.width - legendRow.width) / 2)
-          spacing: metrics.gap.xl
+          // The bar's spacings, like everything else in this row.
+          spacing: metrics.space(16)
 
           Repeater {
             model: root.keys
@@ -1629,7 +1644,7 @@ Item {
             delegate: Row {
               id: hint
               required property var modelData
-              spacing: metrics.gap.sm
+              spacing: metrics.space(7)
 
               LegendBadge {
                 label: hint.modelData.b
@@ -1647,7 +1662,7 @@ Item {
                 color: Color.bar.text
                 opacity: 0.85
                 font.family: metrics.font.family
-                font.pixelSize: metrics.type.fine
+                font.pixelSize: metrics.font.bodySmall
               }
             }
           }

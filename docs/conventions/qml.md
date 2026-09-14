@@ -235,10 +235,16 @@ and `metrics.spacing` are the shell's own. NEVER mix the two in one file: the
 whole point of the ladder is that a surface read from a sofa has few sizes and
 they are far apart, and one call site left on the shell's scale puts a 13 next
 to a 16 where the difference reads as a mistake. `Menu.qml` is across and says
-so in its header; the rest are not. A number that belongs to something else —
-a stroke weight, a card's own width, a letterform's own tracking, a
-measurement mirrored from another surface — stays off the ladder and says in a
-comment which.
+so in its header; the rest are not.
+
+A number that belongs to something else stays off the ladder and says in a
+comment which: a stroke weight, a card's own width, a letterform's own
+tracking, and above all **anything mirrored from another surface**. The menu's
+legend is the whole of that last case — badge, letter, word and both spacings
+are `GameBar.qml`'s expressions character for character, because on a
+fullscreen HUD that row sits in the bar's band saying the same four words
+about the same four buttons. Putting a mirrored measurement on the ladder is
+how the two quietly stop matching.
 
 **8.2.2** The two ladders climb at different rates and that is deliberate:
 space by √2, type by the fourth root of the silver ratio. Do not "correct" one

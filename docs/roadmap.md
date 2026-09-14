@@ -2933,9 +2933,23 @@ same ladder instead of being arithmetic that happens to come out right.
 
 **A surface is on one ladder or the other, never both.** `Menu.qml` is across
 and says so in its header; the guide, the keyboard, the mapping screen and the
-game bar are not yet. Three numbers on the menu stayed off it and say why: the
-card's own width, two stroke weights, and the edge padding mirrored from the
-game bar so the legend lands in the band the bar's row sits in.
+game bar are not yet.
+
+**And what is mirrored from another surface is not on either ladder** - which
+the sofa found before the argument did: *menünün sağ altındaki butonların
+boyutu da büyümüş, desktop modu ile aynı olmalı.* The legend along the foot of
+a fullscreen HUD sits in the game bar's own band, saying the same four words
+about the same four buttons, and its badge had gone from 25 to 30 while the
+bar's stayed at 25 - so opening the menu resized a row that must not move.
+The whole row is `GameBar.qml`'s expressions character for character now:
+badge, typed letter, hint word and both spacings. The badge's letter in
+particular is sized off the *badge* (0.44 of it) rather than off any type
+scale, which is a rule the bar already carries for its own reason - a three
+character label has to fit the shape one letter does by being squeezed at one
+shared size, not by stepping down one.
+
+Two other numbers stayed off as well: the card's own width, and two stroke
+weights.
 
 **And the clock became the thing the head is for.** It was `format = "%A %H:%M"`
 in a cell one row tall - the day and the time on one line at 13px, in the
