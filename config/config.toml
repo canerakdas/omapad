@@ -2067,7 +2067,7 @@ list_limit = 24               # and how many of its lines reach the page
 # every quarter of an hour, and a name is asked for once.
 #
 # A cell given more than one row prints its first line as a headline; a cell
-# one row tall prints a line of text. Which is why the clock is four rows tall:
+# one row tall prints a line of text. Which is why the clock is three rows tall:
 # the time is the one thing on this surface meant to be read from the far side
 # of the room, so it is set at the top of the scale, and a name over it and a
 # weekday under it need the rest of the height. A cell with fewer rows than its
@@ -2095,7 +2095,7 @@ list_limit = 24               # and how many of its lines reach the page
 # ---------------------------------------------------------------------------
 
 [[menu.head]]
-span = [2, 4]
+span = [2, 3]
 over = { from = "id -un", ttl = 0 }
 format = "%H:%M"
 under = "%A"

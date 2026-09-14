@@ -310,7 +310,7 @@ a command said, and that is all it does.
 
 ```toml
 [[menu.head]]
-span = [2, 4]
+span = [2, 3]
 over = { from = "id -un", ttl = 0 }   # a line above, small and in capitals
 format = "%H:%M"                      # the headline - strftime
 under = "%A"                          # and a line below it

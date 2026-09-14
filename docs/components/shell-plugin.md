@@ -95,13 +95,16 @@ rather than a button.
   (≈1.2465) instead, because there 10 against 12 is a real difference and a
   surface needs both - a detail line has to be smaller than the label over it
   and still legible, and one √2 rung puts those five pixels apart. Its five
-  named sizes are rungs 0, 1, 2, 4 and 8 off `Style.font.caption`: 10, 12, 16,
-  24, 58. The first three are where the shell's caption, body and heading
-  already were, because those three were the ones that were right. Four rungs
-  is the silver ratio itself, so the top of the ladder is the ratio twice over:
-  `loud` is `fine` at 1 + √2 and `vast` is `loud` at it again, which makes the
-  distance from the smallest thing a surface prints to the largest two silver
-  ratios and nothing else.
+  named sizes are rungs 0, 1, 2, 4 and 7 off `Style.font.caption`: 10, 12, 16,
+  24, 47. The first three are where the shell's caption, body and heading
+  already were, because those three were the ones that were right, and `loud`
+  at rung 4 is `fine` at the silver ratio exactly.
+
+  **The ladder decides the steps and the screen decides which one to stop on.**
+  `vast` is not a whole ratio above anything: it is three rungs over `loud`
+  because four was too much from a sofa and two was not enough, and both of
+  those were found by looking. A scale is what stops the sizes drifting between
+  the rungs; it was never going to say which rung a clock wants.
 
   `metrics.rung(base, n)` walks the space ladder and `metrics.step(base, n)`
   the type one, for the places that need a size between the named ones - a
