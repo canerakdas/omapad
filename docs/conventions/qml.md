@@ -228,22 +228,30 @@ the scale the daemon stamps on the payload. `Style.cornerRadius` and
 `Style.gapsOut` are NOT scaled — they are the compositor's geometry, shared
 with every window on screen.
 
-**8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` and
-`metrics.gap` are omapad's — five type sizes and nine gaps, each a √2 rung
-above the last, hung off the shell's smallest values — and `metrics.font` and
-`metrics.spacing` are the shell's own. NEVER mix the two in one file: the
+**8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` (five
+sizes: 10, 12, 16, 24, 38) and `metrics.gap` (nine: 3, 4, 6, 8, 11, 16, 23,
+32, 45) are omapad's, both hung off the shell's smallest values; `metrics.font`
+and `metrics.spacing` are the shell's own. NEVER mix the two in one file: the
 whole point of the ladder is that a surface read from a sofa has few sizes and
 they are far apart, and one call site left on the shell's scale puts a 13 next
-to a 20 where the difference reads as a mistake. `Menu.qml` is across and says
+to a 16 where the difference reads as a mistake. `Menu.qml` is across and says
 so in its header; the rest are not. A number that belongs to something else —
-a stroke weight, a card's own width, a measurement mirrored from another
-surface — stays off the ladder and says in a comment which.
+a stroke weight, a card's own width, a letterform's own tracking, a
+measurement mirrored from another surface — stays off the ladder and says in a
+comment which.
 
-**8.2.2** Off-rung sizes come from `metrics.rung(base, n)`, never from
-arithmetic on a rung. `metrics.type.fine - metrics.gap.xxs` happens to be the
-right number and says nothing; `metrics.rung(metrics.type.fine, -1)` says it
-is a step down the same ladder. `metrics.silver` (1 + √2) is the proportion
-for one line set over another.
+**8.2.2** The two ladders climb at different rates and that is deliberate:
+space by √2, type by the fourth root of the silver ratio. Do not "correct" one
+to the other. A gap either separates two things or it does not, so it wants
+few rungs far apart; type at that rung has no room for both a label and the
+line under it.
+
+**8.2.3** Sizes between the named ones come from `metrics.rung(base, n)` for
+space and `metrics.step(base, n)` for type, never from arithmetic on a rung.
+`metrics.type.fine - metrics.gap.xxs` happens to be the right number and says
+nothing; `metrics.step(metrics.type.fine, -1)` says it is a step down the same
+ladder. `metrics.silver` (1 + √2) is the proportion for one line set over
+another.
 
 **8.3** Controller glyphs come from `ButtonArt.qml`, and the parts a menu
 control tile is drawn from come from `ControlArt.qml`. Both are painted by

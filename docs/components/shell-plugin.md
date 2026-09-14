@@ -82,19 +82,29 @@ rather than a button.
   uses them or it uses `metrics.font` and `metrics.spacing` - never a mixture,
   because half a surface on one scale and half on another is what the ladder
   is here to end. The shell's own sizes are a list of near neighbours (10, 11,
-  12, 13, 14, 16), which is six sizes at a keyboard and one size from a sofa:
-  a pixel of difference is not a difference across a room. So the ladder is
-  fewer sizes further apart, and the rung is √2 - the silver ratio's step,
-  which doubles in exactly two of them and so keeps landing on familiar whole
-  numbers. `type` is five named sizes hung off `Style.font.caption` (10, 14,
-  20, 28, 40) and `gap` is nine off `Style.spacing.sm` (3, 4, 6, 8, 11, 16,
-  23, 32, 45), both through the surface's own scale like everything else here.
-  Anchored at the small end because the smallest thing a surface prints is the
-  one that must not shrink. `metrics.rung(base, n)` is the ladder itself,
-  for the places that need a step rather than a rung - a shrink-to-fit floor,
-  the tracking under a line of capitals - and `metrics.silver` is 1 + √2, the
-  proportion to split one line over another by. `Menu.qml` is across; the
-  other surfaces are not yet.
+  12, 13, 14, 16) and five of the six landed on one card here: five sizes at a
+  keyboard and one size from a sofa, because a pixel of difference is not a
+  difference across a room.
+
+  **The ratio answers the question twice**, because a gap and a letter are not
+  asked the same one. `gap` is nine gaps off `Style.spacing.sm` climbing by √2
+  - the ratio less one - which is 3, 4, 6, 8, 11, 16, 23, 32, 45: a gap either
+  separates two things or it does not, nobody reads the difference between 14
+  and 16 pixels of air, and √2 doubles in two rungs so the ladder keeps
+  landing on 4, 8, 16, 32. `type` climbs by the **fourth root** of the ratio
+  (≈1.2465) instead, because there 10 against 12 is a real difference and a
+  surface needs both - a detail line has to be smaller than the label over it
+  and still legible, and one √2 rung puts those five pixels apart. Its five
+  named sizes are rungs 0, 1, 2, 4 and 6 off `Style.font.caption`: 10, 12, 16,
+  24, 38, which is where the shell's caption, body and heading already were,
+  because those three were the ones that were right. Four rungs is the silver
+  ratio itself, so `loud` is `fine` at 1 + √2 and `vast` is `lead` at it.
+
+  `metrics.rung(base, n)` walks the space ladder and `metrics.step(base, n)`
+  the type one, for the places that need a size between the named ones - a
+  shrink-to-fit floor. `metrics.silver` is 1 + √2, the proportion to split one
+  line over another by. Everything goes through the surface's own scale like
+  the rest of this file. `Menu.qml` is across; the other surfaces are not yet.
 
   `metrics.badge(px)` is the other exception: a badge box has to be whole
   pixels on **both** sides, because BadgeArt scales the drawing by one factor

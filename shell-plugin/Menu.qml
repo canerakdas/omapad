@@ -588,7 +588,7 @@ Item {
       font.pixelSize: metrics.type.fine
       fontSizeMode: Text.HorizontalFit
       minimumPixelSize: Math.max(6, Math.round(
-        metrics.rung(metrics.type.fine, -1)))
+        metrics.step(metrics.type.fine, -1)))
       font.weight: Font.Medium
     }
   }
@@ -824,8 +824,13 @@ Item {
                   // config says `%A` and every locale's own weekday comes
                   // back. Tracked out, because caps set at a text size
                   // without it read as a word with its letters touching.
+                  //
+                  // An eighth of the letter rather than a rung of the
+                  // ladder: tracking belongs to the typeface's proportions,
+                  // and the smallest step this ladder has is already wider
+                  // than the space between two words.
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.rung(metrics.type.body, -6)
+                  font.letterSpacing: metrics.type.body / 8
                   elide: Text.ElideRight
                 }
               }

@@ -2895,25 +2895,41 @@ pixel of difference *is* a difference. Across a room it is one size printed
 six ways, and the card had no hierarchy at all: the clock, a tile's label and
 a tile's detail line were within three pixels of each other.
 
-So `Metrics` gained **one ladder for type and space**, and the rung is √2.
-Five type sizes (10, 14, 20, 28, 40) and nine gaps (3, 4, 6, 8, 11, 16, 23,
-32, 45), each one rung above the last, both anchored at the *small* end -
-the smallest thing a surface prints is the one that must not shrink, and a
-ladder hung from body text puts its bottom rung at 8px.
+So `Metrics` gained a ladder of its own, and the silver ratio sets the rung.
+Nine gaps (3, 4, 6, 8, 11, 16, 23, 32, 45) and five type sizes (10, 12, 16,
+24, 38), both anchored at the *small* end - the smallest thing a surface
+prints is the one that must not shrink, and a ladder hung from body text has
+nowhere legible to put a detail line.
 
-Why √2 rather than a number that looked right:
+**The ratio answers it twice, at two rates, and the first attempt did not.**
+Space climbs by √2, the ratio less one: a gap either separates two things or
+it does not, nobody reads the difference between 14 and 16 pixels of air, so
+it wants few rungs far apart - and √2 doubles in exactly two of them, which
+keeps the ladder landing on 4, 8, 16, 32 rather than drifting off the familiar
+numbers and taking every rounding decision with it.
 
-- It is the silver ratio's step, and it **doubles in exactly two rungs** - so
-  the ladder keeps landing on 4, 8, 16, 32 and 10, 20, 40 rather than drifting
-  off the familiar numbers and taking every rounding decision with it.
-- The ratio itself, 1 + √2 ≈ 2.414, is a rung plus the one under it. Which
-  means a line set over a smaller one in that proportion is in the same
-  proportion as the ladder it was cut from - and `metrics.silver` is there for
-  exactly that split.
-- It is a *decision*, written in one place, rather than sixteen call sites
-  each having had one. Half the value here is that `metrics.rung(base, n)`
-  makes an off-rung size say it is a step down the same ladder instead of
-  being arithmetic that happens to come out right.
+Type was √2 as well for about an hour, and the sofa said so at once:
+*yazılar fazla büyüdü, tabler vs onlar standart kalsın.* One rung of √2 above
+a 10px mark is 14, so every label, chip and slider name on the card went up
+two or three pixels at once - and the reason is structural rather than a bad
+anchor. **A √2 ladder cannot hold both 10 and 12, and a surface needs both:**
+a detail line has to be smaller than the label over it and still legible from
+the same distance, which is a 20% difference, not a 41% one.
+
+So type climbs by the **fourth root** of the ratio, ≈1.2465, and the named
+sizes are rungs 0, 1, 2, 4 and 6 - not consecutive, because the ladder is
+finer than the set of jobs a surface has. That lands on 10, 12, 16, 24, 38,
+which is exactly where the shell's `caption`, `body` and `heading` already
+were. Those three were never the problem; using five sizes within six pixels
+of each other was. And four rungs is the silver ratio itself, which is what
+makes it that root and not any other: `loud` is `fine` at 1 + √2, `vast` is
+`lead` at it, and `metrics.silver` is there for the split a headline over its
+second line is.
+
+The rest of the value is that this is a *decision*, written in one place,
+rather than sixteen call sites each having had one. `metrics.rung` and
+`metrics.step` make a size between the named ones say it is a step down the
+same ladder instead of being arithmetic that happens to come out right.
 
 **A surface is on one ladder or the other, never both.** `Menu.qml` is across
 and says so in its header; the guide, the keyboard, the mapping screen and the

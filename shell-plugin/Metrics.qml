@@ -66,45 +66,67 @@ QtObject {
 
   // -- the silver ladder ----------------------------------------------------
   //
-  // One ladder for type and for space, with the silver ratio deciding the rung.
+  // Type and space on one proportion, so a surface has a scale of its own
+  // rather than a list of numbers somebody once liked.
   //
-  // The shell's own scale is a list of near neighbours - 10, 11, 12, 13, 14,
-  // 16 - and that is six sizes at a keyboard and one size from a sofa: a pixel
-  // of difference is not a difference across a room. A surface read from there
-  // wants fewer sizes further apart, so the only decision left is how far
-  // apart, and sqrt(2) is that distance. It is the rung of the silver ratio,
-  // it doubles in exactly two steps - so the ladder keeps landing on the
-  // familiar whole numbers rather than drifting off them - and the ratio
-  // itself, 1 + sqrt(2), is a rung plus the one under it. Which is why a line
-  // set over a smaller one at 2.414:1 is in the same proportion as the ladder
-  // it was cut from: the clock over its weekday is that split, drawn.
+  // The shell's scale is a list of near neighbours - 10, 11, 12, 13, 14, 16 -
+  // and five of the six landed on one card here. That is five sizes at a
+  // keyboard and one size from a sofa: a pixel of difference is not a
+  // difference across a room. So the question is how far apart, and the
+  // silver ratio answers it twice, because a gap and a letter are not asked
+  // the same question.
   //
-  // The anchors are the shell's own smallest values rather than its body text
-  // and its middle gap. The smallest thing a surface prints is the one that
-  // must not shrink, and a ladder hung from the middle puts its bottom rung
-  // at 8px and its next one above body at 17.
+  // **Space climbs by sqrt(2)**, the silver ratio less one. A gap either
+  // separates two things or it does not - nobody reads the difference between
+  // 14 and 16 pixels of air - so it wants few rungs far apart, and sqrt(2)
+  // doubles in exactly two of them, which keeps the ladder landing on 4, 8,
+  // 16, 32 rather than drifting off the familiar numbers.
+  //
+  // **Type climbs by the fourth root of the ratio**, about 1.2465, because
+  // there the difference between 10 and 12 is real and a surface needs both:
+  // a detail line under a label has to be smaller than it and still legible,
+  // and one rung of sqrt(2) puts those two five pixels apart. Four rungs is
+  // the silver ratio itself, which is what makes it that root rather than any
+  // other: `loud` is `fine` at 1 + sqrt(2), and `vast` is `lead` at it. The
+  // clock set over its weekday is that split, drawn.
+  //
+  // Both are anchored on the shell's own smallest value rather than its body
+  // text and its middle gap. The smallest thing a surface prints is the one
+  // that must not shrink, and a ladder hung from the middle has nowhere
+  // legible to put a detail line.
   //
   // A surface uses this ladder **or** `font` and `spacing` above, never a
   // mixture: half a surface on one scale and half on another is what this is
   // here to end. The menu is the first surface across.
   readonly property real silver: 1 + Math.sqrt(2)
 
-  // `base` scaled by `n` rungs, before rounding. Negative goes down a rung.
+  // `base` scaled by `n` space rungs, before rounding. Negative goes down.
   function rung(base, n) {
     return base * Math.pow(Math.SQRT2, n)
   }
 
-  // Five sizes, anchored on the shell's caption: 10, 14, 20, 28, 40 at the
-  // default theme and scale. Named for the job rather than numbered, because
-  // there are only five and each one is a decision about what a thing is -
-  // `fine` is a mark beside something, `vast` is the one thing on the surface
-  // read from the far side of the room.
+  // The same, on the type ladder's finer rung. Four of these is `silver`.
+  function step(base, n) {
+    return base * Math.pow(metrics.silver, n / 4)
+  }
+
+  // Five sizes, anchored on the shell's caption: 10, 12, 16, 24, 38 at the
+  // default theme and scale - which is where the shell's own caption, body
+  // and heading already were, because those three were the ones that were
+  // right. Named for the job rather than numbered, because there are only
+  // five and each is a decision about what a thing is: `fine` is a mark
+  // beside something, `body` is what a label and a chip are set in, `vast` is
+  // the one thing on the surface read from the far side of the room.
+  //
+  // They are rungs 0, 1, 2, 4 and 6 - not consecutive, because the ladder is
+  // finer than the set of jobs a surface has. The gaps are where a size would
+  // have been too close to its neighbour to mean anything different.
   readonly property QtObject type: QtObject {
     readonly property int fine: metrics.px(Style.font.caption)
-    readonly property int body: metrics.px(metrics.rung(Style.font.caption, 1))
-    readonly property int lead: metrics.px(metrics.rung(Style.font.caption, 2))
-    readonly property int loud: metrics.px(metrics.rung(Style.font.caption, 3))
-    readonly property int vast: metrics.px(metrics.rung(Style.font.caption, 4))
+    readonly property int body: metrics.px(metrics.step(Style.font.caption, 1))
+    readonly property int lead: metrics.px(metrics.step(Style.font.caption, 2))
+    readonly property int loud: metrics.px(metrics.step(Style.font.caption, 4))
+    readonly property int vast: metrics.px(metrics.step(Style.font.caption, 6))
   }
 
   // Nine gaps, anchored on the shell's `sm`: 3, 4, 6, 8, 11, 16, 23, 32, 45.
