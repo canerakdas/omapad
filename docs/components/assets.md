@@ -167,6 +167,31 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
   13.44, with a quarter of a unit of air, and the badge is the only place that
   showed. Draw the shape for what it carries -
   `tests/test_assets.py::LabelsStandAtOneHeight` is what says one still does.
+- **A ground is the one drawing that answers to a size, and it answers by not
+  being one drawing.** A menu tile is `w` cells by `h` rows, so it has no fixed
+  aspect and the rule above would rule it out entirely - which is exactly why
+  the slider's track and the dial's shaded zone are *not* drawn art. A corner
+  is not parameterised by anything, though, and a straight edge does not have
+  to be drawn to be right. So `assets/shapes/ground-*.svg` is a **quarter**:
+  the corner, with the box it turns in filled behind it. `corner_run` takes out
+  the run from one edge to the other and `shell-plugin/TileArt.qml` is
+  generated as a *function* rather than as path data - the same run set at four
+  corners with lines between them.
+
+  The quarter is drawn clockwise, the way the outline runs: in at `0, c` off
+  the left edge, round the corner, out at `c, 0` onto the top edge, then back
+  through `c, c` to close. `corner_run` raises on a quarter drawn any other
+  way, because nothing downstream would notice - a run that stops in the middle
+  of its box still generates, still scales, and comes out as a tile with a dent
+  in it.
+
+  The corner is **rotated** into its four places rather than mirrored. A
+  rotation carries an arc's sweep flag through unchanged; a mirror would have
+  to flip every one of them, and a flag flipped in three corners out of four is
+  a ground that draws inside out in one of them. It is also why the run is
+  generated as `[letter, numbers...]` rather than as a string: the shell shrinks
+  the corner on a tile too small to hold four of them, and a string cannot be
+  scaled without being parsed again.
 - `CAP_RATIO`, `MIN_PADDING`, `MIN_SCALE`, `SAMPLES`, `SETTLE`, `CURVE_STEPS`
   are the generator's own trade-offs, not user settings - they are the sampling
   and fitting numbers behind a drawing nobody configures.

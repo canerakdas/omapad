@@ -246,6 +246,12 @@ So changing this file is safe, and the only thing to keep in mind is that a
 tile you add lands at the end of an arranged page rather than where you wrote
 it. `omapad check --layout` says what a saved arrangement still resolves to.
 
+A fourth thing a person can do is **put a tile in a cell**, which is stronger
+than the three above: a pinned tile is out of the flow entirely, so the order
+you write here decides only where the tiles *around* it go. That is the one
+case where the page somebody sees can have gaps the page you wrote does not -
+and it is their gap, so leave it alone.
+
 **Never edit `layout.toml` by hand to change what ships.** It is one person's
 arrangement of the page; the page is here.
 

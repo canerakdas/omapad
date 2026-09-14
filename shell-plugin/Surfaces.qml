@@ -1,10 +1,11 @@
 // The plugin's panel entry point.
 //
-// A plugin gets one panel entry point, and omapad draws six independent
+// A plugin gets one panel entry point, and omapad draws seven independent
 // surfaces - the on-screen keyboard, the controller menu, the bindings guide,
-// the mapping screen, the game-mode bar and the burst a click leaves at the
-// pointer - each fed by its own socket. Mounting them here keeps them in one
-// hot-reloading plugin directory instead of six.
+// the mapping screen, the game-mode bar, the readings it leaves on screen and
+// the burst a click leaves at the pointer - each fed by its own socket.
+// Mounting them here keeps them in one hot-reloading plugin directory instead
+// of seven.
 //
 // The shell's summon/hide/toggle contract lands on `open()`, `close()` and
 // `opened` below, so `omarchy-shell shell summon <id>` and an Omarchy keybind
@@ -24,13 +25,21 @@ Item {
   Guide { id: guide }
   Mapping { id: mapping }
   GameBar {}
+  // Neither summonable nor part of `opened`, and for a different reason from
+  // the bar's: the readings are a *setting* rather than a surface. There is
+  // no `omapad ctl hud open` to summon them with - the verb takes on, off or
+  // toggle - and a shell "hide" that took them down would be undoing
+  // something somebody chose and wrote down, not closing a screen they
+  // opened.
+  Hud {}
   // Not summonable and never opened: it answers a click rather than a
   // button, and the daemon speaks to it one burst at a time.
   Ripple {}
 
   // The surfaces a summon can name, keyed by omapad's own control verb. The
   // game bar is deliberately absent: it follows game mode rather than being
-  // summoned, so `omapad ctl mode` is its door.
+  // summoned, so `omapad ctl mode` is its door. So are the readings, whose
+  // door is `omapad ctl hud`.
   readonly property var summonable: ({
     "osk": keyboard,
     "menu": menu,

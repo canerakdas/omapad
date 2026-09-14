@@ -65,7 +65,8 @@ BIAS = 2.0
 # owes generated art where it needs art, a QML delegate, a documented payload,
 # validation that fails `omapad check`, and a test. A control that can be
 # added by touching one file is one that can ship half-drawn.
-CONTROLS = ("toggle", "choice", "slider", "gauge", "media", "row_break")
+CONTROLS = ("toggle", "choice", "slider", "gauge", "media", "readout",
+            "row_break")
 
 # Which control a setting may be drawn as, by the kind of thing it holds. A
 # switch pointed at a number is a tile that could never draw itself, and the
@@ -76,6 +77,11 @@ CONTROL_KINDS = {
     "slider": ("number",),
     "gauge": ("number",),
     "media": ("media",),
+    # The one tile that is not a control: it prints what something is and has
+    # no press at all. What the machine is doing is published rather than set
+    # - a temperature is not a setting - so the tile that shows it commits to
+    # nothing, and A on it does nothing.
+    "readout": ("reading",),
 }
 
 # Which stick a gauge draws the position of. Two, because a pad has two, and a
@@ -88,12 +94,11 @@ STICKS = ("left", "right")
 # on getting about and cannot lend one to a tile it is only passing over.
 TAKEABLE = ("slider", "gauge")
 
-# Where a control reads its value. One source today; what the machine is doing
-# rather than what omapad holds is the next one.
-# Where a control reads its value. `pad:` is omapad's own settings and
-# `live:` is what the machine is doing - how loud it is, how bright, what is
-# playing. Two sources, two tables, one grammar.
-READERS = ("pad", "live")
+# Where a control reads its value. `pad:` is omapad's own settings, `live:` is
+# what the desktop is doing - how loud it is, how bright, what is playing -
+# and `sys:` is what the machine underneath is doing, which is published
+# rather than set. Three sources, three tables, one grammar.
+READERS = ("pad", "live", "sys")
 
 # The cells a control asks for, and the default a row overrides with `span`.
 # The size is the control's own shape rather than a preference: a bar shorter
@@ -116,6 +121,9 @@ SPANS = {
     # either side of it, and the thumb inside has to move the same distance
     # both ways or the reading is a lie about where the stick is.
     "gauge": (2, 2),
+    # A name and a number on one line. One cell holds one of them, and a
+    # reading whose name is cut in half is a number nobody can place.
+    "readout": (2, 1),
 }
 
 # What a page may spend on a job of its own. A and B are not on it and are not
@@ -154,7 +162,7 @@ def slug(label):
 
 
 def build(entries, where="menu.items", columns=COLUMNS, settings=None,
-          readings=None):
+          readings=None, machine=None):
     """Normalise config entries into a tree, resolving every action.
 
     Actions are parsed here rather than when an entry is picked, so a typo
@@ -166,10 +174,11 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
     what a saved layout names a tile by, and a span wider than the page has
     is a row that could never be drawn.
 
-    `settings` is `config.CHOSEN` - what a `pad:` reader may name. Passed in
-    rather than imported so this module stays the thing that holds state and
-    geometry and nothing else; both callers have it, so a reader is checked
-    in practice wherever one is written.
+    `settings` is `config.CHOSEN` - what a `pad:` reader may name, with
+    `readings` and `machine` the same for `live:` and `sys:`. Passed in rather
+    than imported so this module stays the thing that holds state and geometry
+    and nothing else; every caller has all three, so a reader is checked in
+    practice wherever one is written.
     """
     items = []
     seen = {}
@@ -233,7 +242,7 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         item["span"] = _span(entry, item["control"], path, columns)
         item["shows"] = _shows(entry, item, path)
         # Where a control tile gets its value, as (source, name).
-        item["reads"] = _reads(entry, item, path, settings, readings)
+        item["reads"] = _reads(entry, item, path, settings, readings, machine)
         # What this page spends X and Y on while it is the page in front. Only
         # a page can: a tile that acts has nothing to be the page of.
         item["keys"] = _keys(entry, item, path)
@@ -280,7 +289,7 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             # setting it reads, and the shipped tree keeps every one of them
             # a level down.
             item["items"] = build(children, path + ".items", columns,
-                                  settings, readings)
+                                  settings, readings, machine)
             if not item["items"]:
                 raise MenuError("%s opens an empty submenu" % path)
         elif spec is not None:
@@ -361,17 +370,17 @@ def _holds(spec, wanted):
     return hold.strip() == wanted
 
 
-def _reads(entry, item, path, settings, readings=None):
+def _reads(entry, item, path, settings, readings=None, machine=None):
     """Where a control tile takes its value from, as (source, name).
 
     Empty for a tile that is not a control - and a `reads` on one of those is
     a tile that would read something and then draw none of it, so it is said
     rather than ignored.
 
-    The two tables are passed in rather than imported, so this module stays
-    the thing that holds state and geometry: `settings` is what omapad holds
-    and `readings` is what the machine is doing, and neither is this module's
-    to know about.
+    The three tables are passed in rather than imported, so this module stays
+    the thing that holds state and geometry: `settings` is what omapad holds,
+    `readings` is what the desktop is doing and `machine` is what the hardware
+    is publishing, and none of the three is this module's to know about.
     """
     spec = entry.get("reads")
     control = item["control"]
@@ -391,7 +400,7 @@ def _reads(entry, item, path, settings, readings=None):
             "%s: 'reads' is %s:<name>, not %r"
             % (path, "|".join(READERS), spec)
         )
-    table = {"pad": settings, "live": readings}.get(source)
+    table = {"pad": settings, "live": readings, "sys": machine}.get(source)
     if table is not None:
         found = table.get(name)
         if found is None:
@@ -670,6 +679,19 @@ def effective_span(item, plan):
     return item["span"]
 
 
+def pinned_cell(item, plan):
+    """The cell somebody put this tile in, or None where nobody has.
+
+    The companion of `effective_span`, and the same rule: **one function, one
+    authority**. A pin is the only thing that takes a tile out of the flow, so
+    nothing else in the daemon or the panel may ask "was this one placed?".
+    """
+    found = (plan or {}).get("at", {}).get(item["id"])
+    if found is None:
+        return None
+    return (int(found[0]), int(found[1]))
+
+
 def arrange(items, plan, editing=False):
     """One page's tiles, in the order and at the sizes somebody chose.
 
@@ -718,41 +740,99 @@ def arrange(items, plan, editing=False):
     return out
 
 
-def place(items, columns, plan=None):
+def place(items, columns, plan=None, rows=None):
     """Where every tile on one page sits, in grid cells.
 
-    First fit, in the order the page holds them. The order is authorial - a
-    row is placed by how often a thumb reaches for it - so the packing keeps
-    it, and a small tile is allowed to backfill the hole a big one left rather
-    than the order being rewritten to avoid holes. Deterministic, which is
-    what lets a layout be a list of names instead of a list of coordinates.
+    **Two passes, because a page has two kinds of tile on it.** A tile
+    somebody put somewhere is at that cell; everything else first fits around
+    it, in the order the page holds them. The order is authorial - a row is
+    placed by how often a thumb reaches for it - so the flow keeps it, and a
+    small tile is allowed to backfill the hole a big one left rather than the
+    order being rewritten to avoid holes.
+
+    The pins go first, and they have to: a flowed tile would otherwise take
+    the cell one was put in, and where a tile ended up would depend on what
+    else happened to be on the page.
+
+    A pin is **clamped, never refused**. This is the cost of a cell over a
+    name, and it is what keeps the cost small: a pin made on six columns is
+    off the edge on four, and a tile that vanished on a smaller screen would
+    be the arrangement breaking rather than adapting. Two pins over one cell -
+    which only a hand-edited file, or two of those clamps, can make - leave
+    the first where it is and hand the second to the flow, so the page is
+    still a packing rather than a pile.
+
+    `rows` is the same clamp downwards, for a page with a **last row**. A menu
+    page has none - it is as many rows as its tiles came to, and it scrolls -
+    so it passes None and a pin may be as far down as somebody carried it. A
+    page drawn over the whole screen has one, because a screen has a bottom
+    edge: there, a pin below it is pulled onto it rather than drawn off the
+    end of the thing it is a page of.
 
     Returns (tiles, rows). A tile is `{"item", "at", "size"}` - `at` and
     `size` named for what `snap.rect` reads, so the same function that walks
     between windows walks between these.
     """
     taken = set()
-    tiles = []
-    rows = 0
+    where = {}
+    used = 0
+
+    def claim(item, x, y, width, height):
+        for down in range(height):
+            for across in range(width):
+                taken.add((x + across, y + down))
+        where[item["id"]] = ((x, y), (width, height))
+
+    def clear(x, y, width, height):
+        return all((x + across, y + down) not in taken
+                   for down in range(height)
+                   for across in range(width))
+
+    for item in items:
+        if item["control"] == ROW_BREAK:
+            continue
+        cell = pinned_cell(item, plan)
+        if cell is None:
+            continue
+        width, height = effective_span(item, plan)
+        width = min(width, columns)
+        x = max(0, min(cell[0], columns - width))
+        y = max(0, cell[1])
+        if rows is not None:
+            height = min(height, rows)
+            y = max(0, min(y, rows - height))
+        if not clear(x, y, width, height):
+            continue
+        claim(item, x, y, width, height)
+        used = max(used, y + height)
+
+    # The flow, and the floor a row break raises. A pinned tile is out of the
+    # flow entirely - it was put somewhere on purpose - so it neither moves a
+    # paragraph mark nor is moved by one, and `floor` counts only what has
+    # flowed.
     floor = 0
+    flowed = 0
     for item in items:
         if item["control"] == ROW_BREAK:
             # Everything after it starts below everything before it.
-            floor = rows
+            floor = flowed
+            continue
+        if item["id"] in where:
             continue
         width, height = effective_span(item, plan)
         width = min(width, columns)
         x, y = _first_fit(taken, columns, width, height, floor)
-        for down in range(height):
-            for across in range(width):
-                taken.add((x + across, y + down))
-        tiles.append({
-            "item": item,
-            "at": (x, y),
-            "size": (width, height),
-        })
-        rows = max(rows, y + height)
-    return tiles, rows
+        claim(item, x, y, width, height)
+        flowed = max(flowed, y + height)
+        used = max(used, y + height)
+
+    tiles = []
+    for item in items:
+        if item["control"] == ROW_BREAK:
+            continue
+        at, size = where[item["id"]]
+        tiles.append({"item": item, "at": at, "size": size})
+    return tiles, used
 
 
 def _first_fit(taken, columns, width, height, floor):
@@ -775,7 +855,8 @@ class MenuModel:
     """Which group is showing, where every tile sits, and how to get back."""
 
     def __init__(self, items=None, title=ROOT_TITLE, clock_format="%A %H:%M",
-                 columns=COLUMNS, bias=BIAS, head=None, layout=None):
+                 columns=COLUMNS, bias=BIAS, head=None, layout=None,
+                 page_rows=None):
         self.root = items or []
         self.root_title = title
         # strftime, or empty for none. The menu carries a clock because game
@@ -785,6 +866,16 @@ class MenuModel:
         self.clock_format = clock_format
         self.columns = columns
         self.bias = bias
+        # Which pages have a **last row**, by id. A menu page does not: it is
+        # as many rows as its tiles came to and it scrolls, so a tile can be
+        # carried as far down as somebody wants. A page that is also drawn
+        # somewhere with a bottom edge - the HUD is the whole screen - does,
+        # and the menu has to know, because the menu is where the page is
+        # arranged. Without it a tile can be carried to a row the page it
+        # belongs to has no room for, and what it does there is worse than
+        # nothing: it is clamped onto the last row, and if something is
+        # already pinned there it loses the cell and falls back into the flow.
+        self.page_rows = dict(page_rows or {})
         # The read-only grid above the bar: a clock, a day, whatever a command
         # prints. Nothing on it is selectable, because a cursor that can wander
         # into the clock is a cursor that has to come back out.
@@ -936,6 +1027,16 @@ class MenuModel:
         """The saved arrangement for the page in front, or None."""
         return self.layout.get(self.page())
 
+    def rows_limit(self):
+        """The last row the page in front has, or None where it has none.
+
+        Applied when the page is placed as well as when a tile is carried, so
+        what the menu draws while somebody is arranging is what the surface
+        that has the bottom edge will draw - one answer rather than two that
+        can disagree about where a tile ended up.
+        """
+        return self.page_rows.get(self.page())
+
     def _show(self, items, title, select=None):
         """Draw a page: place its tiles and settle the selection on one.
 
@@ -950,7 +1051,8 @@ class MenuModel:
         self.title = title
         plan = self.plan()
         self.items = arrange(items, plan, self.edit)
-        self.tiles, self.rows = place(self.items, self.columns, plan)
+        self.tiles, self.rows = place(self.items, self.columns, plan,
+                                      self.rows_limit())
         names = [tile["item"]["id"] for tile in self.tiles]
         if select in names:
             self.selected = select
@@ -1046,8 +1148,10 @@ class MenuModel:
         page = self.page()
         plan = self.layout.get(page)
         if plan is None:
-            plan = {"order": [], "hidden": [], "span": {}}
+            plan = {"order": [], "hidden": [], "span": {}, "at": {}}
             self.layout[page] = plan
+        # A plan read off an older file, or built by hand, has no cells in it.
+        plan.setdefault("at", {})
         # The order is written whole the first time anything is moved, so the
         # file records the page as it was seen rather than as a diff against a
         # config that may since have changed.
@@ -1084,66 +1188,91 @@ class MenuModel:
         self.picked = self.selected
         return True
 
-    def carry(self, direction):
-        """Move the carried tile one place through the packing order.
+    STEPS = {"left": (-1, 0), "right": (1, 0),
+             "up": (0, -1), "down": (0, 1)}
 
-        An **order**, never a coordinate: first fit always produces a valid
-        packing, so a tile can only land somewhere real, and a layout written
-        as names survives a different column count, a new tile and another
-        screen. Left and right are one place; up and down are as far as it
-        takes to change row, because a row is what a thumb pushed up is aiming
-        at and how many tiles are in one is whatever the spans came to.
+    def carry(self, direction):
+        """Move the carried tile one cell, and leave it in that cell.
+
+        **A cell, and this used to be a place in the order.** Reordering was
+        the right answer while a page was a list that packed itself: first fit
+        always produces a valid packing, so a tile could only land somewhere
+        real. What it cannot express is an empty cell - with nothing else on a
+        page there is no order to be third in, so there was no way to put one
+        tile at the middle of the screen and nothing around it. On a page of
+        readings drawn over a game that is the whole job, so the cell wins and
+        `place` carries the cost: a pin is clamped onto a narrower screen
+        rather than lost.
+
+        A pin does not reorder anything. Everything unpinned flows around it,
+        which is how this still does what the old gesture did: carrying a tile
+        left into the middle of a row pins it there and the rest of the row
+        closes up behind it.
+
+        The three refusals are the three edges, and each says so rather than
+        moving nothing quietly - the motor answers an edge with an edge.
         """
         if self.picked is None:
             return False
-        plan = self._plan()
-        order = [name for name in plan["order"]
-                 if any(item["id"] == name for item in self.source)]
-        try:
-            here = order.index(self.picked)
-        except ValueError:
+        step = self.STEPS.get(direction)
+        if step is None:
             return False
-        if direction in ("left", "right"):
-            there = here + (1 if direction == "right" else -1)
-            if not 0 <= there < len(order):
+        here = None
+        for tile in self.tiles:
+            if tile["item"]["id"] == self.picked:
+                here = tile
+                break
+        if here is None:
+            return False
+        width, height = here["size"]
+        x = here["at"][0] + step[0]
+        y = here["at"][1] + step[1]
+        if x < 0 or x + width > self.columns or y < 0:
+            return False
+        limit = self.rows_limit()
+        if limit is not None:
+            # The page has a bottom edge somewhere, so this is it. Carrying a
+            # tile past it does not move it anywhere useful - `place` pulls it
+            # back onto the last row, and onto whatever is already there - so
+            # it is refused, and the motor answers the bottom of a page the
+            # same way it answers the side of one.
+            if y + height > limit:
                 return False
-        else:
-            there = self._row_slot(order, direction)
-            if there is None:
-                return False
-            # `_row_slot` counts in the order as it stands; taking the tile
-            # out first shifts everything after it up one.
-            if here < there:
-                there -= 1
-        order.insert(there, order.pop(here))
-        plan["order"] = order
+        elif y > self.rows:
+            # No bottom edge: down is allowed one row past the last and no
+            # further. That is what grows a page a row at a time - the only
+            # way to reach an empty cell below everything - without a held
+            # direction flinging a tile somewhere a thumb then has to walk all
+            # the way back from.
+            return False
+        if not self._room(x, y, width, height):
+            return False
+        plan = self._plan()
+        plan["at"][self.picked] = (x, y)
         self.repack()
         return True
 
-    def _row_slot(self, order, direction):
-        """Where in the order the row above or below ends up, or None.
+    def _room(self, x, y, width, height):
+        """Is that box clear of every *other* tile somebody has placed?
 
-        Past the **whole** of the target row, not up against its near edge:
-        taking a tile out of a row leaves room behind it, so one moved only as
-        far as that row's old boundary packs straight back into the row it
-        was trying to leave.
+        Only of the pinned ones: an unpinned tile is in the flow and flows out
+        of the way, which is the whole of how a tile is moved into the middle
+        of a row. A pinned one does not move, so walking onto it would hand
+        the carried tile back to the flow and teleport it - a press that goes
+        somewhere nobody pointed at.
         """
-        rows = {}
+        plan = self.plan()
         for tile in self.tiles:
-            rows[tile["item"]["id"]] = tile["at"][1]
-        here = rows.get(self.picked)
-        if here is None:
-            return None
-        want = here + (1 if direction == "down" else -1)
-        if want < 0:
-            return None
-        on_row = [index for index, name in enumerate(order)
-                  if rows.get(name) == want]
-        if not on_row:
-            # Nothing on that row: below everything is the end of the order,
-            # and above everything is nowhere to go.
-            return len(order) if direction == "down" else None
-        return on_row[-1] + 1 if direction == "down" else on_row[0]
+            if tile["item"]["id"] == self.picked:
+                continue
+            if pinned_cell(tile["item"], plan) is None:
+                continue
+            left, top = tile["at"]
+            across, down = tile["size"]
+            if (x < left + across and left < x + width
+                    and y < top + down and top < y + height):
+                return False
+        return True
 
     def hide(self):
         """Take the tile in front off the page, or put it back on it.

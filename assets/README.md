@@ -21,6 +21,7 @@ omarchy-restart-shell            # so the shell picks up the new art
 | `shapes/sys-guide.svg` | The **Xbox button**, drawn 36 units of 40 against the 24 the rest get, with `sys-nexus.svg` scaled to match it. |
 | `shapes/system.svg` | The **oblong** — PlayStation's Create and Options, and the bare shape the shell types a word into. |
 | `shapes/dial-*.svg`, `switch-*.svg`, `chev-*.svg`, `media-*.svg`, `grip.svg` | The parts a **control tile** is drawn from — see below. No labels, so no font. |
+| `shapes/ground-*.svg` | One **corner** of a menu tile, one file per state — see below. No labels either. |
 | `buttons/` | Generated: each shape with a label punched through it. |
 | `generate.py` | The generator. `truetype.py`, `svgpath.py` and `place.py` are its parts. |
 
@@ -46,6 +47,44 @@ Two things, from the same numbers, so they cannot drift apart:
 
 * **`../shell-plugin/ControlArt.qml`** — the same, for the parts a control
   tile is drawn from.
+
+* **`../shell-plugin/TileArt.qml`** — the ground a menu tile is drawn on, as a
+  *function* rather than as path data. It is the only output here that has to
+  be told how big the thing is before it is a drawing at all.
+
+## Grounds, which are a corner and four numbers
+
+Every state of a menu tile is drawn on its **own outline** — plain, selected,
+and being carried — so which state a tile is in reads from its silhouette and
+not only from its colour. A theme whose accent sits close to its surface leaves
+a selection to the border alone, and the border is the thinnest thing on a tile.
+
+A tile is `w` cells by `h` rows, though, which is the one aspect the badge rule
+rules out: a drawing scaled by one factor cannot be a rectangle of any shape.
+That is the rule the slider's track and the dial's shaded zone are not drawn
+under, and a ground would fall under it too — except that **only the edges are
+parameterised**. A corner is not, and a straight line does not have to be drawn
+to be right.
+
+So the source is a **quarter**: the corner, with the box it turns in filled in
+behind it. Drawn clockwise, the way the outline runs — in at `0 c` off the left
+edge, round the corner, out at `c 0` onto the top edge, then back through `c c`
+to close. Those last two sides are the tile's own edges and are not generated;
+`corner_run` raises on a quarter drawn any other way, because nothing
+downstream would notice one that stops in the wrong place — it still generates,
+still scales, and comes out as a tile with a dent in it.
+
+The corner is **rotated** into its four places, never mirrored: a rotation
+carries an arc's sweep flag through unchanged, and a mirror would have to flip
+every one of them. It is also why a run is generated as `[letter, numbers...]`
+rather than as a string — the shell shrinks the corner on a tile too small to
+hold four of them, and a string cannot be scaled without being parsed again.
+
+`GROUNDS_TO_DRAW` is the table, `(name, quarter.svg)`, and the name is what
+`Menu.qml` asks for. How far the corner reaches into a tile is
+`[menu] tile_corner`, **not** `Style.cornerRadius`: that mirrors the
+compositor's own window rounding, it is 0 on plenty of setups, and at 0 every
+state would be drawn as the same square.
 
 ## Control tiles, which are not a font
 

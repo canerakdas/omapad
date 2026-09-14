@@ -2117,7 +2117,7 @@ answers for all of them, so an idle window declines to close while another is
 compiling. Neither can close a window over a running command, which is the
 mistake worth avoiding; the other costs one more press of the same button.
 
-### 50. The menu that was a list of verbs · Done · L
+### 50. The menu that was a list of verbs · ✅ Done · L
 
 Asked for from the sofa: *the menu and everything in it is still keyboard and
 mouse shaped; make it a HUD - music, volume, brightness, all of it grouped
@@ -2158,7 +2158,9 @@ time and whatever command you point at it.
   is written, so the order stays authorial and a small tile backfills the hole
   a big one left. A `row_break` tile ends a row; deliberately not a one-cell
   spacer, which holds a hole open at six columns and shifts everything under it
-  at four.
+  at four. *(Still how a page the author wrote is laid out, and still how
+  every tile nobody has moved is laid out. **52** adds the other half: a tile
+  somebody put in a cell is in that cell, and the flow runs around it.)*
 - **Identity is a tile id, never an index**, in the model and on the wire. A
   tile changing size re-packs the page under it, so an index is stale the
   moment it is used - and that is due to start happening.
@@ -2555,6 +2557,13 @@ config shipped.
 - **Moving is a reorder, never a coordinate.** First fit always produces a
   valid packing, so a tile can only land somewhere real, and a layout written
   as names survives a different column count, a new tile and another screen.
+
+  *(**Reversed by 52**, and for a reason this bullet does not contain: an
+  order cannot express an empty cell, so a page with one tile on it had
+  nowhere to put that tile. A carried tile is put in a cell now; everything
+  unpinned still flows around it in this order, and `place` clamps a pin
+  rather than losing it, which is how the packing property above survives the
+  change.)*
 - **There is no add page, and that is the better answer.** A hidden tile stays
   drawn where it sits while you are arranging, faded, so removing and
   restoring are the same press on the same tile - no second surface, and
@@ -2610,9 +2619,271 @@ badge on the pad is a solid silhouette with its label punched out, so the
 stick's rim had to go. A ring among them reads as a different colour rather
 than as a different button.
 
+### 51. The machine, under whatever is playing · ✅ Done · M
+
+Item 50 ends with a HUD whose every tile is something you change - how loud,
+how bright, which mode, what is playing. **None of them is something you only
+watch.** Game mode takes Omarchy's bar away, which is right for a screen read
+from a sofa and leaves the question that bar was answering: what the machine
+is actually doing while it does it.
+
+Two things, and the second one is why this is not just a menu page.
+
+**A source for the readings, which is `live.py` one layer down.** `live.py` is
+what the *desktop* is doing and every one of its answers is a helper's;
+`sysinfo.py` is what the *kernel* publishes about the hardware, so almost all
+of them are a file read - and a file read is not something to spawn a shell
+for twice a second. That split is the whole of why it is a second module
+rather than six more entries in the first: `command()` is what tells the loop
+which of the two kinds a reading is, file reads happen on the loop and `cmd:`
+goes through the worker like everything slow.
+
+- **Where each reading comes from is a setting**, in one grammar,
+  `<how>:<where>`, because there is no answer here true of every machine:
+  which chip holds a temperature, whether the graphics card publishes a load,
+  whether anything on this desktop knows a game's frame rate. `file:` and
+  `cmd:` are the two that reach anything, which is why the list of *hows* does
+  not have to grow every time a driver publishes something new.
+- **An empty source is a reading this machine does not have.** Nothing asks
+  for it and no tile is drawn. Three ship with a source; a temperature
+  deliberately does not, because every machine has hwmon chips and their
+  numbers are not interchangeable - one picked for somebody prints the wrong
+  number under the right word, and a wrong number is worse than no tile.
+- **hwmon is found by the name a chip publishes, never by its number**:
+  `hwmon4` is a battery on one boot and a network card on the next.
+- **A busy share is measured across an interval**, so the first read answers
+  nothing at all. `/proc/stat` counts ticks since boot, and one read of it is
+  what the machine has averaged since it was switched on - a number that is
+  true, useless, and indistinguishable from a real one once it is on a tile.
+- **A reading that stops answering keeps its last value**; one that has never
+  answered has none, and that is how a tile knows not to draw itself. A sensor
+  briefly busy must not be able to empty the screen.
+- **Only a share has a bar.** A thermometer's top of scale is a number
+  somebody would have to invent, and a bar against an invented maximum says a
+  different thing on every machine it is read on - so there is no `v` in the
+  payload and no track drawn, rather than a bar that lies.
+
+**And a surface that is deliberately not a surface of its own design.** What
+the HUD draws is an ordinary `[[menu.items]]` group: `hud.py` packs it with
+`menu.arrange` and `menu.place`, the same two functions the menu packs a page
+with, and the panel draws those cells over the whole screen instead of inside
+a card. So the tiles are written where every other tile is written, arranged
+with the gesture that arranges every other page, and the arrangement lands in
+the same `layout.toml` under the same page id. There is no second place to
+configure this and no second packer to disagree with the first.
+
+- **It is a setting, not a surface that is opened.** `[hud] show` is in
+  `CHOSEN`, so the switch on the page, `omapad ctl hud on` and the settings
+  file are three doors onto one value - and it is still on tomorrow. Every
+  other surface is opened and closed; this one is decided once and left, which
+  is why `set_hud()` closes nothing, takes no grab and has no layer.
+- **It reads no pad input at all**, which is the whole of what lets it sit
+  over a game: no `[bindings.hud]`, no `SURFACE_LAYERS` entry, no keyboard
+  focus and an empty input region. The moment it could take a press it would
+  be in the way of the thing it is drawn over.
+- **`WlrLayer.Top`, not Overlay.** The menu, the guide and the keyboard are
+  Overlay, so opening one of them covers the readings rather than fighting
+  them for the same band of screen. `ExclusionMode.Normal` then asks for what
+  is left once the bars have taken their strips, which is why no bar geometry
+  travels in this payload and the top row can never come up under the game
+  bar.
+- **Two rules about what it refuses to draw**, and both are the point: a tile
+  that is not a readout is not drawn - the page holds its own switch, and a
+  switch is a thing to press - and a reading that has never answered draws
+  nothing at all, which is what makes one page correct on two machines. The
+  **whole** page is still packed, including what will not be drawn, or a
+  readout would not land in the cell the menu shows it in.
+- **The menu does not follow the second rule**, deliberately. A readout there
+  keeps its label with the value blank, because the menu is where you go to
+  find out that a reading has no source on this machine - and a row that
+  vanished could not tell you that.
+
+**Found on the way, and it is the finding of this item.** The daemon half
+landed first and was complete: the model, the sources, the settings, the
+validation, the control verb, the wiring, the heartbeat. It streamed to
+`hud.sock` twice a second. **Nothing drew a pixel, and nothing said so** -
+every test passed, `omapad check` was happy, and the only symptom was a blank
+screen, which is also exactly what the surface looks like switched off.
+`pad-surface.md` makes the panel step 7 of nine for this reason, and a
+checklist is a thing you can get to step 6 of. So the rule is a test now:
+`EverySocketIsDrawn` walks every `ViewClient` in the daemon, finds the
+`SurfaceSocket` that listens on it and the entry point that mounts that panel,
+and fails in both directions - a socket nobody draws, and a panel waiting on a
+name the daemon never binds.
+
+`omapad check` gained the other half of the same argument: it prints what each
+reading says right now, because **a source pointed at nothing and a reading
+nobody asked for look identical on screen**. Both draw no tile. The only way
+to tell them apart was to read the source, and this project's habit is to make
+a command say it out loud.
+
+### 52. The cell with nothing leading to it · ✅ Done · M
+
+Asked for from the sofa: *grid editlerken herhangi bir konuma bir item
+koyabilmeliyim, hiç item yokken 3x3'e bir şey koyamam mesela şuan.*
+
+**This reverses a decision item 50 made and wrote down**, so the reversal is
+worth the same care the decision got. Phase 1 said:
+
+> **Moving is a reorder, never a coordinate.** First fit always produces a
+> valid packing, so a tile can only land somewhere real, and a layout written
+> as names survives a different column count, a new tile and another screen.
+
+Every clause of that is still true. What it does not say, and what a hand on
+the pad found, is that **an order cannot express an empty cell.** With one tile
+on a page there is nothing to be third in - the tile is at the top left and
+there is no gesture that moves it anywhere else, because every position in a
+one-item order is the same position. Item 51 is exactly the page where that
+matters: a page of readings drawn over a game is one whose *whole* content is
+where it sits, and the top left corner is where a game puts its own.
+
+So a tile carried in edit mode is now put in a **cell**.
+
+- **A pin takes a tile out of the flow; everything else still flows.** The
+  order is still names, and it is still what holds every tile nobody has
+  moved - so a page still absorbs a tile added to the config, and a shipped
+  page still packs from the top left. Only what somebody deliberately placed
+  is placed.
+- **That means the new gesture still does the old one's job.** Carrying a tile
+  left into the middle of a row pins it there and the rest of the row closes
+  up behind it, because first fit runs *after* the pins are claimed. What was
+  a special case of reordering is now a consequence of two passes.
+- **The cost is real and it is paid in `place`, not given up.** A layout
+  written as cells does not survive a column change on its own, which was the
+  whole of item 50's argument. A pin is therefore **clamped, never lost**: off
+  the edge of a narrower page it is pulled back onto it, and two pins over one
+  cell leave the first where it is and hand the second to the flow. The page
+  is still a packing rather than a pile - which is the property item 50
+  actually wanted, and clamping keeps it without keeping the order.
+- **Down goes one row past the bottom, and no further.** That is what makes a
+  cell below everything reachable at all - a page grows a row at a time - and
+  it is what stops a held direction flinging a tile somewhere a thumb then has
+  to walk all the way back from.
+- **A carried tile will not walk onto a pinned one.** It would lose the cell
+  in `place` and be handed back to the flow, which is a press that goes
+  somewhere nobody pointed at. It refuses instead, and the motor answers an
+  edge with an edge. An *unpinned* tile is walked through rather than into,
+  because that one flows out of the way - the two halves of one rule.
+- `omapad check --layout` prints the cells and says which would be clamped at
+  the column count the page is drawn at. Clamping is silent by design, and a
+  tile quietly pulled back onto the page is the kind of thing this project
+  makes a command say out loud.
+
+**What is not in this.** No free pixels and no overlap: a cell is still a cell,
+a tile still occupies whole ones, and nothing may sit on top of anything. The
+grid was never the thing in the way - only the order was.
+
+**And then the corner turned out not to be the corner** - the second half of
+the same report, once a tile could be put in one: *en sağ alta koyduğum item
+ekranın en sağ altına gitmiyor, window'un paddingleri vs var; ek olarak gridin
+en sonu sabit olmalı, px olarak değil % olarak hesaplasak tüm grid'i.*
+
+Right, and the diagnosis in it is the fix. **A menu page has no last row.** It
+is as many rows as its tiles came to and it scrolls past the fold, which is
+right for a card - and it means the HUD, drawing that same page, had no cell
+that meant *the bottom*. A tile carried to the corner was drawn
+`cell_height` pixels per row down from the top and stopped wherever the count
+ran out.
+
+So the HUD's grid takes a fixed `[hud] rows` and **a cell there is a share of
+the screen rather than a number of pixels**. Those are not two changes: a grid
+cannot end where the screen ends and also be measured in pixels from the top.
+`n` cells and `n - 1` gaps add back up to the whole, on both axes, which puts
+the far edge of the last one exactly on the page's.
+
+- **One number is the density and the limit together**, and there is no
+  arrangement of this in which they are two: how many rows the screen is cut
+  into *is* how tall a row is. Raise it for thinner tiles, finer placement and
+  more presses to cross the page; lower it for fewer, bigger ones.
+  `[menu] cell_height` is the same question asked of the menu's own grid, and
+  is deliberately allowed a different answer - a card that scrolls does not
+  have this problem.
+- **`place` gained the downward clamp to match the sideways one.** It has to:
+  the menu is where a page is arranged and the menu has no last row, so a tile
+  can be carried further down there than this grid has. A menu page passes
+  None and is unbounded; a page that is a screen passes its count.
+- **The margin is the HUD's own**, not the fullscreen menu's. That one keeps a
+  television's overscan clear of a card's first tile; this is a corner
+  somebody deliberately put something in, so it defaults to a hair off the edge
+  and 0 is the edge. The panel's `ExclusionMode.Normal` does the rest - the
+  last row stops where the bars start rather than under one, which is the same
+  mechanism that stopped the *first* row coming up under the game bar.
+- `omapad check --layout` names both clamps and which column and row a pin
+  would be pulled to.
+
+**Found on the way, and it cost twenty minutes:** the panel kept drawing the
+old geometry after the file changed. `omarchy-shell shell rescanPlugins` does
+not take on a `keepLoaded` panel entry point - which `qml.md` §9 and
+`pad-surface.md` both already say, in the paragraph that is easy to read as
+being about *adding* a file. It is about editing one too.
+
+**And the bottom edge had two holes in it**, reported the moment there was a
+bottom to walk to: *grid'in altına taşıyınca bir itemi bir noktadan sonra
+görünmeyen bir yere gidiyor.* Two separate faults with one symptom, which is
+why it read as one.
+
+**The menu had no bottom to stop at.** `carry` refused only what was more than
+one row past the *packing*, so on a page that is also drawn over a screen a
+tile could be carried to row 40. What it did there was worse than nothing:
+`place` clamped it back onto the last row, and where something was already
+pinned there it lost the cell and fell into the flow - a press that teleports
+a tile to the top left.
+
+The coupling this needed was ducked when the clamp was written, and the note
+then said so: the menu is where a page is arranged, so the menu is what has to
+know the page has an end. `MenuModel` takes `page_rows` now - ids to row
+counts, one entry, from `[hud] page` and `[hud] rows` - and it is applied when
+the page is **placed** as well as when a tile is carried, so what the menu
+draws while somebody is arranging is what the screen will draw. One answer
+rather than two that can disagree about where a tile ended up. A page with no
+entry keeps growing a row at a time, which is every other page.
+
+**And what was arranged did not reach the screen at all** - reported once the
+first two were out of the way: *hud için menüde koyduğum yer arayüze
+yansımıyor* - the place I put it in the menu is not where it is on screen when
+I leave the menu. Two faults again, one behind the other, and the second was
+the real one.
+
+**The two surfaces were not holding one arrangement.** `MenuModel` takes its
+own copy of what came off `layout.toml` - deliberately, so rearranging never
+writes back into the config - which means `config.layout` is *the file as it
+was read* and stops being true the moment anybody carries a tile. `HudModel`
+was handed that same `config.layout`, so it was reading the arrangement
+somebody had before they started. It takes `self.menu.layout` now, the dict
+and not a copy of it, and a test says so: this is exactly the kind of thing
+that regresses silently, because both objects look right in isolation.
+
+**And nothing was telling it to pack again.** `hud.repack()` was called from
+one place, `set_hud(True)`, so even sharing the dict the cells were the ones
+worked out last time the readings were switched on. `hud_rearranged()` is
+called from every place the menu mutates the arrangement rather than from
+where it is written down - the file is written when edit mode is left, and
+what somebody is looking at must not wait for that. It returns at once while
+the readings are off, since `set_hud(True)` packs on the way up.
+
+*The same arrangement is not the same packing*, and *the same file is not the
+same arrangement*. Neither is obvious from either module on its own, which is
+what the two tests are for.
+
+**Found while writing those tests**, and it had been true since the surface
+landed: `hud_client` was never swapped for a `FakeViewClient` in the daemon
+suite. The comment two lines above the list says what that costs - *a suite
+that left them in place would push test payloads at whatever is running on the
+machine* - and for the whole of this item's life the suite had been doing
+exactly that to the live shell's HUD.
+
+**And the grid did not follow a tile it was carrying.** `reveal` is guarded so
+it does not scroll on every arriving line - the heartbeat brings two a second
+- but the guard was the selection's **id**, and the one gesture in the whole
+surface that moves a tile without changing the selection is carrying one. So
+the guard fired, the view stood still, and the tile walked off the bottom of
+the visible grid while the button was still being pressed. The key carries the
+cell now. A guard on identity where the question is position: the same shape
+of mistake as an index for a tile id, one surface along.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–49**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–52**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

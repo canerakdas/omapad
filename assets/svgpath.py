@@ -192,3 +192,92 @@ def circle_path(cx, cy, r):
     """A circle as path data, so it can be punched like any other shape."""
     return "M%g %gA%g %g 0 1 0 %g %gA%g %g 0 1 0 %g %gZ" % (
         cx - r, cy, r, r, cx + r, cy, r, r, cx - r, cy)
+
+
+def segments(data):
+    """Path data as absolute segments, one tuple per drawn command.
+
+    `flatten` answers "what area does this cover"; this answers "what is it
+    drawn with", which is what a shape being *rebuilt* somewhere else needs.
+    The shorthands are resolved away - `H`/`V` become `L`, `S` and `T` grow
+    back the control point they borrowed - so a caller transforming a path
+    has five commands to think about instead of ten:
+
+        ("M", p) ("L", p) ("C", c1, c2, p) ("Q", c, p)
+        ("A", rx, ry, rotation, large, sweep, p) ("Z",)
+
+    An arc keeps its own parameters rather than becoming curves: this is what
+    the tile grounds are rotated through, and a rotation is four numbers on an
+    arc against a change of representation everywhere else.
+    """
+    out = []
+    cur = (0.0, 0.0)
+    start = (0.0, 0.0)
+    prev_cubic = None
+    prev_quad = None
+
+    for command, args in tokenize(data):
+        rel = command.islower()
+        up = command.upper()
+
+        def at(pair, i):
+            return ((cur[0] + pair[i], cur[1] + pair[i + 1]) if rel
+                    else (pair[i], pair[i + 1]))
+
+        if up == "M":
+            for i, pair in enumerate(_take(args, 2)):
+                point = at(pair, 0)
+                # A repeated pair after a moveto is a lineto, per the spec.
+                out.append(("M" if i == 0 else "L", point))
+                if i == 0:
+                    start = point
+                cur = point
+            prev_cubic = prev_quad = None
+        elif up == "Z":
+            out.append(("Z",))
+            cur = start
+            prev_cubic = prev_quad = None
+        elif up in ("L", "H", "V"):
+            size = {"L": 2, "H": 1, "V": 1}[up]
+            for pair in _take(args, size):
+                if up == "L":
+                    point = at(pair, 0)
+                elif up == "H":
+                    point = (cur[0] + pair[0] if rel else pair[0], cur[1])
+                else:
+                    point = (cur[0], cur[1] + pair[0] if rel else pair[0])
+                out.append(("L", point))
+                cur = point
+            prev_cubic = prev_quad = None
+        elif up in ("C", "S"):
+            for pair in _take(args, 6 if up == "C" else 4):
+                if up == "C":
+                    c1, c2, end = at(pair, 0), at(pair, 2), at(pair, 4)
+                else:
+                    # The mirror of the last curve's second control point, or
+                    # the current point where there was no curve to mirror.
+                    c1 = ((2 * cur[0] - prev_cubic[0],
+                           2 * cur[1] - prev_cubic[1]) if prev_cubic else cur)
+                    c2, end = at(pair, 0), at(pair, 2)
+                out.append(("C", c1, c2, end))
+                cur, prev_cubic, prev_quad = end, c2, None
+        elif up in ("Q", "T"):
+            for pair in _take(args, 4 if up == "Q" else 2):
+                if up == "Q":
+                    ctrl, end = at(pair, 0), at(pair, 2)
+                else:
+                    ctrl = ((2 * cur[0] - prev_quad[0],
+                             2 * cur[1] - prev_quad[1]) if prev_quad else cur)
+                    end = at(pair, 0)
+                out.append(("Q", ctrl, end))
+                cur, prev_quad, prev_cubic = end, ctrl, None
+        elif up == "A":
+            for pair in _take(args, 7):
+                end = at(pair, 5)
+                out.append(("A", pair[0], pair[1], pair[2],
+                            int(pair[3]), int(pair[4]), end))
+                cur = end
+            prev_cubic = prev_quad = None
+        else:
+            raise ValueError("unsupported path command %r" % command)
+    return out

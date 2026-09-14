@@ -30,6 +30,7 @@ already been typed.
 [What each button means](#the-face-buttons-mean-the-same-thing-everywhere) ·
 [Controller modes](#controller-modes) · [Configuration](#configuration) ·
 [Application profiles](#application-profiles) · [The menu](#the-menu) ·
+[The readings](#the-readings-how-busy-how-full-how-hot) ·
 [The bindings guide](#the-bindings-guide) · [The bar widget](#the-bar-widget) ·
 [Controller mapping](#controller-mapping) · [Typing](#typing) ·
 [Using another controller](#using-another-controller) ·
@@ -1122,7 +1123,10 @@ rather than one borrowing the other's answer.
 It is the same drawing either way — nothing in `assets/shapes/` knows which
 style is on — so a button looks like the same button in both, and each surface
 keeps its own colour: the accent on the guide and the mapping screen, the
-bar's own text colour on the bar, the key's colour on the keyboard.
+bar's own text colour on the bar, the key's colour on the keyboard. The one
+exception is the menu's legend: it is the bar's row — the same four words in
+the bar's band, while the bar itself is down — so it wears the bar's colour
+and the bar's resting fills rather than the menu's.
 
 The label is a **hole**, not a letter painted the colour of the background. A
 badge sits over a wallpaper, over a card that fades, and on the keyboard over
@@ -2035,7 +2039,9 @@ It covers the bars along the bottom too — it prints its own row of hints, so
 there is nothing down there worth leaving room for — and that row sits in
 **exactly the band the game bar's row sits in**, at the same height and the
 same distance from the edge. It is the same four words about the same four
-buttons, so nothing moves when the menu opens — and omapad's own bar is taken
+buttons, and it wears the bar's own colours — the same text colour, the same
+resting fills — so nothing moves, and nothing changes colour, when the menu
+opens — and omapad's own bar is taken
 down *before* the menu is drawn, so the two rows never crossfade in one place. At the top level there is
 no title: the chips already say where you are, and a line above them saying so
 again is the card telling you twice.
@@ -2065,6 +2071,20 @@ hl.config({ decoration = { blur = { enabled = true, size = 8, passes = 3 } } })
 
 Set `fullscreen = false` for the card, which is the better shape at a desk.
 
+**Each state of a tile is drawn on its own outline**, not on the same rectangle
+in a different colour. A plain tile is rounded, the selected one is cut back to
+a facet, and a tile you are carrying has a bite out of its corner — so which
+tile the pad is on reads from across a room, from the shape of it, before the
+colour has to say anything at all. That matters most on a theme whose accent
+sits close to its surface: there the selection would otherwise be left to the
+border, and the border is the thinnest thing on the tile.
+
+`[menu] tile_corner` is how far that corner reaches in — raise it and the
+shapes read from further away, lower it towards 0 and every tile is the same
+square again. It is omapad's own number rather than the compositor's window
+rounding, which is 0 on plenty of setups and would take the selection's
+silhouette with it.
+
 ### Arranging a page from the pad
 
 **Hold Y** on any page and its tiles become yours. Every button on the card
@@ -2080,21 +2100,39 @@ means something else while you are there, and the legend says which:
 
 A tile you take off stays on the page while you are arranging it, faded, so
 putting it back is the same press that took it away — there is no second
-screen to go and find it on. Moving a tile is a **reorder**, not a position:
-the grid packs again around it, which is why an arrangement still makes sense
-on a screen with a different `[menu] columns`.
+screen to go and find it on.
 
-What you do lands in `~/.config/omapad/layout.toml`, and it and `config.toml`
-cannot break each other. A tile a new version ships appears at the end of your
-page rather than being invisible; a tile that goes away is dropped from your
-order rather than leaving a hole; and a tile you hid is hidden only while it
-still exists. If the file is damaged the daemon says so once and uses the
+**A tile goes in the cell you put it in**, including one with nothing leading
+to it: carry it three across and three down on an otherwise empty page and
+that is where it is. Down goes one row past the bottom each press, so a page
+grows a row at a time and you can always reach what is below everything.
+Everything you have *not* moved still flows around what you have, in the order
+the page is written — so carrying a tile into the middle of a row still closes
+the row up behind it, and a tile a new version adds still turns up at the end
+rather than in the middle of your arrangement.
+
+A tile will not walk onto another one you placed — the press does nothing and
+the motor says so. One you have not placed it walks straight through, because
+that one moves out of the way.
+
+On a screen with a different `[menu] columns`, a cell off the right-hand edge
+is **pulled back onto the page** rather than lost. `omapad check --layout`
+prints the cells and says which ones that would happen to.
+
+What you do lands in `~/.config/omapad/layout.toml` — the order, what is
+hidden, any size you changed, and the cells you put tiles in — and it and
+`config.toml` cannot break each other. A tile a new version ships appears at
+the end of your page rather than being invisible; a tile that goes away is
+dropped from your order rather than leaving a hole; and a tile you hid is
+hidden only while it still exists. If the file is damaged the daemon says so once and uses the
 shipped arrangement. `omapad check --layout` says what yours still resolves to,
 and deleting the file — or resetting one page with Y — hands it back.
 
 **Along the foot of the card is a legend** saying what A, B, X and Y do on the
 page you are looking at, drawn with the same buttons the guide and the bar
-print. `[menu] keys = false` turns it off — in game mode omapad's own bar is
+print — and, because it is the bar's row, in the bar's own text colour rather
+than the menu's accent, so the buttons read the same whether the bar or the
+menu is answering them. `[menu] keys = false` turns it off — in game mode omapad's own bar is
 already saying the same kind of thing across the screen, though only the
 legend can say what a page has spent a key on.
 
@@ -2147,7 +2185,12 @@ detail = "Where the sound goes"
 Tiles are packed **first fit, in the order you write them**, left to right and
 top to bottom — so the order is still yours, and a small tile is allowed to
 backfill the hole a big one left. `[menu] columns` is how many cells across a
-page is; six by default, and worth turning down for a small screen. A
+page is; six by default, and worth turning down for a small screen.
+`[menu] cell_height` is the other half of a tile's shape — the width is
+whatever the columns leave, and this is how tall one cell is. Raise it and a
+tile carries its icon over its label with room to spare; lower it and the page
+reads as a denser list, and below the room for both the icon steps out and the
+label has the tile to itself. A
 `row_break` tile ends the row it is in, which is the way to group tiles that
 belong together. It is deliberately not a one-cell spacer: a spacer holds a
 hole open at six columns and shifts everything under it at four, and the same
@@ -2397,6 +2440,109 @@ the way a switch does. `Previous` and `Next` are two tiles either side of it,
 so left and right walk to them exactly as they walk to anything else. A
 direction the player says is closed ticks the motor rather than doing nothing
 quietly.
+
+### The readings: how busy, how full, how hot
+
+`Readings` is the page for the machine underneath — the processor, the memory,
+the disk, and whatever else this one publishes a number for. Each tile says
+what it is and what it says, with a bar where there is a scale to draw it
+against.
+
+**Nothing here can be pressed.** A temperature is published, not set, so A on
+one of these does nothing at all rather than finding something to do.
+
+**Where each reading comes from is a setting**, because not one of them is true
+of every machine. Which chip holds a temperature, whether the graphics card
+publishes a load, whether anything here knows a game's frame rate — all three
+differ between two laptops of the same year.
+
+```toml
+[sysinfo]
+cpu = "proc:stat"                              # ships on
+memory = "proc:meminfo"                        # ships on
+disk = "mount:/"                               # any path on the filesystem
+temperature = "hwmon:coretemp/temp1_input"     # yours will differ
+gpu = "cmd:nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader"
+```
+
+`proc:` reads the two files omapad parses, `mount:` is a filesystem, `hwmon:`
+is a sensor, `file:` is any file holding one number and `cmd:` is a helper that
+prints one. **An empty source is a reading this machine does not have**:
+nothing is asked for it, and no tile is drawn.
+
+Three ship with a source because three are true of every Linux. A temperature
+does not, and that is deliberate — every machine has sensors and the numbers
+are not interchangeable, so one picked for you would print the wrong number
+under the right word. Find yours and name it:
+
+```bash
+grep . /sys/class/hwmon/*/name     # which chips this machine has
+omapad check                       # what each reading says right now
+```
+
+The chip is named rather than numbered because `hwmon4` is a battery on one
+boot and a network card on the next. `hwmon:*/temp1_input` takes whichever chip
+has a file of that name, for anyone who does not mind which.
+
+`omapad check` prints what every reading currently says, which is the way to
+tell a source that is pointed at nothing from a reading you never asked for —
+on screen the two look identical, because both draw nothing.
+
+#### Leaving them on screen
+
+**`Keep on screen` puts that page over everything**, at the size and in the
+places you arranged it. Game mode takes Omarchy's bar away, which is the right
+trade for a screen watched from a sofa and leaves one question unanswered:
+what the machine is doing while it does it.
+
+It is the same page — not a second screen with its own settings. Move a tile in
+the menu and it moves here; make one wider and it is wider here.
+
+**The grid here is the screen**, and that is the one thing that is not the
+menu's. A menu page is as many rows as its tiles came to and scrolls, so
+nothing on it means *the bottom*; a screen has a bottom edge, so this one is
+cut into a fixed `[hud] rows` and a cell is a share of the screen rather than a
+number of pixels. Put a tile in the last row and the last column and it is in
+the corner of the screen.
+
+That one number is the density as well: raise it for thinner tiles and finer
+placement, lower it for fewer and bigger ones.
+
+**Carrying a tile down this page stops on its last row**, because this is the
+page with a bottom edge — every other page keeps growing a row at a time, and
+the menu draws this one with the same bottom the screen has, so what you
+arrange is what you get. A cell hand-edited past the end is pulled onto the
+last row; `omapad check --layout` says when that happens.
+
+`[hud] margin` is how far off the edge it starts. Set it to `0` for the corner
+itself; it defaults to a hair in because a television cuts its own edges off.
+The readings never come up underneath a bar either way.
+
+Two more things are different from the menu, and both are the point:
+
+- **A tile that is not a reading is not drawn.** The switch that turns this on
+  stays in the menu, because there is nothing to press out here: the readings
+  take no clicks, no keys and no buttons, and everything goes straight through
+  them to whatever is underneath.
+- **A reading that has never answered draws nothing at all.** A fan this
+  machine publishes no number for is not a tile saying nothing, it is no tile —
+  which is what makes one page correct on two machines.
+
+It sits under anything you open on purpose, so the menu, the guide and the
+keyboard all cover it, and it never comes up underneath a bar.
+
+```toml
+[hud]
+show = false        # on is remembered: it is a setting, not a screen you opened
+page = "hud"        # which group it draws, by id
+rows = 12           # how many rows the screen is cut into
+margin = 16         # 0 puts a corner tile in the corner
+opacity = 0.9       # it is read while something else is watched
+```
+
+```bash
+omapad ctl hud toggle
+```
 
 ### The Controller submenu
 

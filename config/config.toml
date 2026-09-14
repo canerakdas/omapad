@@ -909,6 +909,133 @@ poll_ms = 2000                # how often the selected tile is re-asked
 settle_ms = 250               # and how long after a press the helper is asked
                               # what it actually did
 
+# ---------------------------------------------------------------------------
+# What the machine underneath is doing (the readings the HUD draws).
+#
+# [live] above is what the *desktop* is doing - how loud it is, how bright,
+# what is playing - and every one of its answers comes from a helper. These
+# are what the *kernel* publishes about the hardware, so almost all of them
+# are a file read rather than a command, and a file read is not something to
+# spawn a shell for twice a second.
+#
+# Every source is a setting, in one grammar - `<how>:<where>` - because not
+# one of these is true of every machine. Which chip holds a temperature,
+# whether the graphics card publishes a load at all, whether anything on this
+# desktop knows a game's frame rate: all three differ between two laptops of
+# the same year.
+#
+#   proc:stat | proc:meminfo   the two files here has a parser for
+#   mount:<path>               how full a filesystem is, by any path on it
+#   hwmon:<chip>/<file>        a sensor, by the name the chip publishes
+#   file:<path>                one number, from one file
+#   cmd:<command>              a helper that prints one number
+#
+# `file:` and `cmd:` are the two that reach anything, which is why this list
+# does not have to grow every time a driver publishes something new.
+#
+# **An empty source is a reading this machine does not have.** Nothing asks
+# for it and no tile is drawn - which is what makes one page of readings
+# correct on two machines, rather than a page with a tile on it saying
+# nothing. Three ship with a source because three are true of every Linux.
+# ---------------------------------------------------------------------------
+
+[sysinfo]
+cpu = "proc:stat"             # a share of the interval since the last read,
+                              # across every core - not since boot, which is
+                              # what one read of /proc/stat actually says
+memory = "proc:meminfo"       # against MemAvailable, so the cache is not
+                              # counted as memory anybody is short of
+disk = "mount:/"              # name any path on the filesystem you want
+
+# The rest are empty because guessing them is worse than not drawing them.
+#
+# A temperature is the clearest case: every machine has a hwmon chip and the
+# numbers are not interchangeable, so a sensor picked for you prints the
+# wrong number under the right word. Find yours, then name it:
+#
+#     grep . /sys/class/hwmon/*/name        # which chips this machine has
+#     temperature = "hwmon:coretemp/temp1_input"
+#     temperature = "hwmon:k10temp/temp1_input"
+#
+# The chip is named rather than numbered because `hwmon4` is a battery on one
+# boot and a network card on the next - the name is the stable half. `*` is
+# there for anyone who does not mind which sensor answers:
+# `hwmon:*/temp1_input` takes whichever chip has a file of that name.
+temperature = ""
+fan = ""                      # e.g. "hwmon:thinkpad/fan1_input"
+
+# The two with no general answer at all, so they arrive as a command and say
+# what they count in. `gpu_unit` and `gpu_scale` are what turns a helper's
+# number into the one a person reads: the unit is printed on the tile, and the
+# scale is what the number is divided by first.
+gpu = ""                      # e.g. "cmd:nvidia-smi --query-gpu=utilization.gpu
+                              #      --format=csv,noheader,nounits"
+gpu_unit = "%"
+fps = ""                      # e.g. "cmd:mangohud-fps" - whatever on this
+                              # machine knows what a game is drawing
+fps_unit = "fps"
+
+poll_ms = 2000                # how often a reading on screen is asked again
+timeout_ms = 1000             # how late a `cmd:` helper may be before it is
+                              # dropped - nothing here waits on the loop
+
+# ---------------------------------------------------------------------------
+# The readings, left on screen (the HUD).
+#
+# Game mode takes Omarchy's bar away, which is the right trade for a screen
+# watched from a sofa and leaves one question unanswered: what the machine is
+# actually doing while it does it. This is the answer, and it is deliberately
+# not a surface of its own design.
+#
+# What it draws is an ordinary [[menu.items]] group - `page` says which. So
+# its tiles are written where every other tile is written, they are arranged
+# with the gesture that arranges every other page (hold Y, carry one, let go),
+# and the arrangement lands in the same layout.toml. Where a tile sits in the
+# grid is where it sits on the screen, because it is the same grid.
+#
+# Two things follow, and both are the point: a tile that is not a readout is
+# not drawn here - the page holds its own switch, and a switch is a thing to
+# press - and a reading that has never answered draws nothing at all.
+#
+# It reads no pad input, takes no focus and passes every click through. There
+# is nothing to press, which is the whole of why it can sit over a game.
+# ---------------------------------------------------------------------------
+
+[hud]
+# Whether the readings are on screen. A setting rather than a surface verb:
+# it is decided once and left, so it survives a restart the way the mode does.
+# `omapad ctl hud on|off|toggle` and the switch on the page both go through
+# this, which is what makes either of them still true tomorrow.
+show = false
+# Which group holds it, by id. A name rather than a position - a page that
+# moved along the bar is still the same page. A config with no such group gets
+# a HUD with nothing on it rather than a daemon that will not start.
+page = "hud"
+# How many rows the screen is cut into. **The grid here has a last row and the
+# menu's does not**: a menu page is as many rows as its tiles came to and
+# scrolls past the fold, so nothing in it means "the bottom". A screen has a
+# bottom edge, so a tile carried into the last row and the last column has to
+# arrive in the corner of it.
+#
+# So this is the divisor as well as the limit, and the two cannot be separated:
+# a cell is a share of the screen rather than a number of pixels, which is the
+# only way the grid can end where the screen does. Raise it for thinner tiles
+# and finer placement - and more presses to cross the page; lower it for fewer,
+# bigger ones. `[menu] cell_height` is the same question for the menu's own
+# grid and is deliberately a different answer.
+rows = 12
+# How far off the edge of the screen the grid starts, unscaled. Not the menu's
+# own margin, which keeps a television's overscan clear of a fullscreen card's
+# first tile - a corner here is one somebody put something in on purpose, so
+# this is a hair off the edge and 0 is the corner itself.
+margin = 16
+# How solid the readings are over what is behind them. A HUD is read while
+# something else is being watched, so the thing it is over has to stay
+# watchable: at 1 it is opaque over the game, and far below this it is a
+# number you have to look for.
+opacity = 0.9
+# socket = "/run/user/1000/omapad/hud.sock"    # defaults to $XDG_RUNTIME_DIR
+
 [guide]
 # The bindings guide: one page per layer, every button drawn as the button it
 # is. Read-only - it is a map, not an editor - and summoned from the menu or
@@ -1811,6 +1938,16 @@ clock = ""
 # do not want the same answer. Below three there is nowhere to put a bar; far
 # above it a tile is a row again.
 columns = 6
+# How tall one cell is, in unscaled pixels. The width is whatever `columns`
+# leaves, so this is the whole of a tile's shape - and it decides how much of a
+# page is above the fold rather than how much a page holds: a page is as many
+# rows as its tiles came to. Raise it and a tile carries its icon over its
+# label with room to spare; lower it and the page reads as a denser list.
+# Where a tile is too short to stack the two the icon steps out and the label
+# has the tile, so a low number is a page of words rather than a page of
+# clipping. Unscaled: `[ui] scale` and `game_scale` multiply it like every
+# other measurement on the surface.
+cell_height = 34
 # What a tile off to the side costs against one straight ahead, both measured
 # edge to edge - the same question `[snap] bias` answers about windows, and its
 # own number because tiles are small and touching where windows are large and
@@ -1881,6 +2018,17 @@ fullscreen = true
 # a tile's label and a window full of text. Raise it if the desktop shows
 # through too much, lower it to see more of what is behind.
 dim = 0.6
+
+# How much of a tile's corner is drawing rather than edge, in unscaled pixels.
+# Each state of a tile is drawn on its own outline - a plain tile is rounded, a
+# selected one is cut back, a tile being carried has a bite out of it - and
+# this is how far into the tile that corner reaches. Raise it and the state a
+# tile is in reads from across a room; lower it towards 0 and every tile is the
+# same square, which is a page that says which tile is selected in colour
+# alone. Deliberately not the compositor's own `decoration:rounding`: that is
+# the radius of a window, it is 0 on plenty of setups, and a selection that
+# vanishes at 0 is the one thing this must not do.
+tile_corner = 10
 
 # A tile can list its own page instead of holding one: `from` is a command, and
 # every line it prints becomes a tile (see the audio outputs below). The
@@ -2469,6 +2617,66 @@ detail = "Speed, vibration, labels, mapping"
   label = "Remap the buttons"
   detail = "Teach it which button is which"
   action = "map:open"
+
+# The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
+#
+# An ordinary group, which is the whole design: the tiles are written here
+# like every other tile, arranged with the gesture that arranges every other
+# page, and where one sits in this grid is where it sits on the screen. `id`
+# is pinned rather than taken from the label, because [hud] names the page and
+# a label is allowed to change without the HUD going dark.
+#
+# The switch is on the page for the same reason it is not on the HUD: the HUD
+# is never pressed, so the thing that turns it off has to be somewhere that
+# is - and the page you turn it on from is the page you are already reading.
+[[menu.items]]
+id = "hud"
+icon = "󰾅"
+label = "Readings"
+detail = "How busy, how full, how hot"
+
+  [[menu.items.items]]
+  icon = "󰘚"
+  label = "Processor"
+  control = "readout"
+  reads = "sys:cpu"
+
+  [[menu.items.items]]
+  icon = "󰍛"
+  label = "Memory"
+  control = "readout"
+  reads = "sys:memory"
+
+  [[menu.items.items]]
+  icon = "󰋊"
+  label = "Disk"
+  control = "readout"
+  reads = "sys:disk"
+
+  # The four that are not here, and how to add one. Each needs a source in
+  # [sysinfo] first - a tile pointed at a reading this machine publishes
+  # nothing for is dropped rather than drawn empty, so adding the tile without
+  # the source changes nothing on either screen.
+  #
+  #   [[menu.items.items]]
+  #   icon = "󰔏"
+  #   label = "Temperature"
+  #   control = "readout"
+  #   reads = "sys:temperature"
+  #
+  # And the same shape for `sys:fan` (󰈐 Fan), `sys:gpu` (󰢮
+  # Graphics) and `sys:fps` (󰕧 Frames).
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  [[menu.items.items]]
+  icon = "󰍹"
+  label = "Keep on screen"
+  detail = "Stays up over a game"
+  span = [3, 1]
+  control = "toggle"
+  reads = "pad:hud"
 
 [[menu.items]]
 icon = ""

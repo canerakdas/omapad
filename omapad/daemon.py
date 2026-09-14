@@ -22,6 +22,7 @@ from . import cursor as cursor_theme
 from . import snap as snap_module
 from .gamebar import GameBarModel
 from .guide import GuideModel
+from .hud import HudModel
 from .mapping import MappingModel, render as render_mapping
 from .menu import (CONTROL_KINDS, MenuError, MenuModel, build as build_menu,
                    build_head, listed)
@@ -30,6 +31,8 @@ from . import paths
 from .ripple import RippleModel
 from .live import Live
 from . import live as live_module
+from .sysinfo import Sysinfo
+from . import sysinfo as sysinfo_module
 from .rumble import Rumble
 from . import xkb
 from .viewsock import ViewClient, drawable
@@ -245,7 +248,8 @@ class Daemon:
             items = build_menu(config.menu_items,
                                columns=config.menu_columns,
                                settings=CHOSEN,
-                               readings=live_module.READINGS)
+                               readings=live_module.READINGS,
+                               machine=sysinfo_module.READINGS)
         except MenuError as exc:
             # A broken entry must not take the daemon down with it; the menu
             # comes up empty and `omapad check` names the row.
@@ -261,7 +265,12 @@ class Daemon:
         self.menu = MenuModel(items, config.menu_title, config.menu_clock,
                               columns=config.menu_columns,
                               bias=config.menu_bias, head=head,
-                              layout=config.layout)
+                              layout=config.layout,
+                              # The one page that is also drawn on something
+                              # with a bottom edge. The menu is where a page
+                              # is arranged, so the menu is what has to stop
+                              # a tile being carried off the end of it.
+                              page_rows={config.hud_page: config.hud_rows})
         self.menu_client = ViewClient("menu.sock", config.menu_socket)
         self.menu_open = False
         self._menu_next_heartbeat = 0.0
@@ -280,6 +289,33 @@ class Daemon:
         self._menu_edged = False
         self._menu_before = None
         self._menu_sweep = 0.0
+        # The readings, left on screen. One of the menu's own pages, packed
+        # the same way and drawn somewhere else - so it is built from the same
+        # tree and reads the same arrangement, and a tile carried in edit mode
+        # moves in both places at once.
+        self.hud = HudModel(items, page=config.hud_page,
+                            columns=config.menu_columns,
+                            rows=config.hud_rows,
+                            # **The menu's arrangement, not the config's**, and
+                            # the same dict rather than a copy of it. The menu
+                            # takes its own copy of what came off layout.toml
+                            # so that rearranging never writes back into the
+                            # config - which means `config.layout` is the file
+                            # as it was read and stops being true the moment
+                            # anybody carries a tile. This surface draws the
+                            # page somebody is arranging, so it has to read
+                            # the arrangement they are making.
+                            layout=self.menu.layout)
+        self.hud_client = ViewClient("hud.sock", config.hud_socket)
+        # Not a surface that is opened: it is a setting somebody left on, so
+        # it comes back up the way they left it.
+        self.hud_open = bool(config.hud_show)
+        self._hud_next_heartbeat = 0.0
+        # What the machine underneath is doing, which readings have a helper's
+        # question in flight, and when each may be asked again.
+        self.sysinfo = Sysinfo(config)
+        self._sys_asking = set()
+        self._sys_poll = {}
         # What the machine is doing. Which readings have a question in flight,
         # when each may be asked again, and the one-shot after a write - the
         # helper has to have landed before asking it what it did.
@@ -1888,6 +1924,14 @@ class Daemon:
         # of every surface, and this is true of one.
         state["full"] = self.config.menu_fullscreen
         state["dim"] = self.config.menu_dim
+        # How much of a tile's corner is drawn art. Travels even though it
+        # looks like a shell constant, for the reason every geometry setting
+        # does: the shell cannot read the config.
+        state["corner"] = self.config.menu_tile_corner
+        # And how tall a cell is, for the same reason: `columns` decides the
+        # width of one and this decides the rest of it, and neither is
+        # something the panel can look up.
+        state["cell"] = self.config.menu_cell_height
         # How tall the game bar is, so a fullscreen HUD can put its own row of
         # hints in exactly the band the bar's row sits in. The buttons must
         # not move when the menu opens: it is the same four words about the
@@ -1994,6 +2038,8 @@ class Daemon:
         source, name = item["reads"]
         if source == "live":
             return self.live_control(item, name)
+        if source == "sys":
+            return self.sys_control(item)
         if source != "pad":
             return None
         try:
@@ -2021,6 +2067,12 @@ class Daemon:
         taking is a control with a range, and that arrives with one.
         """
         source, name = item["reads"]
+        if item["control"] == "readout":
+            # The one tile that is not a control. What the machine is doing is
+            # published rather than set, so there is nothing here to commit
+            # to - and a press that quietly did nothing else is better than
+            # one that found something to do.
+            return
         if source == "live":
             # What is playing has two states like a switch does, so A does the
             # same thing to it: the transport's two other marks are two more
@@ -2148,6 +2200,172 @@ class Daemon:
             return self.media_control(item, value)
         spec = live_module.READINGS[name]
         return self.slider_fields(spec, value, live_module.text(name, value))
+
+    # -- what the machine underneath is doing ------------------------------
+
+    def sys_control(self, item):
+        """What a readout tile prints, or None where nothing has answered.
+
+        None is drawn by leaving the tile out: a fan this machine publishes no
+        number for is not a tile saying nothing, it is no tile. The menu draws
+        the same answer as a line under the label, because a page of readings
+        should look the same in both places it appears.
+        """
+        source, name = item["reads"]
+        if source != "sys":
+            return None
+        words = self.sysinfo.words(name)
+        if not words:
+            return None
+        found = {"t": words}
+        share = self.sysinfo.fraction(name)
+        if share is not None:
+            # A percentage has a bar to draw and a temperature does not: the
+            # top of a thermometer's scale is a number somebody would have to
+            # invent, and a bar drawn against an invented maximum says a
+            # different thing on every machine.
+            found["v"] = round(share, 3)
+        return found
+
+    def sys_names(self):
+        """Which readings are being drawn right now, in one list.
+
+        Nothing is asked for a reading nobody can see. The HUD is one place
+        they appear and a page of readouts in the menu is the other, and it is
+        usually the same page in both - so the two are merged rather than
+        polled separately.
+        """
+        names = []
+        if self.hud_open:
+            names.extend(self.hud.names())
+        if self.menu_open:
+            for tile in self.menu.tiles:
+                item = tile["item"]
+                if not item["reads"] or item["reads"][0] != "sys":
+                    continue
+                name = item["reads"][1]
+                if name not in names:
+                    names.append(name)
+        return names
+
+    def sys_refresh(self, now):
+        """Ask again for whatever is due. Called from the loop.
+
+        Everything this side can answer is a file read out of procfs or sysfs
+        - microseconds, nothing to wait on - so it happens here rather than in
+        the worker. A `cmd:` source is the exception and goes the way every
+        other command does.
+        """
+        names = self.sys_names()
+        if not names:
+            # Nothing on screen wants them, so nothing is owed an answer and
+            # nothing is remembered as asked: what the machine was doing a
+            # minute ago is not what it is doing now.
+            self._sys_poll.clear()
+            return
+        changed = False
+        for name in names:
+            due = self._sys_poll.get(name)
+            if due is not None and now < due:
+                continue
+            self._sys_poll[name] = now + self.config.sysinfo_poll
+            command = self.sysinfo.command(name)
+            if command is None:
+                changed = self.sysinfo.read(name) or changed
+            else:
+                self.sys_ask(name, command)
+        for name in list(self._sys_poll):
+            if name not in names:
+                self._sys_poll.pop(name, None)
+        if changed:
+            self.push_sys_views()
+
+    def sys_ask(self, name, command):
+        """Run one reading's helper, off the loop.
+
+        One question in flight per reading, for `live_read`'s reason: a helper
+        that has wedged must not collect a queue of identical questions behind
+        it, and the answer to the first is the answer to all of them.
+        """
+        if name in self._sys_asking:
+            return
+        self._sys_asking.add(name)
+
+        def took(lines):
+            self._sys_asking.discard(name)
+            if self.sysinfo.answered(name, lines):
+                self.push_sys_views()
+
+        timeout = self.config.sysinfo_timeout
+        if not self.submit_command(command, took, timeout):
+            took(self.session.capture(command, timeout))
+
+    def push_sys_views(self):
+        """Redraw whatever is showing a reading that just moved."""
+        if self.hud_open:
+            self.push_hud_view()
+        if self.menu_open:
+            self.push_menu_view()
+
+    def push_hud_view(self):
+        self._hud_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
+        state = self.hud.view_state(self.hud_open, self.sys_control)
+        # The tile's corner is the menu's setting, because a tile is the same
+        # shape in both places. Its *height* deliberately is not: the menu's
+        # `cell_height` is a number of pixels down from the top of a page that
+        # scrolls, and this grid has to end at the bottom of the screen. The
+        # panel divides by `rows` instead, which is the whole of "a cell here
+        # is a share rather than a measurement".
+        state["corner"] = self.config.menu_tile_corner
+        # Where the grid starts, so the corner a tile was carried into is the
+        # corner of the screen rather than of some inset box.
+        state["margin"] = self.config.hud_margin
+        # How solid it is over what is behind it, which is the one thing this
+        # surface decides for itself.
+        state["opacity"] = self.config.hud_opacity
+        self.hud_client.send(self.scaled(state))
+
+    def hud_rearranged(self):
+        """The page the readings draw has been rearranged, so pack it again.
+
+        **The same arrangement is not the same packing.** `MenuModel` and
+        `HudModel` share one `layout` dict, one page and one packer, which is
+        what makes a tile carried in edit mode move in both places - but each
+        holds the cells it last worked out, and nothing was telling this one
+        to work them out again. So an arrangement made while the readings were
+        on screen reached the file and reached the menu, and reached the
+        screen only the next time they were switched on.
+
+        Called from every place the menu mutates the arrangement rather than
+        from where it is written down: the file is written when edit mode is
+        left, and what somebody is looking at must not wait for that.
+        """
+        if not self.hud_open:
+            # `set_hud(True)` packs on the way up, so an arrangement made
+            # while they are off is picked up when they come back.
+            return
+        self.hud.repack()
+        self.push_hud_view()
+
+    def set_hud(self, on):
+        """Put the readings on screen, or take them away.
+
+        No grab, no layer and no surface to close first: this one reads
+        nothing and stands in front of nothing. It is the only surface whose
+        state is a setting, which is what makes it survive a restart.
+        """
+        on = bool(on)
+        if on == self.hud_open:
+            return
+        self.hud_open = on
+        if on:
+            # Packed again on the way up: a page rearranged while the HUD was
+            # off is rearranged when it comes back.
+            self.hud.repack()
+        else:
+            self._sys_poll.clear()
+        self.push_hud_view()
+        log.info("hud: %s", "on" if on else "off")
 
     def media_control(self, item, found):
         """What is playing, as the fields a media tile draws.
@@ -2508,7 +2726,7 @@ class Daemon:
         # empty table, so the file only ever holds arrangements that exist.
         layout = {page: plan for page, plan in self.menu.layout.items()
                   if page and (plan.get("order") or plan.get("hidden")
-                               or plan.get("span"))}
+                               or plan.get("span") or plan.get("at"))}
         path = layout_path()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -2591,10 +2809,14 @@ class Daemon:
             elif command == "hide":
                 model.hide()
                 self.rumble.play("commit")
+                self.hud_rearranged()
             elif command == "restore":
                 if model.restore():
                     self.menu_layout_save()
-            elif not model.resize(1 if command == "wider" else -1, 0):
+                    self.hud_rearranged()
+            elif model.resize(1 if command == "wider" else -1, 0):
+                self.hud_rearranged()
+            else:
                 self.menu_edge()
             self.push_menu_view()
             return False
@@ -2607,7 +2829,9 @@ class Daemon:
         if command in ("up", "down", "left", "right") and model.picked:
             # A tile being carried takes the directions the selection would
             # have had: it is the thing the thumb is moving.
-            if not model.carry(command):
+            if model.carry(command):
+                self.hud_rearranged()
+            else:
                 self.menu_edge()
             self.push_menu_view()
             return True
@@ -2829,6 +3053,10 @@ class Daemon:
             # second before the bar behind it changes reads as a press that
             # did not take.
             self.push_open_views()
+        elif name == "hud":
+            # The one setting that is a surface: turning it on is the whole of
+            # putting the readings on screen.
+            self.set_hud(self.config.hud_show)
         elif name in ("rumble", "rumble_strength"):
             # The effect is uploaded once per connection, so a strength that
             # changed only reaches the motor by replacing it.
@@ -3032,6 +3260,7 @@ class Daemon:
                 "| pad <setting>=<value> | lock <on|off|toggle> "
                 "| keep <on|off|toggle> "
                 "| press <BUTTON> [tap|hold] "
+                "| hud <on|off|toggle> "
                 "| mode <toggle|desktop|game> | status"
             )
         verb, args = parts[0], parts[1:]
@@ -3040,7 +3269,7 @@ class Daemon:
         if verb == "status":
             return (
                 "mode=%s pad=%s lock=%s keep=%s osk=%s menu=%s guide=%s "
-                "map=%s layer=%s device=%s"
+                "map=%s hud=%s layer=%s device=%s"
                 % (
                     self.mode,
                     "app" if self.handed_over else "ours",
@@ -3050,6 +3279,7 @@ class Daemon:
                     "open" if self.menu_open else "closed",
                     "open" if self.guide_open else "closed",
                     "open" if self.mapping_open else "closed",
+                    "on" if self.hud_open else "off",
                     self.current_layer,
                     self.device.name if self.device else "none",
                 )
@@ -3176,6 +3406,18 @@ class Daemon:
                 return "press %s hold=%s" % (
                     button, "fired" if fired else "nothing bound")
             return "press %s" % button
+        if verb == "hud" and args:
+            # The readings are a setting rather than a surface verb, so this
+            # goes in by the same door the tile does - which is what makes
+            # `omapad ctl hud on` something that is still true tomorrow.
+            command = args[0]
+            if command not in ("on", "off", "toggle"):
+                return "unknown hud command: %s" % command
+            if command == "toggle":
+                self.set_setting("hud", ("toggle", None))
+            else:
+                self.set_setting("hud", ("set", command == "on"))
+            return "hud=%s" % ("on" if self.hud_open else "off")
         if verb == "lock" and args:
             # The lock has one button-shaped way in - a chord over a game -
             # and this is the other, for a script and for seeing what it does
@@ -4377,6 +4619,11 @@ class Daemon:
                         self.push_menu_view()
                 if self.guide_open and now >= self._guide_next_heartbeat:
                     self.push_guide_view()
+                # Both places a reading can be drawn are asked for in one
+                # pass, and nothing is asked at all while neither is up.
+                self.sys_refresh(now)
+                if self.hud_open and now >= self._hud_next_heartbeat:
+                    self.push_hud_view()
                 if self.mapping_open:
                     self.check_mapping_hold(now)
                     if now >= self._mapping_next_heartbeat:
@@ -4431,6 +4678,11 @@ class Daemon:
         self.status_client.close()
         self.set_gamebar(False)
         self.gamebar_client.close()
+        # The readings go with us: what is on screen is a view of a daemon
+        # that is stopping, and a frozen one left over a game is worse than
+        # none at all. The setting is untouched, so it comes back next start.
+        self.set_hud(False)
+        self.hud_client.close()
         self.ripple_client.close()
         if self.control is not None:
             self.control.close()

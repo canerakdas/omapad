@@ -20,6 +20,7 @@
 // does: Exclusive focus so the arrows reach it rather than the window under
 // the scrim, hover to select, a click to pick, a click outside to leave.
 import QtQuick
+import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -56,6 +57,16 @@ Item {
   // the blur; with blur off it is the whole of the contrast, which is why it
   // is a setting rather than a number picked here.
   property real dim: 0.6
+  // How far the drawn corner of a tile reaches into it, before this surface's
+  // own scale. `menu.tile_corner`, and deliberately not `Style.cornerRadius`:
+  // that is the radius of a window, it mirrors the compositor's own rounding,
+  // and it is 0 on plenty of setups - which would leave every state of a tile
+  // drawn as the same square.
+  property real corner: 10
+  // How tall one cell is, before this surface's own scale. `menu.cell_height`:
+  // `cols` decides how wide a cell is and this decides the rest of its shape,
+  // and the shell cannot read the config either way.
+  property int cellUnit: 34
   // The game bar's own height and edge padding, so a fullscreen HUD can put
   // its row of hints in the band the bar's row sits in. Mirrored from
   // GameBar.qml rather than shared, because the two surfaces are separate
@@ -117,6 +128,12 @@ Item {
     id: controlArt
   }
 
+  // The ground a tile is drawn on. A function rather than path data: a tile
+  // is as wide as the cells it spans, and what is drawn once is the corner.
+  TileArt {
+    id: tileArt
+  }
+
   readonly property int badgeUnit: metrics.badge(
     Math.max(metrics.space(18), metrics.font.bodySmall + metrics.space(7)))
 
@@ -167,11 +184,12 @@ Item {
   // that is where the row it replaces was.
   readonly property int legendBand: root.legendHeight <= 0 ? 0
     : (root.full ? root.barBand : root.legendHeight + root.contentSpacing)
-  // The gap between tiles, and the height of one cell. A cell is taller than
-  // it is wide on purpose: a tile carries an icon over a label, and a square
-  // one leaves the label nowhere to go on a six-column card.
+  // The gap between tiles, and the height of one cell. The height is the
+  // setting and the width is what `cols` leaves, so how a tile is shaped is
+  // the two of them together: tall enough and a tile carries an icon over a
+  // label, short enough and the label has the tile on its own.
   readonly property int cellGap: metrics.spacing.xs
-  readonly property int cellHeight: metrics.space(68)
+  readonly property int cellHeight: metrics.space(root.cellUnit)
   readonly property var selectedBorderSpec: Border.surfaceSpec(
     "menu", "selected-border", Color.menu.selectedBorder, 0)
 
@@ -237,9 +255,14 @@ Item {
     return true
   }
 
-  // What the grid was last scrolled to. Guarded because `reveal` runs on
-  // every arriving line and the heartbeat brings two a second: scrolling to
-  // where the selection already is costs an animation nobody asked for.
+  // What the grid was last scrolled to: the tile **and the cell it was in**.
+  // Guarded at all because `reveal` runs on every arriving line and the
+  // heartbeat brings two a second - scrolling to where the selection already
+  // is costs an animation nobody asked for. Keyed on the cell as well as the
+  // id because while a tile is being carried the selection does not change
+  // and its row does: on the id alone the guard fires, the view stands still,
+  // and the tile walks off the bottom of the grid while the button is still
+  // being pressed.
   property string revealed: ""
 
   function applyState(text) {
@@ -271,6 +294,8 @@ Item {
       if (s.full !== undefined) root.full = !!s.full
       if (s.dim !== undefined) root.dim = Number(s.dim)
       if (s.barh !== undefined) root.barh = Number(s.barh) || 32
+      if (s.corner !== undefined) root.corner = Number(s.corner) || 0
+      if (s.cell !== undefined) root.cellUnit = Number(s.cell) || 34
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
       if (s.open !== undefined) root.opened = !!s.open
@@ -315,10 +340,12 @@ Item {
 
   function reveal() {
     if (grid.height <= 0) return
-    if (root.sel === root.revealed) return
-    root.revealed = root.sel
     for (var i = 0; i < root.items.length; i++) {
       if (root.items[i].id !== root.sel) continue
+      // The cell is part of the key, not just the id - see `revealed`.
+      var key = root.sel + "@" + root.items[i].y + ":" + root.items[i].h
+      if (key === root.revealed) return
+      root.revealed = key
       var top = root.cellY(root.items[i].y)
       var bottom = top + root.rowsHeight(root.items[i].h)
       if (top < grid.contentY)
@@ -488,7 +515,15 @@ Item {
   // One drawn button. The same silhouettes the guide and the bar print, from
   // the same generated art, because a face button drawn three ways on three
   // surfaces is three buttons as far as the eye is concerned.
-  component Badge: Item {
+  //
+  // Only the legend uses this Badge, and the legend is the game bar's row:
+  // the same four words about the same four buttons, printed in the exact
+  // band the bar's row sat in. So it is drawn in the bar's own text colour
+  // rather than the menu's accent - the menu has taken the bar's place, and
+  // buttons that changed colour as the menu opened would read as a different
+  // row. The bar's resting levels, not the menu's brighter wash: at rest a
+  // filled badge is 0.20 of the foreground, a stencil one keeps 0.88.
+  component LegendBadge: Item {
     id: badge
 
     property string label: ""
@@ -514,14 +549,18 @@ Item {
     BadgeArt {
       anchors.fill: parent
       drawn: badge.art
-      fill: root.stencil ? Color.accent : Util.alpha(Color.accent, 0.30)
-      ink: root.stencil ? "transparent" : Color.menu.text
+      fill: root.stencil
+        ? Util.alpha(Color.bar.text, 0.88)
+        : Util.alpha(Color.bar.text, 0.20)
+      ink: root.stencil ? "transparent" : Color.bar.text
       knockout: root.stencil
     }
 
     // Typed only where the drawing has no label of its own - a remapped
     // button, a pad printing something new. In the same Fira Code the drawn
-    // labels are outlines of, so the two read as one set.
+    // labels are outlines of, so the two read as one set. On a stencil badge
+    // the letter is a hole, so it is the colour of what is behind it here -
+    // the menu's own surface - just as the bar's typed letters show the bar's.
     Text {
       id: typed
       visible: badge.drawn === null
@@ -533,7 +572,7 @@ Item {
       y: Math.round((badge.height - typed.height) / 2) + root.capNudge
       text: badge.label
       textFormat: Text.PlainText
-      color: root.stencil ? Color.menu.background : Color.menu.text
+      color: root.stencil ? Color.menu.background : Color.bar.text
       font.family: buttonArt.family
       font.pixelSize: metrics.font.caption
       fontSizeMode: Text.HorizontalFit
@@ -873,7 +912,7 @@ Item {
             // plugin has a rule against. When there is more than one kind to
             // draw, each becomes a file with `required property` inputs and
             // this becomes a Loader over them.
-            delegate: BorderSurface {
+            delegate: Item {
               id: tile
               required property int index
               required property var modelData
@@ -882,13 +921,35 @@ Item {
               readonly property bool ticked: tile.modelData.on === true
               readonly property bool hasIcon: tile.modelData.i !== undefined
                 && tile.modelData.i.length > 0
+              // Whether this tile is tall enough to stack the icon over the
+              // label. `menu.cell_height` is a setting, so a tile can be
+              // shorter than the two of them together - and a glyph that
+              // pushed the label out past the ground it is drawn on would be
+              // the page looking broken rather than dense. The label is what
+              // survives: it is the half that says which tile this is.
+              readonly property bool roomForIcon:
+                tile.height - metrics.space(8) >= iconText.implicitHeight
+                  + labelText.implicitHeight + metrics.space(2)
 
               x: root.cellX(tile.modelData.x)
               y: root.cellY(tile.modelData.y)
               width: root.cellSpan(tile.modelData.w)
               height: root.rowsHeight(tile.modelData.h)
 
-              radius: Style.cornerRadius
+              // A tile that has been taken off the page is drawn where it
+              // sits, faded, rather than moved anywhere: there is nothing to
+              // go and find, and putting it back is the same press that took
+              // it away.
+              opacity: tile.off ? 0.32 : 1.0
+
+              // Which outline this tile is drawn with. The same three cases
+              // the colour below splits on, deliberately: the state is said
+              // twice, once in ink and once in the silhouette, and a theme
+              // whose accent sits close to its surface only has the second
+              // one left. TileArt is what turns a name into a path.
+              readonly property string outline: (tile.taken || tile.carried)
+                ? "carried" : (tile.selected ? "selected" : "plain")
+
               // A tile that is not selected still needs a ground. A row in a
               // column is bounded by the rows above and below it; a tile has
               // air on four sides, and six of them drawn on nothing read as a
@@ -898,25 +959,50 @@ Item {
               // reads as a tile against an opaque panel reads as nothing at
               // all against a desktop. With no page behind them the tiles are
               // the only thing there is, so they carry their own.
-              color: (tile.taken || tile.carried)
-                ? Util.alpha(Color.accent, root.full ? 0.55 : 0.32)
-                : (tile.selected
-                   ? Util.alpha(Color.accent, root.full ? 0.42 : 0.20)
-                   : (root.full
-                      ? Util.alpha(Color.menu.background, 0.88)
-                      : Util.alpha(Color.menu.text, 0.06)))
-              // A tile that has been taken off the page is drawn where it
-              // sits, faded, rather than moved anywhere: there is nothing to
-              // go and find, and putting it back is the same press that took
-              // it away.
-              opacity: tile.off ? 0.32 : 1.0
-              // An outline as well as a ground: a theme whose accent is close
-              // to its surface would otherwise leave the selection to the
-              // label alone, and the label is the smallest thing on the tile.
-              borderSpec: tile.selected
-                ? Border.flat(Color.accent, Math.max(1, metrics.space(
-                    (tile.taken || tile.carried) ? 4 : 2)))
-                : Border.none()
+              Shape {
+                id: ground
+                anchors.fill: parent
+                preferredRendererType: Shape.CurveRenderer
+
+                // An outline as well as a ground: a theme whose accent is
+                // close to its surface would otherwise leave the selection to
+                // the label alone, and the label is the smallest thing on the
+                // tile. Only the selected tile carries one, so the weight is
+                // zero the rest of the time and the ground fills its own box.
+                readonly property real weight: tile.selected
+                  ? Math.max(1, metrics.space(
+                      (tile.taken || tile.carried) ? 4 : 2))
+                  : 0
+
+                ShapePath {
+                  fillColor: (tile.taken || tile.carried)
+                    ? Util.alpha(Color.accent, root.full ? 0.55 : 0.32)
+                    : (tile.selected
+                       ? Util.alpha(Color.accent, root.full ? 0.42 : 0.20)
+                       : (root.full
+                          ? Util.alpha(Color.menu.background, 0.88)
+                          : Util.alpha(Color.menu.text, 0.06)))
+                  strokeColor: tile.selected ? Color.accent : "transparent"
+                  strokeWidth: ground.weight > 0 ? ground.weight : -1
+
+                  // Drawn a border in from the tile's own box, and shifted
+                  // back out by half of it below: a stroke straddles the path
+                  // it follows, and a selected tile whose outline hung over
+                  // the gap would be the one tile on the page that is bigger
+                  // than a cell.
+                  PathSvg {
+                    path: tileArt.ground(tile.outline,
+                                         tile.width - ground.weight,
+                                         tile.height - ground.weight,
+                                         metrics.px(root.corner))
+                  }
+                }
+
+                transform: Translate {
+                  x: ground.weight / 2
+                  y: ground.weight / 2
+                }
+              }
 
               readonly property bool holds: tile.modelData.k !== undefined
                 && tile.modelData.k.length > 0
@@ -926,6 +1012,12 @@ Item {
               readonly property bool slider: tile.modelData.k === "slider"
               readonly property bool media: tile.modelData.k === "media"
               readonly property bool gauge: tile.modelData.k === "gauge"
+              // The one tile with no control on it. It is drawn here as well
+              // as on the HUD because a page of readings has to read the same
+              // in both places it appears - this is where you turn them on,
+              // and a page that looked different once it was on screen would
+              // be a page you had to learn twice.
+              readonly property bool readout: tile.modelData.k === "readout"
               // Being carried, or on the page only so it can be put back.
               readonly property bool carried:
                 tile.modelData.id === root.picked && root.editing
@@ -944,7 +1036,8 @@ Item {
                 spacing: metrics.space(2)
 
                 Text {
-                  visible: tile.hasIcon && !tile.holds
+                  id: iconText
+                  visible: tile.hasIcon && !tile.holds && tile.roomForIcon
                   width: parent.width
                   horizontalAlignment: Text.AlignHCenter
                   text: tile.hasIcon ? tile.modelData.i : ""
@@ -956,7 +1049,9 @@ Item {
                 }
 
                 Text {
+                  id: labelText
                   visible: !tile.slider && !tile.media && !tile.gauge
+                    && !tile.readout
                   width: parent.width
                   horizontalAlignment: Text.AlignHCenter
                   text: tile.modelData.l
@@ -1275,6 +1370,80 @@ Item {
                     }
                   }
                 }
+
+                // A reading: the name and what it says on one line, and the
+                // bar only where there is a travel to draw it against. The
+                // slider's shape, because it is answering the same question -
+                // where along something a number is - and a page that mixed
+                // the two layouts would be saying they are different kinds of
+                // thing. What it does not have is the slider's second half:
+                // there is nothing here to push.
+                Column {
+                  id: reading
+                  visible: tile.readout
+                  width: parent.width
+                  spacing: metrics.space(3)
+
+                  Item {
+                    width: parent.width
+                    height: readingName.height
+
+                    Text {
+                      id: readingName
+                      anchors.left: parent.left
+                      anchors.right: readingValue.left
+                      anchors.rightMargin: metrics.space(4)
+                      text: tile.modelData.l
+                      textFormat: Text.PlainText
+                      color: tile.selected
+                        ? Color.menu.selectedText : Color.menu.text
+                      font.family: metrics.font.family
+                      font.pixelSize: metrics.font.bodySmall
+                      font.weight: Font.Medium
+                      elide: Text.ElideRight
+                    }
+
+                    Text {
+                      id: readingValue
+                      anchors.right: parent.right
+                      anchors.baseline: readingName.baseline
+                      // Empty until something has answered. On the HUD such a
+                      // tile is not drawn at all; here it stays, because this
+                      // is the page you come to in order to find out that a
+                      // reading has no source on this machine.
+                      text: tile.modelData.t !== undefined
+                        ? tile.modelData.t : ""
+                      textFormat: Text.PlainText
+                      color: Color.accent
+                      font.family: metrics.font.family
+                      font.pixelSize: metrics.font.caption
+                      font.weight: Font.Medium
+                    }
+                  }
+
+                  // Only a share has one. A thermometer's top of scale is a
+                  // number somebody would have to invent, and a bar drawn
+                  // against an invented maximum says a different thing on
+                  // every machine it is read on - so the daemon sends no `v`
+                  // and there is no bar, rather than a bar that lies.
+                  Rectangle {
+                    visible: tile.modelData.v !== undefined
+                    width: parent.width
+                    height: Math.max(2, metrics.space(4))
+                    radius: height / 2
+                    color: Util.alpha(Color.menu.text, 0.18)
+
+                    Rectangle {
+                      height: parent.height
+                      radius: parent.radius
+                      width: Math.round(
+                        parent.width * (tile.modelData.v !== undefined
+                                        ? tile.modelData.v : 0))
+                      color: Color.accent
+                      Behavior on width { NumberAnimation { duration: 90 } }
+                    }
+                  }
+                }
               }
 
               // The same slot says two things, and they never both apply:
@@ -1347,7 +1516,10 @@ Item {
       // fullscreen HUD it sits in the **game bar's own band**: it is the same
       // four words about the same four buttons, so it must not move when the
       // menu opens. A row that jumped an inch up the screen would read as a
-      // different row.
+      // different row - and neither may its colours change, which is why the
+      // badges and the words are drawn in the bar's own text colour (see the
+      // LegendBadge component): the row that answers the menu is the row the
+      // bar answered before it.
       Item {
         id: legend
         anchors.left: parent.left
@@ -1384,7 +1556,7 @@ Item {
               required property var modelData
               spacing: metrics.space(5)
 
-              Badge {
+              LegendBadge {
                 label: hint.modelData.b
                 kind: hint.modelData.k
                 anchors.verticalCenter: parent.verticalCenter
@@ -1394,8 +1566,11 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: hint.modelData.n
                 textFormat: Text.PlainText
-                color: Color.menu.text
-                opacity: 0.66
+                // The bar's word, at the bar's weight: the bar prints its
+                // hint words at 0.85 of its foreground, and this row is that
+                // row.
+                color: Color.bar.text
+                opacity: 0.85
                 font.family: metrics.font.family
                 font.pixelSize: metrics.font.caption
               }

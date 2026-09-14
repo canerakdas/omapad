@@ -205,13 +205,22 @@ reads = "pad:rumble"
 
 `CONTROL_KINDS` is which control a setting may be drawn as, by the kind of
 thing it holds - a `toggle` reads a `bool`, a `choice` reads a `choice`, a
-`slider` reads a `number`, a `media` reads a `media`. A switch pointed at a
-number is a tile that could never draw itself, so it fails
-`omapad check` rather than the sofa. `READERS` is where a value may come from;
-there are two: `pad:` is omapad's own settings and `live:` is what the machine
-is doing - see [`live.md`](live.md). Each has its own table and `_reads` picks
-by source, and **both tables are passed into `build()` rather than imported**,
-so this module stays the thing that holds state and geometry and nothing else.
+`slider` reads a `number`, a `media` reads a `media` and a `readout` reads a
+`reading`. A switch pointed at a number is a tile that could never draw
+itself, so it fails `omapad check` rather than the sofa. `READERS` is where a
+value may come from; there are three: `pad:` is omapad's own settings, `live:`
+is what the desktop is doing - see [`live.md`](live.md) - and `sys:` is what
+the machine underneath is publishing, see [`hud.md`](hud.md). Each has its own
+table and `_reads` picks by source, and **all three tables are passed into
+`build()` rather than imported**, so this module stays the thing that holds
+state and geometry and nothing else.
+
+**A `readout` is the one control that is not a control.** What the machine is
+doing is published rather than set - a temperature is not a setting - so the
+tile commits to nothing and A on it does nothing rather than finding something
+to do. It is not in `TAKEABLE` either, because there is no range to push. The
+same tile is drawn by `Hud.qml` over whatever is playing, which is the other
+half of [`hud.md`](hud.md): one page, two surfaces.
 
 `build()` hands both down its own recursion. It did not, once, and since every
 control tile in the shipped tree lives a level down that meant the check above
@@ -394,7 +403,11 @@ Fullscreen changes four things, and each is the same argument:
   is `[gamebar] height`) and the bar's edge padding, and sits flush at the
   foot - whether or not the bar is actually up, because "where the bar would
   be" is the answer either way. On a card it stays centred under the tiles,
-  because a card's foot is its middle.
+  because a card's foot is its middle. It also takes the bar's colours:
+  `LegendBadge` draws its buttons in `Color.bar.text` at the bar's resting
+  fills, and the words beside them at the bar's own weight, so the row that
+  answers the menu is the row the bar answered before it - in geometry and
+  in colour.
 - The grid takes the space above it whether or not it fills it: a legend that
   floated up under a short page would not be at the foot of anything.
 - **The bars underneath are covered.** `exclusionMode` stops asking for what
@@ -500,18 +513,78 @@ The cost of putting edit on Y's hold is that **Y acts on the way back up**
 rather than on the way down, the way every tap/hold does. HOME already has
 that beat in this layer.
 
-### Moving is a reorder, never a coordinate
+### Moving is a cell, and it used to be a place in the order
 
-`carry(direction)` moves an id through the order and `place()` packs again.
-First fit always produces a valid packing, so a tile can only ever land
-somewhere real, and a layout written as **names** survives a different column
-count, a new tile and another screen. A deliberate gap is a `row_break`.
+`carry(direction)` puts the carried tile in the next cell that way, writes it
+to `plan["at"]`, and `place()` packs again.
 
-Left and right are one place. Up and down go past the **whole** of the target
-row, not up against its near edge: taking a tile out of a row leaves room
-behind it, so one moved only as far as that row's old boundary packs straight
-back into the row it was trying to leave. That was wrong first and is now what
-`_row_slot` says.
+**It was a reorder for a long time, and the argument for that was good.**
+First fit always produces a valid packing, so a tile could only ever land
+somewhere real, and a layout written as names survives a different column
+count, a new tile and another screen. What an order cannot express is an
+**empty cell**: with one tile on a page there is nothing to be third in, so
+there was no gesture that put it anywhere but the top left - and the page the
+HUD draws is one whose whole content is where it sits. Item 52 in the roadmap
+is the reversal and why.
+
+`place()` is therefore two passes, and the order of them is the design:
+
+1. **The pins.** Every tile with a cell in `plan["at"]` claims it, clamped to
+   the page - `x` is pulled back to `columns - width`, a collision hands the
+   later tile to the flow.
+2. **The flow.** Everything else first fits, in the arranged order, around
+   what pass one took.
+
+Pins first, or a flowed tile would take the cell one was put in and where a
+tile ended up would depend on what else happened to be on the page.
+
+**A pin does not reorder anything**, and that is what keeps the old gesture's
+job done: carrying a tile left into the middle of a row pins it there and the
+rest of the row closes up behind it, because the flow runs after. So the order
+is still names, and it is still what holds every tile nobody has moved.
+
+**Clamping is the whole of what the cell costs.** A pin off the edge of a
+narrower screen is pulled back onto it rather than lost, which keeps the
+property the reorder rule actually wanted: a page is always a packing, never a
+pile. `omapad check --layout` prints the cells and says which ones would be
+clamped, because clamping is silent by design.
+
+Three refusals, each an edge the motor answers:
+
+- the sides and the top of the page;
+- **the bottom, and what that is depends on the page.** `page_rows` maps a
+  page id to its last row, and `rows_limit()` is what asks. A page that is
+  also drawn somewhere with a bottom edge - the HUD is the whole screen - has
+  one, and a tile stops on it; every other page has none and grows a row at a
+  time, which is the only way to reach an empty cell below everything and is
+  bounded so a held direction cannot fling a tile somewhere a thumb has to
+  walk all the way back from.
+
+  The limit is applied when the page is **placed** as well, not only when a
+  tile is carried, so what the menu draws while somebody is arranging is what
+  the other surface will draw. Without the bound a tile could be carried past
+  the end of a page it is only half the surface for, and `place` would pull it
+  back onto the last row - onto whatever was already pinned there, which costs
+  it the cell and drops it into the flow;
+- **a cell another *pinned* tile is in.** It would lose that cell in pass one
+  and be handed to the flow, which is a press that goes somewhere nobody
+  pointed at. An unpinned tile is walked *through* rather than into, because
+  that one flows out of the way - `_room` is the two halves of that one rule.
+
+`pinned_cell(item, plan)` is **one function, one authority**, the way
+`effective_span` is: a pin is the only thing that takes a tile out of the
+flow, so nothing else may ask whether one was placed.
+
+**The grid has to follow the tile being carried, and nearly did not.**
+`Menu.qml`'s `reveal` is guarded so it does not scroll on every arriving line
+- the heartbeat brings two a second, and scrolling to where the selection
+already is costs an animation nobody asked for. The guard was the selection's
+*id*, and carrying a tile is the one gesture on this surface that moves a tile
+without changing the selection: the guard fired, the view stood still, and the
+tile walked off the bottom of the visible grid while the button was still
+being pressed. The key is the id **and the cell** now. A guard on identity
+where the question was position - the same shape of mistake as an index for a
+tile id, one surface along, and `tests/test_shell_plugin.py` is what says so.
 
 ### Hiding, and why there is no add page
 
@@ -554,6 +627,26 @@ id. Separate from `settings.toml` because that one is scalars and this one is
 structure: a layout that will not parse must not take the settings down with
 it. See [`../conventions/data.md`](../conventions/data.md) for how it is read,
 and `omapad check --layout` for what a saved one still resolves to.
+
+Four parts per page, and `read_layout` reads each one on its own so a mistake
+in one costs only that one:
+
+```toml
+[layout.hud]
+order = ["processor", "memory", "disk"]   # the flow, in names
+hidden = ["fan"]
+
+[layout.hud.span]
+processor = [3, 1]                        # cells across, cells down
+
+[layout.hud.at]
+memory = [3, 3]                           # the cell somebody put it in
+```
+
+`at` is the only part whose meaning depends on how wide the page is drawn, so
+it is the only part `read_layout` does not fully validate: a negative cell is
+dropped and a far-right one is kept, because `place` is what knows the column
+count and clamps.
 
 Written when edit mode is left, which is what B means there: the arrangement
 you walked away from is the one kept. Inline rather than on the worker thread,
@@ -642,13 +735,16 @@ this one is page-scoped.
 Two pure functions, no I/O, testable against a canned page - the shape
 [`snap.md`](snap.md) is already written in.
 
-**`place(items, columns)`** packs first-fit, in the order the page holds them.
+**`place(items, columns, plan)`** claims the cells somebody put tiles in, then
+packs everything else first-fit around them, in the order the page holds them.
 The order is authorial - `pad-menu.md` places a tile by how often a thumb
-reaches for it - so the packing keeps it, and a small tile is allowed to
-backfill the hole a big one left rather than the order being rewritten to avoid
-holes. Deterministic, which is what lets a saved layout be a list of names
-instead of a list of coordinates. It returns tiles shaped `{item, at, size}` -
-`at` and `size` named for what `snap.rect` reads.
+reaches for it - so the flow keeps it, and a small tile is allowed to backfill
+the hole a big one left rather than the order being rewritten to avoid holes.
+Deterministic either way, which is what lets a page that nobody has rearranged
+be a list of names and a page somebody has still be a valid packing. It
+returns tiles shaped `{item, at, size}` - `at` and `size` named for what
+`snap.rect` reads. See *Moving is a cell* above for the two passes and why a
+pin is clamped.
 
 A **`row_break`** tile ends the row it is in and draws nothing. Not a one-cell
 spacer: a spacer holds a hole open at one column count and shifts everything
@@ -826,7 +922,37 @@ guide stay pad-only, with an empty input region, so they never swallow a click
 meant for the window under their scrims. The menu swallows them - that is what
 "close on a scrim click" means - until it goes away.
 
-Settings: `[menu] title`, `clock`, `columns`, `bias`, `keys`,
+## What a tile is drawn on
+
+Every state of a tile is drawn on its **own outline**, not on one rectangle in
+a different colour: a plain tile is rounded, a selected one is cut back to a
+facet, and a tile being carried has a bite out of its corner. The state is
+said twice - once in ink and once in the silhouette - because a theme whose
+accent sits close to its surface leaves a selection to the border alone, and
+the border is the thinnest thing on the tile.
+
+The outlines are drawn art, generated from `assets/shapes/ground-*.svg` into
+`shell-plugin/TileArt.qml`. A tile is `w` cells by `h` rows, though, and a
+shape scaled by one factor cannot be a rectangle of any aspect - the rule the
+slider's track and the dial's shaded zone are not drawn under. So a ground is
+**the corner as drawing and the four edges as a number**: the same quarter set
+at all four corners, rotated rather than mirrored, with straight lines run
+between them. `docs/components/assets.md` is the mechanism.
+
+How far that corner reaches into the tile is `[menu] tile_corner`, and it is
+deliberately **not** `Style.cornerRadius`: that mirrors the compositor's own
+`decoration:rounding`, it is 0 on plenty of setups, and at 0 every state of a
+tile is the same square - which is the one thing this must not do.
+
+A cell is `[menu] columns` wide and `[menu] cell_height` tall, and both travel
+in the payload for the reason every geometry setting does: the shell cannot
+read the config. A tile shorter than an icon over a label **drops the icon**
+rather than pushing the label out past the ground it is drawn on - the label
+is the half that says which tile this is, and `cell_height` being a setting is
+what makes a tile that short reachable at all.
+
+Settings: `[menu] title`, `clock`, `columns`, `cell_height`, `bias`, `keys`,
+`tile_corner`,
 `repeat_delay_ms`, `repeat_rate_ms`, `group_settle_ms`, `list_timeout_ms`,
 `list_limit`, `socket`,
 `[[menu.head]]`, `[[menu.items]]`, `[bindings.menu]`.

@@ -43,9 +43,10 @@ yesterday's button and nothing else complains.
 | `shapes/system.svg` | the **oblong** - Create, Options, and the bare shape the shell types a word into |
 | `shapes/stick.svg` | the **stick from above** - 56x40, one pill, wide because `L3` is two characters. No rim: every badge on the pad is a solid silhouette, and a ring among them reads as a different colour |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
+| `shapes/ground-*.svg` | **a quarter of a menu tile** - one corner per tile state, and the one drawing here that answers to a size |
 | `generate.py` | the generator; `truetype.py`, `svgpath.py`, `place.py` its parts |
 
-## The three tables in `generate.py`
+## The four tables in `generate.py`
 
 Between them they cover every kind the daemon can send, so no surface falls
 back to a bordered rectangle.
@@ -55,6 +56,7 @@ back to a bordered rectangle.
 | `BUTTONS_TO_DRAW` | a shape with **text labels** punched into it | `(kind, side, shape.svg, (labels...))` |
 | `ICONS_TO_DRAW` | a label that is itself **a drawing** | `(kind, glyph, name, base.svg, overlay.svg)` |
 | `BLANKS_TO_DRAW` | the shape only, for an oblong the shell types into | `(kind, side, shape.svg)` |
+| `GROUNDS_TO_DRAW` | **a function**, not path data - a menu tile's outline at whatever size it turned out | `(name, quarter.svg)` |
 
 ## Adding a pad that prints something new
 
@@ -118,6 +120,57 @@ in the stencil style, so two same-wound circles are a ring in one and a disc
 in the other. The dial's rim is an outer arc with `sweep 1` and an inner with
 `sweep 0`; `AnnuliSurviveEitherFillRule` is what says so. It is the lesson
 `stick.svg` taught before it gave its own rim up.
+
+## Drawing a tile ground
+
+The one drawing here that answers to a size, and the one place the rule above
+bends. A menu tile is `w` cells by `h` rows - no fixed aspect at all - so a
+drawing scaled by one factor cannot be its outline. That is exactly why the
+slider's track and the dial's shaded zone are *not* art.
+
+A ground gets away with it because **only its edges are parameterised**. A
+corner is not, and a straight line does not have to be drawn to be right. So
+what you draw is a **quarter**: the corner, with the box it turns in filled in
+behind it.
+
+```
+                       (0,0)        (c,0)
+  in off the left edge   .  ‾ ‾ ‾ ‾ .  out onto the top edge
+  at (0, c)              |  the     |
+                         |  corner  |
+                  (0,c)  ._ _ _ _ _ .  (c,c)  <- closes the quarter;
+                                                 not generated
+```
+
+**Drawn clockwise, the way the outline runs.** In at `0 c`, round the corner,
+out at `c 0`, then back through `c c` to close. `corner_run` raises on a
+quarter drawn any other way, and that is the whole point of it: a run that
+stops in the middle of its box still generates, still scales, and comes out as
+a tile with a dent in one corner. Nothing downstream would notice.
+
+Add a line to `GROUNDS_TO_DRAW`, `(name, quarter.svg)`, and `Menu.qml` asks for
+that name in `tile.outline`. `tests/test_assets.py` fails on a state the menu
+draws that the table does not generate, and the other way round.
+
+Three things are already decided for you, and each has a test:
+
+- **The corner is rotated into its four places, never mirrored.** A rotation
+  carries an arc's sweep flag through unchanged; a mirror would have to flip
+  every one of them, and a flag flipped in three corners out of four is a
+  ground that draws inside out in one of them.
+- **A run is generated as `[letter, numbers...]`, not as a string.** The shell
+  shrinks the corner on a tile too small to hold four of them, and a string
+  cannot be scaled without being parsed again.
+- **Every ground is wound the same way round** - clockwise, a positive area
+  with `y` down the screen. `GroundsCloseOnTheirOwnBox` is what says so: under
+  an even-odd fill, a ground wound the other way is the state that draws as a
+  hole.
+
+How far the corner reaches into a tile is **`[menu] tile_corner`**, and it is
+deliberately not `Style.cornerRadius` - that mirrors the compositor's own
+`decoration:rounding`, it is 0 on plenty of setups, and at 0 every state of a
+tile is drawn as the same square, which is the one thing a state silhouette
+must not do.
 
 ## Drawing a shape
 

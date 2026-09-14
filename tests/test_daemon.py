@@ -301,6 +301,7 @@ class DaemonTestCase(unittest.TestCase):
         self.daemon.ctx.session = self.session
         self.osk_client = self.daemon.osk_client = FakeViewClient()
         self.menu_client = self.daemon.menu_client = FakeViewClient()
+        self.hud_client = self.daemon.hud_client = FakeViewClient()
         self.guide_client = self.daemon.guide_client = FakeViewClient()
         # Swapped here rather than per-test: the real clients connect to the
         # live shell's sockets, so a suite that left them in place would push
@@ -365,6 +366,7 @@ class ProfileTests(DaemonTestCase):
         self.addCleanup(daemon.shutdown)
         daemon.osk_client = FakeViewClient()
         daemon.menu_client = FakeViewClient()
+        daemon.hud_client = FakeViewClient()
         daemon.guide_client = FakeViewClient()
         daemon.attach(FakeDevice(NINTENDO))
         self.assertEqual(daemon.buttons[0x130], "B")
@@ -2345,7 +2347,7 @@ class MenuTests(DaemonTestCase):
         self.assertEqual(
             [group["l"] for group in self.menu_client.sent[-1]["groups"]],
             ["Now", "Apps", "Windows", "Audio", "Display", "Controller",
-             "System"],
+             "Readings", "System"],
         )
 
     def test_a_drills_into_a_submenu(self):
@@ -3220,6 +3222,13 @@ class FullscreenTests(DaemonTestCase):
         self.assertEqual(self.menu_client.sent[-1]["dim"],
                          self.config.menu_dim)
 
+    def test_how_tall_a_cell_is_travels_with_it(self):
+        # `cols` says how wide a cell is and this says the rest of its shape.
+        # Both have to arrive: the panel has no config to look either up in.
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["cell"],
+                         self.config.menu_cell_height)
+
     def test_the_blur_is_asked_for_once_at_start(self):
         # A layer rule on our own namespace and nothing else: asking for a
         # blur behind your own panel is not reaching into somebody's setup.
@@ -3328,6 +3337,10 @@ class EditModeTests(DaemonTestCase):
     def order(self):
         return [tile["item"]["id"] for tile in self.daemon.menu.tiles]
 
+    def cells(self):
+        return dict((tile["item"]["id"], tile["at"])
+                    for tile in self.daemon.menu.tiles)
+
     def written(self):
         if not os.path.exists(self.layout):
             return ""
@@ -3367,10 +3380,114 @@ class EditModeTests(DaemonTestCase):
         self.daemon.menu_command("edit")
         self.daemon.menu_command("pick")
         self.assertEqual(self.daemon.menu.picked, before[0])
+        where = self.cells()[before[0]]
         self.daemon.menu_command("right")
-        self.assertEqual(self.order()[:2], [before[1], before[0]])
+        # A cell, not a place in the order: the tile is where it was put and
+        # the one it stepped over has flowed into the space behind it.
+        self.assertEqual(self.cells()[before[0]],
+                         (where[0] + 1, where[1]))
+        self.assertEqual(self.cells()[before[1]], where)
         self.daemon.menu_command("pick")
         self.assertIsNone(self.daemon.menu.picked)
+
+    def open_readings(self):
+        """The HUD's page, with its readings answering.
+
+        Seeded rather than read: `sysinfo` is pointed at this machine's own
+        /proc, and a tile whose reading has never answered is deliberately not
+        drawn at all - so without this the assertions below would be about an
+        empty payload, on one machine and not another.
+        """
+        page = self.daemon.config.hud_page
+        for name in ("cpu", "memory", "disk"):
+            self.daemon.sysinfo.took(name, 0.5)
+        for number, group in enumerate(self.daemon.menu.groups):
+            if group["id"] == page:
+                self.daemon.menu_select_group(number)
+                return
+        raise AssertionError("the shipped tree has no %s page" % page)
+
+    def drawn(self):
+        return dict((row["id"], (row["x"], row["y"]))
+                    for row in self.hud_client.sent[-1]["items"])
+
+    def test_the_two_surfaces_hold_one_arrangement(self):
+        # The same dict, not a copy of the same file. The menu takes its own
+        # copy of what came off layout.toml so rearranging never writes back
+        # into the config - so `config.layout` is the file as it was read and
+        # stops being true the moment anybody carries a tile. A HUD reading
+        # that instead drew the arrangement somebody had before they started.
+        self.assertIs(self.daemon.hud.layout, self.daemon.menu.layout)
+        self.assertIsNot(self.daemon.menu.layout, self.daemon.config.layout)
+
+    def test_the_readings_are_packed_again_when_the_page_is_rearranged(self):
+        """The same arrangement is not the same packing.
+
+        `MenuModel` and `HudModel` share one layout dict, one page and one
+        packer - and each holds the cells it last worked out. Nothing told the
+        HUD to work them out again, so an arrangement made while the readings
+        were on screen reached the file and the menu, and reached the screen
+        only the next time they were switched on: you left the menu and the
+        tile was still where it had been.
+        """
+        self.open_readings()
+        self.daemon.set_hud(True)
+        before = self.drawn()
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        name = self.daemon.menu.picked
+        self.assertIn(name, before)
+        self.daemon.menu_command("down")
+        after = self.drawn()
+        self.assertEqual(after[name],
+                         (before[name][0], before[name][1] + 1))
+
+    def test_hiding_a_reading_takes_it_off_the_screen_too(self):
+        self.open_readings()
+        self.daemon.set_hud(True)
+        self.daemon.menu_command("edit")
+        name = self.daemon.menu.selected
+        self.assertIn(name, self.drawn())
+        self.daemon.menu_command("hide")
+        self.daemon.menu_command("edit_off")
+        self.assertNotIn(name, self.drawn())
+
+    def test_resetting_the_page_resets_the_screen(self):
+        self.open_readings()
+        self.daemon.set_hud(True)
+        before = self.drawn()
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("down")
+        self.assertNotEqual(self.drawn(), before)
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("restore")
+        self.assertEqual(self.drawn(), before)
+
+    def test_nothing_is_pushed_while_the_readings_are_off(self):
+        # The HUD packs on the way up, so an arrangement made while they are
+        # off is picked up when they come back - and a surface nobody can see
+        # is not worth a repack per press.
+        self.open_readings()
+        self.daemon.set_hud(False)
+        sent = len(self.hud_client.sent)
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("down")
+        self.assertEqual(len(self.hud_client.sent), sent)
+
+    def test_a_tile_reaches_a_cell_with_nothing_leading_to_it(self):
+        # The whole of why this is a cell now: with reordering there was no
+        # way to say "third column, fourth row" on a page that has no third
+        # tile, and a page drawn over a game is where that is the point.
+        name = self.order()[0]
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        for command in ("right", "right", "down", "down"):
+            self.daemon.menu_command(command)
+        self.assertEqual(self.cells()[name], (2, 2))
+        self.daemon.menu_command("edit_off")
+        self.assertIn("[layout.controller.at]", self.written())
 
     def test_leaving_is_when_it_is_written_down(self):
         self.daemon.menu_command("edit")

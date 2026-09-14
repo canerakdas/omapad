@@ -27,7 +27,8 @@ from omapad import config, guide, menu
 
 class AssetsAreCurrent(unittest.TestCase):
     def setUp(self):
-        self.svgs, self.qml, self.controls = generate.build()
+        (self.svgs, self.qml, self.controls,
+         self.grounds) = generate.build()
 
     def test_every_generated_svg_is_what_is_on_disk(self):
         on_disk = sorted(name for name in os.listdir(generate.BUTTONS)
@@ -68,6 +69,179 @@ class AssetsAreCurrent(unittest.TestCase):
         # on its own explanation.
         self.assertNotIn('label: "', self.controls)
 
+    def test_the_shell_plugin_draws_the_same_grounds(self):
+        with open(generate.TILE_QML) as handle:
+            self.assertEqual(handle.read(), self.grounds,
+                             "TileArt.qml is stale: run "
+                             "python3 assets/generate.py")
+
+    def test_every_state_the_menu_draws_a_tile_in_has_a_ground(self):
+        # The menu names a ground rather than asking for one, so a state whose
+        # drawing is missing does not fall back to anything - `ground()`
+        # returns an empty path and the tile is drawn as nothing at all.
+        with open(os.path.join(ROOT, "shell-plugin", "Menu.qml")) as handle:
+            menu_qml = handle.read()
+        found = re.search(r"property string outline:(.*?)\n\s*\n",
+                          menu_qml, re.S)
+        self.assertIsNotNone(found, "Menu.qml no longer names a ground")
+        wanted = set(re.findall(r'"(\w+)"', found.group(1)))
+        drawn = set(name for name, _ in generate.GROUNDS_TO_DRAW)
+        for name in sorted(wanted):
+            self.assertIn(
+                name, drawn,
+                "Menu.qml draws a tile on the %r ground, which "
+                "GROUNDS_TO_DRAW does not generate" % name)
+
+
+class GroundsCloseOnTheirOwnBox(unittest.TestCase):
+    """A ground is four corners and four edges, and has to come out a tile.
+
+    The one drawing here that answers to a size, so the one that can be wrong
+    at a size nobody drew it at. Everything else is checked by being compared
+    with what is on disk; this has to be *run* - built at a few shapes of tile
+    and measured - because the corner is rotated into three places it was not
+    drawn in, and a rotation that is off by a quarter turn still generates.
+
+    Three things say it came out a tile: one closed contour, a bounding box
+    that is exactly the tile, and a winding that does not change with the
+    state. The last is what a fill rule needs - BadgeArt paints even-odd in
+    the stencil style, and a ground wound the other way in one state would be
+    the state that draws as a hole.
+    """
+
+    # A wide tile, a square one, a tall one, and one too small to hold four
+    # corners at all - which is the case that makes `ground()` shrink the
+    # corner rather than let the outline cross itself.
+    BOXES = ((240.0, 68.0, 12.0), (68.0, 68.0, 12.0), (68.0, 208.0, 12.0),
+             (400.0, 144.0, 24.0), (10.0, 8.0, 12.0))
+
+    def setUp(self):
+        _, _, _, self.qml = generate.build()
+        self.grounds = {}
+        for name, filename in generate.GROUNDS_TO_DRAW:
+            shape = generate.Shape(os.path.join(generate.SHAPES, filename))
+            size, run = generate.corner_run(shape)
+            made = {"corner": size}
+            for key, turn, place in generate.TURNS:
+                made[key] = generate.turned(run, size, turn, place)
+            self.grounds[name] = made
+
+    def path(self, ground, w, h, corner):
+        """What TileArt.ground() builds, in Python. Kept in step by the test
+        below, which fails when the generated function stops saying this."""
+        def scaled(commands, factor):
+            out = ""
+            for command in commands:
+                out += command[0]
+                for i in range(1, len(command)):
+                    flag = command[0] == "a" and 3 <= i <= 5
+                    out += (" " if i > 1 else "") + "%g" % (
+                        command[i] if flag else command[i] * factor)
+            return out
+
+        c = min(corner, w / 2.0, h / 2.0)
+        factor = c / ground["corner"]
+        return ("M0 %g" % c + scaled(ground["tl"], factor)
+                + "L%g 0" % (w - c) + scaled(ground["tr"], factor)
+                + "L%g %g" % (w, h - c) + scaled(ground["br"], factor)
+                + "L%g %g" % (c, h) + scaled(ground["bl"], factor) + "Z")
+
+    def test_every_ground_comes_out_the_box_it_was_asked_for(self):
+        for name in sorted(self.grounds):
+            for (w, h, corner) in self.BOXES:
+                data = self.path(self.grounds[name], w, h, corner)
+                polys = svgpath.flatten(data)
+                self.assertEqual(
+                    len(polys), 1,
+                    "the %s ground of a %gx%g tile is %d contours, not one: "
+                    "an outline that crosses itself is painted with a hole"
+                    % (name, w, h, len(polys)))
+                xs = [x for (x, _) in polys[0]]
+                ys = [y for (_, y) in polys[0]]
+                for got, want, edge in ((min(xs), 0.0, "left"),
+                                        (min(ys), 0.0, "top"),
+                                        (max(xs), w, "right"),
+                                        (max(ys), h, "bottom")):
+                    self.assertAlmostEqual(
+                        got, want, places=6,
+                        msg="the %s ground of a %gx%g tile has its %s edge at "
+                            "%g, not %g - a corner rotated into the wrong "
+                            "place" % (name, w, h, edge, got, want))
+
+    def test_every_ground_is_wound_the_same_way_round(self):
+        for name in sorted(self.grounds):
+            data = self.path(self.grounds[name], 240.0, 68.0, 12.0)
+            poly = svgpath.flatten(data)[0]
+            area = 0.0
+            for i in range(len(poly)):
+                (x0, y0) = poly[i]
+                (x1, y1) = poly[(i + 1) % len(poly)]
+                area += x0 * y1 - x1 * y0
+            # Clockwise, with y down the screen, which is a positive area.
+            self.assertGreater(
+                area, 0,
+                "the %s ground is wound the other way from the rest: under an "
+                "even-odd fill it is the state that draws as a hole" % name)
+
+    def test_the_shell_builds_the_outline_the_same_way(self):
+        # `path()` above is this test's own copy of `TileArt.ground()`, and a
+        # copy is only worth anything while it is the same copy. These are the
+        # four edges it runs between the corners, in order.
+        for line in ('"M0 " + c + art.scaled(found.tl, factor)',
+                     '"L" + (w - c) + " 0" + art.scaled(found.tr, factor)',
+                     '"L" + w + " " + (h - c) + art.scaled(found.br, factor)',
+                     '"L" + c + " " + h + art.scaled(found.bl, factor)'):
+            self.assertIn(line, self.qml,
+                          "TileArt.ground() no longer builds the outline the "
+                          "way this test does")
+        self.assertIn("Math.min(corner, w / 2, h / 2)", self.qml,
+                      "TileArt.ground() no longer shrinks the corner on a "
+                      "tile too small to hold four of them")
+
+
+class CornersAreDrawnToBeTurned(unittest.TestCase):
+    """A quarter that cannot be set at four corners draws a crumpled star.
+
+    `corner_run` raises on each of these, which is the whole point of it: the
+    corner is drawn once and rotated into three places it was never seen in,
+    so the drawing has to promise where it starts and where it stops. Nothing
+    downstream could notice - a run that ends in the middle of the box still
+    generates, still scales, and comes out as a tile with a dent in it.
+    """
+
+    QUARTER = ('<svg width="16" height="16" viewBox="0 0 16 16" fill="none" '
+               'xmlns="http://www.w3.org/2000/svg">\n<path d="%s" '
+               'fill="white"/>\n</svg>\n')
+
+    def quarter(self, data):
+        import tempfile
+        handle = tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False)
+        handle.write(self.QUARTER % data)
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        return generate.Shape(handle.name)
+
+    def test_a_corner_that_comes_in_off_the_wrong_edge_raises(self):
+        with self.assertRaises(ValueError):
+            generate.corner_run(self.quarter("M0 0L16 0L16 16Z"))
+
+    def test_a_corner_that_stops_short_of_the_top_edge_raises(self):
+        with self.assertRaises(ValueError):
+            generate.corner_run(self.quarter("M0 16L8 4L16 16Z"))
+
+    def test_a_corner_drawn_on_a_rectangle_raises(self):
+        shape = self.quarter("M0 16L16 0L16 16Z")
+        shape.width = 32.0
+        with self.assertRaises(ValueError):
+            generate.corner_run(shape)
+
+    def test_the_shipped_corners_all_pass(self):
+        for name, filename in generate.GROUNDS_TO_DRAW:
+            shape = generate.Shape(os.path.join(generate.SHAPES, filename))
+            size, run = generate.corner_run(shape)
+            self.assertEqual(size, shape.width)
+            self.assertTrue(run, "%s: %s draws no corner" % (name, filename))
+
 
 class EveryControlIsDrawn(unittest.TestCase):
     """A control tile cannot ship with a hole in it.
@@ -94,6 +268,12 @@ class EveryControlIsDrawn(unittest.TestCase):
         # so the other half of this test still sees the control.
         "slider": (),
         "media": ("media:play", "media:pause", "media:next", "media:prev"),
+        # Nothing, for the slider's reason and one of its own. The bar a
+        # share draws is the slider's track again - as wide as the tile, so
+        # not a drawing - and the rest of a readout is a word and a number,
+        # which are type. It is the one tile with no control on it at all,
+        # and listing it here is what says that was meant.
+        "readout": (),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark
@@ -102,7 +282,7 @@ class EveryControlIsDrawn(unittest.TestCase):
     ELSEWHERE = ("tile:grip",)
 
     def test_every_part_a_kind_needs_is_generated(self):
-        _, _, controls = generate.build()
+        _, _, controls, _ = generate.build()
         for kind, parts in sorted(self.NEEDS.items()):
             for part in parts:
                 self.assertIn(
@@ -332,7 +512,7 @@ class MarksStandAtOneHeight(unittest.TestCase):
         """The door scales its mark against the word's cap height by this, so
         a mark redrawn to another height has to reach the shell or it lands
         the wrong size beside the word."""
-        _, qml, _controls = generate.build()
+        _, qml, _controls, _grounds = generate.build()
         self.assertIn("markCap: %g" % generate.SYSTEM_MARK_CAP, qml)
 
 
@@ -345,7 +525,7 @@ class EveryBadgeIsDrawn(unittest.TestCase):
     """
 
     def test_no_badge_falls_back_to_typed_text(self):
-        _, qml, _controls = generate.build()
+        _, qml, _controls, _grounds = generate.build()
         for layout in sorted(guide.LAYOUTS):
             for button, kind in sorted(guide.KINDS.items()):
                 label = guide.badge_of(button, layout)
@@ -357,7 +537,7 @@ class EveryBadgeIsDrawn(unittest.TestCase):
         """No surface draws a bordered rectangle any more, so nothing may
         arrive without a shape: a kind ButtonArt has never heard of would come
         out as bare text on the bar with nothing around it."""
-        _, qml, _controls = generate.build()
+        _, qml, _controls, _grounds = generate.build()
         for kind in sorted(set(guide.KINDS.values())):
             self.assertTrue('"%s"' % kind in qml or '"%s:l"' % kind in qml,
                             "%s badges have no shape" % kind)
@@ -370,6 +550,6 @@ class EveryBadgeIsDrawn(unittest.TestCase):
                              settings=os.devnull)
         rows = guide._stick_rows(shipped, "base")
         self.assertTrue(rows)
-        _, qml, _controls = generate.build()
+        _, qml, _controls, _grounds = generate.build()
         for row in rows:
             self.assertIn('"%s:%s"' % (row["k"], row["b"]), qml)

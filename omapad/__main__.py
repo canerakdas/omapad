@@ -6,10 +6,12 @@ import logging
 import select
 import signal
 import sys
+import time
 
 from . import __version__, config as config_module, linux_input as li
 from . import live as live_module
 from . import rumble as rumble_module
+from . import sysinfo as sysinfo_module
 from .config import DPAD_NAMES
 from .daemon import Daemon
 from .uinput import UinputError
@@ -49,6 +51,7 @@ def build_parser():
         "surface <close|close_all|back>, ripple <left|right|middle>, "
         "press <BUTTON> [tap|hold], "
         "lock <on|off|toggle>, keep <on|off|toggle>, "
+        "hud <on|off|toggle>, "
         "mode <toggle|desktop|game>, status; for unit: check",
     )
     return parser
@@ -195,6 +198,35 @@ def cmd_check_layout(config):
                   % ", ".join(sorted(added)))
         if hidden:
             print("    hidden: %s" % ", ".join(hidden))
+        # The cells somebody put a tile in, and the column they would be
+        # clamped to. A pin is the one part of an arrangement whose meaning
+        # depends on how wide the page is drawn, so this is where the two are
+        # printed together - `menu.place` clamps silently by design, and a
+        # tile that has been quietly pulled back onto the page is exactly the
+        # kind of thing this command exists to say out loud.
+        placed = [(name, cell) for name, cell in sorted(plan.get("at", {}).items())
+                  if name in names]
+        if placed:
+            # The page drawn over the whole screen has a last row; a menu page
+            # does not, so only that one can be clamped downwards.
+            last = config.hud_rows - 1 if page == config.hud_page else None
+            right = config.menu_columns - 1
+            said = []
+            for name, (x, y) in placed:
+                out = []
+                if x > right:
+                    out.append("column %d" % right)
+                if last is not None and y > last:
+                    out.append("row %d" % last)
+                said.append("%s at %d,%d%s"
+                            % (name, x, y,
+                               " (clamped to %s)" % " and ".join(out)
+                               if out else ""))
+            print("    put in a cell: %s" % ", ".join(said))
+        off = [name for name in plan.get("at", {}) if name not in names]
+        if off:
+            print("    placed, and gone from the config: %s"
+                  % ", ".join(sorted(off)))
     return 0
 
 
@@ -221,6 +253,59 @@ def _report_rumble(config, device):
     line = "rumble: %s" % ", ".join(said)
     if silent:
         line += " - no %s" % ", ".join(silent)
+    print(line)
+
+
+def _report_readings(config):
+    """Which readings this machine actually answers, and which it cannot.
+
+    Printed for `_report_rumble`'s reason one component along: what a source
+    resolves to is the kernel's and the helper's rather than the config's, and
+    the tile a reading does not answer is *not drawn at all* - so a HUD that
+    is missing one looks exactly like a HUD that was never asked for it. The
+    ladder is the same either way and this is the top of it.
+
+    A `cmd:` source is named rather than run: `check` parses, and running
+    somebody's helper to write a line of output is a different promise.
+    """
+    from . import sysinfo
+
+    reader = sysinfo.Sysinfo(config)
+    here = [name for name in sysinfo.READINGS
+            if config.sysinfo_sources.get(name)
+            and config.sysinfo_sources[name][0] != "cmd"]
+    # Twice, with a gap. A busy share is measured *across* an interval - one
+    # read of /proc/stat says what the machine has averaged since it was
+    # switched on, which is why the first one deliberately answers nothing -
+    # so a single pass here would print the one reading everybody looks for as
+    # the one reading that is broken. The gap is the shortest one two samples
+    # can be told apart over, and this is a command that runs once.
+    for _ in range(2):
+        for name in here:
+            reader.read(name)
+        if here:
+            time.sleep(0.05)
+
+    said, quiet, asked = [], [], []
+    for name in sysinfo.READINGS:
+        found = config.sysinfo_sources.get(name)
+        if not found:
+            quiet.append(name)
+        elif found[0] == "cmd":
+            asked.append(name)
+        elif reader.value(name) is not None:
+            said.append("%s %s" % (name, reader.words(name)))
+        else:
+            # A source pointed at nothing: a hwmon chip that is not on this
+            # machine, a path that is not a mount. The one case worth a word,
+            # because it is the one somebody has got wrong rather than left
+            # out - and on screen it looks identical to never asking.
+            said.append("%s - %s says nothing" % (name, ":".join(found)))
+    line = "readings: %s" % (", ".join(said) if said else "none")
+    if asked:
+        line += " - and %s from a helper" % ", ".join(asked)
+    if quiet:
+        line += " - no source for %s" % ", ".join(quiet)
     print(line)
 
 
@@ -264,7 +349,8 @@ def cmd_check(config):
     try:
         menu.build(config.menu_items, columns=config.menu_columns,
                    settings=config_module.CHOSEN,
-                   readings=live_module.READINGS)
+                   readings=live_module.READINGS,
+                   machine=sysinfo_module.READINGS)
     except menu.MenuError as exc:
         problems += 1
         print("%s" % exc, file=sys.stderr)
@@ -322,6 +408,7 @@ def cmd_check(config):
                 )
             )
         device.close()
+    _report_readings(config)
     _check_settings(config)
     _check_keyboards(config)
     if problems:
@@ -385,7 +472,8 @@ def cmd_ctl(config, words):
 
     if not words:
         print("usage: omapad ctl "
-              "<osk|menu|guide|map|pad|lock|keep|ripple|press|mode|status> [...]",
+              "<osk|menu|guide|map|pad|lock|keep|hud|ripple|press|mode|status>"
+              " [...]",
               file=sys.stderr)
         return 2
     try:

@@ -991,50 +991,66 @@ class RearrangeTests(unittest.TestCase):
         self.assertFalse(model.carry("right"))
         self.assertFalse(model.hide())
 
-    def test_a_tile_is_carried_one_place_sideways(self):
+    def cells(self, model):
+        return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
+
+    def test_a_tile_is_carried_one_cell_sideways(self):
         model = self.model()
         model.set_edit(True)
         self.assertTrue(model.pick())
         self.assertEqual(model.picked, "one")
         self.assertTrue(model.carry("right"))
-        self.assertEqual(self.order(model)[:3], ["two", "one", "three"])
+        self.assertEqual(self.cells(model)["one"], (1, 0))
         self.assertTrue(model.carry("left"))
-        self.assertEqual(self.order(model)[:3], ["one", "two", "three"])
+        self.assertEqual(self.cells(model)["one"], (0, 0))
 
-    def test_the_end_of_the_order_is_the_end_of_it(self):
+    def test_the_row_closes_up_behind_a_tile_that_moved(self):
+        # What the old reorder gesture did, and it still happens - the tile
+        # is pinned where it was put and everything unpinned flows round it.
+        model = self.model()
+        model.set_edit(True)
+        model.pick()
+        model.carry("right")
+        cells = self.cells(model)
+        self.assertEqual(cells["one"], (1, 0))
+        self.assertEqual(cells["two"], (0, 0))
+        self.assertEqual(cells["three"], (2, 0))
+
+    def test_the_edge_of_the_page_is_the_edge_of_it(self):
         model = self.model()
         model.set_edit(True)
         model.pick()
         self.assertFalse(model.carry("left"))
-        self.assertEqual(self.order(model)[0], "one")
+        self.assertFalse(model.carry("up"))
+        self.assertEqual(self.cells(model)["one"], (0, 0))
 
-    def test_down_is_as_far_as_it_takes_to_change_row(self):
-        # Six columns, so "seven" is alone on the second row. Pushing "one"
-        # down has to take it past the *whole* of that row: taking it out of
-        # the first leaves room behind it, so anything short of that packs
-        # straight back into the row it was trying to leave.
+    def test_a_tile_stops_at_the_last_column(self):
+        model = self.model()
+        model.set_edit(True)
+        model.pick()
+        for _ in range(5):
+            self.assertTrue(model.carry("right"))
+        self.assertEqual(self.cells(model)["one"], (5, 0))
+        self.assertFalse(model.carry("right"))
+
+    def test_down_is_one_row(self):
         model = self.model()
         model.set_edit(True)
         model.select_id("one")
         model.pick()
-        row = dict((tile["item"]["id"], tile["at"][1])
-                   for tile in model.tiles)
-        self.assertEqual(row["one"], 0)
+        self.assertEqual(self.cells(model)["one"], (0, 0))
         self.assertTrue(model.carry("down"))
-        row = dict((tile["item"]["id"], tile["at"][1])
-                   for tile in model.tiles)
-        self.assertEqual(row["one"], 1)
+        self.assertEqual(self.cells(model)["one"], (0, 1))
 
     def test_up_is_the_same_the_other_way(self):
         model = self.model()
         model.set_edit(True)
         model.select_id("seven")
         model.pick()
+        self.assertEqual(self.cells(model)["seven"], (0, 1))
         self.assertTrue(model.carry("up"))
-        row = dict((tile["item"]["id"], tile["at"][1])
-                   for tile in model.tiles)
-        self.assertEqual(row["seven"], 0)
-        self.assertEqual(self.order(model)[0], "seven")
+        self.assertEqual(self.cells(model)["seven"], (0, 0))
+
 
     def test_a_carried_tile_keeps_being_carried_across_a_repack(self):
         model = self.model()
@@ -1085,13 +1101,16 @@ class RearrangeTests(unittest.TestCase):
         # And it says so rather than pretending, so a tick can fire.
         self.assertFalse(model.resize(1, 0))
 
-    def test_the_arrangement_is_written_in_names_not_places(self):
+    def test_the_order_is_still_written_in_names(self):
+        # A cell is what a *moved* tile gets; the order is still what every
+        # other tile on the page is held by, and it is still names - which is
+        # what makes a page survive a tile being added to the config.
         model = self.model()
         model.set_edit(True)
         model.pick()
         model.carry("right")
         plan = model.layout["group"]
-        self.assertEqual(plan["order"][:2], ["two", "one"])
+        self.assertEqual(plan["order"][:2], ["one", "two"])
         self.assertTrue(all(isinstance(name, str)
                             for name in plan["order"]))
 
@@ -1128,6 +1147,251 @@ class RearrangeTests(unittest.TestCase):
         rows = dict((row["id"], row) for row in state["items"])
         self.assertTrue(rows["two"]["off"])
         self.assertNotIn("off", rows["one"])
+
+
+class APageIsAGridNotAList(unittest.TestCase):
+    """A tile can be put in a cell with nothing leading to it.
+
+    The thing reordering could not express. With one tile on a page there is
+    no order to be third in, so there was no way to put it anywhere but the
+    top left - and a page of readings drawn over a game is exactly the case
+    where where it sits is the whole point.
+    """
+
+    def model(self, count=1):
+        rows = [{"label": "Tile %d" % number, "action": "nop"}
+                for number in range(1, count + 1)]
+        return MenuModel(build([{"label": "Group", "items": rows}],
+                               settings={}), columns=6)
+
+    def cells(self, model):
+        return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
+
+    def carry(self, model, *directions):
+        for direction in directions:
+            self.assertTrue(model.carry(direction), direction)
+
+    def test_the_only_tile_on_a_page_reaches_the_middle_of_it(self):
+        model = self.model()
+        model.set_edit(True)
+        model.pick()
+        self.carry(model, "right", "right", "right",
+                   "down", "down", "down")
+        self.assertEqual(self.cells(model)["tile-1"], (3, 3))
+
+    def test_a_page_grows_a_row_at_a_time_and_no_faster(self):
+        # One press past the bottom, which is what makes an empty cell below
+        # everything reachable at all - and a held direction cannot fling a
+        # tile somewhere a thumb has to walk all the way back from.
+        model = self.model()
+        model.set_edit(True)
+        model.pick()
+        self.assertEqual(model.rows, 1)
+        self.assertTrue(model.carry("down"))
+        self.assertEqual(model.rows, 2)
+        self.assertEqual(self.cells(model)["tile-1"], (0, 1))
+
+    def test_where_it_was_put_is_where_it_is_when_you_come_back(self):
+        model = self.model(3)
+        model.set_edit(True)
+        model.select_id("tile-2")
+        model.pick()
+        self.carry(model, "down", "right", "right")
+        model.pick()
+        model.set_edit(False)
+        model.repack()
+        self.assertEqual(self.cells(model)["tile-2"], (3, 1))
+
+    def test_the_cell_is_what_is_written_down(self):
+        model = self.model(2)
+        model.set_edit(True)
+        model.pick()
+        self.carry(model, "down", "right")
+        self.assertEqual(model.layout["group"]["at"], {"tile-1": (1, 1)})
+
+    def test_a_tile_will_not_walk_onto_one_somebody_placed(self):
+        # It would lose the cell in `place` and be handed back to the flow,
+        # which is a press that goes somewhere nobody pointed at.
+        model = self.model(2)
+        model.set_edit(True)
+        model.select_id("tile-1")
+        model.pick()
+        self.carry(model, "down", "down")
+        model.pick()
+        model.select_id("tile-2")
+        model.pick()
+        self.carry(model, "down")
+        self.assertEqual(self.cells(model)["tile-2"], (0, 1))
+        self.assertFalse(model.carry("down"))
+
+    def test_an_unpinned_tile_is_walked_through_rather_than_into(self):
+        # The other half of the same rule: a tile in the flow flows out of the
+        # way, which is how a tile is moved into the middle of a row.
+        model = self.model(3)
+        model.set_edit(True)
+        model.select_id("tile-3")
+        model.pick()
+        self.carry(model, "left", "left")
+        cells = self.cells(model)
+        self.assertEqual(cells["tile-3"], (0, 0))
+        self.assertEqual(cells["tile-1"], (1, 0))
+        self.assertEqual(cells["tile-2"], (2, 0))
+
+    def test_reset_takes_the_cells_back_too(self):
+        model = self.model(2)
+        model.set_edit(True)
+        model.pick()
+        self.carry(model, "down", "right")
+        self.assertTrue(model.restore())
+        self.assertEqual(self.cells(model)["tile-1"], (0, 0))
+
+
+class APageThatIsAlsoAScreenHasALastRow(unittest.TestCase):
+    """A menu page has no bottom, and one drawn over a screen does.
+
+    The menu is where a page is arranged, so the menu is what has to stop a
+    tile being carried off the end of a page it is only half the surface for.
+    Without this a tile walked past the last row went somewhere worse than
+    nowhere: `place` pulled it back onto the last row, and where something was
+    already pinned there it lost the cell and fell into the flow - a press
+    that teleports a tile to the top left.
+    """
+
+    def model(self, count=3, limit=4):
+        rows = [{"label": "Tile %d" % number, "action": "nop"}
+                for number in range(1, count + 1)]
+        return MenuModel(
+            build([{"id": "page", "label": "Page", "items": rows}],
+                  settings={}),
+            columns=6, page_rows={"page": limit})
+
+    def cells(self, model):
+        return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
+
+    def carry_down(self, model, times):
+        for _ in range(times):
+            if not model.carry("down"):
+                return False
+        return True
+
+    def test_a_tile_stops_on_the_last_row(self):
+        model = self.model(limit=4)
+        model.set_edit(True)
+        model.pick()
+        self.assertTrue(self.carry_down(model, 3))
+        self.assertEqual(self.cells(model)["tile-1"], (0, 3))
+        self.assertFalse(model.carry("down"))
+
+    def test_a_tall_tile_stops_where_its_own_bottom_does(self):
+        model = self.model(limit=4)
+        model.set_edit(True)
+        model.pick()
+        model.resize(0, 1)
+        self.assertTrue(self.carry_down(model, 2))
+        self.assertEqual(self.cells(model)["tile-1"], (0, 2))
+        self.assertFalse(model.carry("down"))
+
+    def test_a_page_with_no_last_row_still_grows(self):
+        # Every other page. One row past the bottom each press, forever.
+        model = MenuModel(
+            build([{"id": "page", "label": "Page",
+                    "items": [{"label": "One", "action": "nop"}]}],
+                  settings={}),
+            columns=6)
+        model.set_edit(True)
+        model.pick()
+        self.assertTrue(self.carry_down(model, 20))
+        self.assertEqual(self.cells(model)["one"], (0, 20))
+
+    def test_the_menu_places_the_page_the_way_the_screen_will(self):
+        # One answer rather than two that can disagree: a layout hand-edited
+        # past the end reads the same in the place it is arranged and the
+        # place it is drawn.
+        model = self.model(limit=4)
+        model.layout["page"] = {"order": [], "hidden": [], "span": {},
+                                "at": {"tile-1": (0, 40)}}
+        model.repack()
+        self.assertEqual(self.cells(model)["tile-1"], (0, 3))
+
+    def test_only_the_named_page_is_bounded(self):
+        model = MenuModel(
+            build([{"id": "page", "label": "Page",
+                    "items": [{"label": "One", "action": "nop"}]},
+                   {"id": "other", "label": "Other",
+                    "items": [{"label": "Two", "action": "nop"}]}],
+                  settings={}),
+            columns=6, page_rows={"page": 2})
+        model.enter_group(1)
+        model.set_edit(True)
+        model.pick()
+        self.assertTrue(self.carry_down(model, 9))
+        self.assertEqual(self.cells(model)["two"], (0, 9))
+
+
+class APinIsClampedNeverLost(unittest.TestCase):
+    """The cost of a cell over a name, and what keeps the cost small.
+
+    A layout written as names survives a different column count; one written
+    as cells does not, and that was the argument for reordering. It is
+    answered here rather than given up: a pin off the edge of a narrower page
+    is pulled back onto it, so the arrangement adapts instead of breaking.
+    """
+
+    def page(self, count=2):
+        rows = [{"label": "Tile %d" % number, "action": "nop"}
+                for number in range(1, count + 1)]
+        return build([{"label": "Group", "items": rows}],
+                     settings={})[0]["items"]
+
+    def test_a_pin_past_the_last_column_is_pulled_back_onto_the_page(self):
+        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-1": (5, 0)}}
+        tiles, _ = place(self.page(), 3, plan)
+        cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
+        self.assertEqual(cells["tile-1"], (2, 0))
+
+    def test_a_wide_tile_is_clamped_by_its_own_width(self):
+        plan = {"order": [], "hidden": [],
+                "span": {"tile-1": (3, 1)}, "at": {"tile-1": (4, 0)}}
+        tiles, _ = place(self.page(), 6, plan)
+        cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
+        self.assertEqual(cells["tile-1"], (3, 0))
+
+    def test_two_pins_over_one_cell_leave_the_first_where_it_is(self):
+        # Only a hand-edited file or two of those clamps can make this, and
+        # the page still has to be a packing rather than a pile.
+        plan = {"order": [], "hidden": [], "span": {},
+                "at": {"tile-1": (0, 0), "tile-2": (0, 0)}}
+        tiles, _ = place(self.page(), 6, plan)
+        cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
+        self.assertEqual(cells["tile-1"], (0, 0))
+        self.assertNotEqual(cells["tile-2"], (0, 0))
+
+    def test_a_pin_is_placed_before_anything_flows_into_it(self):
+        # Pins first, or where a tile ended up would depend on what else
+        # happened to be on the page.
+        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-2": (0, 0)}}
+        tiles, _ = place(self.page(), 6, plan)
+        cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
+        self.assertEqual(cells["tile-2"], (0, 0))
+        self.assertEqual(cells["tile-1"], (1, 0))
+
+    def test_the_rows_a_page_needs_count_a_pin_below_everything(self):
+        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-1": (0, 3)}}
+        _, rows = place(self.page(), 6, plan)
+        self.assertEqual(rows, 4)
+
+    def test_a_pinned_tile_is_neither_moved_by_a_break_nor_moves_one(self):
+        items = build([{"label": "Group", "items": [
+            {"label": "One", "action": "nop"},
+            {"control": "row_break"},
+            {"label": "Two", "action": "nop"},
+        ]}], settings={})[0]["items"]
+        plan = {"order": [], "hidden": [], "span": {}, "at": {"one": (0, 4)}}
+        tiles, _ = place(items, 6, plan)
+        cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
+        self.assertEqual(cells["one"], (0, 4))
+        # The break's floor counts only what has flowed, and nothing had.
+        self.assertEqual(cells["two"], (0, 0))
 
 
 class PlaceTests(unittest.TestCase):

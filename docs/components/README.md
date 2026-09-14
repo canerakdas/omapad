@@ -36,6 +36,7 @@ socket between them.
 | [Cursor](cursor.md) | `omapad/cursor.py` | A pointer you can find from a sofa, drawn into an XCursor theme. |
 | [Terminal](terminal.md) | `omapad/terminal.py` | Whether the window in front is running a command, or waiting at a prompt. |
 | [Live](live.md) | `omapad/live.py` | How loud it is, how bright, and what is playing. |
+| [Machine readings](hud.md) | `omapad/sysinfo.py` | How busy the machine is, how full, how hot - from the kernel rather than a helper. |
 
 ## The surfaces
 
@@ -45,6 +46,7 @@ Each is a model in the daemon, a socket, and a panel that only draws.
 |---|---|---|---|
 | [On-screen keyboard](osk.md) | `osk.py` | `Keyboard.qml` | `osk.sock` |
 | [Menu](menu.md) | `menu.py` | `Menu.qml` | `menu.sock` |
+| [Readings](hud.md) | `hud.py`, `sysinfo.py` | `Hud.qml` | `hud.sock` |
 | [Bindings guide](guide.md) | `guide.py` | `Guide.qml` | `guide.sock` |
 | [Game bar](gamebar.md) | `gamebar.py` | `GameBar.qml` | `gamebar.sock` |
 | [Mapping wizard](mapping.md) | `mapping.py` | `Mapping.qml` | `mapping.sock` |

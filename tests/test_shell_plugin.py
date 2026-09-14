@@ -6,6 +6,7 @@ format is exactly that kind of rule: it draws every string anyone has ever
 typed correctly, and fetches a resource for the one a device named itself.
 """
 
+import json
 import os
 import re
 import unittest
@@ -63,6 +64,112 @@ class LiveStreamTests(unittest.TestCase):
             source = handle.read()
         self.assertIn("property var live", source)
         self.assertIn("LAYOUT WIDTH OR HEIGHT", source)
+
+
+class TheGridFollowsACarriedTile(unittest.TestCase):
+    """`reveal` is guarded on where the selection is, not on which it is.
+
+    The guard has to exist: `reveal` runs on every arriving line and the
+    heartbeat brings two a second, so scrolling to where the selection already
+    is costs an animation nobody asked for. Keyed on the id alone it is wrong
+    in exactly one case, and it is the case somebody hits: while a tile is
+    being carried the selection does not change and its row does, so the guard
+    fires, the view stands still, and the tile walks off the bottom of the
+    grid while the button is still being pressed.
+
+    Read rather than run, like everything else here - there is no QML runtime
+    in the suite, and the symptom is a tile that is simply not on the screen.
+    """
+
+    def setUp(self):
+        with open(os.path.join(PLUGIN, "Menu.qml")) as handle:
+            self.source = handle.read()
+
+    def test_the_grid_still_guards_against_the_heartbeat(self):
+        # A refactor that dropped the guard would scroll twice a second.
+        self.assertIn("root.revealed", self.source)
+
+    def test_the_guard_is_not_the_selection_id_on_its_own(self):
+        self.assertNotIn("if (root.sel === root.revealed) return", self.source)
+        self.assertNotIn("root.revealed = root.sel\n", self.source)
+
+    def test_the_key_carries_the_cell(self):
+        # The row and the height, so a tile that moved is revealed again.
+        body = self.source[self.source.index("function reveal()"):]
+        body = body[:body.index("\n  }")]
+        self.assertIn(".y", body)
+        self.assertIn(".h", body)
+        self.assertIn("root.revealed", body)
+
+
+class EverySocketIsDrawn(unittest.TestCase):
+    """A socket the daemon writes to and nothing reads is a surface that is
+    simply not there.
+
+    This is the gap the HUD fell into: `hud.py`, its model, its settings and
+    its wiring all landed, the daemon streamed to `hud.sock` twice a second,
+    and nothing drew a pixel. Every test passed, `omapad check` was happy, and
+    the only symptom was a blank screen - which is also what a surface that is
+    switched off looks like. `pad-surface.md` calls a panel step 7 of nine for
+    this reason; a checklist is a thing you can get to step 6 of.
+
+    The bar widget is the one deliberate absence: `PadStatus.qml` is the other
+    entry point and is not mounted as a surface.
+    """
+
+    WRITES = re.compile(r'ViewClient\(\s*"([\w.]+)"')
+    LISTENS = re.compile(r'name:\s*"([\w.]+)"')
+
+    def setUp(self):
+        daemon = os.path.join(os.path.dirname(PLUGIN), "omapad", "daemon.py")
+        with open(daemon) as handle:
+            self.written = set(self.WRITES.findall(handle.read()))
+        self.heard = {}
+        for name in sorted(os.listdir(PLUGIN)):
+            if not name.endswith(".qml"):
+                continue
+            with open(os.path.join(PLUGIN, name)) as handle:
+                for sock in self.LISTENS.findall(handle.read()):
+                    if sock.endswith(".sock"):
+                        self.heard[sock] = name
+
+    def test_the_daemon_has_sockets_to_check(self):
+        self.assertGreater(len(self.written), 5)
+
+    def test_something_draws_every_socket_the_daemon_writes(self):
+        for sock in sorted(self.written):
+            self.assertIn(
+                sock, self.heard,
+                "the daemon streams to %s and no panel listens on it" % sock)
+
+    def test_nothing_listens_on_a_socket_the_daemon_never_writes(self):
+        # The other way round: a renamed socket leaves a panel waiting on a
+        # name that will never be bound, which looks exactly the same.
+        for sock, name in sorted(self.heard.items()):
+            self.assertIn(
+                sock, self.written,
+                "%s listens on %s and the daemon never writes it"
+                % (name, sock))
+
+    def test_every_panel_that_draws_one_is_reached(self):
+        # A panel nobody instantiates is a file, not a surface. `Surfaces.qml`
+        # is the plugin's only *panel* entry point, so a surface becomes
+        # something on screen by being mounted there - or, for the bar widget,
+        # by being an entry point in its own right.
+        root = os.path.dirname(PLUGIN)
+        with open(os.path.join(PLUGIN, "Surfaces.qml")) as handle:
+            mounted = handle.read()
+        with open(os.path.join(root, "manifest.json")) as handle:
+            entries = json.load(handle).get("entryPoints", {}).values()
+        named = set(os.path.basename(entry) for entry in entries)
+        for sock, name in sorted(self.heard.items()):
+            component = name[:-len(".qml")]
+            reached = name in named or re.search(
+                r"\b%s\s*\{" % re.escape(component), mounted)
+            self.assertTrue(
+                reached,
+                "%s draws %s and is neither mounted in Surfaces.qml nor an "
+                "entry point" % (name, sock))
 
 
 class PlainTextTests(unittest.TestCase):

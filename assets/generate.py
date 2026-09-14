@@ -50,6 +50,10 @@ QML = os.path.join(HERE, os.pardir, "shell-plugin", "ButtonArt.qml")
 # honest: that test says every label of every layout has art, and a map that
 # also held dials would make the invariant read as a coincidence.
 CONTROL_QML = os.path.join(HERE, os.pardir, "shell-plugin", "ControlArt.qml")
+# A third, for the one drawing that has to answer to a size. See
+# GROUNDS_TO_DRAW: it is generated as a *function* rather than as path data,
+# which is not something either file above can hold.
+TILE_QML = os.path.join(HERE, os.pardir, "shell-plugin", "TileArt.qml")
 
 # How tall the capitals are, as a fraction of the button's own height, and the
 # number the rest of the fit is measured down from. The hand-drawn examples
@@ -212,6 +216,39 @@ CONTROLS_TO_DRAW = (
     ("media", "next", "media-next.svg"),
     ("media", "prev", "media-prev.svg"),
     ("tile", "grip", "grip.svg"),
+)
+
+# The grounds a menu tile is drawn on - one per state, so which state a tile
+# is in is a thing about its *outline* rather than only about its colour. A
+# theme whose accent is close to its surface leaves a selection to the border
+# alone, and a border is the thinnest thing on the tile.
+#
+# This is the one drawing in this folder that answers to a size, and it
+# answers by not being one drawing: **the corner is art and the four edges
+# between the corners are a number.** A tile is `w` cells by `h` rows and a
+# shape cannot stretch - that is the rule the slider's track and the dial's
+# zone are not drawn under - but a *corner* is not parameterised by anything,
+# and a straight edge does not need to be drawn to be right.
+#
+# So the source is a quarter: the corner, with the box it turns in filled in
+# behind it. `corner_run` takes the run from one edge to the other out of it
+# and the generated function sets that run at all four corners, rotating it
+# rather than mirroring it - a rotation carries an arc's sweep through
+# unchanged, and a mirror would have to flip every one of them.
+GROUNDS_TO_DRAW = (
+    ("plain", "ground-plain.svg"),
+    ("selected", "ground-selected.svg"),
+    ("carried", "ground-carried.svg"),
+)
+
+# How each corner is turned to reach its own corner of the tile, clockwise
+# from the top left, and where in the tile the turned run starts. A quarter is
+# drawn as the top left corner and nothing else is drawn at all.
+TURNS = (
+    ("tl", 0, lambda x, y, c: (x, y)),
+    ("tr", 90, lambda x, y, c: (c - y, x)),
+    ("br", 180, lambda x, y, c: (c - x, c - y)),
+    ("bl", 270, lambda x, y, c: (y, c - x)),
 )
 
 ATTR = re.compile(r'([-a-zA-Z:]+)\s*=\s*"([^"]*)"')
@@ -479,6 +516,170 @@ QtObject {
     return head + ",\n".join(body) + "\n" + tail + ",\n".join(shapes) + "\n" + foot
 
 
+def _near(point, want, slack=1e-6):
+    return (abs(point[0] - want[0]) < slack and abs(point[1] - want[1]) < slack)
+
+
+def corner_run(shape):
+    """The corner itself, out of the quarter it is drawn as.
+
+    Drawn clockwise, the way a tile's own outline runs: in at `0, c` off the
+    left edge, round the corner, out at `c, 0` onto the top edge, then back
+    through `c, c` to close the quarter. Everything up to that last corner is
+    the drawing; the two sides that close it are the tile's own edges, and a
+    tile is as wide as it is.
+
+    Raises on a quarter drawn any other way. A corner that does not start and
+    end on the box's edges cannot be set at four corners of a rectangle - the
+    edges between them would not meet it - and the symptom is a ground that
+    draws as a crumpled star rather than as a tile.
+    """
+    if len(shape.fills) != 1:
+        raise ValueError("%s: a corner is one filled path, not %d"
+                         % (shape.name, len(shape.fills)))
+    if shape.width != shape.height:
+        raise ValueError("%s: a corner turns in a square, not %g by %g"
+                         % (shape.name, shape.width, shape.height))
+    size = shape.width
+    parts = svgpath.segments(shape.fills[0])
+    if not parts or parts[0][0] != "M" or not _near(parts[0][1], (0, size)):
+        raise ValueError("%s: a corner comes in off the left edge, so the "
+                         "quarter starts at 0,%g" % (shape.name, size))
+    run = []
+    cur = (0.0, size)
+    for part in parts[1:]:
+        # The box's own inner corner closes the quarter and is not drawn.
+        if part[0] == "Z" or _near(part[-1], (size, size)):
+            break
+        run.append(part)
+        cur = part[-1]
+    if not run:
+        raise ValueError("%s: nothing drawn between the two edges"
+                         % shape.name)
+    if not _near(cur, (size, 0)):
+        raise ValueError("%s: a corner goes out onto the top edge at %g,0 - "
+                         "this one stops at %g,%g"
+                         % (shape.name, size, cur[0], cur[1]))
+    return size, run
+
+
+def turned(run, size, turn, place):
+    """One corner run, rotated into place, as relative commands.
+
+    Relative so the run is the same wherever the corner it belongs to lands:
+    only the point it starts from depends on how wide the tile is, and the
+    generated function is what computes that. Each command is `[letter,
+    numbers...]` rather than a string, because the shell scales the corner
+    down on a tile too small to hold four of them, and a string cannot be
+    scaled without being parsed again.
+    """
+    out = []
+    cur = place(0.0, size, size)
+    for part in run:
+        kind = part[0]
+        if kind == "A":
+            rx, ry, rotation, large, sweep, end = part[1:]
+            end = place(end[0], end[1], size)
+            # A rotation carries the sweep through: it is the mirror that
+            # would have to flip it, and nothing here mirrors. The arc's own
+            # x-axis rotation is the one number a mapped endpoint cannot say.
+            out.append(["a", rx, ry, (rotation + turn) % 360.0, large, sweep,
+                        end[0] - cur[0], end[1] - cur[1]])
+            cur = end
+        else:
+            points = [place(x, y, size) for (x, y) in part[1:]]
+            numbers = []
+            # Every point of a relative curve is measured from where the
+            # command started, not from the point before it.
+            for point in points:
+                numbers.extend([point[0] - cur[0], point[1] - cur[1]])
+            out.append([kind.lower()] + numbers)
+            cur = points[-1]
+    return out
+
+
+def grounds_qml(entries):
+    """The tile grounds, as a function of the box a tile turned out to be."""
+    head = '''// The ground a menu tile is drawn on, one outline per state.
+//
+// GENERATED by assets/generate.py from assets/shapes/ground-*.svg - do not
+// edit. Redraw a corner or change the table there and run the script again.
+//
+// **The corner is drawn art; the edges between the corners are a number.** A
+// tile is `w` cells by `h` rows, and a shape scaled by one factor cannot be a
+// rectangle of any aspect - which is the rule the slider\'s track and the
+// dial\'s shaded zone are not drawn under. A corner is not parameterised by
+// anything, though, and a straight edge does not have to be drawn to be
+// right, so a ground is the one and the other: the same quarter set at four
+// corners with lines run between them.
+//
+// Why at all, when a Rectangle has a radius: a radius is the only outline a
+// Rectangle has, and the states of a tile want more than one. A theme whose
+// accent sits close to its surface leaves a selection to the border alone,
+// and the border is the thinnest thing on the tile.
+//
+// The corner is rotated into its four places rather than mirrored, because a
+// rotation carries an arc\'s sweep flag through unchanged and a mirror would
+// have to flip every one of them.
+import QtQuick
+
+QtObject {
+  id: art
+
+  readonly property var grounds: ({
+'''
+    body = []
+    for name in sorted(entries):
+        made = entries[name]
+        parts = ["corner: %g" % made["corner"]]
+        for key, _turn, _place in TURNS:
+            runs = ", ".join(
+                "[%s]" % ", ".join(
+                    ('"%s"' % n) if isinstance(n, str) else ("%g" % n)
+                    for n in command)
+                for command in made[key])
+            parts.append("%s: [%s]" % (key, runs))
+        body.append('    "%s": { %s }' % (name, ", ".join(parts)))
+    foot = '''  })
+
+  // An arc\'s rotation and its two flags are not lengths, so they are the
+  // three arguments a corner being scaled down leaves alone.
+  function scaled(commands, factor) {
+    var out = ""
+    for (var i = 0; i < commands.length; i++) {
+      var command = commands[i]
+      out += command[0]
+      for (var j = 1; j < command.length; j++) {
+        var flag = command[0] === "a" && j >= 3 && j <= 5
+        out += (j > 1 ? " " : "") + (flag ? command[j] : command[j] * factor)
+      }
+    }
+    return out
+  }
+
+  // The outline of a tile `w` by `h` with `corner` pixels of drawing in each
+  // corner. Clockwise from where the left edge runs into the top left corner,
+  // so the fill rule sees one contour wound one way whatever the state is.
+  //
+  // The corner shrinks rather than the tile: four corners of a tile narrower
+  // than two of them would overlap, and an outline that crosses itself is
+  // painted with a hole in it.
+  function ground(name, w, h, corner) {
+    var found = art.grounds[name]
+    if (found === undefined || w <= 0 || h <= 0) return ""
+    var c = Math.min(corner, w / 2, h / 2)
+    var factor = c / found.corner
+    return "M0 " + c + art.scaled(found.tl, factor)
+      + "L" + (w - c) + " 0" + art.scaled(found.tr, factor)
+      + "L" + w + " " + (h - c) + art.scaled(found.br, factor)
+      + "L" + c + " " + h + art.scaled(found.bl, factor)
+      + "Z"
+  }
+}
+'''
+    return head + ",\n".join(body) + "\n" + foot
+
+
 def controls_qml(entries):
     """The control furniture for the shell, with the colours left out."""
     head = '''// Every part omapad draws a control tile from, as path data.
@@ -578,16 +779,31 @@ def build(report=None):
         controls["%s:%s" % (family, name)] = entry(shape, "")
         if report is not None:
             report("%-22s control furniture" % ("%s:%s" % (family, name)))
+    # No SVG beside these either, and for a stronger reason than the controls
+    # have: a ground is not a drawing until it is told how big a tile is, so
+    # there is nothing here that a file could hold.
+    grounds = {}
+    for name, filename in GROUNDS_TO_DRAW:
+        shape = Shape(os.path.join(SHAPES, filename))
+        size, run = corner_run(shape)
+        made = {"corner": size}
+        for key, turn, place in TURNS:
+            made[key] = turned(run, size, turn, place)
+        grounds[name] = made
+        if report is not None:
+            report("%-22s tile ground, %d command%s of corner"
+                   % (name, len(run), "" if len(run) == 1 else "s"))
     # Ems per cap height: what a typed label has to be set at to match a
     # punched one, which only this side knows.
     return (svgs,
             qml_file(entries, bare,
                      float(font.units_per_em) / font.cap_height),
-            controls_qml(controls))
+            controls_qml(controls),
+            grounds_qml(grounds))
 
 
 def main():
-    svgs, qml, controls = build(report=print)
+    svgs, qml, controls, grounds = build(report=print)
     if not os.path.isdir(BUTTONS):
         os.makedirs(BUTTONS)
     for stale in os.listdir(BUTTONS):
@@ -600,9 +816,12 @@ def main():
         handle.write(qml)
     with open(CONTROL_QML, "w") as handle:
         handle.write(controls)
-    print("wrote %d buttons, %s and %s"
+    with open(TILE_QML, "w") as handle:
+        handle.write(grounds)
+    print("wrote %d buttons, %s, %s and %s"
           % (len(svgs), os.path.relpath(QML, HERE),
-             os.path.relpath(CONTROL_QML, HERE)))
+             os.path.relpath(CONTROL_QML, HERE),
+             os.path.relpath(TILE_QML, HERE)))
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from . import gamebar as gamebar_module
 from . import guide as guide_module
 from . import live as live_module
 from . import snap as snap_module
+from . import sysinfo as sysinfo_module
 from . import keymap
 from . import osk as osk_module
 
@@ -174,6 +175,12 @@ CHOSEN = {
     "rumble": {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
         "kind": "bool",
+    },
+    # Whether the readings are on screen. A setting rather than a surface
+    # verb, because it is a thing you decide once and leave: chosen from the
+    # sofa, written down, and still on the next time the daemon starts.
+    "hud": {
+        "attr": "hud_show", "table": "hud", "key": "show", "kind": "bool",
     },
     "rumble_strength": {
         "attr": "rumble_strong", "table": "rumble", "key": "strong",
@@ -387,6 +394,7 @@ def read_layout(path):
             "order": _layout_ids(plan.get("order")),
             "hidden": _layout_ids(plan.get("hidden")),
             "span": _layout_spans(plan.get("span")),
+            "at": _layout_cells(plan.get("at")),
         }
     return out
 
@@ -423,6 +431,31 @@ def _layout_spans(value):
     return out
 
 
+def _layout_cells(value):
+    """The cells that are cells. One bad one costs only itself.
+
+    `0` is a cell and `-1` is not, which is the one way this differs from a
+    span: a tile in the top left corner is at [0, 0], and a tile off the page
+    is not anywhere. How far *right* a cell may be is not checked here, since
+    that depends on the column count the page is drawn at - `menu.place`
+    clamps it, so a pin made on a wide screen comes back onto a narrow one.
+    """
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for name, cell in value.items():
+        if not isinstance(cell, list) or len(cell) != 2:
+            continue
+        try:
+            x, y = int(cell[0]), int(cell[1])
+        except (TypeError, ValueError):
+            continue
+        if x < 0 or y < 0:
+            continue
+        out[str(name)] = (x, y)
+    return out
+
+
 def render_layout(layout):
     """Serialise an arrangement, one table per page."""
     lines = [
@@ -434,6 +467,10 @@ def render_layout(layout):
         "# editing config.toml can never break this file, and this file can",
         "# never hide a tile that did not exist when it was written.",
         "#",
+        "# A tile under `at` was put in that cell and stays in it; everything",
+        "# else flows around those, in the order above. A cell off the edge of",
+        "# a narrower screen is pulled back onto it rather than lost.",
+        "#",
         "# Delete a page's table to hand that page back to the config, or the",
         "# file to hand back every page.",
         "",
@@ -441,7 +478,7 @@ def render_layout(layout):
     for page in sorted(layout):
         plan = layout[page]
         if not plan.get("order") and not plan.get("hidden") \
-                and not plan.get("span"):
+                and not plan.get("span") and not plan.get("at"):
             continue
         lines.append("[layout.%s]" % page)
         if plan.get("order"):
@@ -457,6 +494,12 @@ def render_layout(layout):
                 width, height = plan["span"][name]
                 lines.append("%s = [%d, %d]"
                              % (toml_string(name), width, height))
+        if plan.get("at"):
+            lines.append("")
+            lines.append("[layout.%s.at]" % page)
+            for name in sorted(plan["at"]):
+                x, y = plan["at"][name]
+                lines.append("%s = [%d, %d]" % (toml_string(name), x, y))
         lines.append("")
     return "\n".join(lines)
 
@@ -1123,6 +1166,14 @@ class Config:
         self.menu_columns = int(menu.get("columns", 6))
         if self.menu_columns < 3:
             raise ConfigError("menu.columns must be 3 or more")
+        # How tall one cell is, unscaled. The width is whatever `columns`
+        # leaves, so this is the rest of a tile's shape, and the shell cannot
+        # read this file - it travels in the payload like every other geometry
+        # setting. A floor rather than any positive number: a cell shorter
+        # than a line of text is a page of tiles with nothing legible on them.
+        self.menu_cell_height = int(menu.get("cell_height", 34))
+        if self.menu_cell_height < 16:
+            raise ConfigError("menu.cell_height must be 16 or more")
         # What a tile off to the side costs against one straight ahead, both
         # measured edge to edge - the same question `snap.bias` answers about
         # windows, and its own number because tiles are small and touching
@@ -1208,6 +1259,13 @@ class Config:
         self.menu_dim = float(menu.get("dim", 0.6))
         if not 0.0 <= self.menu_dim <= 1.0:
             raise ConfigError("menu.dim must be between 0 and 1")
+        # How far the drawn corner of a tile reaches into it. The shell cannot
+        # read this file, and it must not fall back to the compositor's window
+        # rounding: that is 0 on plenty of setups, and at 0 every state of a
+        # tile is the same square.
+        self.menu_tile_corner = int(menu.get("tile_corner", 10))
+        if self.menu_tile_corner < 0:
+            raise ConfigError("menu.tile_corner must be 0 or more")
         self.menu_live_hz = int(menu.get("live_hz", 60))
         if self.menu_live_hz <= 0:
             raise ConfigError("menu.live_hz must be positive")
@@ -1243,6 +1301,86 @@ class Config:
                            ("settle_ms", self.live_settle)):
             if value <= 0:
                 raise ConfigError("live.%s must be positive" % key)
+
+        # What the machine underneath is doing, and where each answer is
+        # published. Every source is a setting because none of these is true
+        # of every machine: which chip holds a temperature, whether the
+        # graphics card publishes a load at all, whether anything here knows a
+        # game's frame rate. An empty source is a reading this machine does
+        # not have - nothing asks for it, and no tile is drawn.
+        sysinfo = data.get("sysinfo", {})
+        self.sysinfo_sources = {}
+        for name in sorted(sysinfo_module.READINGS):
+            try:
+                self.sysinfo_sources[name] = sysinfo_module.source(
+                    sysinfo.get(name, ""), "sysinfo.%s" % name
+                )
+            except sysinfo_module.SysinfoError as exc:
+                raise ConfigError(str(exc)) from exc
+        # What the two free-form readings count in. Only they have the
+        # question: everything else is a kernel ABI with one answer, and a
+        # unit on those would be a way to make a tile lie.
+        self.sysinfo_units = {}
+        self.sysinfo_divisors = {}
+        for name in ("gpu", "fps"):
+            unit = sysinfo.get("%s_unit" % name)
+            if unit is not None:
+                self.sysinfo_units[name] = str(unit)
+            scale = sysinfo.get("%s_scale" % name)
+            if scale is not None:
+                self.sysinfo_divisors[name] = float(scale)
+                if self.sysinfo_divisors[name] <= 0:
+                    raise ConfigError(
+                        "sysinfo.%s_scale must be positive" % name
+                    )
+        self.sysinfo_poll = float(sysinfo.get("poll_ms", 2000)) / 1000.0
+        self.sysinfo_timeout = float(sysinfo.get("timeout_ms", 1000)) / 1000.0
+        for key, value in (("poll_ms", self.sysinfo_poll),
+                           ("timeout_ms", self.sysinfo_timeout)):
+            if value <= 0:
+                raise ConfigError("sysinfo.%s must be positive" % key)
+
+        # The readings, left on screen. The page is a menu group like any
+        # other - which is what puts its tiles where somebody arranged them,
+        # here and over a game alike - so almost nothing is settable here: the
+        # grid is the menu's and the tiles are the page's.
+        hud = data.get("hud", {})
+        self.hud_socket = hud.get("socket") or None
+        self.hud_show = bool(hud.get("show", False))
+        # Which group holds it, by the id of a top-level [[menu.items]] entry.
+        # A name rather than a position: a page that moved along the bar is
+        # still the same page.
+        self.hud_page = str(hud.get("page", "hud")).strip()
+        if not self.hud_page:
+            raise ConfigError("hud.page names a menu group, and cannot be empty")
+        # How solid the readings are over what is behind them. A HUD is read
+        # while something else is being watched, so the thing it is over has
+        # to stay watchable.
+        self.hud_opacity = float(hud.get("opacity", 0.9))
+        if not 0.0 < self.hud_opacity <= 1.0:
+            raise ConfigError("hud.opacity must be above 0 and at most 1")
+        # How many rows the screen is divided into. **This is the whole of why
+        # the HUD has a fixed grid and the menu does not**: a menu page is as
+        # many rows as its tiles came to and scrolls, so there is no last row
+        # to put anything on. A screen has a bottom edge, so the grid has to
+        # have one too, or "bottom right" is a cell that is simply not
+        # anywhere.
+        #
+        # It decides how tall a tile is as well as where one can go, because a
+        # cell is a share of the screen rather than a number of pixels: raise
+        # it for thinner tiles and finer placement, lower it for fewer, bigger
+        # ones. There is no arrangement in which those two are separate.
+        self.hud_rows = int(hud.get("rows", 12))
+        if self.hud_rows < 1:
+            raise ConfigError("hud.rows must be 1 or more")
+        # How far off the edge of the screen the grid starts, unscaled. Not
+        # the menu's own margin, which exists because a card on a television
+        # must not sit in the part of the screen that is not there - this one
+        # is a corner somebody deliberately put something in, so it defaults
+        # to a hair off the edge and goes to 0 for the corner itself.
+        self.hud_margin = int(hud.get("margin", 16))
+        if self.hud_margin < 0:
+            raise ConfigError("hud.margin must be 0 or more")
 
         guide = data.get("guide", {})
         self.guide_socket = guide.get("socket") or None
