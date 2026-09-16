@@ -489,6 +489,8 @@ class OskAction(Action):
                 self,
                 ctx.daemon.config.osk_repeat_delay,
                 ctx.daemon.config.osk_repeat_rate,
+                ctx.daemon.config.osk_repeat_ramp,
+                ctx.daemon.config.osk_repeat_ramp_time,
             )
 
     def release(self, ctx):
@@ -536,10 +538,17 @@ class MenuAction(Action):
                 self,
                 ctx.daemon.config.menu_repeat_delay,
                 ctx.daemon.config.menu_repeat_rate,
+                ctx.daemon.config.menu_repeat_ramp,
+                ctx.daemon.config.menu_repeat_ramp_time,
             )
 
     def release(self, ctx):
         ctx.daemon.repeat_stop(self)
+        if self.command == "press":
+            # Letting go of a row that was counting down is backing out of it,
+            # exactly as letting go of an announced hold is. Harmless on every
+            # other press: there is nothing to let go of.
+            ctx.daemon.menu_disarm(cancelled=True)
 
     def repeat(self, ctx):
         ctx.daemon.menu_command(self.command)
@@ -974,7 +983,7 @@ class Binding:
     # when the binding is built, because the layer is what knows.
     reaches_past = None
 
-    def __init__(self, spec, announced=ANNOUNCED_MS):
+    def __init__(self, spec, announced=ANNOUNCED_MS, scale=1.0):
         self.tap = None
         self.hold = None
         self.hold_ms = 0
@@ -1021,6 +1030,15 @@ class Binding:
                     "confirm_ms", announced[1] if wants else 0))
                 if self.confirm_ms < 0:
                     raise ActionError("confirm_ms cannot be negative")
+                # And then what the hand holding it asked for. Applied
+                # here rather than where the timers are read so that
+                # `hold_ms` and `confirm_ms` are the waits everywhere - the
+                # badge the bar fills over one is drawn from the same number
+                # the loop fires on, and a scale that reached only one of
+                # them would be a promise counting down over a bar that had
+                # already finished.
+                self.hold_ms = max(1, int(round(self.hold_ms * scale)))
+                self.confirm_ms = int(round(self.confirm_ms * scale))
             elif spec.get("confirm_ms") or spec.get("confirm"):
                 raise ActionError("confirm needs a hold to confirm")
         else:

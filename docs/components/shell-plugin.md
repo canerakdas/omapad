@@ -42,7 +42,8 @@ no payload means the menu - the door the pad's own button opens. The game bar
 is deliberately not summonable: it follows game mode, and
 `omapad ctl mode` is its door.
 `Ripple.qml` is not summonable either, and has no `opened`: it answers a click
-rather than a button.
+rather than a button. Neither is `Sound.qml`, which goes one further and has
+no window at all - there is no such thing as a cue being on screen.
 
 ## The surfaces
 
@@ -53,8 +54,19 @@ rather than a button.
 | `Guide.qml` | [`guide.md`](guide.md) |
 | `Mapping.qml` | [`mapping.md`](mapping.md) |
 | `GameBar.qml` | [`gamebar.md`](gamebar.md) |
+| `Hud.qml` | [`hud.md`](hud.md) |
 | `Ripple.qml` | [`ripple.md`](ripple.md) |
+| `Sound.qml`, `SoundBank.qml` | [`sound.md`](sound.md) |
 | `PadStatus.qml` | [`status.md`](status.md) |
+
+**One import in this plugin is quarantined**, and it is the only one:
+`SoundBank.qml` exists so that `import QtMultimedia` has a file of its own to
+fail in. Quickshell does not depend on qt6-multimedia, an unresolvable QML
+import takes its whole file down, and `Sound.qml` therefore reaches the bank
+through a `Loader` rather than importing it. Any future import of something
+outside Quickshell's own dependencies gets the same treatment for the same
+reason: a plugin is installed on machines nobody here has seen, and one
+missing optional package must cost one feature rather than the keyboard.
 
 ## Shared pieces
 
@@ -69,14 +81,59 @@ rather than a button.
   made the directory. The retry doubles from 250 ms to a minute, so a machine
   where omapad is not running does not fill the shell's log either. Use this,
   never a bare `SocketServer`.
+- **`Ink.qml`** - which of the theme's two inks reads on a given ground.
+  `Color.menu.selectedText` looks like the ink for anything filled with the
+  accent and is not: Omarchy defaults that key to the **accent itself**, so a
+  solid accent fill labelled with it would be a label that is not there. Every
+  other state on these surfaces tints rather than fills and keeps the theme's
+  own text colour; the bar's current nav card is the one place that dodge runs
+  out. So it is measured - WCAG relative luminance - and only ever one of
+  `menu.background` and `menu.text`, the two colours every theme is guaranteed
+  to define. A third would be a console's own palette arriving through the
+  back door.
+- **`Travel.qml`** - where along something a number is, drawn as a line: a
+  slider being pushed, a slider with places to stand rather than a distance to
+  cover, and a reading the machine keeps answering. One file because it is one
+  question, and because a page of readings has to read the same in the menu and
+  on the HUD. It is the row card's spine turned on its side, down to the
+  stroke: **one figure crosses the line and it is the only mark either drawing
+  has** - the cap at each end, a stop a stepped value may stand on, and the
+  place the value has got to, which is that same cross in the accent. Nothing
+  fills; what the value has covered is the line behind it - solid where it has
+  stops, a tint at half where it has none - because a mark that moves a few
+  pixels is not a press anybody sees from a sofa and a length changing is. The
+  line runs on past the travel at both ends, as the spine runs past the first
+  row and the last. The caller hands it `ladder` (the surface's `Metrics`), the
+  value, the stops and the three colours; it decides nothing.
 - **`Metrics.qml`** - the shell's measurements at omapad's own scale. Every
   surface here is read from twice the distance an Omarchy menu is, and the
   shell has one scale for the whole session, so this multiplies it per surface
   from the number the daemon stamps on every payload (`[ui] scale`,
   `game_scale`). A multiplier rather than a replacement, so a roomy theme
-  stays roomy. `Style.cornerRadius` and `Style.gapsOut` are **not** scaled:
-  they are the compositor's own geometry, and a surface rounded harder than
-  the windows beside it just looks wrong.
+  stays roomy. `Style.gapsOut` is **not** scaled: it is the compositor's own
+  geometry, and a surface that kept a different gap from the windows beside it
+  just looks wrong.
+
+  **`metrics.time` is the same idea about time.** Three named durations, all
+  multiplied by `[ui] motion` from the payload, so turning motion off is one
+  answer given to every surface rather than seven. There were four: `fill` was
+  how long a bar took to answer a number, and it went out with the bars - a
+  mark on a line is *where the value is* rather than a length growing towards
+  it, so it lands on the frame the value changes and there is nothing left to
+  time. 0 does not remove an
+  animation, it gives it no duration - a `Behavior` still lands on the value
+  it was going to, which is what keeps the still path and the moving path one
+  path. The two countdowns stay off it: how long a promise takes is not how
+  long a thing takes to move.
+
+  **`metrics.radius` is one ladder off the compositor's own rounding.**
+  `radius.card` is `Style.cornerRadius` raw and unscaled - anything that reads
+  as a window takes it, square included. `radius.tile` is the base scaled, and
+  everything drawn *inside* a card takes it. The base is `decoration:rounding`
+  where the compositor has one and the surface's `cornerBase` where it rounds
+  nothing, because a desktop that rounds nothing is saying so about windows
+  and a tile is not a window. Anything between the two named rungs comes from
+  `metrics.rung`; a pill stays `height / 2`.
 
   **`metrics.type` and `metrics.gap` are the silver ladder**, and a surface
   uses them or it uses `metrics.font` and `metrics.spacing` - never a mixture,
@@ -91,14 +148,14 @@ rather than a button.
   - the ratio less one - which is 3, 4, 6, 8, 11, 16, 23, 32, 45: a gap either
   separates two things or it does not, nobody reads the difference between 14
   and 16 pixels of air, and √2 doubles in two rungs so the ladder keeps
-  landing on 4, 8, 16, 32. `type` climbs by the **fourth root** of the ratio
-  (≈1.2465) instead, because there 10 against 12 is a real difference and a
-  surface needs both - a detail line has to be smaller than the label over it
-  and still legible, and one √2 rung puts those five pixels apart. Its five
-  named sizes are rungs 0, 1, 2, 4 and 7 off `Style.font.caption`: 10, 12, 16,
-  24, 47. The first three are where the shell's caption, body and heading
-  already were, because those three were the ones that were right, and `loud`
-  at rung 4 is `fine` at the silver ratio exactly.
+  landing on 4, 8, 16, 32. `type` climbs by √2 **as well**, off
+  `Style.font.caption`: rungs 0 to 4, which is 12, 17, 24, 34, 48 at the
+  default theme - the design's own 11, 16, 23, 32, 45 hung from the theme's
+  smallest size rather than from 8. It ran on the fourth root of the ratio
+  once, for a menu that was a page of labels with a detail line under each; a
+  cell whose *value* is the thing it exists to say wants that value two √2
+  rungs above the word naming it, and a finer ladder cannot reach that without
+  stopping on rungs nobody can name.
 
   **The ladder decides the steps and the screen decides which one to stop on.**
   `vast` is not a whole ratio above anything: it is three rungs over `loud`
@@ -111,6 +168,16 @@ rather than a button.
   shrink-to-fit floor. `metrics.silver` is 1 + √2, the proportion to split one
   line over another by. Everything goes through the surface's own scale like
   the rest of this file. `Menu.qml` is across; the other surfaces are not yet.
+
+  **`metrics.spine` is the line motif's measurements**, named here because the
+  same line is drawn on two surfaces: down the side of a card of rows in the
+  menu, and along the foot of a slider, a stepped slider and a reading in the
+  menu and on the HUD (`Travel.qml`). A stroke weight is off the size ladder
+  like every stroke weight is, and everything else in it is that weight stepped
+  by `silver` - how far the line carries past the thing it measures (`arm`),
+  how far the stroke that crosses it reaches on each side (`cross`), and the
+  two numbers of the wedge the row card marks its own rows with. Two copies of
+  those is how one drawing quietly becomes two.
 
   `metrics.badge(px)` is the other exception: a badge box has to be whole
   pixels on **both** sides, because BadgeArt scales the drawing by one factor
@@ -162,3 +229,16 @@ Qt caches the directory listing per process, so a brand-new file fails to load
 with a misleading `File name case mismatch` and the panel silently stays down.
 Panel entry points have been seen to resist `rescanPlugins` even on an edit;
 the bar widget never does.
+
+**A shared component is worse than an entry point**, and this is the one that
+costs an afternoon: `Metrics.qml`, `TileArt.qml`, `ButtonArt.qml` and the rest
+are not scanned at all - `rescanPlugins` walks the *plugin's* entry points, and
+a component is only re-read when whatever imports it is. A change to a ladder
+or a shape therefore takes on the next restart and not before, while every
+panel carries on drawing the old numbers and the log says nothing, because
+nothing is wrong. Edit one of those and go straight to `omarchy-restart-shell`.
+
+The way to be sure is to look rather than to reason: the surface is on screen,
+so `grim` it before and after, and compare the **same** page at both ends of
+whatever was changed. Two different pages at two different settings is not a
+comparison, and it reads as a difference that is not there.

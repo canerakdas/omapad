@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import config as config_module, daemon as daemon_module
 from omapad import keymap
+from omapad.menu import meta_sources
 from omapad import linux_input as li
 from omapad import linux_input as li
 from omapad import uinput
@@ -32,6 +33,21 @@ NINTENDO = ("BEITONG  BTP-KP20 NS", "057E:2009")
 STICK_INFO = AbsInfo(0, -32768, 32767, 0, 128, 0)
 TRIGGER_INFO = AbsInfo(0, 0, 255, 0, 0, 0)
 HAT_INFO = AbsInfo(0, -1, 1, 0, 0, 0)
+
+
+def only(path):
+    """One config file, with none of the developer's own layers under it.
+
+    Naming one file and nothing else still merges mapping.toml, settings.toml and
+    layout.toml from ~/.config/omapad, so a test that wrote a bad value into
+    `path` and expected a `ConfigError` got whatever this machine had chosen
+    from the pad instead - and passed or failed by accident. Three of them
+    did, and the day somebody turned the sound on from the menu is the day
+    they started failing.
+    """
+    missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
+    return config_module.load(path=path, mapping=missing,
+                              settings=missing, layout=missing)
 
 
 def shipped_config():
@@ -310,6 +326,7 @@ class DaemonTestCase(unittest.TestCase):
         self.status_client = self.daemon.status_client = FakeViewClient()
         self.gamebar_client = self.daemon.gamebar_client = FakeViewClient()
         self.ripple_client = self.daemon.ripple_client = FakeViewClient()
+        self.sound_client = self.daemon.sound_client = FakeViewClient()
         # Also exercises the shutdown path, and closes the control socket.
         self.addCleanup(self.daemon.shutdown)
         self.device = FakeDevice(self.identity)
@@ -783,13 +800,14 @@ class RumbleTests(DaemonTestCase):
         self.assertEqual(self.device.played, [])
 
     def test_the_effects_are_uploaded_once_and_given_back_on_unplug(self):
-        # The three the shipped config asks for: the texture ships off.
-        self.assertEqual(len(self.device.effects), 3)
+        # The four the shipped config asks for, all of them uploaded before
+        # anything is pressed.
+        self.assertEqual(len(self.device.effects), 4)
         self.press("Y")
         self.release("Y")
         self.press("Y")
         self.release("Y")
-        self.assertEqual(len(self.device.effects), 3)
+        self.assertEqual(len(self.device.effects), 4)
         self.assertEqual(len(self.device.played), 2)
         self.daemon.disconnect()
         self.assertEqual(self.device.effects, {})
@@ -1312,6 +1330,108 @@ class HandoverTests(DaemonTestCase):
             self.daemon.update_handover()
         self.assertTrue(self.daemon.handed_over)
         self.assertFalse(self.daemon.osk_open)
+
+class HoldAssistTests(DaemonTestCase):
+    """`[confirm] scale` and `slack_ms`: what a hold costs the hand on it.
+
+    Holding a shoulder for two seconds is a gesture some hands cannot make at
+    all and others make by accident, and neither is a reason to lose what the
+    hold reaches. One number shortens every wait on the pad together; the
+    other says the countdown survives a finger coming off it.
+    """
+
+    WORKSPACE = "hl.dsp.focus({ workspace = 'r+1' })"
+
+    def confirming(self, tap=None, hold_ms=2000, confirm_ms=2000):
+        spec = {"hold": "hypr:" + self.WORKSPACE,
+                "hold_ms": hold_ms, "confirm_ms": confirm_ms}
+        if tap is not None:
+            spec["tap"] = tap
+        self.config.profiles.insert(0, {
+            "name": "pretend", "match": ["pretendapp"], "bindings": {"R": spec},
+        })
+        self.daemon.set_active_profile("pretendapp")
+
+    def test_the_scale_shortens_both_halves_of_an_announced_hold(self):
+        binding = actions.Binding({"hold": "mode:toggle", "confirm": True},
+                                  (900, 400), 0.5)
+        self.assertEqual((binding.hold_ms, binding.confirm_ms), (450, 200))
+
+    def test_and_a_plain_hold_with_them(self):
+        # Every wait on the pad, not only the announced pair: the hand that
+        # cannot hold a shoulder for two seconds cannot hold HOME for a half.
+        binding = actions.Binding({"hold": "mode:toggle"}, (900, 400), 2.0)
+        self.assertEqual(binding.hold_ms, actions.HOLD_MS * 2)
+
+    def test_and_the_numbers_a_binding_named_itself(self):
+        binding = actions.Binding({"hold": "mode:toggle", "hold_ms": 700},
+                                  (900, 400), 0.5)
+        self.assertEqual(binding.hold_ms, 350)
+
+    def test_changing_it_reaches_the_bindings_already_resolved(self):
+        # They are built once and cached per layer and button, with the scale
+        # baked into the two waits - so a new one is only true of the pad once
+        # that cache has gone.
+        before = self.daemon.binding_for("base", "HOME").hold_ms
+        self.daemon.set_setting("hold_scale", ("set", 0.5))
+        self.assertEqual(self.daemon.binding_for("base", "HOME").hold_ms,
+                         round(before * 0.5))
+
+    def test_a_slip_no_longer_loses_a_countdown(self):
+        # Announced, and then the thumb comes off it. With a slack as long as
+        # the countdown, letting go after the announcement stops cancelling -
+        # which is the whole of what a hand that cannot hold is asking for.
+        self.config.confirm_slack_ms = 2000
+        self.confirming()
+        self.press("R")
+        at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(at + 2.1)          # announces
+        self.release("R")
+        self.daemon.held["R"].released_at = at + 2.2
+        self.assertIn("R", self.daemon.held)
+        self.daemon.check_hold_timers(at + 4.1)
+        self.assertEqual(self.hypr.calls, [self.WORKSPACE])
+
+    def test_and_a_finger_that_stays_off_still_backs_out(self):
+        self.config.confirm_slack_ms = 300
+        self.confirming(tap="key:F5")
+        self.press("R")
+        at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(at + 2.1)
+        self.release("R")
+        self.daemon.held["R"].released_at = at + 2.2
+        self.daemon.check_hold_timers(at + 2.6)          # 400 ms off
+        self.assertNotIn("R", self.daemon.held)
+        self.daemon.check_hold_timers(at + 4.1)
+        self.assertEqual(self.hypr.calls, [])
+        # And the late release is not a tap either: a hold that had announced
+        # itself was never the other half of the button.
+        self.assertEqual(self.keyboard.chords, [])
+
+    def test_a_release_before_the_announcement_is_the_tap_it_always_was(self):
+        # The slack starts at the announcement. Before it, letting go is how a
+        # tap is made - and a browser tab that waited for the slack to run out
+        # would be the cost of a setting nobody turned on for tabs.
+        self.config.confirm_slack_ms = 2000
+        self.confirming(tap="key:F5")
+        self.press("R")
+        self.release("R")
+        self.assertNotIn("R", self.daemon.held)
+        self.assertTrue(self.keyboard.chords)
+
+    def test_the_cancel_button_still_backs_out_of_one_nobody_is_holding(self):
+        self.config.confirm_slack_ms = 2000
+        self.confirming()
+        self.press("R")
+        at = self.daemon.held["R"].pressed_at
+        self.daemon.check_hold_timers(at + 2.1)
+        self.release("R")
+        self.daemon.held["R"].released_at = at + 2.2
+        self.press("B")
+        self.release("B")
+        self.daemon.check_hold_timers(at + 4.1)
+        self.assertEqual(self.hypr.calls, [])
+
 
 class WorkspaceLockTests(DaemonTestCase):
     """The hand-off said by hand: the pad is the app's, and a chord is all
@@ -2254,6 +2374,11 @@ def walk_menu(daemon, labels, press):
     The tree was one list and a test could name a row by its index. It is a
     bar of pages now: a name that is not on the page in front is a chip, and a
     chip is walked to rather than pressed.
+
+    A third thing it can be is a **row inside the card in front**, which is not
+    a tile and is not a page either. Getting to one is A into the card and then
+    the row by name, so that is what this does - going in is navigation here,
+    the way walking to a chip is, and the caller's `press` is still what acts.
     """
     for label in labels:
         for tile in daemon.menu.tiles:
@@ -2261,6 +2386,14 @@ def walk_menu(daemon, labels, press):
                 daemon.menu.select_id(tile["item"]["id"])
                 break
         else:
+            row = next((one for one in daemon.menu.rows_of(daemon.menu.current)
+                        if one["label"] == label), None)
+            if row is not None:
+                if not daemon.menu.entered:
+                    daemon.menu.take()
+                daemon.menu.select_row(row["id"])
+                press()
+                continue
             for number, group in enumerate(daemon.menu.groups):
                 if group["label"] == label:
                     daemon.menu_select_group(number)
@@ -2312,8 +2445,12 @@ class MenuTests(DaemonTestCase):
     def test_the_dpad_walks_the_grid_both_ways(self):
         # Left and right used to be a second way to say Back and Pick, which a
         # single column left them free to be. A grid spends both axes.
+        #
+        # Walked along the top row rather than down first: the page this opens
+        # on is the shipped one, and a tile in its *last* row may have nothing
+        # to the right of it - which is a true thing about that page and not
+        # the thing this is here to catch.
         self.open_menu()
-        self.daemon.menu_command("down")
         first = self.daemon.menu.selected
         self.daemon.menu_command("right")
         self.assertNotEqual(self.daemon.menu.selected, first)
@@ -2322,14 +2459,17 @@ class MenuTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu_open)
 
     def test_holding_a_direction_walks_the_grid(self):
+        # Across rather than down, for the same reason as above: the shipped
+        # page has a last row, and a second press of `down` from it is meant
+        # to do nothing.
         self.open_menu()
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
+        self.feed((li.EV_ABS, li.ABS_HAT0X, 1))
         self.assertTrue(self.daemon.repeats, "a held direction should repeat")
         first = self.daemon.menu.selected
         entry = list(self.daemon.repeats.values())[0]
         self.daemon.fire_repeats(entry[1])
         self.assertNotEqual(self.daemon.menu.selected, first)
-        self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
+        self.feed((li.EV_ABS, li.ABS_HAT0X, 0))
         self.assertEqual(self.daemon.repeats, {})
 
     def test_the_shoulders_walk_the_bar(self):
@@ -2346,24 +2486,24 @@ class MenuTests(DaemonTestCase):
         self.daemon.push_menu_view()
         self.assertEqual(
             [group["l"] for group in self.menu_client.sent[-1]["groups"]],
-            ["Now", "Apps", "Windows", "Audio", "Display", "Controller",
+            ["Now", "Apps", "Workspaces", "Audio", "Display", "Controller",
              "Readings", "System"],
         )
 
     def test_a_drills_into_a_submenu(self):
         self.open_menu()
-        self.drill("Audio")
-        self.select("Devices")
+        self.drill("Controller")
+        self.select("Sticks")
         self.press("A")
         self.release("A")
         self.assertTrue(self.daemon.menu_open)
-        self.assertEqual(self.daemon.menu.title, "Devices")
-        self.assertEqual(self.menu_client.sent[-1]["title"], "Devices")
+        self.assertEqual(self.daemon.menu.title, "Sticks")
+        self.assertEqual(self.menu_client.sent[-1]["title"], "Sticks")
 
     def test_b_climbs_back_out_and_then_closes(self):
         self.open_menu()
-        self.drill("Audio")
-        self.select("Devices")
+        self.drill("Controller")
+        self.select("Sticks")
         self.daemon.menu_command("press")
         self.daemon.menu_command("back")
         self.assertTrue(self.daemon.menu_open)
@@ -2389,7 +2529,7 @@ class MenuTests(DaemonTestCase):
         # clears it - a tiled window cannot be raised over a floating one.
         self.daemon.handed_over = True
         self.open_menu()
-        self.drill("Windows")
+        self.drill("Workspaces")
         self.select("Fullscreen")
         self.press("A")
         self.release("A")
@@ -2474,14 +2614,14 @@ class MenuTests(DaemonTestCase):
         # back inside a submenu you had drilled into is coming back somewhere
         # you did not leave from.
         self.open_menu()
-        self.drill("Audio")
-        self.select("Devices")
+        self.drill("Controller")
+        self.select("Sticks")
         self.daemon.menu_command("press")
         self.assertGreater(self.daemon.menu.depth, 0)
         self.daemon.set_menu(False)
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.depth, 0)
-        self.assertEqual(self.daemon.menu.selected, "devices")
+        self.assertEqual(self.daemon.menu.selected, "sticks")
 
     def test_a_chip_that_has_gone_away_is_not_come_back_to(self):
         self.open_menu()
@@ -2566,6 +2706,596 @@ class MenuTests(DaemonTestCase):
         self.daemon.handle_control("menu press")
         self.assertEqual(self.session.spawned, ["omarchy-menu toggle"])
         self.assertFalse(self.menu_client.sent[-1]["open"])
+
+
+class LeavingSoundsTests(DaemonTestCase):
+    """`back`: the word for a press that went the other way.
+
+    The vocabulary had four words and none of them was this one, so B sounded
+    like A or like nothing. It follows the **verb** rather than the surface
+    going away: a row that ran and took the menu with it has an answer of its
+    own, and two sounds for one press is one of them arguing with the other.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.sound_enabled = True
+        self.daemon.config.menu_first_run = False
+
+    def said(self):
+        return self.sound_client.sent[-1]["c"] if self.sound_client.sent \
+            else None
+
+    def test_climbing_a_level_says_it(self):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Controller"],
+                  lambda: self.daemon.menu_command("press"))
+        self.sound_client.sent = []
+        self.daemon.menu_command("back")
+        self.assertEqual(self.said(), "back")
+        self.assertEqual(self.daemon.menu.depth, 0)
+
+    def test_and_so_does_leaving_the_menu_outright(self):
+        self.daemon.set_menu(True)
+        self.sound_client.sent = []
+        self.daemon.menu_command("close")
+        self.assertEqual(self.said(), "back")
+
+    def test_and_putting_a_control_back(self):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Controller", "Sticks", "Pointer"],
+                  lambda: self.daemon.menu_command("press"))
+        self.daemon.menu_take()
+        self.sound_client.sent = []
+        self.daemon.menu_command("back")
+        self.assertEqual(self.said(), "back")
+
+    def test_and_putting_the_keyboard_away(self):
+        self.daemon.set_osk(True)
+        self.sound_client.sent = []
+        self.daemon.osk_command("close")
+        self.assertEqual(self.said(), "back")
+        # And the same button toggling it shut, which is the same press going
+        # the other way.
+        self.daemon.set_osk(True)
+        self.sound_client.sent = []
+        self.daemon.osk_command("toggle")
+        self.assertEqual(self.said(), "back")
+
+    def test_and_the_guide(self):
+        self.daemon.set_guide(True)
+        self.sound_client.sent = []
+        self.daemon.guide_command("close")
+        self.assertEqual(self.said(), "back")
+
+    def test_a_row_that_ran_is_not_a_row_that_was_left(self):
+        # The menu goes away when a row fires, and that is not leaving.
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Apps", "Terminal"], lambda: None)
+        self.sound_client.sent = []
+        self.daemon.menu_command("press")
+        self.assertFalse(self.daemon.menu_open)
+        self.assertNotEqual(self.said(), "back")
+
+    def test_the_hands_still_feel_a_press(self):
+        # A motor can be shorter or weaker, which says less happened; it
+        # cannot fall a fourth. So it ticks - the same effect a press plays
+        # anywhere else - and the speakers are what say which of the two
+        # presses this was.
+        self.daemon.set_menu(True)
+        self.device.played = []
+        self.daemon.menu_command("close")
+        self.assertEqual(self.device.played,
+                         [self.daemon.rumble.effects["tick"]])
+
+
+class CountedRowTests(DaemonTestCase):
+    """A menu row that is pressed and then counts down to running.
+
+    The shipped ones are Logout, Reboot and Shutdown. This uses one of its own
+    so the suite is not counting the machine's power button down to find out.
+    """
+
+    SECONDS = 10
+
+    def setUp(self):
+        super().setUp()
+        self.config.menu_items[0]["items"].append({
+            "label": "Wipe it", "action": "exec:wipe-it", "countdown": True,
+        })
+        self.daemon.menu = daemon_module.MenuModel(
+            daemon_module.build_menu(
+                self.config.menu_items, columns=self.config.menu_columns,
+                settings=config_module.CHOSEN,
+                readings=daemon_module.live_module.READINGS,
+                countdown=self.SECONDS),
+            self.config.menu_title, self.config.menu_clock,
+            columns=self.config.menu_columns, bias=self.config.menu_bias)
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Wipe it"], lambda: None)
+
+    def start(self):
+        self.press("A")
+        self.release("A")
+
+    def run_for(self, seconds):
+        """Wind the count forward and let the loop look at it."""
+        self.daemon._menu_countdown["at"] -= seconds
+        self.daemon.check_menu_countdown(time.monotonic())
+
+    def test_a_is_not_the_press_that_runs_it(self):
+        self.start()
+        self.assertEqual(self.session.spawned, [])
+        self.assertIsNotNone(self.daemon._menu_countdown)
+        # And the menu stays where it is, because the row is printing a number
+        # somebody has to be able to read.
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_the_row_prints_how_long_is_left(self):
+        self.start()
+        self.assertEqual(self.drawn()["left"], self.SECONDS)
+        self.run_for(3.5)
+        # Rounded up: a row that showed 0 for a moment and then ran would read
+        # as a row that had stopped and ran anyway.
+        self.assertEqual(self.drawn()["left"], 7)
+
+    def test_and_names_the_row_rather_than_the_card(self):
+        self.start()
+        self.assertEqual(self.drawn()["id"], self.daemon.menu.acting["id"])
+
+    def test_it_runs_when_the_count_is_out(self):
+        self.start()
+        self.run_for(self.SECONDS + 0.1)
+        self.assertEqual(self.session.spawned, ["wipe-it"])
+        self.assertIsNone(self.daemon._menu_countdown)
+
+    def test_b_stops_it(self):
+        self.start()
+        self.daemon.menu_command("back")
+        self.assertIsNone(self.daemon._menu_countdown)
+        # Nothing left to reach zero, so nothing runs however long the loop
+        # goes on looking.
+        self.daemon.check_menu_countdown(time.monotonic())
+        self.assertEqual(self.session.spawned, [])
+        # And it is announced, the way backing out of a hold is.
+        self.assertTrue(self.session.notifications)
+
+    def test_and_says_so_on_the_legend_while_it_runs(self):
+        self.config.gamebar_enabled = False
+        self.start()
+        words = {row["b"]: row["n"]
+                 for row in self.menu_client.sent[-1]["keys"]}
+        self.assertEqual(words.get(self.config.confirm_cancel), "Cancel")
+
+    def test_walking_away_does_not_stop_it(self):
+        # Ten seconds is long enough to want to look at something else, and a
+        # count that died because a thumb brushed a stick would be worse than
+        # no count at all.
+        self.start()
+        self.daemon.menu_command("left")
+        self.assertIsNotNone(self.daemon._menu_countdown)
+
+    def test_a_second_press_neither_starts_another_nor_skips_the_wait(self):
+        self.start()
+        at = self.daemon._menu_countdown["at"]
+        self.start()
+        self.assertEqual(self.daemon._menu_countdown["at"], at)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_closing_the_menu_stops_it_without_calling_it_a_cancel(self):
+        self.start()
+        self.session.notifications.clear()
+        self.daemon.set_menu(False)
+        self.assertIsNone(self.daemon._menu_countdown)
+        self.assertEqual(self.session.notifications, [])
+
+    def drawn(self):
+        return self.menu_client.sent[-1]["count"]
+
+
+class ConfirmedRowTests(DaemonTestCase):
+    """A menu row that is held rather than pressed.
+
+    The shipped ones are Shutdown, Reboot, Logout and Close window - rows a
+    second press does not undo. This uses one of its own so the suite is not
+    holding the machine's power button to find out.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.menu_items[0]["items"].append({
+            "label": "Wipe it", "action": "exec:wipe-it", "confirm": True,
+        })
+        self.daemon.menu = daemon_module.MenuModel(
+            daemon_module.build_menu(
+                self.config.menu_items, columns=self.config.menu_columns,
+                settings=config_module.CHOSEN,
+                readings=daemon_module.live_module.READINGS),
+            self.config.menu_title, self.config.menu_clock,
+            columns=self.config.menu_columns, bias=self.config.menu_bias)
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Wipe it"], lambda: None)
+
+    def waits(self):
+        """The two lengths, in seconds, as the daemon counts them."""
+        hold, count = self.config.announced_scaled
+        return hold / 1000.0, count / 1000.0
+
+    def drawn(self):
+        return self.menu_client.sent[-1].get("confirm")
+
+    def test_a_press_starts_a_hold_instead_of_running_the_row(self):
+        self.press("A")
+        self.assertEqual(self.session.spawned, [])
+        self.assertTrue(self.daemon.menu_open)
+        state = self.drawn()
+        self.assertEqual(state["id"], "wipe-it")
+        self.assertFalse(state["armed"])
+        self.assertEqual(state["ms"], self.config.announced_scaled[0])
+
+    def test_it_announces_itself_at_the_first_wait(self):
+        self.press("A")
+        at = self.daemon._menu_confirm["at"]
+        hold, count = self.waits()
+        self.daemon.check_menu_confirm(at + hold + 0.01)
+        self.assertEqual(self.session.spawned, [])
+        # The tick is for the hands and the notification for the eyes that are
+        # not on the tile; the fill is for the ones that are.
+        self.assertTrue(self.session.notifications)
+        self.assertIn("Wipe it", self.session.notifications[-1][1])
+        state = self.drawn()
+        self.assertTrue(state["armed"])
+        self.assertEqual(state["ms"], self.config.announced_scaled[1])
+
+    def test_and_runs_at_the_second(self):
+        self.press("A")
+        at = self.daemon._menu_confirm["at"]
+        hold, count = self.waits()
+        self.daemon.check_menu_confirm(at + hold + 0.01)
+        self.daemon.check_menu_confirm(at + hold + count + 0.01)
+        self.assertEqual(self.session.spawned, ["wipe-it"])
+        # And it leaves the way an ordinary row does: the menu first, so what
+        # it opens does not come up behind a scrim.
+        self.assertFalse(self.daemon.menu_open)
+        self.assertIsNone(self.daemon._menu_confirm)
+
+    def test_letting_go_backs_out_of_it(self):
+        self.press("A")
+        at = self.daemon._menu_confirm["at"]
+        hold, count = self.waits()
+        self.daemon.check_menu_confirm(at + hold + 0.01)
+        self.release("A")
+        self.assertIsNone(self.daemon._menu_confirm)
+        self.assertIsNone(self.drawn())
+        self.daemon.check_menu_confirm(at + hold + count + 0.01)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_and_so_does_the_cancel_button(self):
+        # B is Back on this surface; while a row is counting down it is the
+        # way out of that, exactly as it is on the bar's version.
+        self.press("A")
+        at = self.daemon._menu_confirm["at"]
+        hold, count = self.waits()
+        self.daemon.check_menu_confirm(at + hold + 0.01)
+        depth = self.daemon.menu.depth
+        self.press("B")
+        self.release("B")
+        self.assertIsNone(self.daemon._menu_confirm)
+        self.assertEqual(self.daemon.menu.depth, depth)
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_walking_off_the_tile_drops_it(self):
+        self.press("A")
+        self.daemon.menu_command("left")
+        self.assertIsNone(self.daemon._menu_confirm)
+
+    def test_closing_the_menu_drops_it_without_calling_it_cancelled(self):
+        self.press("A")
+        self.session.notifications = []
+        self.daemon.set_menu(False)
+        self.assertIsNone(self.daemon._menu_confirm)
+        self.assertEqual(self.session.notifications, [])
+
+    def test_the_legend_says_so_before_anybody_presses_anything(self):
+        self.config.gamebar_enabled = False
+        self.daemon.push_menu_view()
+        legend = self.menu_client.sent[-1]["keys"]
+        words = {row["b"]: row["n"] for row in legend}
+        self.assertEqual(words.get("A"), "Hold to confirm")
+        # And it is the tile's fact, not the page's: the tile next door is an
+        # ordinary press.
+        self.daemon.menu_command("left")
+        legend = self.menu_client.sent[-1]["keys"]
+        words = {row["b"]: row["n"] for row in legend}
+        self.assertNotEqual(words.get("A"), "Hold to confirm")
+
+    def test_the_hold_time_setting_reaches_it(self):
+        # Item 55's scale is every hold on the pad, and this is one of them.
+        self.daemon.set_setting("hold_scale", ("set", 0.5))
+        shipped_hold = self.config.confirm_hold_ms
+        self.press("A")
+        self.assertEqual(self.drawn()["ms"], round(shipped_hold * 0.5))
+
+    def test_the_shipped_rows_that_cannot_be_taken_back_say_so(self):
+        # **Two answers, spent on two kinds of press.** A hold is right where
+        # the gesture is already in the hand and is over in a second - closing
+        # the window you are looking at. A countdown is right where what
+        # happens next takes the screen away: being sure about that is not a
+        # thing to do with a thumb, it is a thing to be given long enough to
+        # change your mind about.
+        held, counted = set(), set()
+        def walk(items):
+            for item in items:
+                if item.get("confirm"):
+                    held.add(item["label"])
+                if item.get("countdown"):
+                    counted.add(item["label"])
+                if item.get("items"):
+                    walk(item["items"])
+        walk(shipped_config().menu_items)   # not this class's own row
+        self.assertEqual(held, {"Close window"})
+        self.assertEqual(counted, {"Logout", "Reboot", "Shutdown"})
+        # Reboot and Shutdown are each written twice - a row in the Power card
+        # and a cell of their own, because they are the two anybody walks to
+        # that page for. The same press cannot be guarded in one place and
+        # cheap in the other, so both copies count.
+        every = []
+        def count(items):
+            for item in items:
+                if item.get("label") in ("Reboot", "Shutdown"):
+                    every.append(bool(item.get("countdown")))
+                if item.get("items"):
+                    count(item["items"])
+        count(shipped_config().menu_items)
+        self.assertEqual(every, [True] * 4)
+
+
+class CornerTests(DaemonTestCase):
+    """`[ui] radius`: how hard a corner is rounded, and who decides the base.
+
+    The compositor does. `decoration:rounding` is what this machine rounds
+    every window by, and a surface of ours that picked its own number would be
+    the one thing on screen not answering to it. What the pad sets is how far
+    off that answer these surfaces stand.
+    """
+
+    def test_every_surface_is_told_at_once(self):
+        # A person who has rounded one of them has rounded all of them, so it
+        # rides on the payload beside the scale rather than on one surface's.
+        self.daemon.set_osk(True)
+        self.daemon.set_menu(True)
+        self.assertEqual(self.osk_client.sent[-1]["radius"], 1.0)
+        self.assertEqual(self.menu_client.sent[-1]["radius"], 1.0)
+
+    def test_and_told_again_the_moment_it_changes(self):
+        # The tiles under the slider have to round as it moves: waiting out
+        # the heartbeat would read as a press that did not take.
+        self.daemon.set_menu(True)
+        self.menu_client.sent = []
+        self.daemon.set_setting("radius", ("step", 1))
+        self.assertEqual(self.menu_client.sent[-1]["radius"], 1.414)
+
+    def test_the_slider_is_walked_by_its_stops(self):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Display", "Corners"],
+                  lambda: self.daemon.menu_command("press"))
+        tile = [row for row in self.menu_client.sent[-1]["items"]
+                if row["l"] == "Corners"][0]
+        self.assertEqual(tile["k"], "slider")
+        # A word for where it is, and the bar drawn in the stops themselves:
+        # five of them, standing on the fourth.
+        self.assertEqual(tile["t"], "The desktop's")
+        self.assertEqual(tile["v"], 0.75)
+        self.assertEqual((tile["seg"], tile["at"]), (5, 3))
+
+    def test_a_held_direction_does_not_run_away_with_a_ladder(self):
+        # The ramp exists because a speed is thirty-eight presses end to end.
+        # A ladder is six, and a held direction would cross the whole of it in
+        # the first push.
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Display", "Corners"], lambda: None)
+        item = self.daemon.menu.current
+        for _ in range(3):
+            self.daemon.menu_adjust(item, 1)
+        self.assertEqual(self.daemon.config.ui_radius, 1.414)
+
+
+class AwakeTests(DaemonTestCase):
+    """How long the pad keeps the screen awake after it was last touched.
+
+    The hold exists because pad input is invisible to the compositor. What it
+    lacked was an end: a surface left open on a television held the
+    screensaver off all night, and game mode asked the desktop for
+    `stay-awake` outright.
+    """
+
+    def idle_calls(self):
+        return [one for one in self.session.spawned if "toggle idle" in one]
+
+    def test_the_pad_comes_up_awake(self):
+        self.assertTrue(self.daemon._awake)
+        self.daemon.set_osk(True)
+        self.assertTrue(self.osk_client.sent[-1]["awake"])
+
+    def test_a_quiet_pad_hands_idling_back(self):
+        self.daemon.set_osk(True)
+        self.daemon.check_awake(self.daemon._touched
+                                + self.config.idle_awake + 0.1)
+        self.assertFalse(self.daemon._awake)
+        # Every surface on screen is told, because each binds its inhibitor
+        # to this.
+        self.assertFalse(self.osk_client.sent[-1]["awake"])
+
+    def test_and_a_press_takes_the_hold_back(self):
+        self.daemon.set_osk(True)
+        self.daemon.check_awake(self.daemon._touched
+                                + self.config.idle_awake + 0.1)
+        self.press("A")
+        self.assertTrue(self.daemon._awake)
+        self.assertTrue(self.osk_client.sent[-1]["awake"])
+
+    def test_game_mode_stops_asking_the_desktop_to_stay_awake(self):
+        self.daemon.set_mode("game")
+        self.assertIn("omarchy toggle idle stay-awake", self.idle_calls())
+        self.session.spawned = []
+        self.daemon.check_awake(self.daemon._touched
+                                + self.config.idle_awake + 0.1)
+        self.assertEqual(self.idle_calls(), ["omarchy toggle idle allow-idle"])
+        # And asks again the moment somebody is there.
+        self.session.spawned = []
+        self.press("A")
+        self.assertEqual(self.idle_calls(), ["omarchy toggle idle stay-awake"])
+
+    def test_a_stick_resting_crooked_is_not_somebody_being_there(self):
+        # A pad with drift would otherwise hold the screen awake for ever on
+        # its own, which is the one failure this must not have.
+        code = daemon_module.STICK_AXES["left"][0]
+        self.daemon._awake = False
+        centre, half = self.daemon.axis_scale.get(code, (0.0, 1.0))
+        inside = self.config.stick_deadzone("left") / 2
+        self.feed((li.EV_ABS, code, int(centre + inside * half)))
+        self.assertFalse(self.daemon._awake)
+        # A thumb actually on it is.
+        self.feed((li.EV_ABS, code, int(centre + 0.9 * half)))
+        self.assertTrue(self.daemon._awake)
+
+    def test_zero_is_the_hold_that_never_lets_go(self):
+        self.config.idle_awake = 0.0
+        self.daemon.check_awake(self.daemon._touched + 99999.0)
+        self.assertTrue(self.daemon._awake)
+
+
+class RepeatRampTests(DaemonTestCase):
+    """A direction held is somebody crossing a distance, so the steps close up.
+
+    Fourteen keys across a keyboard page is the same journey however quickly
+    the last step arrives, and a walk at one speed is what makes a long row
+    ask for a jump control in the first place.
+    """
+
+    def test_the_gap_closes_to_the_ramp_and_no_further(self):
+        rate, ramp, over = 0.1, 2.0, 1.0
+        self.assertEqual(daemon_module.ramped(rate, ramp, over, 0.0), rate)
+        self.assertAlmostEqual(
+            daemon_module.ramped(rate, ramp, over, 0.5), rate / 1.5)
+        self.assertAlmostEqual(
+            daemon_module.ramped(rate, ramp, over, over), rate / ramp)
+        # Held for a minute, and no faster than it was after the first second.
+        self.assertAlmostEqual(
+            daemon_module.ramped(rate, ramp, over, 60.0), rate / ramp)
+
+    def test_a_ramp_of_one_is_the_walk_that_does_not_accelerate(self):
+        self.assertEqual(daemon_module.ramped(0.1, 1.0, 1.0, 5.0), 0.1)
+        self.assertEqual(daemon_module.ramped(0.1, 3.0, 0.0, 5.0), 0.1)
+
+    def held_repeat(self):
+        return next(iter(self.daemon.repeats.values()))
+
+    def test_a_held_menu_direction_takes_the_menu_ramp(self):
+        # Through the action rather than the D-pad: an XInput pad reports its
+        # hat as an axis, and what this is about is the repeat behind the
+        # binding rather than which code carried the press.
+        self.daemon.set_menu(True)
+        walk = actions.MenuAction("right")
+        walk.press(self.daemon.ctx)
+        entry = self.held_repeat()
+        self.assertEqual(entry[3], self.config.menu_repeat_ramp)
+        self.assertEqual(entry[4], self.config.menu_repeat_ramp_time)
+        # And the gap the next step waits is the ramped one, measured from
+        # when the finger went down rather than from the last step.
+        now = time.monotonic()
+        entry[1], entry[5] = now, now - self.config.menu_repeat_ramp_time
+        self.daemon.fire_repeats(now)
+        self.assertAlmostEqual(
+            entry[1] - now,
+            self.config.menu_repeat_rate / self.config.menu_repeat_ramp,
+            places=4)
+        walk.release(self.daemon.ctx)
+        self.assertEqual(self.daemon.repeats, {})
+
+    def test_a_held_keyboard_direction_takes_the_keyboard_ramp(self):
+        # The page this matters most on: fourteen keys wide.
+        self.daemon.set_osk(True)
+        actions.OskAction("right").press(self.daemon.ctx)
+        entry = self.held_repeat()
+        self.assertEqual(entry[3], self.config.osk_repeat_ramp)
+        self.assertEqual(entry[4], self.config.osk_repeat_ramp_time)
+
+    def test_a_stick_walking_the_menu_accelerates_too(self):
+        # The stick keeps its own timer rather than going through `repeats`,
+        # so it is a second place the ramp has to reach.
+        self.daemon.set_menu(True)
+        self.daemon.axes[daemon_module.STICK_AXES["left"][0]] = 1.0
+        self.daemon.axes[daemon_module.STICK_AXES["left"][1]] = 0.0
+        self.daemon.check_menu_stick("left", 0.0)
+        held = self.daemon._focus_held[("menu", "left")]
+        self.assertEqual(held[0], "right")
+        # Held past the ramp, and the next wait is the shortened one.
+        held[1], held[2] = 0.0, self.config.traverse_repeat_ramp_time
+        self.daemon.check_menu_stick("left", 0.0)
+        self.assertAlmostEqual(
+            held[1],
+            self.config.traverse_repeat_rate
+            / self.config.traverse_repeat_ramp,
+            places=4)
+
+    def test_a_reversal_starts_the_ramp_again(self):
+        # Pushing the other way is somebody who went too far, not somebody
+        # still crossing.
+        self.daemon.set_menu(True)
+        self.daemon.axes[daemon_module.STICK_AXES["left"][0]] = 1.0
+        self.daemon.check_menu_stick("left", 0.0)
+        self.daemon._focus_held[("menu", "left")][2] = 5.0
+        self.daemon.axes[daemon_module.STICK_AXES["left"][0]] = -1.0
+        self.daemon.check_menu_stick("left", 0.0)
+        held = self.daemon._focus_held[("menu", "left")]
+        self.assertEqual(held[0], "left")
+        self.assertEqual(held[2], 0.0)
+
+
+class FirstRunTests(DaemonTestCase):
+    """`Start here`: the tile a pad is offered once and then never again.
+
+    A machine driven from a sofa is the machine nobody walks to a keyboard to
+    set up, so the first start has to offer what a first start decides - what
+    the buttons do, and what a press answers with - from the pad itself.
+    """
+
+    def labels(self):
+        return [row["l"] for row in self.menu_client.sent[-1]["items"]]
+
+    def test_the_menu_opens_on_it(self):
+        self.assertTrue(self.config.menu_first_run)
+        self.daemon.set_menu(True)
+        self.assertIn("first_run", self.daemon.menu.conditions)
+        self.assertEqual(self.daemon.menu.selected, "start-here")
+        self.assertIn("Start here", self.labels())
+
+    def test_being_shown_it_is_what_answers_the_first_start(self):
+        # Pressing it is not: somebody who opens the menu, reads the tile and
+        # walks off has been offered the page, and a greeting that waited to
+        # be pressed would be on the first page for ever.
+        self.daemon.set_menu(True)
+        self.assertFalse(self.config.menu_first_run)
+        with open(daemon_module.settings_path()) as handle:
+            self.assertIn("first_run = false", handle.read())
+
+    def test_and_it_is_gone_by_the_next_opening(self):
+        self.daemon.set_menu(True)
+        self.daemon.set_menu(False)
+        self.daemon.set_menu(True)
+        self.assertNotIn("first_run", self.daemon.menu.conditions)
+        self.assertNotIn("Start here", self.labels())
+        self.assertNotEqual(self.daemon.menu.selected, "start-here")
+
+    def test_the_page_behind_it_is_what_a_first_start_decides(self):
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Start here"],
+                  lambda: self.daemon.menu_command("press"))
+        labels = self.labels()
+        for row in ("Shortcuts", "Remap the buttons", "Vibration", "Sounds",
+                    "Motion", "Hold time"):
+            self.assertIn(row, labels)
 
 
 class ControlTileTests(DaemonTestCase):
@@ -2735,7 +3465,7 @@ class PageKeyTests(DaemonTestCase):
 
 
 class ListedMenuTests(DaemonTestCase):
-    """A row whose submenu is a command's output - the audio devices."""
+    """A card whose rows are a command's output - the audio devices."""
 
     def setUp(self):
         super().setUp()
@@ -2751,54 +3481,95 @@ class ListedMenuTests(DaemonTestCase):
     def enter(self, *labels):
         walk_menu(self.daemon, labels,
                   lambda: self.daemon.menu_command("press"))
+        # The loop looks at the page every turn, which is how it notices one
+        # that changed and changed back. A test that only looked at the end
+        # would see the page it started on.
+        self.daemon.menu_cards_settled(time.monotonic())
 
-    def test_the_devices_are_read_when_the_row_is_entered(self):
+    def settle(self):
+        """Let the page's listing cards be read, without waiting it out.
+
+        Two calls: the first notices the page changed and arms the wait, the
+        second finds it due. That is the loop's own shape - a page that is
+        still being walked across is not one worth asking about.
+        """
+        now = time.monotonic()
+        self.daemon.menu_cards_settled(now)
+        if self.daemon._menu_cards_due:
+            self.daemon._menu_cards_due = now
+            self.daemon.menu_cards_settled(now)
+
+    def card(self, label):
+        return [tile for tile in self.menu_client.sent[-1]["items"]
+                if tile["l"] == label][0]
+
+    def listings(self):
+        # Only the cards' own commands. The bar runs one per group for the
+        # word under each nav card, so what a page spends is no longer the
+        # whole of what an open menu does - and matching on the text of the
+        # command is no use when a `meta` reads the same thing a card lists.
+        metas = {meta["from"] for meta in meta_sources(self.daemon.menu.groups)}
+        return [one for one in self.session.captured if one not in metas]
+
+    def test_the_devices_are_read_when_the_page_settles(self):
         # Not at load: which outputs exist changes while the daemon runs, and
-        # the answer a television adds is the whole reason for the row.
-        self.enter("Audio", "Devices")
-        self.assertEqual(self.session.captured, [])
-        self.enter("Output")
-        self.assertEqual(len(self.session.captured), 1)
-        self.assertIn("pactl", self.session.captured[0])
-        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+        # the answer a television adds is the whole reason for the card. And
+        # not at a press either - nobody enters a card, so what arms it is the
+        # page it stands on coming to rest.
+        self.enter("Audio")
+        self.assertEqual(self.listings(), [])
+        self.settle()
+        self.assertEqual(len(self.listings()), 2)   # the outputs and the inputs
+        card = self.card("Output")
+        self.assertEqual([row["l"] for row in card["rs"]],
                          ["Speakers", "Television"])
-        self.assertEqual([row["on"] for row in self.menu_client.sent[-1]["items"]],
-                         [True, False])
+        self.assertEqual([row["on"] for row in card["rs"]], [True, False])
 
-    def test_it_is_asked_again_every_time_the_row_is_entered(self):
-        self.enter("Audio", "Devices", "Output")
-        self.daemon.menu_command("back")
+    def test_it_is_asked_again_every_time_the_page_is_entered(self):
+        self.enter("Audio")
+        self.settle()
+        self.enter("Now")
         self.session.lines.append("Headphones\t9\tusb-out")
-        self.enter("Output")
-        self.assertEqual(len(self.session.captured), 2)
-        self.assertEqual(len(self.menu_client.sent[-1]["items"]), 3)
+        self.enter("Audio")
+        self.settle()
+        self.assertEqual(len(self.card("Output")["rs"]), 3)
 
     def test_picking_a_device_runs_the_row_and_keeps_the_menu_up(self):
-        self.enter("Audio", "Devices", "Output")
-        self.daemon.menu_command("right")
-        self.daemon.menu_command("press")
+        self.enter("Audio")
+        self.settle()
+        walk_menu(self.daemon, ["Television"],
+                  lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
         self.assertTrue(self.daemon.menu_open)
-        # The tick follows the press: the command that moves the sound was let
+        # The fill follows the press: the command that moves the sound was let
         # go of, so asking again here would race it.
-        self.assertEqual([row["on"] for row in self.menu_client.sent[-1]["items"]],
+        self.assertEqual([row["on"] for row in self.card("Output")["rs"]],
                          [False, True])
 
     def test_a_listing_that_finds_nothing_says_so_and_runs_nothing(self):
         self.session.lines = []
-        self.enter("Audio", "Devices", "Output")
-        rows = self.menu_client.sent[-1]["items"]
-        self.assertEqual([row["l"] for row in rows], ["No outputs found"])
-        self.daemon.menu_command("press")
+        self.enter("Audio")
+        self.settle()
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
+                         ["No outputs found"])
+        walk_menu(self.daemon, ["No outputs found"],
+                  lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned, [])
         self.assertTrue(self.daemon.menu_open)
 
-    def test_the_microphones_are_a_listing_of_their_own(self):
-        self.enter("Audio", "Devices", "Microphone")
-        self.daemon.menu_command("press")
-        self.assertEqual(self.session.spawned,
-                         ["omarchy-audio-input-set-default 1 analog-out"])
+    def test_a_card_says_its_own_words_before_the_first_answer(self):
+        # A blank card on a page you are looking at reads as a drawing fault
+        # rather than as a question nobody has answered yet.
+        self.enter("Audio")
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
+                         ["No outputs found"])
+
+    def test_the_microphones_are_a_card_of_their_own(self):
+        self.enter("Audio")
+        self.settle()
+        self.assertEqual([row["l"] for row in self.card("Microphone")["rs"]],
+                         ["Speakers", "Television"])
 
 
 class FakeCommands:
@@ -2887,6 +3658,11 @@ class LiveTests(DaemonTestCase):
         )
         patch.start()
         self.addCleanup(patch.stop)
+        # The first start is answered by opening the menu, and every test
+        # below opens one. Answered here instead, so that "nothing was
+        # written" stays a claim about the press rather than about the
+        # greeting that had already happened.
+        self.daemon.config.menu_first_run = False
 
     def answer(self, *lines):
         """Ask for whatever is due, with this as what comes back.
@@ -2918,7 +3694,11 @@ class LiveTests(DaemonTestCase):
     def test_every_reading_on_the_page_is_asked_once_when_it_appears(self):
         self.daemon.set_menu(True)
         self.daemon.live_refresh(time.monotonic())
-        asked = self.asked()
+        # The four a page of controls reads. A nav card's `meta` is a command
+        # too and lands in the same queue, so it is filtered out here: what
+        # this counts is what `live` asked for, not what an open menu spends.
+        metas = [meta["from"] for meta in meta_sources(self.daemon.menu.groups)]
+        asked = [one for one in self.asked() if one not in metas]
         self.assertEqual(len(asked), 4)
         self.assertTrue(any("get-sink-volume" in one for one in asked))
         self.assertTrue(any("get-sink-mute" in one for one in asked))
@@ -3227,7 +4007,7 @@ class FullscreenTests(DaemonTestCase):
         # Both have to arrive: the panel has no config to look either up in.
         self.daemon.set_menu(True)
         self.assertEqual(self.menu_client.sent[-1]["cell"],
-                         self.config.menu_cell_height)
+                         self.config.menu_cell)
 
     def test_the_blur_is_asked_for_once_at_start(self):
         # A layer rule on our own namespace and nothing else: asking for a
@@ -3575,7 +4355,7 @@ class EditModeTests(DaemonTestCase):
 
 
 class ListedMenuWorkerTests(DaemonTestCase):
-    """A listed page filled from the worker rather than on the loop."""
+    """A listing card filled from the worker rather than on the loop."""
 
     def setUp(self):
         super().setUp()
@@ -3590,42 +4370,64 @@ class ListedMenuWorkerTests(DaemonTestCase):
     def enter(self, *labels):
         walk_menu(self.daemon, labels,
                   lambda: self.daemon.menu_command("press"))
+        self.daemon.menu_cards_settled(time.monotonic())
 
-    def test_the_press_enters_the_page_before_the_answer_arrives(self):
-        self.enter("Audio", "Devices", "Output")
-        self.assertEqual(len(self.commands.submitted), 1)
-        self.assertIn("pactl", self.commands.submitted[0][0])
-        self.assertEqual(self.commands.submitted[0][1],
-                         self.config.menu_list_timeout)
-        # In the page, drawing nothing yet: the pad answered the press.
-        self.assertEqual(self.daemon.menu.title, "Output")
-        self.assertEqual(self.menu_client.sent[-1]["items"], [])
+    def settle(self):
+        now = time.monotonic()
+        self.daemon.menu_cards_settled(now)
+        if self.daemon._menu_cards_due:
+            self.daemon._menu_cards_due = now
+            self.daemon.menu_cards_settled(now)
+
+    def card(self, label):
+        return [tile for tile in self.menu_client.sent[-1]["items"]
+                if tile["l"] == label][0]
+
+    def listings(self):
+        metas = {meta["from"] for meta in meta_sources(self.daemon.menu.groups)}
+        return [one for one in self.commands.submitted if one[0] not in metas]
+
+    def test_the_page_is_drawn_before_the_answer_arrives(self):
+        self.enter("Audio")
+        self.settle()
+        listings = self.listings()
+        self.assertEqual(len(listings), 2)
+        self.assertEqual(listings[0][1], self.config.menu_list_timeout)
+        # On the page, the card saying its own words: the pad answered the
+        # press long before the command did.
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
+                         ["No outputs found"])
         self.daemon.drain_commands()
-        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["Speakers", "Television"])
 
     def test_the_rows_land_in_the_list_the_model_is_drawing(self):
-        # In place rather than bound afresh: `press` took the list itself, so
-        # a new one would fill a page nobody is looking at.
-        self.enter("Audio", "Devices", "Output")
+        # In place rather than bound afresh: the model holds this very list,
+        # and a new one would fill a card nobody is looking at.
+        self.enter("Audio")
+        self.settle()
         self.daemon.drain_commands()
-        self.assertEqual([item["label"] for item in self.daemon.menu.items],
+        card = [item for item in self.daemon.menu.items
+                if item["label"] == "Output"][0]
+        self.assertEqual([row["label"] for row in card["rows"]],
                          ["Speakers", "Television"])
-        self.daemon.menu_command("right")
-        self.daemon.menu_command("press")
+        walk_menu(self.daemon, ["Television"],
+                  lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
 
     def test_a_page_entered_again_keeps_its_rows_until_the_fresh_ones_land(self):
-        self.enter("Audio", "Devices", "Output")
+        self.enter("Audio")
+        self.settle()
         self.daemon.drain_commands()
-        self.daemon.menu_command("back")
+        self.enter("Now")
         self.session.lines.append("Headphones\t9\tusb-out")
-        self.enter("Output")
-        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+        self.enter("Audio")
+        self.settle()
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["Speakers", "Television"])
         self.daemon.drain_commands()
-        self.assertEqual([row["l"] for row in self.menu_client.sent[-1]["items"]],
+        self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["Speakers", "Television", "Headphones"])
 
 
@@ -5555,10 +6357,20 @@ class SurfaceScaleTests(DaemonTestCase):
 
 
 class UiScaleConfigTests(unittest.TestCase):
-    def test_game_mode_is_bigger_by_default(self):
+    def test_the_shipped_scales_are_both_one(self):
+        # Game mode shipped at 1.25 for a long time - the same surfaces,
+        # bigger, for a screen across a room. The menu is now built to a
+        # design drawn for a 1920 screen watched from a sofa, and *its*
+        # numbers are already that size: a 128-pixel tile, sixteen pixels of
+        # air. Multiplying those by a couch factor counts the room twice and
+        # puts the page wider than the screen it is a page of.
+        #
+        # The mechanism is untouched - `[ui] game_scale` still multiplies
+        # every measurement on every surface, and the payload test above
+        # proves it travels. What changed is the shipped answer.
         config = shipped_config()
         self.assertEqual(config.ui_scale, 1.0)
-        self.assertGreater(config.ui_game_scale, config.ui_scale)
+        self.assertEqual(config.ui_game_scale, 1.0)
 
     def test_a_scale_of_zero_is_named(self):
         for line in ("scale = 0", "game_scale = -1"):
@@ -5568,10 +6380,239 @@ class UiScaleConfigTests(unittest.TestCase):
                 path = f.name
             try:
                 with self.assertRaises(config_module.ConfigError) as caught:
-                    config_module.load(path)
+                    only(path)
                 self.assertIn("ui.", str(caught.exception))
             finally:
                 os.unlink(path)
+
+
+class MotionTests(DaemonTestCase):
+    """How long a surface takes to move, decided once for all of them."""
+
+    def test_a_payload_carries_the_motion_multiplier(self):
+        self.config.ui_motion = 0.5
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["motion"], 0.5)
+
+    def test_motion_off_travels_as_zero_rather_than_being_left_out(self):
+        # A missing field means "unchanged" to every panel, so a surface that
+        # was drawn at 1.0 would keep animating at 1.0 after somebody turned
+        # motion off - the one value that has to arrive is the one that
+        # looks like nothing.
+        self.config.ui_motion = 0.0
+        self.daemon.set_menu(True)
+        self.assertIn("motion", self.menu_client.sent[-1])
+        self.assertEqual(self.menu_client.sent[-1]["motion"], 0.0)
+
+    def test_it_is_the_same_answer_on_every_surface(self):
+        # It rides `scaled()` rather than each surface's own state, so a
+        # surface that gained one cannot be given a second answer.
+        self.config.gamebar_enabled = True
+        self.config.ui_motion = 0.25
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.assertEqual(self.gamebar_client.sent[-1]["motion"], 0.25)
+        self.assertEqual(self.menu_client.sent[-1]["motion"], 0.25)
+
+
+class SoundTests(DaemonTestCase):
+    """The third way a press is answered, and what it costs when it is off."""
+
+    def setUp(self):
+        super(SoundTests, self).setUp()
+        self.config.sound_enabled = True
+
+    def test_a_press_is_said_by_the_motor_and_the_speakers_at_once(self):
+        # One word, two things that can say it. Said together at the call
+        # site, because two vocabularies kept in step by hand stop being in
+        # step.
+        self.assertTrue(self.daemon.say("commit"))
+        self.assertEqual(self.sound_client.sent[-1]["c"], "commit")
+
+    def test_the_walk_is_heard_and_never_felt(self):
+        # The one asymmetry, and the reason the two vocabularies are not the
+        # same list: a motor ticking under a held direction buzzes all the
+        # way down a page, and a sound decays.
+        self.daemon.say("move", rumble=False)
+        self.assertEqual(self.sound_client.sent[-1]["c"], "move")
+
+    def test_nothing_is_sent_while_it_is_off(self):
+        # Off is the shipped answer, so this is the path almost every press
+        # takes: no line, no socket write, no sequence number burnt.
+        self.config.sound_enabled = False
+        self.assertFalse(self.daemon.say("tick"))
+        self.assertEqual(self.sound_client.sent, [])
+        self.assertEqual(self.daemon.sound.seq, 0)
+
+    def test_a_cue_carries_where_its_files_are(self):
+        # There is no heartbeat on this socket to carry the pack on its own.
+        self.config.sound_pack = "/tmp/pack"
+        self.daemon.say("edge")
+        self.assertEqual(self.sound_client.sent[-1]["dir"], "/tmp/pack")
+
+    def test_it_is_not_stamped_with_what_a_drawn_surface_is_stamped_with(self):
+        # Nothing here is drawn, so a scale and a badge style would be two
+        # answers to questions this payload does not ask.
+        self.daemon.say("tick")
+        line = self.sound_client.sent[-1]
+        self.assertNotIn("scale", line)
+        self.assertNotIn("badge", line)
+
+    def test_walking_the_menu_sounds_once_per_tile_it_reaches(self):
+        self.daemon.set_menu(True)
+        self.sound_client.sent[:] = []
+        self.daemon.menu_command("right")
+        self.assertEqual([line["c"] for line in self.sound_client.sent],
+                         ["move"])
+
+    def test_a_push_into_the_edge_of_a_page_is_not_a_step(self):
+        # A selection that stayed where it was has not moved, and a sound
+        # saying it did is the page lying about a press.
+        self.daemon.set_menu(True)
+        for _ in range(40):
+            self.daemon.menu_command("left")
+        self.sound_client.sent[:] = []
+        self.daemon.menu_command("left")
+        self.assertEqual(self.sound_client.sent, [])
+
+    def test_the_control_verb_hears_one_without_pressing_anything(self):
+        self.assertIn("sound move", self.daemon.handle_control("sound move"))
+        self.assertIn("unknown sound",
+                      self.daemon.handle_control("sound texture"))
+
+    def test_the_control_verb_says_so_when_it_is_off(self):
+        # The first question when nothing comes out of the speakers, and the
+        # one the daemon can answer without a shell.
+        self.config.sound_enabled = False
+        self.assertIn("off", self.daemon.handle_control("sound move"))
+
+
+class SafeAreaTests(DaemonTestCase):
+    """What a television crops, kept clear of anything that has to be read."""
+
+    def test_game_mode_keeps_the_screen_edge_clear(self):
+        self.config.ui_safe_area = 0.05
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["safe"], 0.05)
+
+    def test_the_desktop_keeps_nothing_clear(self):
+        # A desk monitor draws every pixel it is sent, so a gap kept there is
+        # a gap for nothing. The mode is the whole of the question.
+        self.config.ui_safe_area = 0.05
+        self.daemon.set_mode("desktop")
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["safe"], 0.0)
+
+    def test_it_arrives_on_the_bar_as_well_as_the_menu(self):
+        # The fullscreen legend sits in the bar's own band. Two surfaces
+        # given different shares of the edge is that row moving when the
+        # menu opens, which is the one thing it must not do.
+        self.config.gamebar_enabled = True
+        self.config.ui_safe_area = 0.04
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.assertEqual(self.gamebar_client.sent[-1]["safe"], 0.04)
+        self.assertEqual(self.menu_client.sent[-1]["safe"], 0.04)
+
+
+class SafeAreaConfigTests(unittest.TestCase):
+    def test_it_ships_off_because_game_mode_is_not_a_television(self):
+        # It was 5% and applied whenever game mode was on. Game mode is the
+        # couch environment, and a couch is as often a desk monitor turned up
+        # loud: the bar came off the bottom edge and off both ends and floated
+        # in the middle of nothing. 0.05 is still the number to write for a
+        # set, and the person on one knows they are on one.
+        self.assertEqual(shipped_config().ui_safe_area, 0.0)
+
+    def test_a_share_that_would_throw_the_screen_away_is_named(self):
+        for line in ("safe_area = -0.1", "safe_area = 0.5"):
+            with tempfile.NamedTemporaryFile("w", suffix=".toml",
+                                             delete=False) as f:
+                f.write("[ui]\n%s\n" % line)
+                path = f.name
+            try:
+                with self.assertRaises(config_module.ConfigError) as caught:
+                    only(path)
+                self.assertIn("ui.safe_area", str(caught.exception))
+            finally:
+                os.unlink(path)
+
+
+class DesktopMotionTests(DaemonTestCase):
+    """The desktop's own answer about animations, and what it may do."""
+
+    def test_a_desktop_that_animates_leaves_the_number_alone(self):
+        self.config.ui_motion = 0.5
+        self.daemon._desktop_animates = True
+        self.assertEqual(self.daemon.view_motion(), 0.5)
+
+    def test_a_desktop_with_animations_off_takes_the_motion_away(self):
+        self.config.ui_motion = 1.0
+        self.daemon._desktop_animates = False
+        self.assertEqual(self.daemon.view_motion(), 0.0)
+
+    def test_it_is_a_veto_and_never_a_scale(self):
+        # The whole of the rule: the desktop can take motion away and never
+        # add it, so somebody who asked for stillness is still answered on a
+        # desktop that animates.
+        self.config.ui_motion = 0.0
+        self.daemon._desktop_animates = True
+        self.assertEqual(self.daemon.view_motion(), 0.0)
+
+    def test_turning_the_following_off_gives_the_number_back(self):
+        self.config.ui_motion = 1.0
+        self.config.ui_motion_follows_desktop = False
+        self.daemon._desktop_animates = False
+        self.assertEqual(self.daemon.view_motion(), 1.0)
+
+    def test_the_answer_reaches_a_surface_that_is_already_up(self):
+        self.daemon.set_menu(True)
+        self.menu_client.sent[:] = []
+        self.daemon._desktop_animates = False
+        self.daemon.push_menu_view()
+        self.assertEqual(self.menu_client.sent[-1]["motion"], 0.0)
+
+    def test_no_compositor_to_ask_leaves_the_last_answer_alone(self):
+        # The surfaces keep moving rather than freezing because a socket
+        # went away.
+        self.hypr.answers = {}
+        self.assertFalse(self.daemon.read_desktop_motion())
+        self.assertTrue(self.daemon._desktop_animates)
+
+    def test_a_changed_answer_says_so_once(self):
+        self.hypr.answers["getoption animations:enabled"] = {
+            "option": "animations:enabled", "bool": False, "set": True,
+        }
+        self.assertTrue(self.daemon.read_desktop_motion())
+        self.assertFalse(self.daemon._desktop_animates)
+        # And not again: a payload goes out sixty times a second while a
+        # gauge is selected, and every one of them would be a redraw.
+        self.assertFalse(self.daemon.read_desktop_motion())
+
+
+class MotionConfigTests(unittest.TestCase):
+    def test_the_shipped_surfaces_move(self):
+        self.assertEqual(shipped_config().ui_motion, 1.0)
+
+    def test_a_motion_out_of_range_is_named(self):
+        for line in ("motion = -0.5", "motion = 1.5"):
+            with tempfile.NamedTemporaryFile("w", suffix=".toml",
+                                             delete=False) as f:
+                f.write("[ui]\n%s\n" % line)
+                path = f.name
+            try:
+                with self.assertRaises(config_module.ConfigError) as caught:
+                    only(path)
+                self.assertIn("ui.motion", str(caught.exception))
+            finally:
+                os.unlink(path)
+
+    def test_it_is_reachable_from_the_pad(self):
+        # A person who reads a moving screen badly should not have to find a
+        # text editor to stop it.
+        self.assertIn("motion", config_module.CHOSEN)
+        self.assertEqual(config_module.CHOSEN["motion"]["kind"], "number")
 
 
 class SettingTests(DaemonTestCase):
@@ -5587,6 +6628,11 @@ class SettingTests(DaemonTestCase):
         )
         patch.start()
         self.addCleanup(patch.stop)
+        # The first start is answered by opening the menu, and every test
+        # below opens one. Answered here instead, so that "nothing was
+        # written" stays a claim about the press rather than about the
+        # greeting that had already happened.
+        self.daemon.config.menu_first_run = False
 
     def written(self):
         with open(self.settings) as handle:
@@ -5636,6 +6682,47 @@ class SettingTests(DaemonTestCase):
         self.press("A" if keep else "B")
         self.release("A" if keep else "B")
 
+    def test_a_push_is_felt_on_the_side_it_is_going(self):
+        # A pad wires its low-frequency motor on the left and its
+        # high-frequency one on the right, so the hand that made the move is
+        # the hand that feels it. Nothing else on the pad can say which way.
+        self.land("Controller", "Sticks", "Pointer")
+        self.press("A")
+        self.release("A")
+        self.nudge("right")
+        strong, weak = self.daemon.rumble._aimed["texture"]
+        self.assertEqual(strong, 0)
+        self.assertGreater(weak, 0)
+        self.nudge("left")
+        strong, weak = self.daemon.rumble._aimed["texture"]
+        self.assertGreater(strong, 0)
+        self.assertEqual(weak, 0)
+
+    def test_a_push_feels_the_same_however_far_it_has_gone(self):
+        # One level rather than a scale: a hand pushing a control is asking
+        # whether the push landed, and the number it landed on is on screen.
+        self.land("Controller", "Sticks", "Pointer")
+        self.press("A")
+        self.release("A")
+        self.nudge("right")
+        one = self.daemon.rumble._aimed["texture"]
+        for _ in range(4):
+            self.nudge("right")
+        self.assertEqual(self.daemon.rumble._aimed["texture"], one)
+
+    def test_a_list_walked_inside_a_card_is_felt_on_the_left(self):
+        # The vertical instrument's own push. Up and down have no left and
+        # right to answer with, and the D-pad is under the left thumb.
+        self.land("Controller", "Button labels")
+        self.press("A")
+        self.release("A")
+        self.assertTrue(self.daemon.menu.entered)
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
+        strong, weak = self.daemon.rumble._aimed.get("texture", (0, 0))
+        self.assertGreater(strong, 0)
+        self.assertEqual(weak, 0)
+
     def test_a_layout_row_reaches_every_surface_at_once(self):
         # A pad printed one way in the guide and another on the bar is worse
         # than one printed wrongly in both.
@@ -5647,10 +6734,13 @@ class SettingTests(DaemonTestCase):
     def test_a_setting_row_leaves_the_menu_where_it_is(self):
         self.pick("Controller", "Button labels", "Xbox")
         self.assertTrue(self.daemon.menu_open)
-        # And the row that is now in force is the ticked one.
-        rows = self.menu_client.sent[-1]["items"]
-        ticked = [row["l"] for row in rows if row.get("on")]
-        self.assertEqual(ticked, ["Xbox"])
+        # And the row that is now in force is the filled one. It is a row in a
+        # card rather than a tile on the page now, so the answer is in the
+        # card's own `rs` - the same `on` a tile carries, one level in.
+        tiles = self.menu_client.sent[-1]["items"]
+        card = [tile for tile in tiles if tile["l"] == "Button labels"][0]
+        self.assertEqual([row["l"] for row in card["rs"] if row.get("on")],
+                         ["Xbox"])
 
     def test_what_was_chosen_is_written_down_at_the_press(self):
         # Not at shutdown: a daemon that is killed must not be how you find
@@ -5806,10 +6896,7 @@ class SettingTests(DaemonTestCase):
 
     def test_a_trigger_hums_while_it_moves_and_stops_when_it_does_not(self):
         # One continuous effect rather than a tick per step: a step repeating
-        # under a held control would buzz all the way down its range. The
-        # texture ships off, so it is turned on here rather than assumed.
-        self.config.rumble_texture = True
-        self.daemon.rumble.configure(self.config)
+        # under a held control would buzz all the way down its range.
         self.land("Controller", "Sticks", "Pointer")
         self.daemon.config.pointer_speed = 1000.0
         self.feed((li.EV_ABS, li.ABS_RZ, 255))

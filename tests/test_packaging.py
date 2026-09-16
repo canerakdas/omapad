@@ -184,5 +184,71 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(len(procedures), 7, procedures)
 
 
+class SuiteHygieneTests(unittest.TestCase):
+    """What the suite is not allowed to do to the machine it runs on.
+
+    The daemon writes settings.toml at the press, and opening the menu is one
+    of the things that writes it - that is how a first start is answered. So a
+    test that builds a real Daemon and never redirects the path replaces what
+    this pad chose from the sofa with what the test chose, and the developer
+    finds out weeks later that their dead zones went back to the shipped ones.
+    """
+
+    def test_no_test_loads_a_config_over_the_developer_s_own(self):
+        """Naming one config file still merges ~/.config/omapad under it.
+
+        mapping.toml, settings.toml and layout.toml go on top of whatever a
+        test wrote, so a test that expected a `ConfigError` from a bad value
+        got this machine's own answer instead - and passed or failed by
+        accident. Three did, until somebody turned the sound on from the menu.
+        """
+        here = os.path.dirname(os.path.abspath(__file__))
+        # The whole call rather than the line it starts on: most of them are
+        # written over four lines, and an argument is as likely as not to be
+        # an `os.path.join(...)` with parentheses of its own - so the closing
+        # one is counted to rather than matched. `load()` with nothing in it
+        # is this rule being described in a docstring rather than broken.
+        opens = re.compile(r"config(?:_module)?\.load\(")
+        for name in sorted(os.listdir(here)):
+            if not name.startswith("test_") or not name.endswith(".py"):
+                continue
+            with open(os.path.join(here, name)) as handle:
+                text = handle.read()
+            for found in opens.finditer(text):
+                arguments = ""
+                depth = 1
+                for character in text[found.end():]:
+                    if character == "(":
+                        depth += 1
+                    elif character == ")":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    arguments += character
+                arguments = arguments.strip()
+                if not arguments:
+                    continue
+                self.assertIn(
+                    "settings=", arguments,
+                    "%s loads a config without naming the layers under it, "
+                    "so ~/.config/omapad decides what it tests; see `only()` "
+                    "in test_daemon.py" % name)
+
+    def test_every_test_that_builds_a_daemon_redirects_settings_toml(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        for name in sorted(os.listdir(here)):
+            if not name.startswith("test_") or not name.endswith(".py"):
+                continue
+            with open(os.path.join(here, name)) as handle:
+                text = handle.read()
+            if "daemon_module.Daemon(" not in text:
+                continue
+            self.assertIn(
+                "settings_path", text,
+                "%s builds a Daemon without redirecting settings_path: a "
+                "menu opened in it writes the developer's settings.toml"
+                % name)
+
+
 if __name__ == "__main__":
     unittest.main()

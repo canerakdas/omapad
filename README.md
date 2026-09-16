@@ -182,9 +182,10 @@ rumble = true   # the tick under the thumb
 **Which mode it comes up in** is `[mode] start`, which ships `desktop`. It is
 the one thing about the couch that could only be decided at a keyboard - the
 machine you never walk to one for is exactly the machine that wants to come up
-from the couch - so it is in the menu as well, under **System › Start in**:
-Desktop or Game mode, and the one that is waiting is ticked. Picking it moves
-nothing; what it names is the next start, which is a reboot, a fresh login or
+from the couch - so it is in the menu as well, under **System › Start in**: a
+card with both modes on it, a line under each saying what it does, and a ground
+filling the one that is waiting. Picking one moves nothing; what it names is the
+next start, which is a reboot, a fresh login or
 `systemctl --user restart omapad`.
 
 ```toml
@@ -201,6 +202,18 @@ lock cannot fire over a game or a paused cloud session. Idle is given back the
 moment the desktop returns, and at shutdown, so a daemon that dies in game mode
 does not leave a screen that stops locking. Turn it off with
 `stay_awake_in_game = false` under `[mode]`.
+
+**It follows the thumb, not the mode.** Pad input is invisible to the
+compositor — walking a menu moves a selection over a socket and produces no
+Wayland input at all — which is why omapad holds the screen awake here and
+binds an idle inhibitor under the keyboard, the guide, the mapping screen and
+the game bar. What that leaves is a hold with nobody at the other end of it: a
+television left on game mode, or a keyboard left open on one, never sleeps. So
+the hold lets go `[idle] awake_ms` after the pad was last touched — a press, a
+D-pad step, a stick past its dead zone — and the desktop's own screensaver and
+lock decide from there. The next press takes it back. Five minutes ships,
+because that is about what a screensaver waits anyway; `0` never lets go,
+which is what this did before it was a setting.
 
 **Handing the pad to a game is separate from all this, and happens by
 itself** — the next section.
@@ -487,7 +500,7 @@ all, so without it the screensaver arrives mid-game. Games that use a class of
 their own rather than `steam_app_*` need their own line.
 
 **And the way out with the pad in your hands**, for when it happens anyway:
-`PLUS` → **Windows** → **Fullscreen**. The menu is the only thing that reaches
+`PLUS` → **Workspaces** → **Fullscreen**. The menu is the only thing that reaches
 past an app holding the pad, which is why those rows are in it and not only on
 the `ZL` window layer.
 
@@ -639,6 +652,53 @@ text colour is picked against the wallpaper.
 Both waits themselves are `[confirm] hold_ms` and `[confirm] confirm_ms`, and a
 binding takes them by saying `confirm = true` rather than naming its own
 numbers.
+
+### Holding, for a hand that cannot
+
+Two seconds of keeping a shoulder down is a gesture some hands cannot make at
+all, and others make by accident. Neither is a reason to lose what the hold
+reaches, so two numbers say what holding costs — over every hold on the pad
+rather than one binding at a time.
+
+| Setting | What it decides |
+|---|---|
+| `[confirm] scale` | every wait on the pad multiplied together — the two above, a binding's own `hold_ms`, the half-second a plain hold takes. `0.5` halves the lot, `1.5` makes each one more deliberate. Half is the floor because below it a tap and a hold stop being different gestures, double the ceiling because a hold nobody reaches the end of is a binding that has gone. It is also `Controller ▸ Hold time` on the pad, so the person who cannot make the gesture does not have to find a text editor to say so |
+| `[confirm] slack_ms` | how long the finger may come off a hold **that has already announced itself** before the countdown is abandoned. Set it to the countdown's own length (`confirm_ms`, 0.8 s) and letting go after the announcement stops cancelling at all: hold until the pad ticks, take your thumb off, and it still fires. Ships `0`, which is the promise the shipped config makes — letting go is how you back out |
+
+The slack starts **at the announcement** and never before it: until then,
+letting go is how a tap is made, and a browser tab that waited on a slack
+nobody turned on for tabs would be the cost of a setting about something else.
+The cancel button still backs out of a countdown with nothing on it.
+
+### A direction held is a distance being crossed
+
+A walk at one speed is most of why a long row is hard to cross: a keyboard page
+is fourteen keys wide, and fourteen steps is the same journey however quickly
+the fourteenth arrives. So a held direction **closes up** — `repeat_ramp` times
+the shipped rate once it has been held for `repeat_ramp_ms`, and no faster
+after that. A reversal starts it again, because somebody pushing the other way
+has gone too far.
+
+| Where | What it walks |
+|---|---|
+| `[menu] repeat_ramp` | the D-pad on the menu's grid |
+| `[osk] repeat_ramp` | the D-pad on the keyboard, which is the page it matters most on |
+| `[traverse] repeat_ramp` | every stick walk on the pad — a window's own controls, and the menu's grid, which takes its rate from there |
+
+`2.5` over a second ships in all three; `1.0` turns it off and every step is
+the rate above it again.
+
+### Pages arrive from the side you reached them from
+
+Going into a submenu, walking the bar to the next chip, turning a page of the
+bindings guide with a shoulder: the new page **slides in from that side** and
+settles, rather than being swapped for the old one where it stood. On the
+guide the gesture is literally a direction — L or R — and this is the surface
+that says so most clearly.
+
+It is a short move (one rung of the menu's spacing ladder, one column gap on
+the guide) over the same 110 ms everything else on these surfaces takes, and
+it is motion like any other: at `[ui] motion = 0` the page is simply there.
 
 At most **three actions** stand on the right, and they **do not lie**: they are
 the face buttons and stick clicks really bound in the layer that is live right
@@ -900,7 +960,9 @@ right_stick = "focus"  # write "scroll" and the wheel comes back
 ```
 
 The stick is not one shot like `snap` but a **direction**: hold it pushed and it
-walks (first `repeat_delay_ms`, then `repeat_rate_ms`). The only thing you lose
+walks (first `repeat_delay_ms`, then `repeat_rate_ms`, closing up to
+`repeat_ramp` times that rate once it has been held for `repeat_ramp_ms` —
+see [below](#a-direction-held-is-a-distance-being-crossed)). The only thing you lose
 is scrolling, and you get that back because focus scrolls itself into view
 anyway — everywhere except a browser, which scrolls whatever holds the keyboard
 focus rather than what the pointer is over, so the page carries on scrolling
@@ -1223,7 +1285,7 @@ Everything a binding table can say:
 | Key | What it decides |
 |---|---|
 | `tap` · `hold` | the two halves. A table with no `hold` fires on the way down, exactly like the plain string it replaces |
-| `hold_ms` | how long the hold waits — 500 ms by default, 1200 for an announced one |
+| `hold_ms` | how long the hold waits — 500 ms by default, 1200 for an announced one. Every one of them is multiplied by [`[confirm] scale`](#holding-for-a-hand-that-cannot), which is how a hand that cannot hold says so once rather than binding by binding |
 | `confirm` · `confirm_ms` | an **announced** hold: at `hold_ms` it ticks and says what is coming, and only `confirm_ms` later does it fire. `confirm = true` takes both numbers from `[confirm]` |
 | `desc` · `hold_desc` | what the [guide](#the-bindings-guide) prints for each half |
 | `short` · `hold_short` | what the [game bar](#game-bar) prints — one word |
@@ -1904,7 +1966,7 @@ buzz at another length:
 | **tick** | a press landed | the two standing jobs above |
 | **edge** | you cannot go further | a control at the end of its range, the rim of the menu grid |
 | **commit** | that took | a switch flipped, a choice walked on |
-| **texture** | it is moving | held under a thumb while a value is being pushed |
+| **texture** | which way you just pushed | held under a thumb while a control is moving |
 
 How hard and how long each one is are settings; the *waveform* is not. A square
 wave is what makes an edge feel like an edge, and turning that into a knob is
@@ -1915,22 +1977,90 @@ edge_strength = 0.35
 edge_duration_ms = 70
 commit_strength = 0.28
 commit_duration_ms = 90
-texture = false       # the only one that ships off
-texture_strength = 0.12
+texture = true
+texture_strength = 0.25
 ```
 
-The **texture** is off by default because a hum under a moving thumb is the
-likeliest of the four to get on your nerves, and a scheme where everything
-buzzes says nothing. It is also the only one with no fallback: a pad that
-cannot play a sine wave plays `edge` and `commit` as plain ticks and has no
-texture at all, because a continuous effect turned into a pulse is how a
-vibration gets stuck on.
+The **texture** is the one that uses both motors. A pad has a heavy motor on
+the left and a light one on the right, so **the hand that made the move is the
+hand that feels it**: push a value right and the right motor answers, push it
+left and the left one does. A list walked up or down inside a card answers on
+the left — that is the thumb on the D-pad, and up and down have no left and
+right of their own.
+
+It is one level rather than a scale. It rose with the distance from where you
+started pushing for a while, which is a second reading of the number already
+on the tile; what a hand on a control is asking is whether the push landed.
+
+It used to be one flat hum whichever way you pushed, and shipped off, because
+a scheme where everything buzzes says nothing. Something that says *which way*
+is not that.
 
 `omapad check` prints which of the four **your** pad took, and says which it
 could not.
 
 The rumble fires when the action **really runs**: in game mode a binding outside
 `[bindings.game]` does not run, so the pad does not tick either.
+
+### Sounds
+
+The motor is in your hands, so it says nothing while the pad is on a knee,
+nothing on a pad that has no motor, and nothing at all once you turn it off.
+The third answer is a noise, and it is the only one the room hears:
+
+```toml
+[sound]
+enabled = false       # ships off - see below
+volume = 0.6          # against the files' own level, which is quiet on purpose
+pack = ""             # a directory of your own move/back/tick/edge/commit .wav
+```
+
+**Controller › Sounds** turns it on, and **Loudness** beside it is the same
+kind of slider **Strength** is for the motor. `omapad ctl sound commit` plays
+one without pressing anything, which is what setting a volume needs.
+
+It **ships off**, and that is the one difference from rumble. Every other
+answer omapad gives is to the person holding the pad; this one is to everybody
+else in the room as well, so a desktop that started clicking because a
+controller had been plugged into it would be omapad deciding something about
+the room rather than about the pad.
+
+#### It says the motor's three words, and two more
+
+| | Says | Where you hear it |
+|---|---|---|
+| **move** | the selection went somewhere | walking the menu's tiles, its bar, the keyboard's keys, the guide's pages |
+| **back** | that went the other way | B up a level, leaving a page, putting a control back, a countdown backed out of, any surface put away |
+| **tick** | a press landed | everywhere the motor ticks |
+| **edge** | you cannot go further | a control at the end of its range |
+| **commit** | that took | a switch flipped, a choice walked on |
+
+**`move` and `back` are the two the motor cannot say.** Nothing buzzes on a
+plain step, and that is deliberate: a motor ticking under a held direction
+buzzes all the way down a list. A sound decays, so it *ticks* instead — which
+means walking a page is the one thing you hear and never feel.
+
+`back` is the other kind of thing a motor cannot be. It can be shorter or
+weaker, which says *less happened*; it cannot fall a fourth, which says *this
+one went the other way*. So `back` is the commit's own note and the commit's
+own interval upside down — that one bends up, this one bends down from the
+same place — and softer and shorter besides, because leaving is the smaller
+event. A press still ticks the hands either way; only the room is told which
+of the two it was.
+
+`texture` goes the other way and has no sound at all: a hum a motor can hold
+under a thumb for a second and a half becomes the loudest thing in the room
+coming out of a speaker.
+
+The five files ship beside the plugin and are **generated, not recorded** —
+`python3 assets/sounds.py` writes them from a table of about eighty lines, so
+changing what a commit sounds like is changing a number. Point `pack` at a
+directory of your own to replace them; a name it does not hold falls back to
+the shipped one, so a pack of a single `commit.wav` is worth writing.
+
+Playing anything needs **`qt6-multimedia`**, which Quickshell does not depend
+on. Without it the sounds are simply absent and nothing else in the plugin is
+affected — `omarchy-shell ipc call omapad-sound state` says which it is.
 
 ## The menu
 
@@ -1940,8 +2070,10 @@ screen:
 - **the head** — the day, the time, and whatever else you point a command at.
   Game mode takes Omarchy's bar away and there is no other clock the pad can
   reach, so the menu carries one.
-- **the bar** — one chip per group, walked with the shoulders. `Now`, `Apps`,
-  `Windows`, `Audio`, `Display`, `Controller`, `System`.
+- **the bar** — one card per group, walked with the shoulders. `Now`,
+  `Apps`, `Workspaces`, `Audio`, `Display`, `Controller`, `System`. A nav card is
+  one cell of the grid below it, drawn on the same ground and standing over
+  the same columns — the one you are on is filled with the accent outright.
 - **the grid** — the tiles of the group you are on, some of them wider or
   taller than others.
 
@@ -1977,8 +2109,8 @@ Pick.** A single column left both free for that, and a grid spends both axes on
 getting about — A and B already say the other two things.
 
 `X` and `B` are not the same button twice: `B` walks back up **one** page at a
-time, and from inside `Audio › Devices › Output` that is two presses, while `X`
-leaves outright. `Y` is the pad's reach for something not on screen — the menu
+time - and out of a card of rows before it leaves the page - while `X` leaves
+outright. `Y` is the pad's reach for something not on screen — the menu
 has a `Controller › Shortcuts` tile that opens the same guide, and `Y` is that
 tile without walking to it. It is the button for when you opened the menu
 *because* you had forgotten which button does what.
@@ -1994,7 +2126,7 @@ The keyboard and the mouse drive the same menu,on top of the pad:
 | Esc | Close the menu outright, from any depth |
 | Hover a tile | Move the selection to it (once the cursor has travelled) |
 | Click a tile | Pick the tile it lands on |
-| Click a chip | Walk the bar to that group |
+| Click a nav card | Walk the bar to that group |
 | Click the scrim | Close the menu |
 | Home · End | Jump to the ends of the page |
 
@@ -2023,6 +2155,30 @@ A tile that *sets* something is **ticked** while that something is what is in
 force, so a page of choices says which one you are on rather than making you
 guess.
 
+### The first menu a pad ever opens
+
+A machine driven from a sofa is the machine nobody walks to a keyboard to set
+up — so the first start offers what a first start decides, from the pad. The
+first time the menu is opened it opens on a **`Start here`** tile at the top of
+`Now`, and behind it is one page:
+
+| Row | What it is |
+|---|---|
+| Shortcuts | [the bindings guide](#the-bindings-guide) — what every button does |
+| Remap the buttons | [the mapping screen](#controller-mapping), for a pad whose buttons arrive under other names |
+| Vibration · Sounds | the two ways a press answers besides the screen — the motor is on, the sound is off |
+| Motion | how much the surfaces move, and at 0 whether they move at all |
+| Hold time | [how long a hold takes](#holding-for-a-hand-that-cannot) |
+
+Every row there reads the same setting its home row does — this is not a fifth
+place to keep them — and each is on its own page too: `Display ▸ Motion`,
+`Controller ▸ Vibration`, `Controller ▸ Sounds`, `Controller ▸ Hold time`.
+
+**It is shown once.** Opening the menu is what answers the first start:
+`first_run = false` goes into `~/.config/omapad/settings.toml` and the tile is
+gone by the next opening. Delete that line — the file says so at the top — and
+it comes back.
+
 ### A card, or the whole screen
 
 The menu fills the screen and draws no panel of its own: the tiles float over
@@ -2042,9 +2198,12 @@ same distance from the edge. It is the same four words about the same four
 buttons, and it wears the bar's own colours — the same text colour, the same
 resting fills — so nothing moves, and nothing changes colour, when the menu
 opens — and omapad's own bar is taken
-down *before* the menu is drawn, so the two rows never crossfade in one place. At the top level there is
-no title: the chips already say where you are, and a line above them saying so
-again is the card telling you twice.
+down *before* the menu is drawn, so the two rows never crossfade in one place.
+At the top level the line above the bar says what the group you are on
+**holds** — `Sound, screen, what is playing` — rather than naming it again:
+the cards are already saying where you are, and a line repeating that is the
+card telling you twice. Drilled in, it names the page instead, since the bar
+has dimmed on the card you came from.
 
 Two things decide how much of the desktop you still see:
 
@@ -2079,11 +2238,32 @@ colour has to say anything at all. That matters most on a theme whose accent
 sits close to its surface: there the selection would otherwise be left to the
 border, and the border is the thinnest thing on the tile.
 
-`[menu] tile_corner` is how far that corner reaches in — raise it and the
-shapes read from further away, lower it towards 0 and every tile is the same
-square again. It is omapad's own number rather than the compositor's window
-rounding, which is 0 on plenty of setups and would take the selection's
-silhouette with it.
+**The compositor decides how hard a corner is rounded, where it has decided.**
+Every radius the menu draws inside its card steps down from Hyprland's own
+`decoration:rounding`, so a desktop that rounds windows at 12 gets tiles at 12
+without being told. `[menu] tile_corner` is the answer where it rounds
+nothing, which Omarchy ships as — that is the compositor speaking about
+*windows*, and a tile is not a window: at 0 every tile would be the same
+square and the selection would lose its silhouette. Raise it and the shapes
+read from further away.
+
+**A switch you have turned on fills its whole tile** with the accent, rather
+than drawing a little pill in the middle of it — a card has room to say one
+thing with its whole face, and across a room a lit card reads where a knob
+does not. Off, it looks like any other tile: *on* is the state worth seeing.
+
+**The selected tile is lit from above** — its face carries a little more of
+the accent along its top edge, falling away down the tile and gone by a little
+over half, the way a leaf held up to a window is brightest at its top. Across
+a room a one-pixel outline has stopped being an outline; a lit tile is still
+lit.
+
+**A press lights the tile it landed on**, for `[menu] press_ms` — a ring
+drawn just inside the tile's own edge, on whatever outline that tile is cut
+to. The thumb is on a button that feels the same whatever it did, and most of
+these tiles leave the page exactly as it was, so without it a tile that ran
+its action looks identical to a tile that was never reached. Set it to 0 to
+leave the press silent.
 
 ### Arranging a page from the pad
 
@@ -2139,7 +2319,7 @@ legend can say what a page has spent a key on.
 **The menu comes back where it was.** Close it on the volume and the next
 press opens on the volume — you turn it down, go back to the game, and come
 back to turn it down again. The first press of a session opens on the first
-tile of the first chip.
+tile of the first card.
 
 A tile can override that with `open_on = true` beside its `when`: while the
 condition holds, the menu opens *on* it whatever it was doing last. Nothing
@@ -2147,12 +2327,29 @@ ships with it — coming back where you were is the better answer for the
 workspace lock too, and a tile that overrode it would take that away.
 
 **The bar holds places, not verbs**, which is why the workspace lock is a tile
-on `Now` rather than a chip of its own.
+on `Now` rather than a card of its own.
 
 ### Writing the menu to suit yourself
 
-The tree is under `[[menu.items]]`. **A top-level entry is a group** — a chip
-on the bar — and holds the tiles of one page. Each tile takes either an
+The tree is under `[[menu.items]]`. **A top-level entry is a group** — a card
+on the bar — and holds the tiles of one page. Its `detail` is what the line
+above the bar prints while you are on it, so write it as what the group holds
+rather than as what it is called.
+
+**`meta` is the word under its name on the card**, and it says what that place
+is *doing*: `Speakers`, `2 open`, `1200p · 60 Hz`, `151 waiting`. A bare word
+prints as it is; a table runs a command and keeps the answer for its `ttl`
+seconds, with `empty` for what to say when the command prints nothing.
+
+```toml
+[[menu.items]]
+label = "Audio"
+meta = { from = "…", ttl = 10, empty = "Nothing out" }
+```
+
+**Give it a `ttl`.** There is one of these per group, so a card without one is
+a subprocess a second for a row of two-word labels. Leave `meta` out and the
+card says how many tiles its page holds. Each tile takes either an
 `action` (**the same grammar** as the button bindings) or an `items` list that
 opens a page of its own.
 
@@ -2180,6 +2377,11 @@ detail = "Where the sound goes"
   when = ["game", "handed_over"]   # only offered in those states, any one does
   open_on = true              # and the menu opens on it while one holds
   action = "lock:toggle"
+
+  [[menu.items.items]]
+  label = "Shutdown"
+  confirm = true              # held, not pressed
+  action = "exec:omarchy-system-shutdown"
 ```
 
 Tiles are packed **first fit, in the order you write them**, left to right and
@@ -2201,12 +2403,48 @@ page has to read on a laptop panel and on a television.
 
 `when` keeps a tile out of the menu where it could do nothing useful. The
 states are `game` (game mode is on), `handed_over` (the app in front has taken
-the pad), `locked` (the workspace lock is on) and `kept` (the pad is being kept
-from an app that opened it); a tile that says nothing is always there. They are
+the pad), `locked` (the workspace lock is on), `kept` (the pad is being kept
+from an app that opened it) and `first_run` (the menu has never been opened —
+see [the first menu](#the-first-menu-a-pad-ever-opens)); a tile that says
+nothing is always there. They are
 read **when the menu opens** and stand until it closes, so no tile appears or
 vanishes under the selection while a thumb is aiming at one.
 
-`open_on` is the other half of that, and it needs a `when`: while the condition
+There are **two** answers to *are you sure*, and they are for two different
+presses.
+
+`countdown` is for a row that takes the screen away. A is an ordinary press,
+and then the row counts `[menu] countdown` seconds down beside its name and
+runs when it reaches zero. **B stops it**, and the legend says `Cancel` while
+it runs. Nothing else stops it — ten seconds is long enough to want to look at
+something else on the page, and a count that died because a thumb brushed a
+stick would be worse than no count at all. `countdown = 5` sets the length for
+one row. `System › Power` spends it on Logout, Reboot and Shutdown: being sure
+you meant to log out is not a thing to do with a thumb, and holding A for ten
+seconds is not a gesture anybody makes. `Reboot` and `Shutdown` are also a cell
+each beside that card, because they are the two anybody walks to the page for -
+and both copies count down, since a press guarded in one place and cheap in the
+other is worse than not guarding it.
+
+`confirm` is for a row a second press does not undo, where the answer is
+wanted now. A stops being the press that runs it and becomes the press that
+starts **holding** it: the tile fills
+from the left, at `[confirm] hold_ms` the pad ticks and a notification says
+what is coming, and `confirm_ms` later — with the fill running back out of the
+tile — it runs. Letting go backs out, and so does B. It is the same gesture the
+shoulders make to cross a workspace over a game, and
+[`[confirm] scale`](#holding-for-a-hand-that-cannot) reaches it like every
+other hold. While the tile is in front, the legend along the foot says `Hold to
+confirm` rather than `Pick`, so nobody has to make the gesture to find out
+about it.
+
+The shipped tree spends the hold on one row — `Close window`, where you are
+looking at the window and the answer is wanted now — and the countdown on the
+three under `System › Power`. Not on `Lock` or `Suspend`: the line is what a
+second press undoes, not what sounds serious. A row is held or counted, never
+both, and neither goes beside `repeat`.
+
+`open_on` is the other half of `when`, and it needs one: while the condition
 holds, the menu **opens on this tile**. It is what a capability that has to be
 found the moment you press PLUS asks for, now that the bar holds places rather
 than verbs. The earliest one in the tree wins.
@@ -2232,7 +2470,7 @@ reads = "pad:badge_style"
 
 [[menu.items.items]]
 label = "Volume"
-control = "slider"            # a bar; A takes it, then ‹ › move it
+control = "slider"            # a value on a line; A takes it, ‹ › move it
 reads = "live:volume"
 
 [[menu.items.items]]
@@ -2255,16 +2493,120 @@ so: a `toggle` reads an on/off setting, a `choice` reads one with a list of
 values, a `slider` reads a number.
 
 A control tile needs no `action`, never repeats, and always leaves the menu
-up. A switch and a choice are done in one press; **a bar is taken first** —
+up. A switch and a choice are done in one press; **a slider is taken first** —
 both directions belong to the grid until it is, so A takes it, left and right
 move it (faster the longer you hold one), either trigger sweeps its whole
 range, and then **A keeps what it is on and B puts it back**.
+
+A choice tile shows **one** value, so it has nowhere to put the line saying how
+the values differ — which is what `Button labels` and `Profile` keep their
+submenus for. Where that line is what you need, reach for a
+[card of rows](#a-card-of-verbs-drawn-as-rows) instead: it shows every value at
+once, each with its own sentence.
 
 A control tile draws no icon: the control is the picture, and a glyph over a
 switch is the tile saying the same thing twice in the room it has for one.
 Give it a wider `span` when its name will not sit above the control in one
 cell; a bar is three cells and a media tile three by two, and neither needs
 one.
+
+### A card of verbs, drawn as rows
+
+A tile with `control = "rows"` holds a page rather than opening one: the
+entries under it are drawn **inside** it, one to a line, and the same up and
+down that walks the grid walks them.
+
+```toml
+[[menu.items.items]]
+label = "Power"
+control = "rows"
+detail = "Auto-sleep 30 min"      # the line along the foot; optional
+span = [2, 3]
+
+  [[menu.items.items.items]]
+  label = "Rest mode"
+  action = "exec:systemctl suspend"
+
+  [[menu.items.items.items]]
+  label = "Restart"
+  action = "exec:systemctl reboot"
+  confirm = true
+
+  [[menu.items.items.items]]
+  label = "Full shutdown"
+  action = "exec:systemctl poweroff"
+  confirm = true
+```
+
+Reach for one when the tiles you are writing are **verbs**. A verb has nothing
+to show but its name, so a cell spent on one says a single word — and four of
+them side by side say four words in the room one sentence needs, which is how
+`Screensaver` ends up drawn as `Screensa…`. Stacked, each row has the whole
+card to be as long as it is.
+
+Do **not** reach for one where a tile has something to show. A card that holds
+a value, what is playing, or where a stick is, is a card because the drawing
+needs the room; a row is one line of text, and `omapad check` refuses a control
+inside one rather than drawing a blank line.
+
+The tile's own `label` is the heading over the rows and its `detail` the line
+along the foot — the two ends of the card, both small and in capitals. A row
+takes a `label`, an `icon`, an `action`, and `confirm`, `repeat` or `stay` the
+way any other row does; the hold fills the row rather than the card, so the one
+verb that cannot be taken back is the one that counts down. A row cannot open a
+further page — the card is already the page — and a card is not a page either,
+so it spends no X or Y. It carries no `icon` of its own either: a glyph at the
+heading's size in front of tracked capitals reads as a bullet, and the marks on
+a card of rows belong to its rows.
+
+**A card can list its rows too.** `from` on one is a command whose output
+becomes the rows — which is what `Audio` is made of, a card of outputs beside a
+card of inputs. A listed card is read when the **page it stands on settles**
+rather than at a press, because nobody enters a card; until the first answer
+lands it draws its own `empty` words rather than nothing.
+
+**A listing that finds one thing is drawn as a reading** — the heading names
+it, the line is the answer, and A does nothing, because there is nothing to
+choose between. Plug a second device in and it is a list again.
+
+**A row may carry its own `detail`**, drawn small under its name, and that is
+the thing a [choice tile](#tiles-that-hold-a-value) could never have: the
+sentence saying how this value differs from the one under it. So a card of rows
+is also the shape for a short list of *settings* — the row that is in force is
+**filled**, and `stay` keeps the menu up while you watch the fill move.
+**System › Start in** is the one that ships:
+
+```toml
+[[menu.items.items]]
+label = "Start in"
+detail = "The mode at the next start"
+control = "rows"
+span = [3, 2]                     # three, because a sentence needs the width
+
+  [[menu.items.items.items]]
+  label = "Game mode"
+  detail = "A bigger bar; nothing else changes"
+  action = "pad:start_mode=game"
+  stay = true
+
+  [[menu.items.items.items]]
+  label = "Desktop"
+  detail = "Omarchy's own bar, at its own size"
+  action = "pad:start_mode=desktop"
+  stay = true
+```
+
+**A goes into a card**, the way it takes a slider, and up and down walk the
+page until it does — so a thumb pushing down always reaches the tile below,
+never the second line of the one it is on. Inside, up and down walk the rows,
+A runs the row in front, and **B leaves the card without leaving the page**.
+The row you were on is waiting the next time you go in.
+
+Two marks, one thing each. A line runs down the side of the list: the row **in
+force** is its length of that line, lit, with a small wedge leaving it to the
+right, and it is there whether or not you have selected the card. The row **A would run**
+has a faint ground instead, and only once you are inside. A card of verbs has
+nothing lit, because nothing on one is in force.
 
 ### Giving a page its own X or Y
 
@@ -2406,13 +2748,13 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The bar that ships is seven chips, in the order a thumb reaches for them:
+The bar that ships is seven cards, in the order a thumb reaches for them:
 
 | Group | Holds |
 |---|---|
 | **Now** | the keyboard, volume, brightness, what is playing — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
-| **Windows** | fullscreen, next window, float / tile, close |
+| **Workspaces** | fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone |
 | **Display** | scale, screensaver |
 | **Controller** | everything about the pad — see below |
@@ -2638,7 +2980,7 @@ every surface at once. **System › Start in** is the one that does
 not, and that is what it is for: it names the mode the *next* start comes up
 in, so nothing on screen moves when you pick it.
 
-**Windows** is the window in front — fullscreen, next window, float/tile, close
+**Workspaces** is the window in front — fullscreen, next window, float/tile, close
 — and it is in the menu rather than only on the window layer (`ZL`) because the
 window layer does not reach past an app that has taken the pad, and the menu
 does. That is the way out of [a game hidden behind Steam Big
@@ -3008,7 +3350,10 @@ The keyboard (and the menu) are drawn by the `canerakdas.omapad` plugin
 inside the Omarchy shell, so its colours, font, corner radius and the gap it
 leaves at the screen edge all come from the same source as Omarchy's own
 surfaces (`Color`, `Style.gapsOut`, `Style.cornerRadius`). Change the theme and
-the keyboard changes with it, with no restart.
+the keyboard changes with it, with no restart. A card takes the window
+rounding as it is; what is drawn inside one steps down from it, so a corner
+inside the menu is in proportion to the corners around it rather than equal to
+them.
 
 **How big they draw is omapad's own, and it follows the mode.** The same
 screen is read at a keyboard on the desktop and from a sofa in game mode, so
@@ -3017,7 +3362,7 @@ there are two numbers rather than one:
 ```toml
 [ui]
 scale = 1.0        # on the desktop: exactly what Omarchy draws
-game_scale = 1.25  # in game mode: a quarter bigger, for the couch
+game_scale = 1.0   # in game mode: the same, and see below for why
 ```
 
 It **multiplies** the shell's own scale instead of replacing it, so a theme
@@ -3030,6 +3375,114 @@ rounded its corners harder than its neighbours would just look wrong.
 
 The switch is live. Change modes with a surface up and it is redrawn at the
 other scale on the same line that changes everything else about it.
+
+**Game mode ships at 1.0, and that is not an oversight.** The menu is built to
+a design drawn for a 1920 screen watched from a sofa — a 128-pixel tile, a
+45-pixel title — so its numbers are already couch-sized, and multiplying them
+by a couch factor counts the room twice: the page comes to more than the
+screen holds. Raise it and `[menu] cell` and `columns` have to come down with
+it, or the page scrolls sideways.
+
+**How hard a corner is rounded is the desktop's answer, and yours to move.**
+`decoration:rounding` is what this machine rounds every window by, and a
+surface of ours that picked its own number would be the one thing on screen
+not listening to it. Where the compositor rounds nothing it is saying that
+about *windows* — and a tile is not a window, so `[menu] tile_corner` is the
+base there. `[ui] radius` multiplies whichever of the two is in force:
+
+```toml
+[ui]
+radius = 1.0       # 1.0 is exactly what the desktop rounds; 0 is square
+```
+
+**Menu ▸ Display ▸ Corners** is the same number, and it is the one setting you
+can only judge by looking at the thing it sets — so it is set from the surface
+it changes, with the tiles rounding under the thumb that moves the slider.
+
+It **steps by a rung of the same ladder everything else here is on**, not by
+tenths: the type, the gaps and the radii off them all climb by √2 — the silver
+ratio less one, two rungs to a doubling — and a corner is a size like any of
+them. 23 pixels against 25 is not a difference anybody sees from a sofa; 23
+against 32 is. So there are five stops, four presses end to end, and each one
+is a corner you can tell from the last. It ends **one rung above the desktop's
+own answer**: two rungs past it a 128-pixel tile is a circle, which is a
+different shape rather than a rounder corner — wanting corners bigger than
+that is a question about the base, and the base is `[menu] tile_corner`.
+
+**The tile says which stop rather than what percentage.** `Square · Barely ·
+Slight · The desktop's · Round`, over a bar drawn in the stops themselves — one segment each, lit up to where you are. A percentage is
+a number you have to divide before it says anything, and the segments have
+already said how far along. A number written by hand between two stops is kept
+and prints itself; the pad walks the ladder.
+
+### How much they move
+
+Every animation on every surface — a label fading in, the grid catching up
+with a selection, a badge leaning under a thumb — runs through one number:
+
+```toml
+[ui]
+motion = 1.0   # 0 turns it off, 1 is as drawn - there is no slower
+motion_follows_desktop = true   # and Hyprland gets to say it first
+```
+
+At `0` nothing moves: each animation lands on its last frame at once, so a
+tile that faded out has still gone. `1` is the top of the range rather than
+the middle — this asks for *less*, and every duration on these surfaces was
+kept under 150 ms because a menu slower than that reads as a menu that is
+lagging. It is on the pad as well —
+**Menu ▸ Display ▸ Motion** — because whether a moving screen is readable is
+something you find out by watching one, not by editing a file.
+
+**The desktop gets the first word.** Hyprland's own `animations:enabled` is
+this machine's answer to the same question, given about every window on
+screen, so with `motion_follows_desktop` on, a desktop that has turned
+animations off stops omapad's too — within a couple of seconds, on an open
+menu, without a restart. It is a **veto rather than a scale**: the desktop can
+take motion away and never add it, so `motion = 0` stays 0 on a desktop that
+animates, and turning the following off hands the number back. It is the same
+standing omapad already gives `decoration:rounding` and `gaps_out`: what the
+compositor has decided about every window is not ours to argue with.
+
+Two things deliberately do **not** follow it, because neither is decoration: 
+`[ripple] ms`, and the countdown an announced hold fills a badge with. Those
+say how long something takes to *happen*, and asking the screen to hold still
+is not asking for a shorter wait before a window closes.
+
+### The edge a television does not draw
+
+A television is the one screen that does not show what it is sent: the outer
+few percent are behind the bezel or cropped by the set, and a row of hints
+along the bottom edge is the first thing it eats. If this desktop is on one,
+this is the line to write:
+
+```toml
+[ui]
+safe_area = 0.05   # a twentieth of each side, game mode only
+```
+
+**It ships at `0`, and game mode is why.** It was on at a twentieth whenever
+game mode was, on the argument that game mode is when a television is being
+used. It is not: game mode is the couch environment, and a couch is as often a
+desk monitor turned up loud. On one of those the bar came off the bottom edge
+and off both ends and floated in the middle of nothing, with a centimetre of
+gap on three sides that were never cropping anything. A guess that costs a
+twentieth of every edge is worse than no guess, because somebody on a set
+knows they are on one and can say so, and somebody on a monitor has no way of
+knowing what took their margins.
+
+**Game mode only** either way: it is the only time omapad has any reason to
+assume a television at all. And it is a **floor, not an addition** — a surface
+whose own margin already stands further in keeps it, so the fullscreen menu
+barely moves (its 45 down and 91 across are already about a twentieth of a
+1080 screen) while the readings come in off their corner and the keyboard
+comes up off the bottom.
+
+**What comes in is what has to be read, not the ground under it.** The game
+bar still reaches its edge and still fills the width of the screen; a bar
+that stopped short of the corners would be saying something about the shape of
+the screen rather than about what a set crops. It is the row of hints inside
+it that moves.
 
 `install.sh` links the checkout into `~/.config/omarchy/plugins/` as a
 **symlink**, so it stays the single source; the shell reloads itself live when

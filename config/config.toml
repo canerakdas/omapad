@@ -404,7 +404,7 @@ floor_ms = 50
 #   tick     a press landed              - the three lines above
 #   edge     you cannot go further       - a control at its end, the grid's rim
 #   commit   that took                   - a switch flipped, a tile put down
-#   texture  it is moving                - held while a value is being scrubbed
+#   texture  how far you have taken it   - held while a value is being pushed
 #
 # A pad with no periodic effects plays `edge` and `commit` as plain ticks.
 edge_strength = 0.35
@@ -412,13 +412,25 @@ edge_duration_ms = 70
 commit_strength = 0.28
 commit_duration_ms = 90
 
-# The texture is the only one that ships off, and the only one with no
-# fallback. Off because a continuous hum under a moving thumb is the likeliest
-# of the four to annoy, and a scheme where everything buzzes says nothing. No
-# fallback because degrading a continuous effect onto a pulse is how a tick
-# gets stuck on - where the pad has no sine wave, there is no texture.
-texture = false
-texture_strength = 0.12
+# **The texture is the one word with two motors to say something with.** A pad
+# wires its low-frequency motor on the left and its high-frequency one on the
+# right, so the hand that made the move is the hand that feels it: a value
+# pushed right buzzes on the right, pushed left on the left, and a list walked
+# up or down buzzes on the left - the D-pad is under that thumb, and a
+# vertical push has no left and right to answer with.
+#
+# **One level, not a scale.** It rose with the distance from where a push
+# started for a pass, which is a second reading of the number the tile is
+# already printing; what a hand pushing a control is asking is whether the
+# push landed. So this is how hard, flat, for as long as the control is
+# moving - an absolute level like `edge_strength` and `commit_strength`
+# above, rather than a share of the tick.
+#
+# It shipped off, when it was one hum whichever way you pushed: a scheme where
+# everything buzzes says nothing. Something that says *which way* is not that,
+# so it ships on.
+texture = true
+texture_strength = 0.25
 
 [scroll]
 speed = 8.0                   # wheel notches per second at full deflection
@@ -519,6 +531,57 @@ thickness = 0.09              # the ring's band, as a fraction of the size the
                               # way [cursor] thickness is
 # socket = ""                 # default: $XDG_RUNTIME_DIR/omapad/ripple.sock
 
+[sound]
+# What a press sounds like. The pad already answers a press two ways and both
+# have a hole in them: the screen is answered by looking at it, which is the
+# one thing somebody walking a menu by thumb is not always doing, and the
+# motor is in the hands - so it says nothing at all while the pad is resting
+# on a knee, and nothing ever on a pad that has no motor. This is the third
+# way, and it is the one a room hears.
+#
+# **It ships off, and that is deliberate.** Every other answer this program
+# gives is to the person holding the pad; this one is to everybody else in
+# the room as well, so it is switched on by whoever decides that - one press
+# on Now > Sounds, or this line. Rumble ships on for exactly the opposite
+# reason.
+enabled = false
+# How loud, against the files' own level. They are mastered quiet on purpose -
+# a cue is mixed over whatever is already playing - so 1.0 is not loud, and
+# this is here to put them under a film rather than over one.
+volume = 0.6
+# Where the five files come from: `move.wav`, `back.wav`, `tick.wav`,
+# `edge.wav` and `commit.wav` in a directory of your own. Empty is the set that ships,
+# written by `assets/sounds.py` - synthesised rather than recorded, so a
+# different commit is a different number in that file. A directory missing a
+# name loses that one cue and keeps the rest, which is what makes a pack of
+# one sound worth writing.
+pack = ""
+# socket = ""                 # default: $XDG_RUNTIME_DIR/omapad/sound.sock
+
+[idle]
+# How long omapad keeps the screen awake after the pad was last touched.
+#
+# It is holding it awake at all because **pad input is invisible to the
+# compositor**: walking a menu with a thumb moves a selection over a socket
+# and produces no Wayland input, so as far as the session is concerned nobody
+# is there. The keyboard, the guide, the mapping screen and the game bar each
+# bind an idle inhibitor while they are up, and game mode asks the desktop for
+# `stay-awake` outright (`[mode] stay_awake_in_game`).
+#
+# What that leaves is a hold with nothing at the other end of it: a menu left
+# open on a television holds the screensaver off all night, and an OLED pays
+# for it. So the hold follows the thumb rather than the surface - a press, a
+# D-pad step, a stick pushed past its dead zone - and lets go this long after
+# the last one. The desktop's own screensaver and lock decide what happens
+# then, which is what they are for; the next press takes the hold back.
+#
+# Five minutes because that is about what a screensaver waits anyway, so the
+# two waits do not stack into a wait nobody recognises. **0 never lets go**,
+# which is what this did before it was a setting.
+awake_ms = 300000
+# socket: none of its own - `awake` rides on every surface's payload, because
+# what it decides is true of all of them at once.
+
 [snap]
 # Stop aiming. `snap:left|right|up|down` puts the pointer on the window that
 # way and focuses it, which is the console answer to the one thing a thumbstick
@@ -598,6 +661,13 @@ back = "ESC"
 # wherever the thumb stopped.
 repeat_delay_ms = 350
 repeat_rate_ms = 90
+# How much faster a held direction walks, once it has been held for
+# `repeat_ramp_ms`. This one is every stick walk on the pad - a window's own
+# controls, and the menu's grid, which takes its rate from here - because a
+# stick pushed over and left there is the clearest case of somebody crossing a
+# distance rather than stepping once. 1.0 turns it off.
+repeat_ramp = 2.5
+repeat_ramp_ms = 1000
 flick = 0.65                  # lower than [snap]'s: this one is a direction
 release = 0.35                # held, not a shove
 
@@ -631,8 +701,21 @@ down = "down"
 #
 # The switch is live: change modes with a surface up and it is redrawn at the
 # other scale.
+#
+# **Game mode is 1.0, and that is not a mistake.** The menu is built to a
+# design drawn for a 1920 screen watched from a sofa, and its numbers are
+# already couch-sized: a 128-pixel tile, a 45-pixel title, sixteen pixels of
+# air. Multiplying those by a couch factor is counting the room twice - the
+# page comes to more than the screen holds, the module has to be shrunk by
+# hand to fit, and then the type and the padding are the only things still
+# scaled, so a nav card's label elides inside a card that should have room
+# for it twice over.
+#
+# Raise it and every measurement on every surface grows together, which is
+# what it is for and what it still does. It is `[menu] cell` and `columns`
+# that have to come down with it, or the page scrolls sideways.
 scale = 1.0
-game_scale = 1.25
+game_scale = 1.0
 # How a badge is drawn, which is a different question from what it prints:
 #   filled   the shape washed in the surface's own colour with the label set
 #            solid on top. A badge that sits quietly in a list of them.
@@ -645,6 +728,98 @@ game_scale = 1.25
 # under the thumb; a stencil one inverts - the fill drains out and the letter
 # fills in - because a shape that is already solid has nowhere brighter to go.
 badge_style = "filled"
+# How hard the surfaces round a corner, against **the desktop's own answer**.
+#
+# The base is never ours: `decoration:rounding` is what this machine rounds
+# every window by, and a surface of ours that picked its own number would be
+# the one thing on screen not answering to it. Where the compositor rounds
+# nothing it is saying that about *windows*, and a tile is not a window - so
+# `[menu] tile_corner` is the base there, and this multiplies whichever of the
+# two is in force.
+#
+# 1.0 is exactly what the desktop rounds and **0 is square.** It is also the
+# one setting here that is set by looking at the thing it sets: it is on the
+# pad as `Display > Corners`, and the tiles under the slider round as it
+# moves.
+#
+# **It steps by a rung, not by tenths.** Every size on these surfaces climbs
+# by sqrt(2) - the type, the gaps, the corners off them - which is the silver
+# ratio less one. A corner is a size like any of them: 23 pixels against 25 is
+# not a difference anybody sees from a sofa, and 23 against 32 is. So the
+# stops are 0, 0.5, 0.707, 1 and 1.414 - `Square`, `Barely`, `Slight`, `The
+# desktop's`, `Round` - and the ladder ends one rung above the desktop's own
+# answer, because two rungs past it a 128-pixel tile is a circle, which is a
+# different shape rather than a rounder corner. Wanting bigger corners than
+# that is a question about the *base*, and the base is `[menu] tile_corner`.
+radius = 1.0
+# How long the surfaces take to move: a multiplier over every animation on
+# them, and the whole of what they animate is a fade, a scroll catching up
+# with a selection, and a badge filling. None of it is decoration - the fade
+# is what says a tile went away rather than was never there - so this dims
+# the effect rather than picking which ones survive.
+#
+# 0 turns motion off: every animation lands on its last frame at once, which
+# is what a person who reads a moving screen badly is asking for. 1 is what
+# the surfaces were drawn to, and it is the top of the range rather than the
+# middle of it - this is a way of asking for *less*, and a screen that took
+# longer than it was drawn to take is the lag every one of these durations
+# was kept under 150 ms to avoid.
+#
+# From the pad it is five places rather than a range - `Off`, `Little`,
+# `Half`, `Most`, `Full` - drawn as five segments, because a quarter is the
+# smallest change anybody can see in a screen moving and `Off` is a word this
+# setting exists to be able to say. A number in between is yours to write
+# here and is kept.
+motion = 1.0
+# And whether the desktop gets to say it first. Hyprland's own
+# `animations:enabled` is this machine's answer to the same question, asked
+# about every window on screen - so a desktop that has turned animations off
+# has already said what it wants, and a program that kept sliding its own
+# panels about would be the one thing on the screen not listening.
+#
+# It is a **veto rather than a scale**: the desktop can only take motion away,
+# never add it, so `motion = 0` stays 0 on a desktop that animates. Turned
+# off, the number above is the whole answer - which is what somebody who
+# wants the surfaces still on an animated desktop, or moving on a still one,
+# is asking for.
+#
+# Asked on the beat the theme is checked on, so turning Hyprland's animations
+# off reaches an open menu within a couple of seconds rather than at the next
+# restart.
+motion_follows_desktop = true
+# How much of the screen's edge the surfaces keep clear of anything that has
+# to be read, as a share of each side. A television is the one screen that
+# does not show what it is sent: the outer few percent are behind the bezel or
+# cropped by the set itself, and a row of hints along the bottom edge is the
+# part it eats first. Broadcast has kept 5% for this since it was the only way
+# to be sure, and the consoles still do - so **0.05 is the number to write
+# here if this desktop is on a set.**
+#
+# **It ships at 0, and game mode is why.** This was 5% and applied whenever
+# game mode was on, on the argument that game mode is when a television is
+# being used. It is not: game mode is the couch environment, and a couch is as
+# often a desk monitor turned up loud. A monitor shows every pixel it is sent,
+# so the bar came off the bottom edge and off both ends and sat in the middle
+# of nothing - a strip floating a centimetre from three edges that were never
+# cropping anything. A guess that costs 5% of every edge is worse than no
+# guess, because the person on a set knows they are on one and can say so
+# here, and the person on a monitor has no way of knowing what took their
+# margins away.
+#
+# **Only in game mode** either way: it is the only time this program has any
+# reason to assume a television at all.
+#
+# **A floor, not an addition.** A surface with a bigger margin of its own
+# keeps it - the fullscreen menu's 45 down and 91 across already clear 0.04 on
+# a 1080 screen - and one with a smaller one is held off to here. So raising
+# it moves only what was nearer the edge than this.
+#
+# **What comes in is what has to be read, not the ground under it.** The game
+# bar still reaches its edge and still fills the screen's width: a bar that
+# stopped short of the corners would be saying something about the shape of
+# the screen rather than about what a set crops. It is the row of hints inside
+# it that comes in.
+safe_area = 0.0
 
 [osk]
 # On-screen keyboard. The layout and the selection live in omapad; the
@@ -676,6 +851,13 @@ badge_align = "right"
 
 repeat_delay_ms = 350         # hold a direction this long before it walks
 repeat_rate_ms = 70           # then one key every this many ms
+# And how much faster, the longer the direction is held - `[menu]` has the
+# same pair and the same argument. It matters most here: the first page is
+# fourteen keys across, which is the widest thing this program asks anybody to
+# walk, and the steps closing up is what keeps crossing it a push rather than
+# a count. 1.0 turns it off.
+repeat_ramp = 2.5
+repeat_ramp_ms = 1000
 # socket = "/run/user/1000/omapad/osk.sock"   # defaults to $XDG_RUNTIME_DIR
 
 # Per-key overrides for the on-screen keyboard, keyed by what the key does by
@@ -1423,6 +1605,33 @@ cancel_button = "B"           # backs out of any hold that is counting down
 hold_ms = 1200
 confirm_ms = 800
 
+# And what a hold costs the hands holding it. Both of these are about the
+# gesture rather than about any one binding: two seconds of holding a shoulder
+# is a thing some hands cannot do at all, and a pad held by a finger that
+# shakes fires holds nobody asked for.
+#
+# `scale` multiplies every wait on the pad - the two above, a binding's own
+# `hold_ms`, the half-second a plain hold takes - so a half here halves all of
+# them together and 1.5 makes every one of them more deliberate. Half is the
+# floor because below it a tap and a hold stop being different gestures;
+# double is the ceiling because a hold nobody can reach the end of is a
+# binding that has gone.
+#
+# From the pad it is seven places a quarter apart, drawn as seven segments and
+# printed as a percentage of the length each binding was written at - unlike
+# the corners and the motion, this is an *amount* rather than a place, and
+# `Slower` would be a word standing where a quantity already reads.
+scale = 1.0
+# How long the finger may come off a hold that has **already announced
+# itself** before the countdown is abandoned. Only after the announcement:
+# before it, letting go is how a tap is made, and delaying that would cost
+# every browser tab a beat.
+#
+# 0 ships, and it is the shipped promise - letting go is how you back out. Any
+# other number says the countdown survives a slip instead, and the ways out
+# are then the cancel button or a finger that stays off for this long.
+slack_ms = 0
+
 # Discord, where the four face buttons are the voice controls.
 #
 # A voice chat is the one desktop app whose most-pressed controls are not on
@@ -1933,27 +2142,33 @@ title = "Go"                  # the word at the head of the card
 # bar is where they belong now, so this is empty. A config that still sets it
 # gets its clock back on the title line as well.
 clock = ""
-# How many cells across a page is. It decides how much fits on one screen and
-# how big a tile reads from across a room, so a laptop panel and a television
-# do not want the same answer. Below three there is nowhere to put a bar; far
-# above it a tile is a row again.
-columns = 6
-# How tall one cell is, in unscaled pixels. The width is whatever `columns`
-# leaves, so this is the whole of a tile's shape - and it decides how much of a
-# page is above the fold rather than how much a page holds: a page is as many
-# rows as its tiles came to. Raise it and a tile carries its icon over its
-# label with room to spare; lower it and the page reads as a denser list.
-# Where a tile is too short to stack the two the icon steps out and the label
-# has the tile, so a low number is a page of words rather than a page of
-# clipping. Unscaled: `[ui] scale` and `game_scale` multiply it like every
-# other measurement on the surface.
+# How many cells across a page is. A cell is a fixed square (`cell` below), so
+# this is the page's own width and not a way of dividing up the screen: raise
+# it for a wider page and the card grows with it until the screen runs out,
+# after which the page scrolls sideways to whatever the selection is on.
+# Below three there is nowhere to put a bar; far above it every page is a page
+# you have to walk across.
+columns = 12
+# One cell, square, in unscaled pixels - the module the whole page is built
+# from. A tile is a number of these across and down, the nav cards on the bar
+# are one each, and the gap between them is an eighth of this.
 #
-# The default is a rung of the same ladder the tile's insides are set on, and
-# it has to be: a switch, its label and the air between them come to a little
-# over forty pixels there, and a cell shorter than its own contents does not
-# make them smaller - it lets them out over the edge of the tile. So this is
-# the one setting that moves when the ladder does.
-cell_height = 45
+# **It does not stretch.** A cell used to be this tall and whatever `columns`
+# left of the card wide, which made the shape of a tile a property of the
+# monitor it landed on - on a television that is a cell six times wider than
+# it is tall, and a tile that shape cannot stand an icon over a label, so
+# every tile came out a word on a strip. A module is a module at any width,
+# and what does not fit scrolls.
+#
+# The arithmetic is worth keeping when either half of it changes:
+# `columns * cell * scale + (columns - 1) * 16 * scale` has to clear the
+# screen less twice the inline padding, or the page scrolls sideways and the
+# last column is only reachable by walking to it. Twelve of 128 with
+# sixteen-pixel gaps fills a 1920 screen exactly, which is where both numbers
+# come from. Raise it and a tile reads from further away and fewer fit; lower
+# it for a denser page. Unscaled: `[ui] scale` and `game_scale` multiply it
+# like every other measurement on the surface.
+cell = 128
 # What a tile off to the side costs against one straight ahead, both measured
 # edge to edge - the same question `[snap] bias` answers about windows, and its
 # own number because tiles are small and touching where windows are large and
@@ -1963,6 +2178,18 @@ cell_height = 45
 bias = 2.0
 repeat_delay_ms = 400         # hold a direction this long before it walks
 repeat_rate_ms = 110          # then one tile every this many ms
+# And how much faster it walks the longer it is held. A page is twelve cells
+# across and a thumb crossing one is covering a distance rather than picking
+# the tile next door, so the steps close up: `repeat_ramp` times the rate
+# above once the direction has been held for `repeat_ramp_ms`, and no faster
+# after that. 1.0 turns it off and every step is `repeat_rate_ms`.
+#
+# The same shape as `ramp` below, and deliberately its own numbers: that one
+# crosses a control's range, where the distance is 38 steps of a speed, and
+# this one crosses a page. A reversal starts the ramp again, because somebody
+# pushing the other way has gone too far.
+repeat_ramp = 2.5
+repeat_ramp_ms = 1000
 # How long the bar has to stop moving before the chip you came to rest on is
 # worth asking about. Flicking across five groups in a second should spawn one
 # command, not five: the four you passed through are answers nobody wanted.
@@ -1975,6 +2202,17 @@ group_settle_ms = 180
 # same answer in general: the bar is the screen's and this is the page's, and
 # only this one can say what a page has spent a key on.
 keys = true
+
+# Whether the menu still has a first start to answer for. While it is true the
+# `Start here` tile is on the first page and the menu opens on it; the daemon
+# writes it false to settings.toml the first time the menu is opened, so the
+# tile is shown once and then goes.
+#
+# A mark rather than a preference, and the reason it is a setting at all is
+# that settings.toml is where the pad writes things down. Delete the line from
+# that file - the header there says so - and the tile comes back, which is the
+# only way anyone would ever want it again.
+first_run = true
 
 # A control with a range - a slider - is walked with the D-pad once A has
 # taken it, and swept with either trigger whether or not it has been taken.
@@ -2025,16 +2263,43 @@ fullscreen = true
 # through too much, lower it to see more of what is behind.
 dim = 0.6
 
-# How much of a tile's corner is drawing rather than edge, in unscaled pixels.
-# Each state of a tile is drawn on its own outline - a plain tile is rounded, a
-# selected one is cut back, a tile being carried has a bite out of it - and
-# this is how far into the tile that corner reaches. Raise it and the state a
-# tile is in reads from across a room; lower it towards 0 and every tile is the
-# same square, which is a page that says which tile is selected in colour
-# alone. Deliberately not the compositor's own `decoration:rounding`: that is
-# the radius of a window, it is 0 on plenty of setups, and a selection that
-# vanishes at 0 is the one thing this must not do.
-tile_corner = 10
+# How much of a tile's corner is drawing rather than edge, in unscaled pixels,
+# where the compositor has no answer of its own. Each state of a tile is drawn
+# on its own outline - a plain tile is rounded, a selected one is cut back, a
+# tile being carried has a bite out of it - and this is how far into the tile
+# that corner reaches. Raise it and the state a tile is in reads from across a
+# room; lower it towards 0 and every tile is the same square, which is a page
+# that says which tile is selected in colour alone.
+#
+# **The compositor is asked first.** `decoration:rounding` is this desktop's
+# own answer to how hard a corner is rounded, and everything the menu draws
+# inside its card steps down from it - so a desktop that rounds windows at 12
+# gets tiles at 12 without being told twice. This is the answer where it
+# rounds nothing, which Omarchy ships as: that is the compositor saying so
+# about *windows*, and a tile is not a window - a selection that vanished at 0
+# is the one thing this must not do.
+tile_corner = 23
+# How long a tile stays lit after A lands on it, in milliseconds. A press is
+# the one thing this surface does that has no state to show afterwards: the
+# thumb is on a button that feels the same whatever it did, and a tile that
+# ran its action looks exactly like a tile that was not reached - the argument
+# `[cursor] ripple` answers for a click. Raise it if a press goes by unseen,
+# lower it towards 0 to turn the flash off and leave the press silent.
+press_ms = 160
+
+# How long a row that says `countdown = true` counts before it runs, in
+# seconds. It is the other answer to *are you sure*, and the two are for
+# different presses: a **hold** is right where the gesture is already in the
+# hand and is over in a second, and a **countdown** is right where what
+# happens next takes the screen away. Logging out is not a press to be sure
+# about for 900 ms; it is one to be given long enough to change your mind
+# about, and holding A for ten seconds is not a gesture anybody makes.
+#
+# Raise it if ten seconds is not long enough to find B from where you sit.
+# `[confirm] scale` deliberately does not reach it - that setting is for a
+# hand that cannot keep a button down, and this asks nobody to keep anything
+# down.
+countdown = 10
 
 # A tile can list its own page instead of holding one: `from` is a command, and
 # every line it prints becomes a tile (see the audio outputs below). The
@@ -2100,17 +2365,26 @@ list_limit = 24               # and how many of its lines reach the page
 # through.
 # ---------------------------------------------------------------------------
 
-[[menu.head]]
-span = [2, 3]
-over = { from = "id -un", ttl = 0 }
-format = "%H:%M"
-under = "%A"
+# The head is a **strip**: one row across the top, read before anything is
+# chosen. The first line a cell has is the one it says loudly and the rest run
+# along beside it as facts, so a cell with a name over it says the name and
+# murmurs the weather, and a cell with only a time says the time. A cell that
+# reaches the last column hangs off the right edge.
 
+# Who this is, and what the room is doing.
 [[menu.head]]
-span = [4, 1]
+span = [8, 1]
+over = { from = "id -un", ttl = 0 }
 from = """omarchy-weather-status | { i=$(omarchy-weather-icon); sed "s|^[^·]*·  ||; s|Temp |$i  |; s|Wind ||"; }"""
 ttl = 900
-empty = "Weather unavailable"
+empty = ""
+
+# And the time, at the far end. Game mode takes Omarchy's bar away and the pad
+# can reach no other clock, so this is the one the room has.
+[[menu.head]]
+span = [4, 1]
+format = "%H:%M"
+under = "%A"
 
 # ---------------------------------------------------------------------------
 # The bar, and the tiles under it.
@@ -2159,15 +2433,74 @@ empty = "Weather unavailable"
 icon = ""
 label = "Now"
 detail = "Sound, screen, what is playing"
+# What a nav card says under its name: the state of the place it opens, in
+# the two or three words that fit. A bare word is printed as it is; a table
+# runs a command, and `ttl` is how long its answer stays fresh - the bar has
+# one of these per group, so a card without a ttl is a subprocess a second.
+# `empty` is what it says when the command prints nothing. Left out entirely,
+# a card falls back to how many tiles its page holds.
+meta = { from = "omarchy-shell media status | jq -r 'if .hasMedia and .title != \"\" then .title else \"\" end' | cut -c1-16", ttl = 5, empty = "Quiet" }
 
+  # The one tile that is only ever here once. A machine driven from a sofa is
+  # the machine nobody walks to a keyboard to set up, so the first start has
+  # to offer what a first start decides - what the buttons do, and what a
+  # press answers with - from the pad itself. `[menu] first_run` is the mark;
+  # opening the menu is what clears it, so this is shown once and then gone.
+  #
+  # Its page is not a fifth place to keep these settings: every row on it
+  # reads the same `pad:` setting its home row does, so the two say one thing
+  # and stay in step by construction.
+  [[menu.items.items]]
+  icon = "󰋗"
+  label = "Start here"
+  detail = "The buttons, and how a press answers"
+  span = [3, 1]
+  when = ["first_run"]
+  open_on = true
+
+    [[menu.items.items.items]]
+    icon = ""
+    label = "Shortcuts"
+    detail = "What every button does"
+    action = "guide:open"
+
+    [[menu.items.items.items]]
+    icon = "󰘮"
+    label = "Remap the buttons"
+    detail = "Teach it which button is which"
+    action = "map:open"
+
+    [[menu.items.items.items]]
+    icon = "󰕦"
+    label = "Vibration"
+    control = "toggle"
+    reads = "pad:rumble"
+
+    [[menu.items.items.items]]
+    icon = "󰕾"
+    label = "Sounds"
+    control = "toggle"
+    reads = "pad:sound"
+
+    [[menu.items.items.items]]
+    icon = "󰓅"
+    label = "Motion"
+    control = "slider"
+    reads = "pad:motion"
+
+    [[menu.items.items.items]]
+    label = "Hold time"
+    control = "slider"
+    reads = "pad:hold_scale"
+
+  # The page's biggest tile, and the one it is opened for more than any
+  # other. A grid says what is worth looking at, and a keyboard you have to
+  # find among eight equal squares is the list this page stopped being.
   [[menu.items.items]]
   icon = "󰌌"
   label = "Keyboard"
-  span = [2, 1]
+  span = [6, 2]
   action = "osk:open"
-
-  [[menu.items.items]]
-  control = "row_break"
 
   # How loud and how bright, as bars that say what the number is. They were
   # four stepping rows and a mute row, none of which could say either. A bar
@@ -2180,18 +2513,20 @@ detail = "Sound, screen, what is playing"
   # number. [live] volume_set is a setting, so anyone who wants the OSD back
   # puts the helper there.
   [[menu.items.items]]
+  label = "Music"
+  empty = "Nothing playing"
+  span = [3, 2]
+  control = "media"
+  reads = "live:media"
+
+  # Stacked in the last three columns beside the two tall tiles, which is what
+  # fills the first two rows of the page exactly: six and three and three. No
+  # row break between any of it - a break says "these belong together", and a
+  # page whose every row was broken is a list again.
+  [[menu.items.items]]
   label = "Volume"
   control = "slider"
   reads = "live:volume"
-
-  [[menu.items.items]]
-  icon = "󰝟"
-  label = "Mute"
-  control = "toggle"
-  reads = "live:mute"
-
-  [[menu.items.items]]
-  control = "row_break"
 
   [[menu.items.items]]
   label = "Brightness"
@@ -2217,19 +2552,16 @@ detail = "Sound, screen, what is playing"
   stay = true
 
   [[menu.items.items]]
-  label = "Music"
-  empty = "Nothing playing"
-  control = "media"
-  reads = "live:media"
-
-  [[menu.items.items]]
   icon = "󰒭"
   label = "Next"
   action = "live:media=next"
   stay = true
 
   [[menu.items.items]]
-  control = "row_break"
+  icon = "󰝟"
+  label = "Mute"
+  control = "toggle"
+  reads = "live:mute"
 
   # The two tiles that used to sit at the top level, and why they are not
   # there any more. Item 48 put them there because a row you have to go and
@@ -2280,6 +2612,7 @@ detail = "Steam, chat, music, video"
   [[menu.items.items]]
   icon = ""
   label = "Steam"
+  span = [4, 2]
   detail = "Big Picture"
   action = "exec:steam steam://open/bigpicture"
 
@@ -2297,6 +2630,7 @@ detail = "Steam, chat, music, video"
   [[menu.items.items]]
   icon = "󰙯"
   label = "Discord"
+  span = [2, 2]
   detail = "Voice chat"
   action = 'exec:omarchy-launch-or-focus discord "$(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me)"'
 
@@ -2305,6 +2639,7 @@ detail = "Steam, chat, music, video"
   [[menu.items.items]]
   icon = "󰓇"
   label = "Spotify"
+  span = [2, 2]
   detail = "Music"
   action = "exec:omarchy-launch-spotify"
 
@@ -2314,6 +2649,7 @@ detail = "Steam, chat, music, video"
   [[menu.items.items]]
   icon = "󰗃"
   label = "YouTube"
+  span = [2, 2]
   detail = "Video"
   action = "exec:omarchy-launch-or-focus youtube 'omarchy-launch-webapp https://www.youtube.com'"
 
@@ -2325,119 +2661,152 @@ detail = "Steam, chat, music, video"
   [[menu.items.items]]
   icon = ""
   label = "Browser"
+  span = [2, 2]
   action = "exec:omarchy-launch-browser"
 
   [[menu.items.items]]
   icon = ""
   label = "Terminal"
+  span = [2, 2]
   action = "exec:omarchy-launch-terminal"
 
   # Everything installed, which is a list no controller menu should try to be.
   [[menu.items.items]]
   icon = "󰀻"
   label = "All apps"
+  span = [2, 2]
   detail = "Everything installed"
   action = "exec:omarchy-menu toggle apps"
 
 [[menu.items]]
 icon = "󰖯"
-label = "Windows"
-detail = "The window in front"
+label = "Workspaces"
+detail = "The windows on this workspace"
+meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", ttl = 3 }
 
+  # **One card, not four cells.** Every one of these is a verb with nothing
+  # to show but its name, and at one cell each that name was `Fullscre…`,
+  # `Next win…`, `Float / …` and `Close wi…` - four words cut in half on a
+  # page with two thirds of itself empty. Stacked, each row has the card.
+  #
+  # And no mark in front of a row, the way `Power` carries none: a glyph at a
+  # row's head is read as a bullet, and four of them in a column are four
+  # bullets before four words that are each already the whole of what the row
+  # does.
   [[menu.items.items]]
-  icon = "󰊓"
-  label = "Fullscreen"
-  detail = "Make it fill the screen"
-  action = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })"
+  label = "Windows"
+  control = "rows"
+  span = [3, 3]
+  detail = "Close window is held, not pressed"
 
-  [[menu.items.items]]
-  icon = "󰕰"
-  label = "Next window"
-  action = "hypr:hl.dsp.window.cycle_next()"
+    [[menu.items.items.items]]
+    label = "Fullscreen"
+    detail = "Make it fill the screen"
+    action = "hypr:hl.dsp.window.fullscreen({ mode = 'fullscreen' })"
 
-  [[menu.items.items]]
-  icon = "󰀿"
-  label = "Float / tile"
-  action = "hypr:hl.dsp.window.float({ action = 'toggle' })"
+    [[menu.items.items.items]]
+    label = "Next window"
+    action = "hypr:hl.dsp.window.cycle_next()"
 
-  [[menu.items.items]]
-  icon = "󰅗"
-  label = "Close window"
-  action = "hypr:hl.dsp.window.close()"
+    [[menu.items.items.items]]
+    label = "Float / tile"
+    action = "hypr:hl.dsp.window.float({ action = 'toggle' })"
+
+    [[menu.items.items.items]]
+    label = "Close window"
+    action = "hypr:hl.dsp.window.close()"
+    # Held, not pressed: a terminal running something, an editor with an unsaved
+    # buffer and a browser with a half-written message all close the same way,
+    # and none of them comes back. The terminal is asked first either way (see
+    # [terminal]), but what that asks about is a command, not the window.
+    confirm = true
 
 [[menu.items]]
 icon = ""
 label = "Audio"
 detail = "Where the sound goes"
+meta.ttl = 10
+# The active *port*, not the sink: a sink is called `Built-in Audio Analog
+# Stereo` and a nav card has room for `Speakers`. Two passes because the port
+# the sink is on is printed after the list of ports it could be on.
+meta.from = '''
+  port=$(pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" '$1=="Name:"{f=($2==s)} f && $1=="Active" && $2=="Port:"{print $3; exit}')
+  pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" -v p="$port:" '$1=="Name:"{f=($2==s)} f && $1==p {sub(/^[^:]*: /, ""); sub(/ \(.*/, ""); print; exit}'
+'''
 
-  # Which speakers and which microphone - the two rows a television asks for.
-  # Plug one in and there is a second output in the room; the desktop asks you
-  # to pick it from a list, and from a sofa that list is behind a keyboard and
-  # a pointer. The same press has to reach it.
+  # **Two cards that list, rather than a page holding two pages.** It was
+  # `Devices` opening on `Output` opening on the outputs - two presses in
+  # before a name you can pick, and each of those pages held exactly one
+  # thing. A card is read where it stands, so both lists are on this page
+  # and a device is one press away.
   #
-  # A page of their own rather than two more rows beside Mute: this submenu was
-  # answering three questions at once - how loud, where the sound goes, and
-  # what is playing - and only the middle one is set when the room changes
-  # rather than while you are sitting in it. So it goes a level down, where a
-  # rare answer belongs, and what is pressed from the sofa keeps the top.
+  # What is plugged in is not something a config file knows: `from` is a
+  # command and each line it prints is a row - the label, then the values
+  # `action` takes as `%1` and `%2`, tab separated. A label starting with
+  # `*` is the one in force and is drawn filled, which is the mark `pactl`
+  # and `wpctl` already put beside the current device. Values are quoted as
+  # they go in, so a device that names itself with a space or a semicolon
+  # stays a name rather than becoming a second command.
+  #
+  # The card is read when this page settles rather than at a press, because
+  # nobody enters a card - `[menu] group_settle_ms` is the same wait the bar
+  # takes, for the same reason.
+  # Neither row can be written down here, because what is plugged in is not
+  # something a config file knows. `from` is a command, and each line it
+  # prints is a row: the label, then the values `action` takes as `%1` and
+  # `%2`, tab separated. A label starting with `*` is the one in force and is
+  # ticked - the mark `pactl` and `wpctl` already put beside the current
+  # device. Values are quoted as they go in, so a device that names itself
+  # with a space or a semicolon stays a name rather than becoming a second
+  # command.
+  #
+  # The outputs are the ones Omarchy's own switcher offers: a sink whose only
+  # ports are unplugged is left out, and so is the physical sink a speaker
+  # tuning fronts - picking that one would bypass the tuning rather than send
+  # the sound anywhere new.
   [[menu.items.items]]
-  icon = "󰋋"
-  label = "Devices"
-  detail = "Speakers and microphones"
+  label = "Output"
+  control = "rows"
+  span = [3, 3]
+  detail = "Speakers, headphones, the TV"
+  empty = "No outputs found"
+  action = "exec:omarchy-audio-output-set-default %1 %2"
+  from = '''
+    fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
+    pactl -f json list sinks |
+      jq -r --arg cur "$(pactl get-default-sink)" --arg fronted "$fronted" '
+        .[] | select($fronted == "" or .name != $fronted)
+            | select((.ports | length == 0)
+                     or ([.ports[]? | .availability != "not available"] | any))
+            | (if .name == $cur then "* " else "" end) + (.description // .name)
+              + "\t" + (.index | tostring) + "\t" + .name'
+  '''
 
-    # Neither row can be written down here, because what is plugged in is not
-    # something a config file knows. `from` is a command, and each line it
-    # prints is a row: the label, then the values `action` takes as `%1` and
-    # `%2`, tab separated. A label starting with `*` is the one in force and is
-    # ticked - the mark `pactl` and `wpctl` already put beside the current
-    # device. Values are quoted as they go in, so a device that names itself
-    # with a space or a semicolon stays a name rather than becoming a second
-    # command.
-    #
-    # The outputs are the ones Omarchy's own switcher offers: a sink whose only
-    # ports are unplugged is left out, and so is the physical sink a speaker
-    # tuning fronts - picking that one would bypass the tuning rather than send
-    # the sound anywhere new.
-    [[menu.items.items.items]]
-    icon = "󰓃"
-    label = "Output"
-    detail = "Speakers, headphones, the TV"
-    empty = "No outputs found"
-    action = "exec:omarchy-audio-output-set-default %1 %2"
-    from = '''
-      fronted=$(omarchy-audio-tuning fronted-sink 2>/dev/null || true)
-      pactl -f json list sinks |
-        jq -r --arg cur "$(pactl get-default-sink)" --arg fronted "$fronted" '
-          .[] | select($fronted == "" or .name != $fronted)
-              | select((.ports | length == 0)
-                       or ([.ports[]? | .availability != "not available"] | any))
-              | (if .name == $cur then "* " else "" end) + (.description // .name)
-                + "\t" + (.index | tostring) + "\t" + .name'
-    '''
-
-    # The inputs are every source that is not a monitor - a monitor is what the
-    # speakers are already playing, not something anybody speaks into. No
-    # availability filter here, unlike the outputs above: a built-in microphone
-    # reports its jack as unplugged and is still the microphone in use, so
-    # filtering on it would hide the row that is ticked.
-    [[menu.items.items.items]]
-    icon = "󰍬"
-    label = "Microphone"
-    detail = "Built-in, headset, webcam"
-    empty = "No microphones found"
-    action = "exec:omarchy-audio-input-set-default %1 %2"
-    from = '''
-      pactl -f json list sources |
-        jq -r --arg cur "$(pactl get-default-source)" '
-          .[] | select(.properties["device.class"] != "monitor")
-              | (if .name == $cur then "* " else "" end) + (.description // .name)
-                + "\t" + (.index | tostring) + "\t" + .name'
-    '''
+  # The inputs are every source that is not a monitor - a monitor is what the
+  # speakers are already playing, not something anybody speaks into. No
+  # availability filter here, unlike the outputs above: a built-in microphone
+  # reports its jack as unplugged and is still the microphone in use, so
+  # filtering on it would hide the row that is ticked.
+  [[menu.items.items]]
+  label = "Microphone"
+  control = "rows"
+  span = [3, 3]
+  detail = "Built-in, headset, webcam"
+  empty = "No microphones found"
+  action = "exec:omarchy-audio-input-set-default %1 %2"
+  from = '''
+    pactl -f json list sources |
+      jq -r --arg cur "$(pactl get-default-source)" '
+        .[] | select(.properties["device.class"] != "monitor")
+            | (if .name == $cur then "* " else "" end) + (.description // .name)
+              + "\t" + (.index | tostring) + "\t" + .name'
+  '''
 
 [[menu.items]]
 icon = "󰍹"
 label = "Display"
-detail = "Size, and the screensaver"
+detail = "Size, motion and the screensaver"
+meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refreshRate|floor) Hz\"'", ttl = 30 }
 
   # Two stepping rows rather than a bar, unlike the brightness on Now: a step
   # here reconfigures the monitor and rewrites monitors.lua, which is not
@@ -2455,6 +2824,31 @@ detail = "Size, and the screensaver"
   detail = "Smaller text, more on screen"
   action = "exec:omarchy-hyprland-monitor-scaling down"
 
+  # How fast omapad's own surfaces move, and at 0 whether they move at all.
+  # A slider rather than a switch because less is a real answer between the
+  # two: a menu that slides half as far still says a tile went away, and a
+  # screen that is hard to read while it is moving is not always one that has
+  # to be still. It is under Display because it is about the screen rather
+  # than the pad - the same place the size of everything is decided.
+  [[menu.items.items]]
+  icon = "󰓅"
+  label = "Motion"
+  control = "slider"
+  reads = "pad:motion"
+
+  # And how hard a corner is rounded, against what the compositor rounds a
+  # window by. It is here for the same reason `Motion` is: you find out by
+  # looking at it, and what you are looking at while you move this is the page
+  # the slider is on - the tiles round under the thumb. 100% is the desktop's
+  # own answer and 0 is square; the stops are a sqrt(2) ladder, so six presses
+  # cross the whole range and every one of them is a corner you can tell from
+  # the last.
+  [[menu.items.items]]
+  icon = "󰄴"
+  label = "Corners"
+  control = "slider"
+  reads = "pad:radius"
+
   [[menu.items.items]]
   icon = "󱄄"
   label = "Screensaver"
@@ -2469,6 +2863,7 @@ detail = "Size, and the screensaver"
 icon = "󰊴"
 label = "Controller"
 detail = "Speed, vibration, labels, mapping"
+meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk '{print ($1 == 1) ? \"1 paired\" : $1 \" paired\"}'", ttl = 5, empty = "None paired" }
 
   [[menu.items.items]]
   icon = ""
@@ -2579,12 +2974,39 @@ detail = "Speed, vibration, labels, mapping"
   control = "slider"
   reads = "pad:rumble_strength"
 
+  # The other half of what a press says back, and the pair reads as a pair on
+  # purpose: the motor answers the hands and this answers the room, so
+  # whoever turns one off is choosing between them rather than losing both.
+  # It ships off - see `[sound]` - so this switch is how most people will
+  # ever hear it.
+  [[menu.items.items]]
+  icon = "󰕾"
+  label = "Sounds"
+  control = "toggle"
+  reads = "pad:sound"
+
+  # And how loud, which is the same question `Strength` asks about the motor
+  # and gets the same shape of answer. A tenth per step rather than the
+  # motor's twentieth: a cue is 90 ms at the longest, and a difference you
+  # cannot hear between two presses is not a step worth stopping on.
+  [[menu.items.items]]
+  label = "Loudness"
+  control = "slider"
+  reads = "pad:sound_volume"
+
   # What the badges print, which is a second question from the profile below:
   # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
+  # **A card, not a page.** It was a submenu, and it was one for the reason
+  # a card now answers: a `choice` tile shows one value, so the line under
+  # each choice saying *how* they differ had nowhere to go - and getting
+  # this wrong scrambles the face buttons. A row is as wide as the card, so
+  # it keeps that line, and all four are in front of you rather than a
+  # level down.
   # profile and prints shapes. `auto` follows the profile.
   [[menu.items.items]]
-  icon = "󰌕"
   label = "Button labels"
+  control = "rows"
+  span = [3, 3]
   detail = "What the badges print"
 
     [[menu.items.items.items]]
@@ -2632,10 +3054,14 @@ detail = "Speed, vibration, labels, mapping"
   # which is right until it is not: a pad with a hardware mode switch reports
   # one thing and prints another, and that is the whole reason this is a
   # choice. Getting it wrong scrambles the face buttons, and the row below is
+  # A card for `Button labels`' reason, and a stronger one: getting this
+  # wrong scrambles the face buttons, and the sentence under each row is
+  # exactly what stops you.
   # what answers a pad neither profile fits.
   [[menu.items.items]]
-  icon = "󰒓"
   label = "Profile"
+  control = "rows"
+  span = [3, 2]
   detail = "Which codes this pad sends"
 
     [[menu.items.items.items]]
@@ -2661,6 +3087,16 @@ detail = "Speed, vibration, labels, mapping"
   label = "Remap the buttons"
   detail = "Teach it which button is which"
   action = "map:open"
+
+  # How long every hold on this pad takes, against the lengths they were
+  # written at. It is on the pad because it is about the hand: a hold is two
+  # seconds of keeping a shoulder down, which is a gesture some hands cannot
+  # make at all and others make by accident. `[confirm]` is where the same
+  # number is set at a keyboard, along with the slip a counting hold survives.
+  [[menu.items.items]]
+  label = "Hold time"
+  control = "slider"
+  reads = "pad:hold_scale"
 
 # The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
 #
@@ -2725,6 +3161,7 @@ detail = "How busy, how full, how hot"
 [[menu.items]]
 icon = ""
 label = "System"
+meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \" waiting\" : \"\"}'", ttl = 900, empty = "Up to date" }
 
   # Which mode the machine comes back in, set from the pad because that is the
   # only way to set it on a machine nobody walks to a keyboard for. It is here
@@ -2734,37 +3171,109 @@ label = "System"
   # The one setting row in the tree that changes nothing when it lands: it is
   # about the next start, not this one. So neither row says "on" - both say
   # what a start would do, and the tick says which one is waiting.
+  #
+  # **A card of rows rather than a chevron.** It was a `choice`, walked in
+  # place, and a choice shows one value - so the sentence saying how the two
+  # differ had nowhere to go, and a card reading `Game mode` was a card you
+  # had to press to find out what else there was. Both values are on screen
+  # now, each with its own line, and the tick says which one the next start is
+  # waiting on. It is the shape a tick submenu always wanted and could not
+  # have while a page cost a level.
   [[menu.items.items]]
-  icon = "󰐊"
   label = "Start in"
   detail = "The mode at the next start"
-  control = "choice"
-  reads = "pad:start_mode"
+  control = "rows"
+  # Three wide rather than the default two: a row with a line under it is a
+  # row that has to hold a sentence, and forty characters do not fit in two
+  # cells beside a tick.
+  span = [3, 2]
 
-  [[menu.items.items]]
-  icon = ""
-  label = "Lock"
-  action = "exec:omarchy-system-lock"
+    [[menu.items.items.items]]
+    label = "Game mode"
+    detail = "A bigger bar; nothing else changes"
+    action = "pad:start_mode=game"
+    stay = true
 
-  [[menu.items.items]]
-  icon = "󰒲"
-  label = "Suspend"
-  action = "exec:systemctl suspend"
+    [[menu.items.items.items]]
+    label = "Desktop"
+    detail = "Omarchy's own bar, at its own size"
+    action = "pad:start_mode=desktop"
+    stay = true
 
+  # **One card of power, and the last three count rather than being held.**
+  # Five verbs at a cell each was five squares saying one word, which is the
+  # scatter a card exists to end - and `Omarchy menu` below stays a tile,
+  # because it is a door out of this menu rather than a thing the machine
+  # does.
+  #
+  # Lock and Suspend are a plain press: both are one button away from where
+  # you were. Logout, Reboot and Shutdown are not - whatever was unsaved is
+  # gone - and they were an announced **hold**, which is the right gesture
+  # where it is already in the hand and over in a second. It is the wrong
+  # one here. What these three do is take the screen away, and being sure
+  # about that is not something to do with a thumb: it is something to be
+  # given long enough to change your mind about. So A starts `[menu]
+  # countdown` seconds, the row prints them, and B stops it.
   [[menu.items.items]]
-  icon = "󰍃"
-  label = "Logout"
-  action = "exec:omarchy-system-logout"
+  label = "Power"
+  control = "rows"
+  span = [3, 3]
+  # A glyph per row said nothing here: five words that are each the whole of
+  # what the row does, with a small mark in front of each one repeating it.
+  # `pad-wording`'s rule about a detail that restates its label, one field
+  # along. `Windows` spent four on the same repetition for a while; no card
+  # of rows carries a mark now.
+  detail = "The last three count down first"
 
+    [[menu.items.items.items]]
+    label = "Lock"
+    action = "exec:omarchy-system-lock"
+
+    [[menu.items.items.items]]
+    label = "Suspend"
+    action = "exec:systemctl suspend"
+
+    [[menu.items.items.items]]
+    label = "Logout"
+    action = "exec:omarchy-system-logout"
+    countdown = true
+
+    [[menu.items.items.items]]
+    label = "Reboot"
+    action = "exec:omarchy-system-reboot"
+    countdown = true
+
+    [[menu.items.items.items]]
+    label = "Shutdown"
+    action = "exec:omarchy-system-shutdown"
+    countdown = true
+
+  # **Reboot and Shutdown twice, and that is the point.** They are rows in
+  # the card above like the other three, and they are also the two anybody
+  # actually walks to this page for - so they are a cell each as well, where
+  # a thumb reaches them without going into a card first. Item 48's argument
+  # about a row you have to go and find, spent on the two rows it is true of.
+  #
+  # They count down exactly as the rows do: the same press cannot be guarded
+  # in one place and cheap in the other.
+  #
+  # Their own ids, because a tile and a row that shared one would share the
+  # press that lands on either - the flash, the countdown and the fill all
+  # name a tile by id, and two things answering to one name is two things
+  # lighting up for one press.
   [[menu.items.items]]
+  id = "reboot-tile"
   icon = "󰜉"
   label = "Reboot"
   action = "exec:omarchy-system-reboot"
+  countdown = true
 
   [[menu.items.items]]
+  id = "shutdown-tile"
   icon = "󰐥"
   label = "Shutdown"
   action = "exec:omarchy-system-shutdown"
+  countdown = true
 
   # Last on this page, and the way out of this menu into the one that has
   # everything else. It wants a keyboard, which is why it is not the menu the

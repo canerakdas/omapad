@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -239,9 +240,18 @@ class KeyRoutingTests(unittest.TestCase):
         self.addCleanup(restore)
         self.config = shipped_config()
         self.config.notify = False
-        self.config.control_socket = os.path.join(
-            tempfile.mkdtemp(prefix="omapad-test-"), "control.sock"
+        directory = tempfile.mkdtemp(prefix="omapad-test-")
+        self.config.control_socket = os.path.join(directory, "control.sock")
+        # Never the settings.toml of the machine the suite runs on. Opening
+        # the menu writes one - that is how a first start is answered - and a
+        # test that opened a menu would otherwise replace what this pad chose
+        # from the sofa with a file holding nothing but that mark.
+        patch = unittest.mock.patch.object(
+            daemon_module, "settings_path",
+            lambda: os.path.join(directory, "settings.toml"),
         )
+        patch.start()
+        self.addCleanup(patch.stop)
         self.daemon = daemon_module.Daemon(self.config)
         for name in ("osk", "menu", "guide", "mapping", "status",
                      "gamebar"):

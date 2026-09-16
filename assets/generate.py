@@ -226,7 +226,7 @@ CONTROLS_TO_DRAW = (
 # This is the one drawing in this folder that answers to a size, and it
 # answers by not being one drawing: **the corner is art and the four edges
 # between the corners are a number.** A tile is `w` cells by `h` rows and a
-# shape cannot stretch - that is the rule the slider's track and the dial's
+# shape cannot stretch - that is the rule the slider's travel and the dial's
 # zone are not drawn under - but a *corner* is not parameterised by anything,
 # and a straight edge does not need to be drawn to be right.
 #
@@ -607,7 +607,7 @@ def grounds_qml(entries):
 //
 // **The corner is drawn art; the edges between the corners are a number.** A
 // tile is `w` cells by `h` rows, and a shape scaled by one factor cannot be a
-// rectangle of any aspect - which is the rule the slider\'s track and the
+// rectangle of any aspect - which is the rule the slider\'s travel and the
 // dial\'s shaded zone are not drawn under. A corner is not parameterised by
 // anything, though, and a straight edge does not have to be drawn to be
 // right, so a ground is the one and the other: the same quarter set at four

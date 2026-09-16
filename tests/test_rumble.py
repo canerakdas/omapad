@@ -73,7 +73,12 @@ class FakePad:
     def upload_rumble(self, strong, weak, length_ms, effect_id=-1):
         if self.fail_upload:
             raise OSError(28, "no space left for effects")
-        self.uploads.append((strong, weak, length_ms))
+        self.uploads.append((strong, weak, length_ms, effect_id))
+        if effect_id >= 0:
+            # What the kernel does with an id it already knows: the slot is
+            # replaced and keeps its number, which is what lets a held effect
+            # change level without a gap.
+            return effect_id
         return self._claim()
 
     def upload_periodic(self, waveform, magnitude, period_ms, length_ms,
@@ -349,10 +354,12 @@ class VocabularyTests(unittest.TestCase):
 
     def test_each_word_gets_the_waveform_that_says_it(self):
         # The waveform is the meaning: a square is a wall, a triangle is a
-        # thing landing, a sine is a surface moving under the thumb.
+        # thing landing. The texture is the one that is **not** periodic - it
+        # has two motors to tell a direction with, and a periodic effect
+        # carries one magnitude.
         rumble, pad = self.full(rumble_texture=True)
         self.assertEqual([entry[0] for entry in pad.periodics],
-                         [li.FF_SQUARE, li.FF_TRIANGLE, li.FF_SINE])
+                         [li.FF_SQUARE, li.FF_TRIANGLE])
         self.assertEqual(pad.uploads[0][2], 60)   # the tick, on FF_RUMBLE
 
     def test_the_edge_is_two_cycles_and_the_commit_is_one(self):
@@ -365,9 +372,12 @@ class VocabularyTests(unittest.TestCase):
 
     def test_the_texture_runs_until_stopped(self):
         rumble, pad = self.full(rumble_texture=True)
-        length = [entry[3] for entry in pad.periodics
-                  if entry[0] == li.FF_SINE][0]
-        self.assertEqual(length, 0)
+        held = [entry for entry in pad.uploads if entry[2] == 0]
+        self.assertEqual(len(held), 1)
+        # Even on both motors until something aims it: a pad told to hold it
+        # with nothing to say about direction buzzes evenly rather than
+        # lopsidedly.
+        self.assertEqual(held[0][0], held[0][1])
 
     def test_the_floor_lifts_a_pulse_shorter_than_a_packet(self):
         rumble, pad = self.full(rumble_duration=10, rumble_edge_duration=20)
@@ -381,26 +391,85 @@ class VocabularyTests(unittest.TestCase):
         self.assertEqual(_amplitude(2.0), 0x7FFF)
         self.assertEqual(_amplitude(-1.0), 0)
 
-    def test_a_pad_with_no_periodic_effects_gets_three_ticks(self):
+    def test_a_pad_with_no_periodic_effects_gets_every_word_as_a_tick(self):
         config = FakeConfig()
         config.rumble_texture = True
         rumble = Rumble(config)
         pad = only_rumble()
         rumble.attach(pad)
-        self.assertEqual(sorted(rumble.effects), ["commit", "edge", "tick"])
+        self.assertEqual(sorted(rumble.effects),
+                         ["commit", "edge", "texture", "tick"])
         self.assertEqual(pad.periodics, [])
-        self.assertEqual(len(pad.uploads), 3)
+        self.assertEqual(len(pad.uploads), 4)
 
-    def test_the_texture_never_falls_back_to_a_pulse(self):
-        # Degrading a continuous effect onto one that has to be stopped is the
-        # tick that sticks on, arriving through a new door.
+    def test_the_texture_needs_no_waveform_a_pad_might_not_have(self):
+        # It was a sine, and a pad without one simply had no texture. Two
+        # motors are what it needs now, which is what FF_RUMBLE is, so every
+        # pad that rumbles at all can say this one.
         config = FakeConfig()
         config.rumble_texture = True
         rumble = Rumble(config)
         rumble.attach(only_rumble())
-        self.assertFalse(rumble.has("texture"))
-        rumble.start("texture")
+        self.assertTrue(rumble.has("texture"))
+
+    def test_aiming_puts_the_level_on_one_motor(self):
+        # The two motors are the two directions: right is the high-frequency
+        # one, left the low, and one of them is silent at any moment.
+        rumble, pad = self.full(rumble_texture=True)
+        rumble.aim("texture", "right")
+        strong, weak, length, effect = pad.uploads[-1]
+        self.assertEqual(strong, 0)
+        self.assertGreater(weak, 0)
+        self.assertEqual(length, 0)
+        # Replaced in place rather than uploaded again: a held effect that
+        # changed id would be a second effect, and the first would still be
+        # running.
+        self.assertEqual(effect, rumble.effects["texture"])
+        rumble.aim("texture", "left")
+        strong, weak = pad.uploads[-1][:2]
+        self.assertGreater(strong, 0)
+        self.assertEqual(weak, 0)
+
+    def test_the_level_is_the_effect_s_own_and_does_not_move(self):
+        # One level rather than a scale: what a hand pushing a control wants
+        # is that the push landed, not a second reading of the number the
+        # tile is already printing.
+        rumble, pad = self.full(rumble_texture=True,
+                                rumble_texture_strength=0.3)
+        rumble.aim("texture", "right")
+        self.assertEqual(pad.uploads[-1][1], _magnitude(0.3))
+        rumble.aim("texture", "left")
+        self.assertEqual(pad.uploads[-1][0], _magnitude(0.3))
+
+    def test_both_motors_is_a_side_as_well(self):
+        rumble, pad = self.full(rumble_texture=True)
+        rumble.aim("texture", "both")
+        strong, weak = pad.uploads[-1][:2]
+        self.assertEqual(strong, weak)
+        self.assertGreater(strong, 0)
+
+    def test_a_side_of_nothing_stops_the_effect(self):
+        rumble, pad = self.full(rumble_texture=True)
+        rumble.aim("texture", "right")
+        self.assertIn("texture", rumble._held)
+        rumble.aim("texture", "none")
         self.assertEqual(rumble._held, set())
+        self.assertEqual(pad.played[-1], (rumble.effects["texture"], 0))
+
+    def test_the_same_side_twice_is_one_upload(self):
+        # A step of a slider arrives at every repeat and every one of them
+        # asks for the side already running; a round trip for each would be
+        # an ioctl storm under the thumb.
+        rumble, pad = self.full(rumble_texture=True)
+        rumble.aim("texture", "right")
+        before = len(pad.uploads)
+        rumble.aim("texture", "right")
+        self.assertEqual(len(pad.uploads), before)
+
+    def test_a_word_that_is_played_cannot_be_aimed(self):
+        rumble, pad = self.full(rumble_texture=True)
+        with self.assertRaises(ValueError):
+            rumble.aim("tick", "right")
 
     def test_a_pad_with_no_force_feedback_uploads_nothing(self):
         rumble = Rumble(FakeConfig())
@@ -513,10 +582,11 @@ class ShippedSettingsTests(unittest.TestCase):
                                     settings=missing, layout=missing)
         rumble = Rumble(config)
         self.assertEqual(sorted(rumble.levels), sorted(rumble_module.EFFECTS))
-        # The texture ships off, so the only word with no level is that one.
+        # All four ship with a level now: the texture went on when it stopped
+        # being a flat hum and became how far a value has been taken.
         silent = [name for name in rumble_module.EFFECTS
                   if rumble.levels[name][0] <= 0]
-        self.assertEqual(silent, ["texture"])
+        self.assertEqual(silent, [])
 
     def test_a_strength_outside_the_range_is_named(self):
         with self.assertRaises(config_module.ConfigError) as caught:

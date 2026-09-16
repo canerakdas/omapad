@@ -45,10 +45,11 @@ def build_parser():
         nargs="*",
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
-        "|group_prev|group_next|select N|group N>, "
+        "|group_prev|group_next|select N|group N|row ID>, "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
+        "sound <move|tick|edge|commit>, "
         "press <BUTTON> [tap|hold], "
         "lock <on|off|toggle>, keep <on|off|toggle>, "
         "hud <on|off|toggle>, "
@@ -246,7 +247,13 @@ def _report_rumble(config, device):
     if not taken:
         print("rumble: no usable motor")
         return
-    said = [name if waveform is not None or name == "tick"
+    # "(as a tick)" is a word that *wanted* a waveform and did not get one,
+    # which is not the same as a word that never asked for one: the tick and
+    # the texture are both plain FF_RUMBLE by design - the texture because it
+    # has two motors to say a direction with, and a periodic effect carries
+    # one magnitude.
+    said = [name if waveform is not None
+            or rumble_module.VOCABULARY[name]["waveform"] is None
             else "%s (as a tick)" % name for name, waveform in taken]
     silent = [name for name in rumble_module.EFFECTS
               if words[name][0] > 0 and name not in dict(taken)]
@@ -317,7 +324,8 @@ def cmd_check(config):
     for layer_name, bindings in config.bindings.items():
         for button, spec in bindings.items():
             try:
-                actions.Binding(spec, config.announced_hold)
+                actions.Binding(spec, config.announced_hold,
+                                config.confirm_scale)
             except actions.ActionError as exc:
                 problems += 1
                 print("%s.%s: %s" % (layer_name, button, exc), file=sys.stderr)
@@ -339,7 +347,8 @@ def cmd_check(config):
     for profile in config.profiles:
         for button, spec in profile["bindings"].items():
             try:
-                actions.Binding(spec, config.announced_hold)
+                actions.Binding(spec, config.announced_hold,
+                                config.confirm_scale)
             except actions.ActionError as exc:
                 problems += 1
                 print(
@@ -350,7 +359,8 @@ def cmd_check(config):
         menu.build(config.menu_items, columns=config.menu_columns,
                    settings=config_module.CHOSEN,
                    readings=live_module.READINGS,
-                   machine=sysinfo_module.READINGS)
+                   machine=sysinfo_module.READINGS,
+                   countdown=config.menu_countdown)
     except menu.MenuError as exc:
         problems += 1
         print("%s" % exc, file=sys.stderr)
@@ -386,8 +396,9 @@ def cmd_check(config):
         # Which of the four words this pad can say. Printed because the
         # answer is the device's and the driver's rather than the config's -
         # a pad with no periodic effects answers an edge with a plain tick,
-        # and has no texture at all - and the only other way to find out is
-        # to press something and notice it felt like something else.
+        # and one with fewer slots than words drops the last of them - and
+        # the only other way to find out is to press something and notice it
+        # felt like something else.
         _report_rumble(config, device)
         # Only when there is something to say: a hand on the pad is the usual
         # reason, so this is not a problem and does not count as one. It is
@@ -472,7 +483,8 @@ def cmd_ctl(config, words):
 
     if not words:
         print("usage: omapad ctl "
-              "<osk|menu|guide|map|pad|lock|keep|hud|ripple|press|mode|status>"
+              "<osk|menu|guide|map|pad|lock|keep|hud|ripple|sound"
+              "|press|mode|status>"
               " [...]",
               file=sys.stderr)
         return 2

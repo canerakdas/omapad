@@ -99,7 +99,31 @@ If it does belong there, add it to `CHOSEN` in `config.py`:
 
 `kind` is `bool`, `choice` or `number`; a number needs `step`, `min`, `max`
 and a `unit` that reads in a sentence. **The step size is itself a decision** -
-comment it. A `choice` also wants `words`: what each value is *called* where
+comment it.
+
+A number with **few enough places to count from a sofa** says `stops` instead
+of `step` - a tuple of the values the pad walks, and `min`/`max` are its two
+ends. Three settings do: `radius` (five, a √2 ladder), `motion` (five) and
+`hold_scale` (seven). The test of it is whether somebody would stand on the
+values or cross them: a pointer speed is thirty-nine places nobody counts, and
+a corner is five you can see the difference between.
+
+**A stop is not always a word.** Two questions, not one:
+
+| | |
+|---|---|
+| Few stops? | the line has a cross at each stop, and the mark lights the stop's own length of it |
+| A place rather than an amount? | the line above it says a **word** rather than a number |
+
+`radius` and `motion` answer yes twice - which corner, and `Off`. `hold_scale`
+answers yes then no: a hold at 150% is half again as long as the one the
+binding was written at, and `Slower` would be a word standing where a quantity
+already reads. Where along the line the mark sits is worked out
+by the stops as well (`setting_share`), because spacing them by their
+arithmetic would bunch the bottom half of a ladder into the first third of the
+travel.
+
+A `choice` also wants `words`: what each value is *called* where
 somebody reads it, beside the choices rather than in a table of its own. A
 value with no word prints itself, which is right for the ones that already
 read as words.

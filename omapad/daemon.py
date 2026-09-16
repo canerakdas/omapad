@@ -12,7 +12,8 @@ from . import actions, keymap, linux_input as li
 from .actions import MappingAction
 from .config import (
     CHOSEN, DPAD_NAMES, SURFACES, layout_path, mapping_path, render_layout,
-    render_settings, setting_text, settings_path,
+    nearest_stop_index, render_settings, setting_share, setting_text,
+    settings_path,
 )
 from .control import ControlServer
 from . import guide as guide_module
@@ -24,11 +25,14 @@ from .gamebar import GameBarModel
 from .guide import GuideModel
 from .hud import HudModel
 from .mapping import MappingModel, render as render_mapping
-from .menu import (CONTROL_KINDS, MenuError, MenuModel, build as build_menu,
-                   build_head, head_sources, listed)
+from .menu import (CONTROL_KINDS, ROWS, MenuError, MenuModel,
+                   build as build_menu, build_head, head_sources,
+                   meta_sources, listed)
 from .osk import OskModel, badge_index
 from . import paths
 from .ripple import RippleModel
+from . import sound as sound_module
+from .sound import SoundModel
 from .live import Live
 from . import live as live_module
 from .sysinfo import Sysinfo
@@ -64,6 +68,27 @@ POINTER_STAYS = (actions.ClickAction, actions.ScrollAction,
 # a stick with nothing to do.
 STICK_ROLES = ("cursor", "scroll", "resize", "move", "snap", "focus",
                "swap")
+def ramped(rate, ramp, ramp_time, held):
+    """The gap before the next step of a direction held `held` seconds.
+
+    A direction held down is somebody crossing a distance rather than picking
+    the thing next door, and a walk that stays at one speed the whole way is
+    most of why a long row is hard to cross at all: a keyboard page is
+    fourteen keys wide, and fourteen steps is the same journey however quickly
+    the last one arrives. So the steps close up the longer the thumb is on it -
+    `ramp` times the shipped rate by `ramp_time`, and no faster after that.
+
+    Linear in **speed** rather than in the gap, which is the one decision in
+    here: ramping the gap spends most of the acceleration in the first tenth
+    of the journey and then crawls, and what a thumb is doing is covering
+    distance.
+    """
+    if ramp <= 1.0 or ramp_time <= 0:
+        return rate
+    share = min(1.0, held / ramp_time)
+    return rate / (1.0 + (ramp - 1.0) * share)
+
+
 RECONNECT_INTERVAL = 2.0
 # When nothing is deflected or held there is nothing to integrate, so the loop
 # blocks on poll() this long instead of waking at the full polling rate. Any
@@ -160,7 +185,8 @@ def apply_curve(x, y, deadzone, exponent):
 
 
 class HeldAction:
-    __slots__ = ("action", "binding", "pressed_at", "hold_fired", "warned")
+    __slots__ = ("action", "binding", "pressed_at", "hold_fired", "warned",
+                 "released_at")
 
     def __init__(self, action, binding, pressed_at):
         self.action = action
@@ -169,6 +195,10 @@ class HeldAction:
         # A confirming hold that has announced itself and is counting down.
         self.warned = False
         self.hold_fired = False
+        # When the finger came off one that was already counting down, while
+        # `[confirm] slack_ms` says the countdown survives a slip. None is a
+        # button that is still down, which is every hold on a shipped config.
+        self.released_at = None
 
 
 class Daemon:
@@ -249,7 +279,8 @@ class Daemon:
                                columns=config.menu_columns,
                                settings=CHOSEN,
                                readings=live_module.READINGS,
-                               machine=sysinfo_module.READINGS)
+                               machine=sysinfo_module.READINGS,
+                               countdown=config.menu_countdown)
         except MenuError as exc:
             # A broken entry must not take the daemon down with it; the menu
             # comes up empty and `omapad check` names the row.
@@ -337,12 +368,22 @@ class Daemon:
         # asked the desktop for - see `check_theme`.
         self._theme_seen = None
         self._theme_next_check = 0.0
+        # Whether the compositor animates anything at all. Cached rather
+        # than asked per push: it is read on the theme beat, and a payload
+        # goes out sixty times a second while a gauge is selected. True until
+        # something says otherwise, so a desktop with no Hyprland to ask -
+        # the tests, a bare session - draws the surfaces as designed.
+        self._desktop_animates = True
         # The last thing each head cell's command said, and when it may be
         # asked again. The head is read-only, so a stale answer is drawn
         # rather than blanked: a cell that empties because a helper was slow
         # reads as a drawing fault.
         self._menu_head_text = {}
         self._menu_head_due = {}
+        # The same pair for the bar: what each group's `meta` command last
+        # said, and when it is worth asking again.
+        self._menu_meta_text = {}
+        self._menu_meta_due = {}
         # One built binding per page and button, for the keys a page spends.
         # Keyed by page rather than cleared on every move: what a page spends
         # never changes, and there are not many pages.
@@ -389,6 +430,12 @@ class Daemon:
         self.ripple = RippleModel(config)
         self.ripple_client = ViewClient("ripple.sock", config.ripple_socket)
 
+        # What a press sounds like. The same shape for the same reason: a
+        # sound that has finished has nothing to repaint, so there is no
+        # heartbeat and no `open` here either. See sound.py.
+        self.sound = SoundModel(config)
+        self.sound_client = ViewClient("sound.sock", config.sound_socket)
+
         self.gamebar = GameBarModel(config)
         self.gamebar_client = ViewClient("gamebar.sock", config.gamebar_socket)
         self.gamebar_open = False
@@ -406,6 +453,25 @@ class Daemon:
         self._mapping_down = None
         self._mapping_axis_hot = set()
         self.repeats = {}
+        # When the pad was last touched, and whether that still counts as
+        # somebody being there. Both start true: a daemon that came up has
+        # just been started by somebody, and a screen that went dark the
+        # moment the pad was plugged in would be the wrong first impression.
+        self._touched = time.monotonic()
+        self._awake = True
+        # A menu row that is being held down towards running: the row, when
+        # the thumb landed on it, and whether it has announced itself yet.
+        # None almost always - only the handful of rows nobody can undo ask
+        # for it. See `menu_arm`.
+        self._menu_confirm = None
+        # And a menu row that has been pressed and is **counting down** to
+        # running: `{id, item, at}`. The other answer to *are you sure*, and
+        # the one that asks nothing of the hand - see `menu_count`.
+        self._menu_countdown = None
+        # Which page's listing cards have been read, and when the page in
+        # front is due to be asked. See `menu_cards_settled`.
+        self._menu_cards_page = ""
+        self._menu_cards_due = 0.0
 
         # The keyboard on the desk. Opened only while one of our surfaces is
         # up, so a panel is never something you have to find the pad to send
@@ -894,7 +960,7 @@ class Daemon:
         self.push_status_view()
         log.info("mode: %s", mode)
         if self.config.mode_rumble:
-            self.rumble.pulse()
+            self.say("tick")
         if self.config.notify:
             self.session.notify(
                 "omapad",
@@ -1011,6 +1077,35 @@ class Daemon:
         except OSError as exc:
             log.warning("could not turn the bar %s: %s", wanted, exc)
 
+    def touched(self):
+        """Somebody is there: a press, a step, a thumb on a stick.
+
+        Pad input is invisible to the compositor - walking a menu moves a
+        selection over a socket and produces no Wayland input at all - which
+        is why the surfaces hold an idle inhibitor while they are up. This is
+        the other end of that hold: what it follows is the thumb rather than
+        the surface, so a menu left open on a television stops holding the
+        screensaver off all night.
+        """
+        self._touched = time.monotonic()
+        if not self._awake:
+            self._awake = True
+            # The surfaces are told because each binds its inhibitor to this,
+            # and the desktop because game mode asks it for `stay-awake`.
+            self.push_open_views()
+            self.apply_idle()
+
+    def check_awake(self, now):
+        """Has the pad been quiet long enough to hand idling back?"""
+        if not self._awake or self.config.idle_awake <= 0:
+            return
+        if now - self._touched < self.config.idle_awake:
+            return
+        self._awake = False
+        log.info("idle: the pad has been quiet, letting the screen go")
+        self.push_open_views()
+        self.apply_idle()
+
     def apply_idle(self, restore=False):
         """Keep the screen awake while game mode is up, and give idle back.
 
@@ -1023,7 +1118,13 @@ class Daemon:
         """
         if not self.config.stay_awake_in_game:
             return
-        wanted = "allow-idle" if (restore or self.mode == "desktop") else "stay-awake"
+        # A pad nobody has touched for `[idle] awake_ms` is not a game being
+        # played: game mode is the couch environment rather than a session
+        # somebody is in, and a television left on it all night is the one
+        # screen this could cost the most.
+        wanted = ("allow-idle"
+                  if (restore or self.mode == "desktop" or not self._awake)
+                  else "stay-awake")
         try:
             self.session.spawn("omarchy toggle idle %s" % wanted)
         except OSError as exc:
@@ -1250,7 +1351,8 @@ class Daemon:
                 )
                 source = "base"
             try:
-                binding = (actions.Binding(spec, self.config.announced_hold)
+                binding = (actions.Binding(spec, self.config.announced_hold,
+                                           self.config.confirm_scale)
                            if spec is not None else None)
                 if binding is not None:
                     binding.layer = source
@@ -1273,7 +1375,8 @@ class Daemon:
         key = (self.menu.page_name(), button)
         if key not in self.page_keys:
             try:
-                binding = actions.Binding(spec, self.config.announced_hold)
+                binding = actions.Binding(spec, self.config.announced_hold,
+                                          self.config.confirm_scale)
             except actions.ActionError as exc:
                 # `omapad check` names it; here the page simply keeps what the
                 # layer said, which is the menu's own X and Y.
@@ -1319,7 +1422,22 @@ class Daemon:
             )
             if row is None:
                 continue
-            rows.append({"b": row["b"], "k": row["k"], "n": row["d"]})
+            word = row["d"]
+            if button == self.config.confirm_cancel \
+                    and self._menu_countdown is not None:
+                # While a row is counting, B is not the way back out of the
+                # page - it is the way to stop what is about to happen, and
+                # the row printing a number is no use to somebody who does
+                # not know which button takes it back.
+                word = "Cancel"
+            if button == "A" and self.menu_holds():
+                # The one tile where A is not a press. Said before it is
+                # pressed rather than found out by pressing: this row is the
+                # page's own line about its buttons, and a button that means
+                # something else on the tile in front is exactly what it is
+                # for.
+                word = "Hold to confirm"
+            rows.append({"b": row["b"], "k": row["k"], "n": word})
         return rows
 
     # The layers that are ours rather than the game's: a surface drawn on
@@ -1727,6 +1845,55 @@ class Daemon:
             return self.config.ui_game_scale
         return self.config.ui_scale
 
+    def view_motion(self):
+        """How long the surfaces may take to move.
+
+        Two answers, and the desktop's is a **veto rather than a scale**: it
+        can take motion away and never add it, so a person who has set
+        `[ui] motion = 0` is still answered on a desktop that animates, and
+        one who has left it at 1 is answered by the desktop that does not.
+        Multiplying the two would make the same claim in a way that reads as
+        arithmetic instead of as a rule.
+        """
+        if self.config.ui_motion_follows_desktop and not self._desktop_animates:
+            return 0.0
+        return self.config.ui_motion
+
+    def read_desktop_motion(self):
+        """Ask the compositor whether it animates anything. True when changed.
+
+        `animations:enabled` is this desktop's own answer to the question
+        `[ui] motion` asks, given about every window on screen - the same
+        standing this program gives `decoration:rounding` and `gaps_out`, one
+        property along. No compositor to ask leaves the last answer alone:
+        the surfaces keep moving rather than freezing because a socket went.
+        """
+        answer = self.hypr.query("getoption animations:enabled")
+        if not isinstance(answer, dict):
+            return False
+        value = answer.get("bool", answer.get("int"))
+        if value is None:
+            return False  # a build without the option is not a desktop saying no
+        animates = bool(value)
+        if animates == self._desktop_animates:
+            return False
+        self._desktop_animates = animates
+        log.info("the desktop %s animations; the surfaces follow",
+                 "allows" if animates else "has turned off")
+        return True
+
+    def view_safe(self):
+        """How much of the screen's edge the surfaces keep clear.
+
+        Game mode only, and that is the whole of the rule: a television is
+        the one screen that crops its own edges, and game mode is the only
+        time this program is looking at one. A desk monitor draws every pixel
+        it is sent, so a gap kept there is a gap for nothing.
+        """
+        if self.mode == "game":
+            return self.config.ui_safe_area
+        return 0.0
+
     def scaled(self, state):
         """One surface payload, stamped with how it should be drawn.
 
@@ -1738,12 +1905,30 @@ class Daemon:
         if isinstance(state, dict):
             state["scale"] = self.view_scale()
             state["badge"] = self.config.ui_badge_style
+            # How long everything on it takes to move. Beside the scale
+            # because it is the same kind of answer - how this surface is
+            # drawn rather than what it holds - and because a person who has
+            # turned motion off has turned it off on every surface at once.
+            state["motion"] = self.view_motion()
+            # And how much of its edge it keeps clear. A share rather than a
+            # measurement, because what a television crops is a proportion
+            # of the picture rather than a number of pixels.
+            state["safe"] = self.view_safe()
             # Whether our own bar is holding a strip of the screen. A surface
             # that dims the desktop behind it must not dim that strip: the bar
             # is printing what the face buttons do *in the surface standing on
             # top of it*, and a legend read through a scrim is the last thing
             # on screen that should go dark.
             state["bar"] = self.gamebar_open
+            # Whether this surface may still hold the screen awake. True of
+            # every surface at once, because what it answers is whether
+            # anybody is holding the pad rather than what is on screen.
+            state["awake"] = self._awake
+            # How hard a corner is rounded, against the desktop's own answer.
+            # Beside the scale because it is the same kind of thing - how this
+            # surface is drawn rather than what it holds - and because a
+            # person who has rounded one of them has rounded all of them.
+            state["radius"] = self.config.ui_radius
         return state
 
     def show_ripple(self, button):
@@ -1760,6 +1945,49 @@ class Daemon:
             return False
         self.ripple_client.send(self.scaled(self.ripple.view_state()))
         return True
+
+    def say(self, name, rumble=True):
+        """One press, answered in both the ways this program can answer it.
+
+        The motor and the speakers are two things saying one word, so they
+        are said together and named once at the call site: a moment that
+        ticked but did not click would be two vocabularies to keep in step by
+        hand, which is how they stop being in step.
+
+        `rumble=False` is the one asymmetry, and `move` is why it exists: a
+        motor that ticked on every step of a held direction buzzes the whole
+        way down a list, and a speaker doing the same thing ticks, because a
+        sound decays and a vibration does not.
+
+        Best-effort at both ends - a pad with no motor, a shell that is not
+        up - and neither is a reason for the press itself to have gone
+        anywhere but through.
+        """
+        if rumble:
+            # The motor says the nearest thing it has. `move` and `back` are
+            # the two words it does not hold, and both are a press, so both
+            # tick: the hands feel that something happened and the speakers
+            # are what say which. See sound.py.
+            self.rumble.play(
+                "tick" if name in ("move", "back") else name)
+        if not self.config.sound_enabled:
+            return False
+        if not self.sound.say(name):
+            return False
+        self.sound_client.send(self.sound_state())
+        return True
+
+    def sound_state(self):
+        """The cue, with where its files live.
+
+        Not through `scaled()`: nothing here is drawn, so a scale, a badge
+        style and whether a bar is up are three answers to questions this
+        payload does not ask. `dir` rides every line because there is no
+        heartbeat to carry it on its own.
+        """
+        state = self.sound.view_state()
+        state["dir"] = self.config.sound_pack
+        return state
 
     def push_osk_view(self):
         self._osk_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
@@ -1784,26 +2012,38 @@ class Daemon:
 
     def osk_command(self, command):
         if command == "toggle":
+            # Toggled shut is closed: MINUS is the same button going the other
+            # way, and a button that answered on the way in and said nothing
+            # on the way out would be the surface keeping half a promise.
+            if self.osk_open:
+                self.say("back")
             self.set_osk(not self.osk_open)
             return
         if command == "open":
             self.set_osk(True)
             return
         if command == "close":
+            if self.osk_open:
+                self.say("back")
             self.set_osk(False)
             return
         if not self.osk_open:
             return  # navigation means nothing while the keyboard is down
 
         model = self.osk
-        if command == "up":
-            model.move_vertical(-1)
-        elif command == "down":
-            model.move_vertical(1)
-        elif command == "left":
-            model.move_horizontal(-1)
-        elif command == "right":
-            model.move_horizontal(1)
+        if command in ("up", "down", "left", "right"):
+            # Heard, never felt, and the keyboard is the surface that makes
+            # the case: crossing it is a dozen steps under a held direction,
+            # which is a dozen ticks nobody would leave the motor on for.
+            if command == "up":
+                model.move_vertical(-1)
+            elif command == "down":
+                model.move_vertical(1)
+            elif command == "left":
+                model.move_horizontal(-1)
+            else:
+                model.move_horizontal(1)
+            self.say("move", rumble=False)
         elif command in ("shift", "ctrl", "alt"):
             model.latch(command)
         elif command.startswith("layer:"):
@@ -1851,6 +2091,12 @@ class Daemon:
         if opened == self.menu_open:
             return
         self.menu_open = opened
+        # A row counting down belongs to the page it is on. The menu going
+        # away is not somebody deciding against it, so it is not announced as
+        # a cancel - it simply stops, the way the hold does when the surface
+        # holding it closes.
+        self.menu_disarm()
+        self.menu_uncount()
         if not opened:
             # Whatever was being pushed stops being pushed. Written down here
             # rather than lost: the menu closing is one of the four ways to
@@ -1870,12 +2116,25 @@ class Daemon:
             # What a row is allowed to ask about is read here, before the
             # first level is built, and stands for as long as the menu is up.
             self.menu.conditions = self.menu_conditions()
+            # A first start is answered once, and being shown it is what
+            # answers it: the conditions a line above are already read and
+            # stand for as long as this menu is up, so the `Start here` tile
+            # keeps its place for this opening and is gone by the next.
+            #
+            # Not through `set_setting`: there is nothing to apply, nothing to
+            # repaint, and a notification saying a mark had been written is
+            # the machine talking about itself.
+            if self.config.menu_first_run:
+                self.config.set_setting("first_run", ("set", False))
+                self.save_settings()
+                log.info("menu: first run answered")
             # Back where it was, or the first tile of the first chip. Most of
             # what a HUD is for is coming back: you turn the volume down, go
             # back to the game, and come back to turn it down again.
             self.menu.reset(self._menu_where)
             self.menu_group_enter()
             self.menu_head_refresh()
+            self.menu_meta_refresh()
             # Both surfaces read the D-pad, and stacking the menu over the
             # keyboard leaves no way to tell which one a press belongs to.
             self.set_osk(False)
@@ -1900,6 +2159,10 @@ class Daemon:
         terminal and then have to find the menu again to take it back. Game
         mode is the couch, and a pad the app in front has already taken is a
         game whether or not anyone switched modes - either is enough.
+
+        `first_run` is the other kind: true until the menu has been opened
+        once, which is what puts the `Start here` tile in front of somebody
+        who has never held this pad before.
         """
         states = set()
         if self.mode == "game":
@@ -1910,28 +2173,49 @@ class Daemon:
             states.add("locked")
         if self.keeping:
             states.add("kept")
+        if self.config.menu_first_run:
+            states.add("first_run")
         return frozenset(states)
 
     def push_menu_view(self):
         self._menu_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
         state = self.menu.view_state(
             self.menu_open, self.action_state, self.action_value,
-            self._menu_head_text, self.menu_legend(), self.menu_control
+            self._menu_head_text, self.menu_legend(), self.menu_control,
+            self._menu_meta_text
         )
         # Stamped here rather than in the model: whether the card fills the
         # screen is a setting, and `menu.py` holds state and geometry and
         # reads no config. Not in `scaled()` either - that is for what is true
         # of every surface, and this is true of one.
+        # Which row is being held down towards running, and how far it has
+        # got. Stamped rather than in the model for the reason the rest of
+        # these are: the two waits are `[confirm]`'s, and `menu.py` reads no
+        # config. Absent while nothing is held.
+        confirming = self.menu_confirm_state()
+        if confirming is not None:
+            state["confirm"] = confirming
+        # And which row is counting down, with how many whole seconds are
+        # left. The same shape and the same reason: the length is `[menu]
+        # countdown`'s and `menu.py` reads no config. Absent while nothing is
+        # counting, which is what ends one on the panel's side.
+        left = self.menu_countdown_left()
+        if left is not None:
+            state["count"] = {"id": self._menu_countdown["id"], "left": left}
         state["full"] = self.config.menu_fullscreen
         state["dim"] = self.config.menu_dim
         # How much of a tile's corner is drawn art. Travels even though it
         # looks like a shell constant, for the reason every geometry setting
         # does: the shell cannot read the config.
         state["corner"] = self.config.menu_tile_corner
+        # And how long a tile stays lit once a press has landed on it. The
+        # model says which tile and which press; how long is a setting, and
+        # `menu.py` reads no config.
+        state["press_ms"] = self.config.menu_press_ms
         # And how tall a cell is, for the same reason: `columns` decides the
         # width of one and this decides the rest of it, and neither is
         # something the panel can look up.
-        state["cell"] = self.config.menu_cell_height
+        state["cell"] = self.config.menu_cell
         # How tall the game bar is, so a fullscreen HUD can put its own row of
         # hints in exactly the band the bar's row sits in. The buttons must
         # not move when the menu opens: it is the same four words about the
@@ -1964,6 +2248,49 @@ class Daemon:
                 # longer than its own ttl is not asked twice over.
                 self._menu_head_due[line["id"]] = now + max(line["ttl"], 1.0)
                 self.menu_head_read(line)
+
+    def menu_meta_refresh(self):
+        """Ask each group's `meta` command for anything that has gone stale.
+
+        `menu_head_refresh` for the bar, and the same two rules: off the loop,
+        and only while the menu is up. What is different is how many there
+        are - a head has two or three lines and a bar has one per group - so a
+        `ttl` here is not optional politeness. A group that reads a sink every
+        redraw is eight subprocesses a second for a row of two-word labels.
+        """
+        if not self.menu_open:
+            return
+        now = time.monotonic()
+        for meta in meta_sources(self.menu.groups):
+            due = self._menu_meta_due.get(meta["id"], 0.0)
+            if due and now < due:
+                continue
+            # Written before the answer lands, so a command slower than its
+            # own ttl is not asked twice over.
+            self._menu_meta_due[meta["id"]] = now + max(meta["ttl"], 1.0)
+            self.menu_meta_read(meta)
+
+    def menu_meta_read(self, meta):
+        def took(lines):
+            text = " ".join(part.strip() for part in lines if part.strip())
+            if text:
+                # A command that printed nothing leaves the last answer where
+                # it is: a blank card says less than a stale one.
+                self._menu_meta_text[meta["id"]] = text
+                if meta["ttl"] <= 0:
+                    self._menu_meta_due[meta["id"]] = float("inf")
+            elif meta["empty"]:
+                # Unlike a head line: a bar that went quiet has somewhere to
+                # say so, and `empty` is the word for it.
+                self._menu_meta_text.pop(meta["id"], None)
+            self.push_menu_view()
+
+        if not self.submit_command(
+            meta["from"], took, self.config.menu_list_timeout
+        ):
+            took(self.session.capture(
+                meta["from"], self.config.menu_list_timeout
+            ))
 
     def menu_head_read(self, line):
         def took(lines):
@@ -2002,12 +2329,17 @@ class Daemon:
         """
         if not item or not item.get("from"):
             return
+        # A page that lists, or a **card** that does. The difference is only
+        # which list the answer lands in: a submenu's rows are the page you
+        # are about to be on, and a card's are drawn where they stand.
+        held = (item["rows"] if item.get("control") == ROWS
+                else item["items"])
 
         def fill(lines):
             try:
                 # In place: the model is already drawing this very list, and a
                 # fresh one bound here would be a page nobody is looking at.
-                item["items"][:] = listed(
+                held[:] = listed(
                     item, lines, self.config.menu_list_limit
                 )
             except MenuError as exc:
@@ -2036,6 +2368,18 @@ class Daemon:
         if not self.menu_open:
             return
         self.menu.select(index)
+        self.push_menu_view()
+
+    def menu_select_row(self, name):
+        """Jump the row cursor inside the card in front, the way a pointer does.
+
+        Two calls rather than one - the tile, then the row - because a cursor
+        crossing from one card into another is two things changing, and a verb
+        that took both would have to know the order they changed in.
+        """
+        if not self.menu_open:
+            return
+        self.menu.select_row(name)
         self.push_menu_view()
 
     def menu_control(self, item):
@@ -2405,9 +2749,19 @@ class Daemon:
         """
         if value is None:
             return {"t": words}
-        span = float(spec["max"]) - float(spec["min"])
-        share = 0.0 if span <= 0 else (float(value) - spec["min"]) / span
-        return {"v": round(max(0.0, min(1.0, share)), 3), "t": words}
+        share = setting_share(spec, value)
+        fields = {"v": round(max(0.0, min(1.0, share)), 3), "t": words}
+        stops = spec.get("stops")
+        if stops:
+            # A ladder is drawn in its own stops rather than as a length: the
+            # bar is that many segments and this many of them are filled, so
+            # what the eye reads is which stop out of how many. A share alone
+            # would be a bar four pixels further along than the last press
+            # left it, on a control whose whole point is that it has places to
+            # be rather than a distance to cover.
+            fields["seg"] = len(stops)
+            fields["at"] = nearest_stop_index(stops, value)
+        return fields
 
     def menu_gauge(self, item, name):
         """A gauge's fields: the bar's two, plus the zone it shades.
@@ -2500,14 +2854,22 @@ class Daemon:
             way = "down" if y > 0 else "up"
         held = self._focus_held.get(("menu", stick))
         if held is None or held[0] != way:
+            # Third slot: how long this direction has been held, which is what
+            # the walk accelerates against. A reversal starts a new entry and
+            # so starts it again - somebody who went too far is not somebody
+            # crossing a distance.
             self._focus_held[("menu", stick)] = [
-                way, self.config.traverse_repeat_delay
+                way, self.config.traverse_repeat_delay, 0.0
             ]
         else:
             held[1] -= dt
+            held[2] += dt
             if held[1] > 0:
                 return
-            held[1] = self.config.traverse_repeat_rate
+            held[1] = ramped(self.config.traverse_repeat_rate,
+                             self.config.traverse_repeat_ramp,
+                             self.config.traverse_repeat_ramp_time,
+                             held[2])
         self.menu_command(way)
 
     def menu_take(self):
@@ -2523,6 +2885,14 @@ class Daemon:
         item = self.menu.takeable()
         if item is None or not self.menu.take():
             return False
+        if not item["reads"]:
+            # A card of rows reads nothing, so there is nothing to put back:
+            # going into a list is a place to be rather than a number being
+            # pushed, and B out of it undoes a walk rather than a value.
+            self._menu_before = None
+            self.say("move", rumble=False)
+            self.push_menu_view()
+            return True
         source, name = item["reads"]
         if source == "live":
             # Nothing to put back: the value is the machine's rather than
@@ -2538,7 +2908,7 @@ class Daemon:
                                  name in self.config.chosen)
         self._menu_edged = False
         self._menu_sweep = 0.0
-        self.rumble.play("commit")
+        self.say("commit")
         self.push_menu_view()
         return True
 
@@ -2560,7 +2930,10 @@ class Daemon:
             # a cancel leaves the file exactly as it found it.
             self._menu_dirty = None
         self.menu_settle(force=True)
-        self.rumble.play("commit")
+        # Two ways off a control and they are not the same event: A keeps
+        # what it is on, B puts it back. One concluded and the other went the
+        # other way, which is exactly the pair these two words are.
+        self.say("commit" if keep else "back")
         self.push_menu_view()
         return True
 
@@ -2584,6 +2957,31 @@ class Daemon:
         share = 1.0 if span <= 0 else min(1.0, (now - self._menu_since) / span)
         return max(1, int(round(1.0 + (ramp - 1.0) * share)))
 
+    def menu_feel(self, direction, sideways=True):
+        """The motor, answering a push on the side the push was made.
+
+        **The hand that moved it is the hand that feels it.** A pad wires its
+        low-frequency motor on the left and its high-frequency one on the
+        right, so a value taken to the right buzzes on the right - which is
+        the one thing the motor can say that the screen cannot say faster,
+        and the only thing a hand pushing a control is asking about.
+
+        One level rather than a scale. A hum that rose with the distance from
+        where a push began was a second reading of a number the tile is
+        already printing, and a control being pushed wants *the push landed*
+        rather than a measurement.
+
+        **Up and down are the left motor**, both of them: a list is walked
+        with the D-pad, the D-pad is under the left thumb, and a vertical
+        movement has no left and right to answer with. `sideways` is False
+        there, and the direction is then only about which way the list went -
+        which the sound already says.
+        """
+        if not sideways:
+            self.rumble.aim("texture", "left")
+            return
+        self.rumble.aim("texture", "right" if direction > 0 else "left")
+
     def menu_adjust(self, item, direction, steps=None):
         """Move a control one way. False where it has nowhere left to go.
 
@@ -2597,6 +2995,12 @@ class Daemon:
         source, name = item["reads"]
         if steps is None:
             steps = self.menu_ramp((item["id"], direction))
+            if source == "pad" and CHOSEN.get(name, {}).get("stops"):
+                # No ramp on a ladder. It exists because a speed is
+                # thirty-eight presses end to end; a ladder is six, and a
+                # held direction would cross the whole of it in the first
+                # push and sit at the end.
+                steps = 1
         if source == "live":
             # No file to write and nothing to apply: the machine is where the
             # value lives, and the tile is showing what it last said.
@@ -2604,7 +3008,7 @@ class Daemon:
             if moved:
                 self._menu_edged = False
                 self._menu_moving = MENU_SCRUB_HOLD
-                self.rumble.start("texture")
+                self.menu_feel(direction)
             return moved
         if source != "pad":
             return False
@@ -2624,7 +3028,7 @@ class Daemon:
         # One continuous effect rather than a tick per step: `[snap] rumble`'s
         # rule is that a step repeating under a held button would buzz all the
         # way down a list, and a slider is that list with the numbers showing.
-        self.rumble.start("texture")
+        self.menu_feel(direction)
         self.push_menu_view()
         return True
 
@@ -2639,7 +3043,7 @@ class Daemon:
         self._menu_edged = True
         self._menu_moving = 0.0
         self.rumble.stop("texture")
-        self.rumble.play("edge")
+        self.say("edge")
 
     def menu_sweep(self, dt):
         """The triggers, crossing a control's range rather than stepping it.
@@ -2670,8 +3074,16 @@ class Daemon:
         if source != "pad":
             return
         spec = CHOSEN[name]
-        step = float(spec["step"])
-        span = float(spec["max"]) - float(spec["min"])
+        stops = spec.get("stops")
+        if stops:
+            # A ladder is swept by its stops rather than along its numbers:
+            # they are a proportion apart, so the value's own arithmetic range
+            # would cross the bottom four of them in a sixth of the pull and
+            # spend the rest of it on the top two.
+            step, span = 1.0, float(len(stops) - 1)
+        else:
+            step = float(spec["step"])
+            span = float(spec["max"]) - float(spec["min"])
         seconds = max(0.001, self.config.menu_sweep_ms / 1000.0)
         # The push is live from the moment the trigger is pulled, not from the
         # first whole step it lands: at a gentle pull a step is several ticks
@@ -2771,6 +3183,31 @@ class Daemon:
         if self.menu_open and self.menu.groups:
             self.menu_fill(self.menu.groups[self.menu.group])
 
+    def menu_cards_settled(self, now):
+        """Read the listing cards on the page in front. Called from the loop.
+
+        A listed **submenu** is read at the press that enters it; nobody
+        enters a card, so a card is read when the page it stands on stops
+        changing. `[menu] group_settle_ms` is that wait, and it is the chip's
+        own for the chip's reason: walking across four pages should spawn one
+        command rather than four.
+
+        Keyed on the page rather than on a turn, so every way onto a page -
+        the bar, drilling in, coming back out, opening the menu where it was
+        left - arms it once and the same way.
+        """
+        page = self.menu.page_name() if self.menu_open else ""
+        if page != self._menu_cards_page:
+            self._menu_cards_page = page
+            self._menu_cards_due = (now + self.config.menu_group_settle
+                                    if page else 0.0)
+            return
+        if not self._menu_cards_due or now < self._menu_cards_due:
+            return
+        self._menu_cards_due = 0.0
+        for tile in self.menu.tiles:
+            self.menu_fill(tile["item"])
+
     def menu_select_group(self, index):
         """Name a chip outright - what a pointer clicking one asks for."""
         if not self.menu_open:
@@ -2788,12 +3225,24 @@ class Daemon:
             self.set_menu(True)
             return False
         if command == "close":
+            # X and the four buttons that leave outright. The same word `back`
+            # is: nothing was decided, and what a room hears is somebody
+            # putting the surface away. A row that ran and took the menu with
+            # it does not come through here - it has its own answer, and two
+            # sounds for one press is one of them arguing with the other.
+            if self.menu_open:
+                self.say("back")
             self.set_menu(False)
             return False
         if not self.menu_open:
             return False  # navigation means nothing while the menu is down
 
         model = self.menu
+        # Anything that is not the press keeping a held row down is that row
+        # being let go of: walking away from a tile counting down, or closing
+        # the page it is on, is not a thing to keep counting behind.
+        if command != "press":
+            self.menu_disarm()
         held = False
         if command in ("edit", "edit_on", "edit_off"):
             want = (not model.edit if command == "edit"
@@ -2814,10 +3263,10 @@ class Daemon:
                 return False
             if command == "pick":
                 model.pick()
-                self.rumble.play("commit")
+                self.say("commit")
             elif command == "hide":
                 model.hide()
-                self.rumble.play("commit")
+                self.say("commit")
                 self.hud_rearranged()
             elif command == "restore":
                 if model.restore():
@@ -2845,6 +3294,24 @@ class Daemon:
             self.push_menu_view()
             return True
         if command in ("up", "down", "left", "right"):
+            if model.entered:
+                # A card of rows took **one** axis, and it is the other one: a
+                # list runs down the card, so left and right say nothing here
+                # rather than doing a slider's job on a thing with no range.
+                if command in ("up", "down"):
+                    if model.step_row(command):
+                        self.say("move", rumble=False)
+                        # The vertical instrument's own push, and it is felt
+                        # the way the horizontal one is: held while the list
+                        # is moving, let go of when it stops (`menu_settle`).
+                        # On the left, because that is the thumb on the D-pad.
+                        self._menu_moving = MENU_SCRUB_HOLD
+                        self.menu_feel(0, sideways=False)
+                    else:
+                        self.menu_edge()
+                    self.push_menu_view()
+                    return True
+                return False
             if model.taken is not None:
                 # Both axes belong to the tile now. Only the one the control
                 # has: a range is one dimension, and answering up and down
@@ -2857,12 +3324,26 @@ class Daemon:
             # same geometry that decides which window a flick lands on. A
             # press with nothing that way leaves the selection alone rather
             # than wrapping - in two dimensions, wrapping is losing it.
-            model.step(command)
+            # The one event that is heard and never felt. A motor ticking on
+            # every step of a held direction buzzes the whole way down a
+            # page, which is the rule `[snap] rumble` exists for; a sound
+            # decays, so it ticks instead. Only when the selection actually
+            # went somewhere - a push into the edge of a page is not a step.
+            if model.step(command):
+                self.say("move", rumble=False)
             held = True
         elif command in ("group_prev", "group_next"):
-            model.group_move(-1 if command == "group_prev" else 1)
+            if model.group_move(-1 if command == "group_prev" else 1):
+                self.say("move", rumble=False)
             self.menu_group_enter()
             held = True
+        elif command == "back" and self._menu_countdown is not None:
+            # **B, and only B.** Ten seconds is long enough to want to look at
+            # something else on the page, so walking the cursor does not stop
+            # a count the way it lets go of a hold - a count that died because
+            # a thumb brushed a stick would be worse than no count at all.
+            self.menu_uncount(True)
+            return False
         elif command == "back" and model.taken is not None:
             # B leaves, here as everywhere - and leaving a control you have
             # pushed too far is putting it back where it was. A is the one
@@ -2872,15 +3353,22 @@ class Daemon:
         elif command == "back":
             # Back at the top of a group is the way out, the way Esc is in the
             # Omarchy menu. The bar is not a level to climb to.
+            self.say("back")
             if not model.back():
                 self.set_menu(False)
                 return False
-        elif command == "press" and model.taken is not None:
+        elif (command == "press" and model.taken is not None
+                and not model.entered):
             # Let go, keeping what it is on: A commits, and committing a
             # control with a range is the moment it is written down.
             self.menu_untake(True)
             return False
-        elif command == "press" and model.takeable() is not None:
+        elif (command == "press" and model.taken is None
+                and model.takeable() is not None):
+            # And on a card of rows this is going *in* rather than taking hold
+            # of a number. A inside one runs the row and falls through below,
+            # which is why this asks that nothing is held yet: a card you are
+            # already inside must not answer A by entering itself again.
             self.menu_take()
             return False
         elif command == "press" and model.current is not None \
@@ -2888,6 +3376,25 @@ class Daemon:
             # A control acts on what it reads: there is nothing to enter and
             # nowhere to be thrown out to. `set_setting` pushes the view.
             self.menu_activate(model.current)
+            return False
+        elif command == "press" and self._menu_countdown is not None:
+            # A row is already counting. A does nothing rather than starting a
+            # second one or skipping to the end: the wait is the whole point
+            # of it, and a second press is exactly the reflex it exists for.
+            return False
+        elif (command == "press" and model.acting is not None
+                and model.acting.get("countdown")):
+            # A row that takes the screen away. A starts the count, the row
+            # prints it, B stops it - see `menu_count`.
+            self.menu_count(model.acting)
+            return False
+        elif (command == "press" and model.acting is not None
+                and model.acting["confirm"]):
+            # A row nobody can take back. A is not the press that runs it: it
+            # is the press that starts holding it, and the same two waits, the
+            # same tick, the same notification and the same cancel button a
+            # binding's `confirm = true` gets are what happens next.
+            self.menu_arm(model.acting)
             return False
         elif command == "press":
             # A row that lists its submenu is read here, at the press. Caching
@@ -2927,6 +3434,207 @@ class Daemon:
                 return False
         self.push_menu_view()
         return held
+
+    # -- a menu row that has to be held ------------------------------------
+
+    def menu_holds(self):
+        """Is the tile in front one that has to be held rather than pressed?"""
+        if not self.menu_open or self.menu.edit:
+            return False
+        # What a press is aimed at, which inside a card of rows is the row:
+        # the legend says what A does, and A on a card of rows does what the
+        # row says rather than what the card does.
+        current = self.menu.acting
+        return current is not None and bool(current.get("confirm"))
+
+    def menu_arm(self, item):
+        """Start holding a row that cannot be taken back.
+
+        The same gesture a binding's `confirm = true` makes, deliberately: a
+        person who has held a shoulder to cross a workspace already knows what
+        this is, and a second way of being sure about something would be a
+        second thing to learn for the same promise. So the numbers are
+        `[confirm]`'s, `[confirm] scale` reaches them, the tick and the
+        notification are the ones `warn_confirm` sends, and the cancel button
+        backs out of this exactly as it backs out of that.
+
+        What is different is the drawing: a badge on the bar has a fill and a
+        lean, and a tile is the thing you are looking at - so the tile fills
+        instead, and the page says which row is counting rather than the bar
+        saying which button is.
+        """
+        if self._menu_confirm is not None:
+            return False
+        self._menu_confirm = {
+            "id": item["id"], "item": item, "at": time.monotonic(),
+            "warned": False,
+        }
+        self.push_menu_view()
+        return True
+
+    def menu_count(self, item):
+        """Start a row counting down to running. True if one started.
+
+        The other answer to *are you sure*, and it is for a different press
+        than the hold is. A hold is right where the gesture is already in the
+        hand and is over in a second; this is right where what happens next
+        takes the screen away, and being sure about that is not a thing to do
+        with a thumb - it is a thing to be given long enough to change your
+        mind about. Holding A for ten seconds is not a gesture anybody makes.
+
+        So the menu stays where it is, the row prints how long is left, and B
+        stops it. Nothing else does: ten seconds is long enough to want to
+        look at something, and a count that died because a thumb brushed a
+        stick would be worse than no count at all.
+        """
+        if self._menu_countdown is not None or self._menu_confirm is not None:
+            return False
+        self._menu_countdown = {
+            "id": item["id"], "item": item, "at": time.monotonic(),
+            "printed": None,
+        }
+        # Said once, at the start, and then the number is the whole of it. A
+        # tick a second for ten seconds is a pad buzzing through a decision
+        # somebody is in the middle of making.
+        self.say("tick")
+        self.session.notify(
+            "omapad",
+            "%s in %ds - %s to cancel" % (item["label"], item["countdown"],
+                                          self.config.confirm_cancel),
+            timeout=item["countdown"] * 1000,
+        )
+        self.push_menu_view()
+        return True
+
+    def menu_uncount(self, cancelled=False):
+        """Stop a row that was counting. True if one was."""
+        if self._menu_countdown is None:
+            return False
+        item = self._menu_countdown["item"]
+        self._menu_countdown = None
+        if cancelled:
+            self.say("back")
+            self.session.notify("omapad", "Cancelled", timeout=900)
+            log.info("menu: countdown cancelled %s", item["id"])
+        if self.menu_open:
+            self.push_menu_view()
+        return True
+
+    def menu_countdown_left(self):
+        """Whole seconds still to go, or None while nothing is counting.
+
+        Rounded **up**, so a count with a fifth of a second left still prints
+        1: a row that showed 0 for a moment and then ran would read as a row
+        that had stopped and ran anyway.
+        """
+        pending = self._menu_countdown
+        if pending is None:
+            return None
+        gone = time.monotonic() - pending["at"]
+        left = pending["item"]["countdown"] - gone
+        return max(0, int(-(-left // 1)))
+
+    def check_menu_countdown(self, now):
+        """Run a row whose count has reached zero. Called on the loop."""
+        pending = self._menu_countdown
+        if pending is None:
+            return
+        item = pending["item"]
+        if now - pending["at"] < item["countdown"]:
+            # The number on the row changes once a second and nothing else
+            # does, so the view is pushed when it changes rather than on every
+            # turn of the loop.
+            left = self.menu_countdown_left()
+            if left != pending["printed"]:
+                pending["printed"] = left
+                if self.menu_open:
+                    self.push_menu_view()
+            return
+        self._menu_countdown = None
+        log.info("menu: countdown ran %s", item["id"])
+        # From here it is an ordinary row being picked, and it takes the
+        # ordinary path - the same three lines a held row takes when its own
+        # wait is over.
+        self.menu.choose(item)
+        if not item["stay"]:
+            self.set_menu(False)
+        self.fire_once(item["action"], "menu")
+
+    def menu_disarm(self, cancelled=False):
+        """Let go of a row that was counting down. True if one was.
+
+        `cancelled` says it out loud, for the two ways out that are somebody
+        deciding against it - the cancel button, and the thumb coming off -
+        rather than the menu simply going away underneath it.
+        """
+        if self._menu_confirm is None:
+            return False
+        announced = self._menu_confirm["warned"]
+        self._menu_confirm = None
+        if cancelled and announced:
+            # Only once it had announced itself: a press let go of before the
+            # tick said nothing, so there is nothing to take back.
+            self.say("back")
+            self.session.notify("omapad", "Cancelled", timeout=900)
+            log.info("menu: confirm cancelled")
+        if self.menu_open:
+            self.push_menu_view()
+        return True
+
+    def menu_confirm_state(self):
+        """Where a held row has got to, for the tile to draw.
+
+        The bar's shape for the same gesture (`set_holding`), one surface
+        along: which tile, how long the phase it is in lasts, and whether the
+        tick has gone. Absent while nothing is held, so a payload says
+        nothing about a gesture nobody is making.
+        """
+        pending = self._menu_confirm
+        if pending is None:
+            return None
+        hold_ms, confirm_ms = self.config.announced_scaled
+        return {
+            "id": pending["id"],
+            "ms": confirm_ms if pending["warned"] else hold_ms,
+            "armed": pending["warned"],
+        }
+
+    def check_menu_confirm(self, now):
+        """The two waits of a held row, counted on the loop."""
+        pending = self._menu_confirm
+        if pending is None:
+            return
+        hold_ms, confirm_ms = self.config.announced_scaled
+        elapsed = (now - pending["at"]) * 1000.0
+        if not pending["warned"]:
+            if elapsed < hold_ms:
+                return
+            pending["warned"] = True
+            # The same announcement a binding makes, and it is made the same
+            # way: a tick for the hands, a notification for the eyes that are
+            # not on the tile, and the tile itself now filling.
+            self.say("tick")
+            self.session.notify(
+                "omapad",
+                "%s - %s to cancel" % (pending["item"]["label"],
+                                       self.config.confirm_cancel),
+                timeout=confirm_ms,
+            )
+            self.push_menu_view()
+            return
+        if elapsed < hold_ms + confirm_ms:
+            return
+        item = pending["item"]
+        self._menu_confirm = None
+        log.info("menu: confirmed %s", item["id"])
+        # From here it is an ordinary row being picked, and it takes the
+        # ordinary path: the menu goes away first so that whatever it opens
+        # does not come up behind a scrim, and the action is tagged with the
+        # menu so game mode lets it through.
+        self.menu.choose(item)
+        if not item["stay"]:
+            self.set_menu(False)
+        self.fire_once(item["action"], "menu")
 
     # -- bindings guide ----------------------------------------------------
 
@@ -2972,21 +3680,27 @@ class Daemon:
         self.guide_client.send(self.scaled(self.guide.view_state(self.guide_open)))
 
     def guide_command(self, command):
+        # The card is read and put away, and every button on it puts it away -
+        # so closing it is the one thing that happens here besides turning a
+        # page, and it is the same word every other surface leaves on.
         if command == "toggle":
+            if self.guide_open:
+                self.say("back")
             self.set_guide(not self.guide_open)
             return
         if command == "open":
             self.set_guide(True)
             return
         if command == "close":
+            if self.guide_open:
+                self.say("back")
             self.set_guide(False)
             return
         if not self.guide_open:
             return  # turning a page means nothing while the guide is down
-        if command == "next":
-            self.guide.move(1)
-        elif command == "prev":
-            self.guide.move(-1)
+        if command in ("next", "prev"):
+            self.guide.move(1 if command == "next" else -1)
+            self.say("move", rumble=False)
         self.push_guide_view()
 
     # -- the settings the pad can change -----------------------------------
@@ -3056,6 +3770,11 @@ class Daemon:
             self.apply_layout()
         elif name == "layout":
             self.apply_layout()
+        elif name == "radius":
+            # True of every surface at once, and the one setting somebody is
+            # looking straight at while they change it: the tiles under the
+            # slider have to round as it moves, not at the next heartbeat.
+            self.push_open_views()
         elif name == "badge_style":
             # The other thing that is true of every surface at once. Without
             # this it waits out the heartbeat, and a menu row that ticks a
@@ -3066,11 +3785,24 @@ class Daemon:
             # The one setting that is a surface: turning it on is the whole of
             # putting the readings on screen.
             self.set_hud(self.config.hud_show)
+        elif name == "hold_scale":
+            # Every binding was built with the old scale already in its two
+            # waits - that is where it is applied, so that the number the bar
+            # fills a badge over is the number the loop fires on - so the
+            # cache of them is what a new scale invalidates.
+            self.bindings.clear()
+            self.page_keys.clear()
         elif name in ("rumble", "rumble_strength"):
             # The effect is uploaded once per connection, so a strength that
             # changed only reaches the motor by replacing it.
             self.rumble.configure(self.config)
-            self.rumble.pulse()
+            self.say("tick")
+        elif name in ("sound", "sound_volume"):
+            # The panel holds four loaded files and the volume it was last
+            # told. There is no heartbeat on this socket to carry a changed
+            # one, so the answer is the same as the motor's: say the word
+            # again, and the line that carries it carries the new volume.
+            self.say("tick")
 
     def save_settings(self):
         path = settings_path()
@@ -3196,7 +3928,7 @@ class Daemon:
             self.set_mapping(False)
             return
         if result in ("learned", "skipped"):
-            self.rumble.pulse()
+            self.say("tick")
         self.push_mapping_view()
 
     def save_mapping(self):
@@ -3261,11 +3993,12 @@ class Daemon:
             return (
                 "usage: osk <toggle|open|close> "
                 "| menu <toggle|open|close|up|down|left|right|press|back"
-                "|group_prev|group_next|select N|group N> "
+                "|group_prev|group_next|select N|group N|row ID> "
                 "| guide <toggle|open|close|next|prev> "
                 "| map <toggle|open|close|skip|back|restart|save|cancel> "
                 "| surface <close|close_all|back> "
                 "| ripple <left|right|middle> "
+                "| sound <move|back|tick|edge|commit> "
                 "| pad <setting>=<value> | lock <on|off|toggle> "
                 "| keep <on|off|toggle> "
                 "| press <BUTTON> [tap|hold] "
@@ -3324,6 +4057,10 @@ class Daemon:
                 except ValueError:
                     return "unknown menu command: select %s" % args[1]
                 self.menu_select(index)
+            elif command == "row" and len(args) > 1:
+                # A row inside a card of rows, named the way it is drawn. No
+                # index: a row carries a `when` like anything else here.
+                self.menu_select_row(args[1])
             elif command == "group" and len(args) > 1:
                 # The chip a pointer clicked, the same way `select` names a
                 # tile. Walking the bar is `group_prev` / `group_next`.
@@ -3398,6 +4135,21 @@ class Daemon:
                 return "ripple: nothing drawn"
             return "ripple %s at %d,%d" % (
                 self.ripple.button, self.ripple.x, self.ripple.y)
+        if verb == "sound" and args:
+            # Nothing on the pad plays a cue on its own, so this is the only
+            # way to hear one without going and pressing something - which is
+            # what deciding on a volume, or a pack of your own, needs. It
+            # answers whether the daemon *sent* the line: whether anything
+            # came out of the speakers is the plugin's half, and
+            # `omarchy-shell ipc call omapad-sound state` is where that is.
+            name = args[0]
+            if name not in sound_module.VOICES:
+                return "unknown sound: %s" % name
+            if not self.config.sound_enabled:
+                return "sound: off ([sound] enabled)"
+            if not self.say(name, rumble=False):
+                return "sound: nothing sent"
+            return "sound %s (#%d)" % (self.sound.cue, self.sound.seq)
         if verb == "press" and args:
             # Where a click on the game bar lands, and a second door onto the
             # pad for a script or a keybind: the button is named in omapad's
@@ -3471,18 +4223,25 @@ class Daemon:
 
     # -- held-action repeat ------------------------------------------------
 
-    def repeat_start(self, action, delay, rate):
-        self.repeats[id(action)] = [action, time.monotonic() + delay, rate]
+    def repeat_start(self, action, delay, rate, ramp=1.0, ramp_time=0.0):
+        now = time.monotonic()
+        # `now` twice, meaning two different things: when the first repeat is
+        # due, and when the finger went down. The ramp is measured from the
+        # second, so the delay before the first step counts towards it - a
+        # thumb that has been on the button for the whole delay has been on
+        # it, whatever the walk has to show for it yet.
+        self.repeats[id(action)] = [action, now + delay, rate, ramp,
+                                    ramp_time, now]
 
     def repeat_stop(self, action):
         self.repeats.pop(id(action), None)
 
     def fire_repeats(self, now):
         for entry in list(self.repeats.values()):
-            action, due, rate = entry
+            action, due, rate, ramp, ramp_time, began = entry
             if now >= due:
                 action.repeat(self.ctx)
-                entry[1] = now + rate
+                entry[1] = now + ramped(rate, ramp, ramp_time, now - began)
 
     def stick_roles(self):
         """What the sticks are worth right now.
@@ -3516,6 +4275,9 @@ class Daemon:
     # -- input handling ----------------------------------------------------
 
     def handle_button(self, button, pressed):
+        # Every button, trigger and D-pad direction arrives here, so this is
+        # the one place that has to say somebody is there.
+        self.touched()
         if pressed:
             self.pressed.add(button)
         else:
@@ -3730,6 +4492,14 @@ class Daemon:
         return isinstance(action, self.SUMMONS)
 
     def press_binding(self, button):
+        # A hold counting down with nothing on it: this press is the finger
+        # coming back inside `[confirm] slack_ms`, not a press of its own. The
+        # gesture it belongs to is already running - starting a second one
+        # here would restart the wait the slip was forgiven for.
+        resumed = self.held.get(button)
+        if resumed is not None and resumed.released_at is not None:
+            resumed.released_at = None
+            return
         layer = self.current_layer
         binding = self.binding_for(layer, button)
         if binding is None:
@@ -3748,7 +4518,7 @@ class Daemon:
         if not self.allowed(action, binding.layer, reaches=binding.reaches_past):
             return
         if binding.rumble:
-            self.rumble.pulse()
+            self.say("tick")
         self.pointer_away(action)
         if binding.holdable:
             self.held[button] = HeldAction(action, binding, now)
@@ -3758,9 +4528,25 @@ class Daemon:
             action.release(self.ctx)
 
     def release_binding(self, button):
-        held = self.held.pop(button, None)
+        held = self.held.get(button)
         if held is None:
             return
+        # A finger that comes off a hold which has **already announced
+        # itself** has not necessarily changed its mind: a thumb resting on a
+        # shoulder for two seconds slips, and losing the countdown to that is
+        # the whole of why some hands cannot make this gesture at all. So the
+        # hold keeps counting for `[confirm] slack_ms` and the press below
+        # puts the finger back on it. Only after the announcement - before it,
+        # letting go is how a tap is made.
+        if (
+            self.config.confirm_slack_ms
+            and held.warned
+            and not held.hold_fired
+            and held.released_at is None
+        ):
+            held.released_at = time.monotonic()
+            return
+        self.held.pop(button, None)
         self.clear_holding(button)
         if held.action is None:
             # Nothing went down: a tap/hold that never reached its hold, a
@@ -3775,7 +4561,7 @@ class Daemon:
                                    reaches=held.binding.reaches_past)
                     and held.binding.rumble
                 ):
-                    self.rumble.pulse()
+                    self.say("tick")
             return
         held.action.release(self.ctx)
 
@@ -3852,6 +4638,19 @@ class Daemon:
     def check_hold_timers(self, now):
         # A hold action may switch modes, which clears self.held mid-loop.
         for button, held in list(self.held.items()):
+            # A hold the finger came off inside the slack keeps counting -
+            # that is what the slack is - so this only asks whether the finger
+            # stayed off for longer than it. Then it is the release, arriving
+            # late: popped rather than passed to `release_binding`, because a
+            # hold that had announced itself is never also a tap.
+            if (
+                held.released_at is not None
+                and (now - held.released_at) * 1000.0
+                >= self.config.confirm_slack_ms
+            ):
+                self.held.pop(button, None)
+                self.clear_holding(button)
+                continue
             binding = held.binding
             if not binding.is_tap_hold or held.hold_fired:
                 continue
@@ -3861,7 +4660,7 @@ class Daemon:
                     held.hold_fired = True
                     if self.fire_once(binding.hold, binding.layer,
                                       reaches=binding.reaches_past) and binding.rumble:
-                        self.rumble.pulse()
+                        self.say("tick")
                 continue
             if not held.warned:
                 if elapsed >= binding.hold_ms:
@@ -3898,7 +4697,7 @@ class Daemon:
         window full-screen, which is the case it exists for; the notification
         says what is coming and which button stops it.
         """
-        self.rumble.pulse()
+        self.say("tick")
         what = binding.hold_desc or "Something is about to happen"
         self.session.notify(
             "omapad",
@@ -3911,16 +4710,24 @@ class Daemon:
                 if held.warned and not held.hold_fired]
 
     def cancel_confirm(self):
-        """Back out of every hold that is counting down. True if any was."""
+        """Back out of every hold that is counting down. True if any was.
+
+        A held menu row is one of them: the cancel button is the way out of
+        this gesture wherever it is being made, and a button that backed out
+        of the bar's version and not the menu's would be the surface deciding
+        what a word means.
+        """
+        dropped = self.menu_disarm(cancelled=True)
         pending = self.pending_confirm()
         for held in pending:
             # Not `hold_fired` because it fired, but because nothing more may:
             # the release must not fall back to the tap either.
             held.hold_fired = True
         if pending:
+            self.say("back")
             self.session.notify("omapad", "Cancelled", timeout=900)
             log.info("confirm: cancelled")
-        return bool(pending)
+        return bool(pending) or dropped
 
     def drain_events(self):
         try:
@@ -3942,6 +4749,13 @@ class Daemon:
                         center, half = self.axis_scale.get(code, (0.0, 1.0))
                         raw = (value - center) / half
                         self.axes[code] = max(-1.0, min(1.0, raw))
+                        # A thumb on a stick is somebody being there; a stick
+                        # resting crooked is not, and a pad with drift would
+                        # otherwise hold the screen awake for ever on its own.
+                        stick = self.axis_stick(code)
+                        if stick is not None and abs(self.axes[code]) > \
+                                self.config.stick_deadzone(stick):
+                            self.touched()
                     elif code == li.ABS_HAT0X:
                         self.handle_hat("x", value)
                     elif code == li.ABS_HAT0Y:
@@ -3999,10 +4813,17 @@ class Daemon:
         if now - self._mapping_down[1] < MAPPING_CANCEL_HOLD:
             return
         self._mapping_down = None
-        self.rumble.pulse()
+        self.say("tick")
         self.set_mapping(False)
         if self.config.notify:
             self.session.notify("omapad", "Mapping cancelled")
+
+    def axis_stick(self, code):
+        """Which stick an axis belongs to, or None for anything else."""
+        for stick, codes in STICK_AXES.items():
+            if code in codes:
+                return stick
+        return None
 
     def handle_trigger(self, code, value):
         """Turn an analog trigger into a button, with hysteresis.
@@ -4060,6 +4881,8 @@ class Daemon:
         """Is there anything to integrate or time out between events?"""
         if self.repeats:
             return True
+        if self._menu_confirm is not None:
+            return True  # a row counting down towards running
         if self.rumble.settling:
             # A tick owed its stop. Without this the idle poll decides when
             # the motor goes quiet, and a click reads as a buzz.
@@ -4161,7 +4984,7 @@ class Daemon:
         # Only when it went somewhere: a flick into an empty edge that buzzed
         # would say the same thing as one that worked.
         if landed and self.config.snap_rumble:
-            self.rumble.pulse()
+            self.say("tick")
 
     def move_drags(self, stick):
         """Which half of the `move` role this push is: drag, or swap.
@@ -4256,13 +5079,19 @@ class Daemon:
         held = self._focus_held.get(stick)
         if held is None or held[0] != step:
             # A new direction steps at once and then waits out the delay, the
-            # way a held key does.
-            self._focus_held[stick] = [step, self.config.traverse_repeat_delay]
+            # way a held key does. The third slot is how long it has been
+            # held, and the walk closes up against it.
+            self._focus_held[stick] = [step, self.config.traverse_repeat_delay,
+                                       0.0]
         else:
             held[1] -= dt
+            held[2] += dt
             if held[1] > 0:
                 return
-            held[1] = self.config.traverse_repeat_rate
+            held[1] = ramped(self.config.traverse_repeat_rate,
+                             self.config.traverse_repeat_ramp,
+                             self.config.traverse_repeat_ramp_time,
+                             held[2])
         self.focus_step(step, True)
         self.focus_step(step, False)
 
@@ -4442,13 +5271,18 @@ class Daemon:
             return None
 
     def check_theme(self, now):
-        """Ask again for the two things a theme change takes away.
+        """Ask again for what the desktop may have changed underneath us.
 
         `omarchy-theme-set` ends in `hyprctl reload`, and a reload throws away
         every rule asked for at runtime - the blur behind our own surfaces is
         one of those. The game-mode pointer is the other: it is a file omapad
         drew from the palette that was in force, and a shell repainting itself
         cannot put either back.
+
+        The third is not a theme change at all and rides here for its beat:
+        whether the compositor animates anything (`[ui] motion`). It is asked
+        every time rather than only when the theme moved, because turning
+        animations off changes no file.
 
         Polled rather than subscribed to, because one `stat` on the beat the
         surfaces already heartbeat at is cheaper than a second socket to keep
@@ -4458,6 +5292,14 @@ class Daemon:
         if now < self._theme_next_check:
             return
         self._theme_next_check = now + THEME_POLL
+        # Asked on every beat rather than only when the theme moved: a
+        # `hyprctl keyword animations:enabled false` changes no file, and a
+        # person who has just turned animations off is watching the screen to
+        # see whether anything listened. One socket query on the beat the
+        # surfaces already heartbeat at, which is the same class of cost as
+        # the stat below.
+        if self.read_desktop_motion():
+            self.push_open_views()
         stamp = self.theme_stamp()
         if stamp is None or stamp == self._theme_seen:
             return
@@ -4612,6 +5454,9 @@ class Daemon:
                 dt = now - last
                 last = now
                 self.check_hold_timers(now)
+                self.check_menu_confirm(now)
+                self.check_menu_countdown(now)
+                self.check_awake(now)
                 self.fire_repeats(now)
                 # A tick that has run its length is told to stop, because the
                 # stop the kernel owes it does not always arrive - see
@@ -4621,7 +5466,9 @@ class Daemon:
                     self.push_osk_view()
                 if self.menu_open:
                     self.menu_group_settled(now)
+                    self.menu_cards_settled(now)
                     self.menu_head_refresh()
+                    self.menu_meta_refresh()
                     self.live_refresh(now)
                     self.push_menu_live(now)
                     if now >= self._menu_next_heartbeat:
@@ -4693,6 +5540,7 @@ class Daemon:
         self.set_hud(False)
         self.hud_client.close()
         self.ripple_client.close()
+        self.sound_client.close()
         if self.control is not None:
             self.control.close()
         if self.hypr_ev is not None:

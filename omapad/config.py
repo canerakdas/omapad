@@ -1,6 +1,7 @@
 """Configuration loading: shipped defaults deep-merged with the user's file."""
 
 import logging
+import math
 import os
 import tomllib
 
@@ -128,6 +129,32 @@ def detect_profile(name, vid_pid):
 BADGE_STYLES = ("filled", "stencil")
 
 
+# One rung of the ladder every size on these surfaces climbs - the type, the
+# gaps, the radii off them. **It is sqrt(2), which is the silver ratio less
+# one**, and the distinction is worth keeping: `metrics.silver` (1 + sqrt(2))
+# is the ratio itself, and it has a job of its own a rung along.
+#
+# A corner is a size like any of them, so a step here multiplies rather than
+# adds: 23 pixels against 25 is not a difference anybody sees from a sofa, and
+# 23 against 32 is.
+RUNG = math.sqrt(2.0)
+
+# The stops a corner may be rounded to, against whatever the compositor
+# rounds a window by. Derived rather than typed, so the ladder cannot drift
+# from the rung above it - and zero is not on it: no amount of dividing
+# reaches square, so it is the stop *under* the bottom rather than a rung.
+#
+# **It stops one rung above the desktop's own answer**, and that is the whole
+# range on purpose. This multiplier says how far off *the desktop* these
+# surfaces stand, and two rungs past it a 128-pixel tile is a circle - which
+# is not a rounder corner, it is a different shape. Somebody who wants
+# fundamentally bigger corners is asking about the base rather than about the
+# distance from it, and the base is `[menu] tile_corner`.
+RADIUS_STOPS = (0.0,) + tuple(
+    round(0.5 * RUNG ** n, 3) for n in range(4)
+)
+
+
 # ---------------------------------------------------------------------------
 # The settings the pad itself can change.
 #
@@ -176,6 +203,70 @@ CHOSEN = {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
         "kind": "bool",
     },
+    # The other half of what a press says back. Beside the motor rather than
+    # under a menu of its own: they are two answers to one question, and
+    # whoever is turning one off is deciding between them.
+    "sound": {
+        "attr": "sound_enabled", "table": "sound", "key": "enabled",
+        "kind": "bool",
+    },
+    "sound_volume": {
+        "attr": "sound_volume", "table": "sound", "key": "volume",
+        # A tenth per step, which is coarser than the motor's twentieth: a
+        # cue is 90 ms long at the most, and a difference you cannot hear
+        # between two presses is not a step worth stopping on.
+        "kind": "number", "step": 0.1, "min": 0.0, "max": 1.0,
+        "unit": "%", "scale": 100,
+    },
+    # How hard a corner is rounded, against what the compositor rounds a
+    # window by. On the pad because it is the one setting here you can only
+    # judge by looking at the thing it sets - and the thing it sets is the
+    # surface the slider is on, so the tiles round under the thumb that is
+    # moving it.
+    #
+    # `stops` rather than `step`: a corner is a size, every size on these
+    # surfaces climbs by one rung of the same ladder, and a step of a tenth
+    # would be six presses to cross a difference nobody can see. See `RUNG`.
+    "radius": {
+        "attr": "ui_radius", "table": "ui", "key": "radius",
+        "kind": "number", "stops": RADIUS_STOPS,
+        "min": RADIUS_STOPS[0], "max": RADIUS_STOPS[-1],
+        # **A word per stop, and no percentage.** A ladder has somewhere to
+        # *be* rather than an amount to be at, and "141%" is a number you have
+        # to divide before it says anything - against what? The bar under it
+        # is drawn in the stops themselves, so how far along is already said
+        # in the one place that can say it without arithmetic, and what is
+        # left for the line to say is which corner this is. The middle four
+        # are the hardest to name and the easiest to see, which is the whole
+        # argument for the segments.
+        "words": {
+            0.0: "Square", 0.5: "Barely", 0.707: "Slight",
+            1.0: "The desktop's", 1.414: "Round",
+        },
+    },
+    # How long the surfaces take to move. On the pad rather than only in the
+    # file because it is a thing you find out by watching a screen move, and
+    # the person who cannot read a moving screen is the one who should not
+    # have to go and find a text editor to stop it.
+    "motion": {
+        "attr": "ui_motion", "table": "ui", "key": "motion",
+        # A quarter of the drawn speed per stop: four presses from off to
+        # normal, and each one is a change you can actually see. Anything
+        # finer is a slider nobody can tell they have moved - which is what
+        # makes this five places to be rather than a range to cover, and the
+        # tile draws it in five segments.
+        #
+        # Worded, and `Off` is why: this setting exists for somebody who
+        # cannot read a moving screen, and the stop that answers them should
+        # say so rather than print `0%`. The rest are named for how much of
+        # the movement is left, which is the thing being chosen.
+        "kind": "number",
+        "stops": (0.0, 0.25, 0.5, 0.75, 1.0),
+        "words": {0.0: "Off", 0.25: "Little", 0.5: "Half", 0.75: "Most",
+                  1.0: "Full"},
+        "min": 0.0, "max": 1.0,
+        "unit": "%", "scale": 100,
+    },
     # Whether the readings are on screen. A setting rather than a surface
     # verb, because it is a thing you decide once and leave: chosen from the
     # sofa, written down, and still on the next time the daemon starts.
@@ -188,6 +279,29 @@ CHOSEN = {
         # the level you meant, coarse enough that reaching it is a few
         # presses rather than a job.
         "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
+        "unit": "%", "scale": 100,
+    },
+    # How long every hold on the pad takes, against the lengths the bindings
+    # were written at. On the pad because it is the one setting here that is
+    # about the hand rather than the thing in it: whether two seconds of
+    # keeping a shoulder down is a gesture you can make is not a question
+    # anybody can answer for somebody else, and the person who cannot make it
+    # is the last person who should have to find a text editor to say so.
+    "hold_scale": {
+        "attr": "confirm_scale", "table": "confirm", "key": "scale",
+        # A quarter of the written length per stop, over a range of one
+        # doubling: six presses from half to double, each of them a wait you
+        # can feel change. The ends are `[confirm] scale`'s own - under a half
+        # a tap and a hold stop being different gestures - and seven places to
+        # be is what the tile draws in seven segments.
+        #
+        # **No words, unlike the two ladders that have them.** This is an
+        # amount rather than a place: a hold at 150% is half again as long as
+        # the one the binding was written at, and `Slower` would be a word
+        # standing where a quantity already reads.
+        "kind": "number",
+        "stops": (0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0),
+        "min": 0.5, "max": 2.0,
         "unit": "%", "scale": 100,
     },
     # How fast the two thumbs are, which is the setting nobody agrees on: it
@@ -249,6 +363,16 @@ CHOSEN = {
         "attr": "start_mode", "table": "mode", "key": "start",
         "kind": "choice", "choices": ("desktop", "game"),
         "words": {"desktop": "Desktop", "game": "Game mode"},
+    },
+    # And the one entry here that is not a preference at all: whether the menu
+    # still owes somebody a first start. It is in this table because
+    # settings.toml is where the pad writes things down, and a mark it cannot
+    # write is a first start that happens again every morning. Nothing reads
+    # it but the `Start here` tile's `when`, and deleting its line from that
+    # file is how the tile comes back.
+    "first_run": {
+        "attr": "menu_first_run", "table": "menu", "key": "first_run",
+        "kind": "bool",
     },
 }
 
@@ -316,6 +440,46 @@ def _clamp_setting(spec, value):
     return round(min(max(value, spec["min"]), spec["max"]), 3)
 
 
+def _nearest_stop(stops, value):
+    return min(range(len(stops)), key=lambda i: abs(stops[i] - float(value)))
+
+
+# The same answer under the name the daemon asks it by: which stop a value is
+# on, for a bar that is drawn in stops rather than as a length.
+nearest_stop_index = _nearest_stop
+
+
+def _stepped(spec, current, argument):
+    """The value `argument` stops along a ladder from `current`.
+
+    For the settings whose steps are a *proportion* rather than an amount -
+    see `RADIUS_STOPS`. A value somebody wrote by hand that is not on the
+    ladder is not moved onto it and then stepped: it steps from the stop
+    nearest it, so one press from 1.2 is the next stop up rather than a number
+    1.2 has quietly been rounded to.
+    """
+    stops = spec["stops"]
+    at = _nearest_stop(stops, current) + argument
+    return stops[max(0, min(len(stops) - 1, at))]
+
+
+def setting_share(spec, value):
+    """Where a number sits along its own travel, 0..1, for a bar to draw.
+
+    A ladder is walked by its stops rather than measured along them: they are
+    a proportion apart, so a bar that spaced them by their arithmetic would
+    bunch the bottom half of a ladder into its first third and say it was
+    uneven when it is the most even thing on the surface.
+    """
+    stops = spec.get("stops")
+    if stops:
+        return _nearest_stop(stops, value) / float(len(stops) - 1)
+    span = float(spec["max"]) - float(spec["min"])
+    if span <= 0:
+        return 0.0
+    return (float(value) - float(spec["min"])) / span
+
+
 def setting_text(name, value):
     """What a setting is on right now, for a menu row to print.
 
@@ -327,6 +491,17 @@ def setting_text(name, value):
     spec = CHOSEN.get(name)
     if spec is None or spec["kind"] != "number" or value is None:
         return ""
+    stops = spec.get("stops")
+    if stops:
+        # A ladder says which stop it is on rather than how far along: the
+        # bar under it is drawn in the stops themselves, so how far along is
+        # already said without arithmetic. A stop with no word of its own
+        # falls back to the number, which is what a hand-written value in
+        # between two of them is.
+        words = spec.get("words") or {}
+        word = words.get(stops[_nearest_stop(stops, value)])
+        if word and abs(float(value) - stops[_nearest_stop(stops, value)]) < 1e-9:
+            return word
     amount = float(value) * spec.get("scale", 1)
     unit = spec.get("unit", "")
     if unit == "%":
@@ -686,6 +861,27 @@ STICK_ROLES = (
 )
 
 
+def _repeat_ramp(table, where, default_ramp=2.5, default_ms=1000):
+    """How much faster a held direction walks, and how long it takes to.
+
+    One reader for the three tables that have the pair - `[menu]`, `[osk]`,
+    `[traverse]` - because the question is the same in all three and three
+    copies of the same two lines is three places for the validation to be
+    missed in one.
+
+    Returns the factor and the time in seconds, the way every other duration
+    on `Config` is kept.
+    """
+    ramp = float(table.get("repeat_ramp", default_ramp))
+    if ramp < 1.0:
+        raise ConfigError("%s.repeat_ramp must be 1.0 or more; 1.0 is a walk"
+                          " that does not accelerate" % where)
+    ramp_ms = float(table.get("repeat_ramp_ms", default_ms))
+    if ramp_ms < 0:
+        raise ConfigError("%s.repeat_ramp_ms must be 0 or more" % where)
+    return ramp, ramp_ms / 1000.0
+
+
 def _stick_role(where, value, allow_empty=False):
     """One stick role, checked here so `omapad check` names a typo.
 
@@ -948,6 +1144,26 @@ class Config:
             raise ConfigError("ripple.thickness must be between 0 and 0.5")
         self.ripple_socket = ripple.get("socket") or None
 
+        # The noise a press makes. Off by default because it is the one
+        # answer this program gives to the room rather than to the hands -
+        # see sound.py.
+        sound = data.get("sound", {})
+        self.sound_enabled = bool(sound.get("enabled", False))
+        self.sound_volume = float(sound.get("volume", 0.6))
+        if not 0.0 <= self.sound_volume <= 1.0:
+            raise ConfigError("sound.volume must be between 0 and 1")
+        # A directory, and it is not checked for the four files: a pack that
+        # holds only `commit.wav` keeps the other three from the shipped set,
+        # which is what makes replacing one sound worth doing. Expanded here
+        # so `~/sounds` is a path the shell can open - the plugin is handed
+        # this and has no shell of its own to expand it with.
+        pack = str(sound.get("pack", "") or "").strip()
+        self.sound_pack = os.path.expanduser(pack) if pack else ""
+        if self.sound_pack and not os.path.isdir(self.sound_pack):
+            raise ConfigError("sound.pack is not a directory: %s"
+                              % self.sound_pack)
+        self.sound_socket = sound.get("socket") or None
+
         # Walking the focus with the app's own keys (item: tab traversal).
         # Which key each step sends is config rather than code because the
         # answer is not the same everywhere - a list wants the arrows, a form
@@ -968,6 +1184,10 @@ class Config:
         self.traverse_repeat_rate = float(
             traverse.get("repeat_rate_ms", 90)
         ) / 1000.0
+        # Every stick walk on the pad takes its rate from here, the menu's
+        # grid included, so this ramp is the one that reaches all of them.
+        (self.traverse_repeat_ramp,
+         self.traverse_repeat_ramp_time) = _repeat_ramp(traverse, "traverse")
         # A stick with the "focus" role. Lower than a snap flick: this one
         # repeats while it is held, so it is a direction rather than a shove.
         self.traverse_flick = float(traverse.get("flick", 0.65))
@@ -1020,6 +1240,14 @@ class Config:
                 " must be at most 1.0"
             )
 
+        idle = data.get("idle", {})
+        # How long the pad keeps the screen awake after it was last touched.
+        # Kept in seconds like every other duration here; 0 is the hold that
+        # never lets go, which is what every surface did before this existed.
+        self.idle_awake = float(idle.get("awake_ms", 300000)) / 1000.0
+        if self.idle_awake < 0:
+            raise ConfigError("idle.awake_ms must be 0 or more")
+
         confirm = data.get("confirm", {})
         self.confirm_cancel = confirm.get("cancel_button", "B")
         # The two halves of an announced hold, for every binding that says
@@ -1034,6 +1262,19 @@ class Config:
         if self.confirm_hold_ms <= 0 or self.confirm_ms <= 0:
             raise ConfigError("confirm.hold_ms and confirm.confirm_ms must be"
                               " positive")
+        # And what holding costs the hand doing it, which is the same
+        # question asked of every hold at once rather than of one binding.
+        # Bounded both ways for the same reason: under a half a tap and a
+        # hold are no longer different gestures, and over a double a hold is
+        # long enough that nobody reaches the end of it.
+        self.confirm_scale = float(confirm.get("scale", 1.0))
+        if not 0.5 <= self.confirm_scale <= 2.0:
+            raise ConfigError("confirm.scale must be between 0.5 and 2.0")
+        # How long a finger may come off a hold that has already announced
+        # itself. Zero is the shipped promise that letting go backs out.
+        self.confirm_slack_ms = int(confirm.get("slack_ms", 0))
+        if self.confirm_slack_ms < 0:
+            raise ConfigError("confirm.slack_ms must be 0 or more")
 
         rumble = data.get("rumble", {})
         self.rumble_enabled = bool(rumble.get("enabled", True))
@@ -1046,9 +1287,16 @@ class Config:
             rumble.get("commit_strength", 0.28))
         self.rumble_commit_duration = int(
             rumble.get("commit_duration_ms", 90))
-        self.rumble_texture = bool(rumble.get("texture", False))
+        # On, where it shipped off. What it says is no longer a flat hum
+        # under a moving thumb - the thing roadmap 17's rule is about - but
+        # how far a value has been taken from where it stood, which is
+        # silence until something has actually been changed.
+        self.rumble_texture = bool(rumble.get("texture", True))
+        # Re-derived when the texture stopped being a scale: a level that
+        # only ever rose to this from a floor could afford to be low, and a
+        # flat one that has to be felt through a thumb in motion cannot.
         self.rumble_texture_strength = float(
-            rumble.get("texture_strength", 0.12))
+            rumble.get("texture_strength", 0.25))
         self.rumble_floor = int(rumble.get("floor_ms", 50))
         for key, value in (("strong", self.rumble_strong),
                            ("weak", self.rumble_weak),
@@ -1094,11 +1342,47 @@ class Config:
         # room.
         ui = data.get("ui", {})
         self.ui_scale = float(ui.get("scale", 1.0))
-        self.ui_game_scale = float(ui.get("game_scale", 1.25))
+        self.ui_game_scale = float(ui.get("game_scale", 1.0))
         for name, value in (("scale", self.ui_scale),
                             ("game_scale", self.ui_game_scale)):
             if value <= 0:
                 raise ConfigError("ui.%s must be greater than zero" % name)
+        # How long every animation on every surface runs, as a multiplier.
+        # It rides the same payload the scale does and for the same reason:
+        # the plugin cannot read this file, and a surface has to be redrawn
+        # at the new number the moment it changes rather than at the next
+        # restart. 0 is motion off - every animation lands on its last frame
+        # at once. 1 is the top of the range rather than the middle of it:
+        # this asks for *less* motion, and a surface slower than it was drawn
+        # to be is the lag every duration on it was kept short to avoid.
+        self.ui_motion = float(ui.get("motion", 1.0))
+        if not 0.0 <= self.ui_motion <= 1.0:
+            raise ConfigError("ui.motion must be between 0 and 1")
+        # Whether the compositor's own answer about animations is allowed to
+        # veto the number above. A veto rather than a scale - see the comment
+        # in config.toml, and `daemon.view_motion`.
+        self.ui_motion_follows_desktop = bool(
+            ui.get("motion_follows_desktop", True)
+        )
+        # What a television takes off its own edges. A share of each side
+        # rather than a number of pixels: it is a property of the set, which
+        # crops a proportion, and the surfaces are drawn at every resolution
+        # somebody plugs one in at. A fifth of the screen is the most this
+        # can mean before it is throwing the screen away rather than keeping
+        # its edge clear.
+        # 0 rather than broadcast's 5%: game mode is the couch environment
+        # and not proof of a television, and every edge of a monitor shows
+        # what it is sent. See the comment on the setting.
+        self.ui_safe_area = float(ui.get("safe_area", 0.0))
+        if not 0.0 <= self.ui_safe_area <= 0.2:
+            raise ConfigError("ui.safe_area must be between 0 and 0.2")
+        # How hard a corner is rounded, against what the compositor rounds a
+        # window by. The ceiling is the ladder's own top stop: past it a tile
+        # is not a rounded rectangle any more, it is a lozenge.
+        self.ui_radius = float(ui.get("radius", 1.0))
+        if not 0.0 <= self.ui_radius <= RADIUS_STOPS[-1]:
+            raise ConfigError("ui.radius must be between 0 and %g"
+                              % RADIUS_STOPS[-1])
         # The shell cannot read this file, so which of the two a surface draws
         # travels in its payload beside the scale.
         self.ui_badge_style = str(ui.get("badge_style", "filled"))
@@ -1147,10 +1431,16 @@ class Config:
                 self.osk_key_overrides[action] = spec
         self.osk_repeat_delay = float(osk.get("repeat_delay_ms", 350)) / 1000.0
         self.osk_repeat_rate = float(osk.get("repeat_rate_ms", 70)) / 1000.0
+        (self.osk_repeat_ramp,
+         self.osk_repeat_ramp_time) = _repeat_ramp(osk, "osk")
 
         menu = data.get("menu", {})
         self.menu_socket = menu.get("socket") or None
         self.menu_title = menu.get("title", "Go")
+        # Whether the menu still owes somebody a first start. The daemon
+        # writes it false the first time the menu is opened, which is what
+        # makes the `Start here` tile a thing that happens once.
+        self.menu_first_run = bool(menu.get("first_run", True))
         # A list, so the deep merge replaces it wholesale rather than merging
         # entry by entry - which is what you want: a user menu is their menu,
         # not the shipped one with rows spliced in at matching indexes.
@@ -1171,9 +1461,13 @@ class Config:
         # read this file - it travels in the payload like every other geometry
         # setting. A floor rather than any positive number: a cell shorter
         # than a line of text is a page of tiles with nothing legible on them.
-        self.menu_cell_height = int(menu.get("cell_height", 34))
-        if self.menu_cell_height < 16:
-            raise ConfigError("menu.cell_height must be 16 or more")
+        # One module, square: a cell is this wide and this tall, and what
+        # does not fit the screen scrolls. Not divided out of the card's width
+        # any more - that made the shape of a tile a property of the monitor
+        # it landed on.
+        self.menu_cell = int(menu.get("cell", 128))
+        if self.menu_cell < 16:
+            raise ConfigError("menu.cell must be 16 or more")
         # What a tile off to the side costs against one straight ahead, both
         # measured edge to edge - the same question `snap.bias` answers about
         # windows, and its own number because tiles are small and touching
@@ -1188,6 +1482,8 @@ class Config:
         self.menu_clock = menu.get("clock", "%A %H:%M")
         self.menu_repeat_delay = float(menu.get("repeat_delay_ms", 400)) / 1000.0
         self.menu_repeat_rate = float(menu.get("repeat_rate_ms", 110)) / 1000.0
+        (self.menu_repeat_ramp,
+         self.menu_repeat_ramp_time) = _repeat_ramp(menu, "menu")
         # How long the worker waits on a row that lists its submenu before
         # calling the listing empty. The press does not wait on it - the page
         # opens and the rows land when they land - so this is how late an
@@ -1259,13 +1555,26 @@ class Config:
         self.menu_dim = float(menu.get("dim", 0.6))
         if not 0.0 <= self.menu_dim <= 1.0:
             raise ConfigError("menu.dim must be between 0 and 1")
-        # How far the drawn corner of a tile reaches into it. The shell cannot
-        # read this file, and it must not fall back to the compositor's window
-        # rounding: that is 0 on plenty of setups, and at 0 every state of a
-        # tile is the same square.
-        self.menu_tile_corner = int(menu.get("tile_corner", 10))
+        # What a corner is rounded by where the compositor rounds nothing.
+        # The shell cannot read this file, so it travels; it asks
+        # `decoration:rounding` first and falls back to this, because that is
+        # 0 on plenty of setups and at 0 every state of a tile is the same
+        # square.
+        self.menu_tile_corner = int(menu.get("tile_corner", 23))
         if self.menu_tile_corner < 0:
             raise ConfigError("menu.tile_corner must be 0 or more")
+        # How long a tile stays lit after a press lands on it. The shell
+        # cannot read this file either, so it travels with the flash it times.
+        self.menu_press_ms = int(menu.get("press_ms", 160))
+        if self.menu_press_ms < 0:
+            raise ConfigError("menu.press_ms must be 0 or more")
+        # How long a row that says `countdown = true` counts for. Whole
+        # seconds, because the row prints the number: a count that went `9.5`
+        # would be a clock rather than a decision somebody is being given time
+        # to take back.
+        self.menu_countdown = int(menu.get("countdown", 10))
+        if self.menu_countdown <= 0:
+            raise ConfigError("menu.countdown must be at least one second")
         self.menu_live_hz = int(menu.get("live_hz", 60))
         if self.menu_live_hz <= 0:
             raise ConfigError("menu.live_hz must be positive")
@@ -1840,6 +2149,19 @@ class Config:
         """The two numbers an announced hold runs on, for `actions.Binding`."""
         return (self.confirm_hold_ms, self.confirm_ms)
 
+    @property
+    def announced_scaled(self):
+        """The same pair with `[confirm] scale` already in it.
+
+        `Binding` scales its own, because a binding may name numbers of its
+        own and those are scaled too. A menu row names none and takes the pair
+        as it stands, so it asks for it ready - one place, so the same gesture
+        cannot end up two lengths depending on which surface asked.
+        """
+        hold, count = self.announced_hold
+        return (max(1, int(round(hold * self.confirm_scale))),
+                max(1, int(round(count * self.confirm_scale))))
+
     # -- the settings the pad can change -----------------------------------
 
     def setting(self, name):
@@ -1869,6 +2191,9 @@ class Config:
             except ValueError:
                 index = 0
             value = choices[(index + argument) % len(choices)]
+        elif spec.get("stops"):
+            # A ladder, not an amount: the stops are a proportion apart.
+            value = _stepped(spec, current, argument)
         else:
             value = _clamp_setting(spec, float(current) + spec["step"] * argument)
         setattr(self, spec["attr"], value)

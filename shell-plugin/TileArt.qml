@@ -5,7 +5,7 @@
 //
 // **The corner is drawn art; the edges between the corners are a number.** A
 // tile is `w` cells by `h` rows, and a shape scaled by one factor cannot be a
-// rectangle of any aspect - which is the rule the slider's track and the
+// rectangle of any aspect - which is the rule the slider's travel and the
 // dial's shaded zone are not drawn under. A corner is not parameterised by
 // anything, though, and a straight edge does not have to be drawn to be
 // right, so a ground is the one and the other: the same quarter set at four

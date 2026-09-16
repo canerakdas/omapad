@@ -42,7 +42,13 @@ NOTHING_LISTED = "Nothing found"
 # and something the person holding the pad can see for themselves - a row that
 # comes and goes for a reason nobody can point at is worse than a row that is
 # always there and sometimes does nothing.
-WHEN = ("game", "handed_over", "locked", "kept")
+#
+# `first_run` is the one that is true once and never again, which is exactly
+# what the rule above warns about - and it is admitted because a row nobody
+# can point at twice is what a first start *is*. It is spent on the one page
+# that says what the buttons do, so the opening it appears in is the opening
+# that explains it.
+WHEN = ("game", "handed_over", "locked", "kept", "first_run")
 
 # The values a listed line carries, in the order the row's action takes them.
 # Numbered rather than one `%s` because the command a row runs often wants two
@@ -66,7 +72,7 @@ BIAS = 2.0
 # validation that fails `omapad check`, and a test. A control that can be
 # added by touching one file is one that can ship half-drawn.
 CONTROLS = ("toggle", "choice", "slider", "gauge", "media", "readout",
-            "row_break")
+            "rows", "row_break")
 
 # Which control a setting may be drawn as, by the kind of thing it holds. A
 # switch pointed at a number is a tile that could never draw itself, and the
@@ -88,11 +94,39 @@ CONTROL_KINDS = {
 # name rather than an index so a config says which thumb it means.
 STICKS = ("left", "right")
 
+# The tile that holds a page rather than opening one: its `items` are drawn as
+# rows inside it, and A goes in before up and down walk them. A verb has no
+# value to show, so a cell spent on one says a single word - and
+# four of them side by side say four words in the room one sentence needs,
+# which is how a page of `Lock`, `Suspend`, `Logout` and `Reboot` ends up
+# reading as a scatter and how `Screensaver` ends up drawn as `Screensa\u2026`.
+#
+# It is not a submenu with the drilling taken out. A submenu is a page you go
+# to and come back from, and its rows get a whole card each; these are rows
+# that are already in front of you, and what buys them their length is that
+# they are stacked rather than laid side by side.
+ROWS = "rows"
+
+# How long a row that counts down counts for, where it does not say. Seconds,
+# and a whole number of them because the row prints it: a count that went
+# `9.5` would be a clock rather than a decision you are being given time to
+# take back. The daemon passes `[menu] countdown` in; this is the fallback for
+# a caller that has no config, which is every test.
+COUNTDOWN = 10
+
 # The controls that are entered before they are changed. A switch has two
 # states and a choice is a short list, so A acting is the whole of it; a
 # control with a range has to be taken first, because a grid spends both axes
 # on getting about and cannot lend one to a tile it is only passing over.
-TAKEABLE = ("slider", "gauge")
+#
+# **A card of rows is on it for exactly that reason**, and it was not at
+# first: walking its rows with the page's own up and down looked like the
+# cheaper answer until you stood on one with a card underneath it. Down then
+# meant the next row rather than the next card, which is a page where a
+# direction means two things depending on what it is pointing at - and no
+# thumb can be asked to know which. So A goes in, and up and down belong to
+# the page until it does.
+TAKEABLE = ("slider", "gauge", ROWS)
 
 # Where a control reads its value. `pad:` is omapad's own settings, `live:` is
 # what the desktop is doing - how loud it is, how bright, what is playing -
@@ -121,6 +155,10 @@ SPANS = {
     # either side of it, and the thumb inside has to move the same distance
     # both ways or the reading is a lie about where the stick is.
     "gauge": (2, 2),
+    # Tall, because it is a stack: a heading, the rows under it and the line
+    # along the foot. Two wide rather than one because the whole reason a verb
+    # is a row here is that a cell could not hold its name.
+    "rows": (2, 3),
     # A name and a number on one line. One cell holds one of them, and a
     # reading whose name is cut in half is a number nobody can place.
     "readout": (2, 1),
@@ -162,7 +200,7 @@ def slug(label):
 
 
 def build(entries, where="menu.items", columns=COLUMNS, settings=None,
-          readings=None, machine=None):
+          readings=None, machine=None, countdown=COUNTDOWN):
     """Normalise config entries into a tree, resolving every action.
 
     Actions are parsed here rather than when an entry is picked, so a typo
@@ -200,6 +238,11 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         source = entry.get("from")
         if children is not None and spec is not None:
             raise MenuError("%s has both an action and items" % path)
+        if control == ROWS and children is None and source is None:
+            raise MenuError(
+                "%s: a %s tile is drawn from its items, and has none"
+                % (path, ROWS)
+            )
         if source is not None:
             if children is not None:
                 raise MenuError("%s both lists its rows and holds them" % path)
@@ -211,11 +254,22 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             "label": label,
             "icon": str(entry.get("icon", "")),
             "detail": str(entry.get("detail", "")),
+            # What a group says under its name on the bar, in the two or
+            # three words a nav card has room for: what is playing, which
+            # output, how many windows. Only a group's is ever drawn - a tile
+            # has its `detail`, and the card under the bar is the only thing
+            # with a second line to fill. Left unset, a group falls back to
+            # how many tiles its page holds, which is true of every group and
+            # needs nobody to maintain it.
+            "meta": _group_meta(entry.get("meta"), path),
             "items": None,
             "action": None,
             # A row you nudge rather than pick: the menu stays put and the
             # button keeps firing while it is held. Volume is the case that
-            # asks for it - reopening the menu per step is absurd.
+            # asks for it - reopening the menu per step is absurd. It is the
+            # opposite of `confirm` below, and the two cannot both be true:
+            # one says a held A means this again, the other that it means
+            # this at last.
             "repeat": bool(entry.get("repeat", False)),
             # A row that does not send the menu away when it is picked. What a
             # setting row needs: choosing a badge layout and being thrown back
@@ -236,9 +290,36 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             # What this tile is. Empty is a plain tile - a name, an icon, and
             # something that happens when it is pressed.
             "control": control,
+            # The rows a `rows` tile draws inside itself. Kept apart from
+            # `items` on purpose: `items` is what a tile *opens*, and this is
+            # what a tile *is*, so a card of rows reads as a leaf everywhere
+            # that asks - the payload's `sub`, the title line, `press`.
+            "rows": None,
+            # A row that is not picked but **held**: A starts an announced
+            # hold on it - the same gesture, the same two waits and the same
+            # cancel button a binding's `confirm = true` gets - and only when
+            # that has counted down does the row run. For the handful of rows
+            # that cannot be taken back: a machine that shuts down under a
+            # thumb resting on A is the one press this surface must not make
+            # cheap.
+            "confirm": bool(entry.get("confirm", False)),
+            # The other way of being sure, and the one a hand does not have to
+            # keep doing: A starts a **countdown** the row prints, and B stops
+            # it. Seconds, or 0 for a row that simply runs.
+            #
+            # It is a second answer rather than a replacement, because the two
+            # are for different presses. A hold is right where the gesture is
+            # already in the hand - a shoulder held across a workspace, a tile
+            # you are looking at - and it is over in a second. A countdown is
+            # right where the thing is about to take the screen away: logging
+            # out is not a press you want to be *sure* about for 900 ms, it is
+            # one you want ten seconds to change your mind about, and holding
+            # A for ten seconds is not a gesture anybody makes.
+            "countdown": 0,
             # What a saved layout calls it, and what it measures.
             "id": str(entry.get("id", "")).strip() or slug(label),
         }
+        item["countdown"] = _countdown(entry, item, path, countdown)
         item["span"] = _span(entry, item["control"], path, columns)
         item["shows"] = _shows(entry, item, path)
         # Where a control tile gets its value, as (source, name).
@@ -252,6 +333,26 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         # not there, and the bar holds places rather than verbs. Opening on it
         # is nearer than the top level ever was - but only a row that is
         # sometimes offered has anything to be nearer *about*.
+        if item["control"] == ROWS and item["icon"]:
+            # Said rather than dropped quietly. An icon everywhere else on
+            # this surface is the big mark in a card's top corner - what says
+            # which tile this is from across a room - and a card of rows has
+            # no corner to spare: the heading is a caption, and a glyph set at
+            # a caption's size in front of tracked capitals reads as a bullet
+            # rather than as a mark. The marks on a card of rows are on its
+            # rows.
+            raise MenuError(
+                "%s: a %s tile has no mark of its own - its rows carry theirs"
+                % (path, ROWS)
+            )
+        if item["control"] == ROWS and item["keys"]:
+            # `_keys` allows one because the entry has `items`; this tile has
+            # them and is still not a page. A key is spent while a page is *in
+            # front*, and nothing is ever in front of a card of rows.
+            raise MenuError(
+                "%s: only a page can spend a key - this tile is drawn in place"
+                % path
+            )
         item["open_on"] = bool(entry.get("open_on", False))
         if item["open_on"] and not item["when"]:
             raise MenuError("%s: 'open_on' needs a 'when'" % path)
@@ -261,6 +362,9 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 % (path, item["id"])
             )
         seen[item["id"]] = True
+        # Named after the tile, so the daemon has somewhere to file what the
+        # command said without the config having to name a second thing.
+        item["meta"] = dict(item["meta"], id=item["id"])
         if source is not None or children is not None:
             # Neither kind of submenu row is picked, so neither can nudge or
             # stay: both are answers to what happens when a row *runs*.
@@ -268,6 +372,11 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 raise MenuError("%s: only an action row can repeat" % path)
             if item["stay"]:
                 raise MenuError("%s: only an action row can stay open" % path)
+            if item["confirm"]:
+                # Opening a page is not a thing to be sure about, and a page
+                # you have to hold A to reach is a page nobody finds.
+                raise MenuError(
+                    "%s: only an action row can ask to be confirmed" % path)
         if source is not None:
             # Parsed here and thrown away, for the reason every other action is
             # parsed here: `omapad check` should name a row whose template is
@@ -278,30 +387,53 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 raise MenuError("%s: %s" % (path, exc)) from exc
             item["from"] = str(source).strip()
             item["template"] = spec
-            # Not None, so the row reads as a submenu before it has been
-            # entered: what it holds is read at the press, and until then the
-            # only honest answer is that it drills in.
-            item["items"] = []
+            if item["control"] == ROWS:
+                # A **card** that lists, which is read when the page it sits on
+                # settles rather than at a press: nobody enters a card, it is
+                # already open. Seeded with its own `empty` words rather than
+                # with nothing, because a card drawn on a page you are looking
+                # at is blank for as long as the command takes - and a blank
+                # card reads as a drawing fault rather than as a question that
+                # has not been answered yet.
+                item["rows"] = [_listed_row(item, item["empty"], None, None)]
+            else:
+                # Not None, so the row reads as a submenu before it has been
+                # entered: what it holds is read at the press, and until then
+                # the only honest answer is that it drills in.
+                item["items"] = []
         elif children is not None:
             # Carrying both down, which is the whole of what a nested page
             # needs to be checked the same way this one is: without them a
             # control below the top level is never matched against the
             # setting it reads, and the shipped tree keeps every one of them
             # a level down.
-            item["items"] = build(children, path + ".items", columns,
-                                  settings, readings, machine)
-            if not item["items"]:
+            page = build(children, path + ".items", columns,
+                         settings, readings, machine, countdown)
+            if not page:
                 raise MenuError("%s opens an empty submenu" % path)
+            if item["control"] == ROWS:
+                item["rows"] = _rows(page, path)
+            else:
+                item["items"] = page
         elif spec is not None:
             try:
                 item["action"] = actions.parse(spec)
             except actions.ActionError as exc:
                 raise MenuError("%s: %s" % (path, exc)) from exc
+            if item["confirm"] and item["repeat"]:
+                raise MenuError(
+                    "%s: a row cannot both repeat and be confirmed" % path)
         elif item["control"] in CONTROL_KINDS:
             # A control acts on what it reads. The press is the whole of it,
             # so there is nothing to repeat and nowhere to be thrown out to.
             if item["repeat"]:
                 raise MenuError("%s: a control does not repeat" % path)
+            if item["confirm"]:
+                # Nothing a control does is one-way: a switch flips back, a
+                # slider is pushed the other way, and B puts a taken one back
+                # where it was. A hold in front of that is friction with
+                # nothing to protect.
+                raise MenuError("%s: a control is not confirmed" % path)
             item["stay"] = True
         else:
             raise MenuError("%s needs an action or items" % path)
@@ -309,12 +441,44 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
     return items
 
 
+def _rows(items, path):
+    """The rows a card draws inside itself, checked for what a row may be.
+
+    A row here is a verb and nothing else. It cannot open a page - the card is
+    already the page, and there is nowhere further in for a level to be - and
+    it cannot hold a value, because every control this surface has is a card's
+    worth of drawing and a row is one line of text. Both are said here rather
+    than drawn as a blank line: a tile that could never draw itself is what
+    `omapad check` is for.
+
+    A break is refused for the same reason it is a break: it ends a row of
+    cells, and these are not cells.
+    """
+    for index, item in enumerate(items):
+        where = "%s.items[%d]" % (path, index)
+        if item["control"] == ROW_BREAK:
+            raise MenuError(
+                "%s: a break ends a row of cells, and this is a row" % where
+            )
+        if item["control"]:
+            raise MenuError(
+                "%s: a row here is a verb, not a %s" % (where, item["control"])
+            )
+        if item["items"] is not None:
+            raise MenuError(
+                "%s: a row here cannot open a page - the card is one" % where
+            )
+    return items
+
+
 def _break_row():
     """A gap that ends the row it is in. Never drawn, never selected."""
     return {
-        "label": "", "icon": "", "detail": "", "items": None, "action": None,
+        "label": "", "icon": "", "detail": "", "meta": _group_meta(None, ""),
+        "items": None, "action": None,
         "repeat": False, "stay": False, "from": None, "template": None,
         "empty": "", "when": (), "control": ROW_BREAK, "id": "",
+        "countdown": 0,
         "span": (1, 1), "open_on": False, "keys": {}, "reads": (),
         "shows": "",
     }
@@ -414,6 +578,42 @@ def _reads(entry, item, path, settings, readings=None, machine=None):
                 % (path, name, found["kind"], control)
             )
     return (source, name)
+
+
+def _countdown(entry, item, path, default):
+    """How long this row counts before it runs. 0 for one that just runs.
+
+    `true` takes `[menu] countdown`; a number is that many seconds. Refused on
+    anything that is not an action row, and refused beside the other two
+    answers to "are you sure" - a row cannot be held *and* counted, and a row
+    you nudge is one you mean to press again in a moment.
+    """
+    spec = entry.get("countdown")
+    if spec is None or spec is False:
+        return 0
+    if entry.get("items") or entry.get("from"):
+        # Asked of the entry rather than of `item["items"]`, which is not
+        # settled yet: the branch that fills it runs after this.
+        raise MenuError("%s: only an action row can count down" % path)
+    if item["control"]:
+        raise MenuError("%s: a control does not count down" % path)
+    if item["confirm"]:
+        # One says *keep meaning it* and the other says *you have ten seconds
+        # to stop me*. Both on one row is a press nobody could describe.
+        raise MenuError(
+            "%s: a row is held or counted down, not both" % path)
+    if item["repeat"]:
+        raise MenuError("%s: a repeating row does not count down" % path)
+    if spec is True:
+        return int(default)
+    try:
+        seconds = int(spec)
+    except (TypeError, ValueError):
+        raise MenuError(
+            "%s: 'countdown' is true or a number of seconds" % path)
+    if seconds <= 0:
+        raise MenuError("%s: a countdown is at least one second" % path)
+    return seconds
 
 
 def _shows(entry, item, path):
@@ -569,6 +769,13 @@ def _listed_row(item, label, action, on):
         # A listing answers what is plugged in, which is not a state a row can
         # be written to wait for.
         "when": (),
+        # Nor is it a row anybody wrote, so nobody wrote a hold onto it -
+        # and picking the wrong speaker is undone by picking the right one.
+        "confirm": False,
+        # Nor a countdown: what a listing found is picked and picked again
+        # until the room sounds right, which is the opposite of a press you
+        # are given time to take back.
+        "countdown": 0,
         "control": "",
         # Named by what it is called, because that is the only stable thing a
         # listing carries - and a device is not something a saved layout can
@@ -710,6 +917,44 @@ def _head_line(spec, path, where):
         "ttl": _ttl(spec.get("ttl"), path),
         "empty": str(spec.get("empty", "")).strip(),
     }
+
+
+def _group_meta(spec, path):
+    """What a group says under its name on the bar.
+
+    A literal, or a command with a `ttl` - the same long form a head cell's
+    line takes, because it is the same question asked in a smaller box and
+    two grammars for it would be one more thing to look up. A bare string is
+    the literal here rather than a strftime format: a nav card saying the
+    time would be the head strip said twice, and a place is not an hour.
+    """
+    empty = {"id": "", "text": "", "from": "", "ttl": 0.0, "empty": ""}
+    if spec is None:
+        return empty
+    if isinstance(spec, str):
+        return dict(empty, text=spec.strip())
+    if not isinstance(spec, dict):
+        raise MenuError("%s: 'meta' is a word or a table" % path)
+    source = str(spec.get("from", "")).strip()
+    if not source:
+        raise MenuError("%s: a 'meta' table says what it runs, in 'from'"
+                        % path)
+    return {"id": "", "text": "",
+            "from": source, "ttl": _ttl(spec.get("ttl"), path),
+            "empty": str(spec.get("empty", "")).strip()}
+
+
+def meta_sources(items):
+    """Every group whose meta is a command, with its id and its ttl.
+
+    The bar's answer to `head_sources`: one place that knows where a meta
+    lives, so the daemon asks for what has gone stale without learning the
+    shape of a group.
+    """
+    for item in items:
+        meta = item.get("meta")
+        if meta and meta["from"]:
+            yield meta
 
 
 def head_sources(cell):
@@ -965,6 +1210,29 @@ class MenuModel:
         # it, so the daemon has one thing to ask rather than a depth to reason
         # about.
         self.page_item = None
+        # The last press, and the one thing on this surface that is an event
+        # rather than a state. It travels the way `ripple.py`'s burst does -
+        # a serial the panel compares with the last one it drew - because the
+        # whole page is re-sent every `VIEW_HEARTBEAT` seconds and a payload
+        # carrying a press it has already answered is a duplicate, not a
+        # second press. Never sent as 0: a shell that connects mid-session
+        # must not flash a tile for a press that happened before it came up.
+        self.press_seq = 0
+        self.press_hit = ""
+        # Which way the page in front was arrived from, and the same kind of
+        # event `press_seq` is: a serial the panel compares with the last one
+        # it drew, because the whole page is re-sent twice a second and a
+        # payload carrying a turn it has already animated is a duplicate.
+        #
+        # +1 is further in - a level down, the next group - and -1 is back
+        # out. It is here rather than in the daemon because the model is what
+        # knows a page changed at all; what a panel does with it is a
+        # drawing, and the drawing belongs to the panel.
+        self.turn_seq = 0
+        self.turn_way = 0
+        # What `group_move` knows and `enter_group` cannot work out: a walk
+        # along a strip that wraps. Cleared as it is read.
+        self._group_way = 0
         self.source = []
         self.items = []
         self.tiles = []
@@ -974,6 +1242,16 @@ class MenuModel:
         # number: a tile changing size re-packs the page under it, so an index
         # is stale the moment it is used.
         self.selected = None
+        # Which row of the card in front is selected, where that card is a
+        # `rows` tile, and None everywhere else. **Not `self.rows`**, which is
+        # how many rows of *cells* the page came to: this is one id inside one
+        # tile, and it is an id for the reason `selected` is one.
+        #
+        # A second cursor rather than a second kind of `selected`, because
+        # everything the page does to a tile - carry it, hide it, resize it,
+        # scroll to it - is still being done to the tile. Only a *press* is
+        # aimed further in, and `acting` is where that is asked.
+        self.row = None
         # Rearranging: whether the page in front is being edited, and which
         # tile is being carried. `taken` and `picked` are never both set -
         # entering edit lets go of a control, and a control cannot be taken
@@ -1013,6 +1291,54 @@ class MenuModel:
                 return tile["item"]
         return None
 
+    def lone(self, item):
+        """Whether a card that lists has anything to choose between.
+
+        **A listing with one line is not a list.** One pair of speakers in the
+        room is one row, picking it sets what is already set, and a column of
+        alternatives with a single alternative in it is a card of furniture
+        round a fact. What it is then is a *reading* - what the sound is going
+        out of - so it is drawn as one and A does nothing on it.
+
+        Only a card that **lists**. A card somebody wrote one row into meant
+        that row, and a verb is a verb whether or not it has company.
+        """
+        if not item or item.get("control") != ROWS or not item.get("from"):
+            return False
+        return len(self.rows_of(item)) < 2
+
+    def rows_of(self, item):
+        """The rows a card draws inside itself, as they are offered now.
+
+        A row carries a `when` like any other entry, so a card can hold a verb
+        that is only there in game mode - and the row cursor walks what is
+        drawn rather than what was written.
+        """
+        if not item or not item.get("rows"):
+            return []
+        return self.visible(item["rows"])
+
+    @property
+    def acting(self):
+        """What a press acts on: the row in the card, or the tile itself.
+
+        A card of rows that has been **entered** is not pressed - the row in it
+        is - and every question a press then asks is that row's: whether it
+        has to be held, whether it stays, what it runs. Before it is entered
+        the card is the answer, which is what lets `takeable()` catch the
+        press and turn it into going in. Everything *else* a tile is asked,
+        from being carried to being taken, is the tile's whether or not
+        anybody is inside it, which is why this is a second question rather
+        than a different `current`.
+        """
+        item = self.current
+        if item is None or not self.entered:
+            return item
+        for row in self.rows_of(item):
+            if row["id"] == self.row:
+                return row
+        return None
+
     @property
     def index(self):
         """Where the selection sits among the drawn tiles.
@@ -1026,6 +1352,27 @@ class MenuModel:
         return 0
 
     # -- the bar ------------------------------------------------------------
+
+    def group_meta(self, item, texts=None):
+        """The second line on a group's nav card.
+
+        The word the config wrote, or the answer to the command it named -
+        whichever the daemon last heard, because running one is not this
+        module's business, the same split every head line is under.
+
+        And if it wrote neither, how many tiles the page holds. The count is
+        a fallback rather than an answer: it is the one fact about a group
+        this module can know on its own, and it is the least of the things
+        worth saying up there. A row break is not a tile; it ends one.
+        """
+        meta = item["meta"]
+        if meta["text"]:
+            return meta["text"]
+        if meta["from"]:
+            return (texts or {}).get(meta["id"]) or meta["empty"]
+        drawn = [row for row in self.group_page(item)
+                 if row["control"] != ROW_BREAK]
+        return str(len(drawn)) if drawn else ""
 
     def group_page(self, item):
         """The tiles a chip shows.
@@ -1052,6 +1399,10 @@ class MenuModel:
         """Walk the bar. Wraps: it is a short strip, not a page of tiles."""
         if len(self.groups) < 2:
             return False
+        # Which way the thumb pushed, kept for `enter_group` to hand on: the
+        # strip wraps, so the indexes cannot answer it - the last chip to the
+        # first is a step to the right and looks like a jump to the left.
+        self._group_way = 1 if step > 0 else -1
         self.enter_group((self.group + step) % len(self.groups))
         return True
 
@@ -1062,7 +1413,16 @@ class MenuModel:
             self.page_item = None
             self._show([], self.root_title)
             return
+        was = self.group
         self.group = max(0, min(int(index), len(self.groups) - 1))
+        if self.group != was:
+            # Which way along the bar, not which index is larger: the strip
+            # wraps, and walking off the last chip onto the first is still
+            # somebody going right. `group_move` is the only caller that
+            # knows that, so it says so and this believes it.
+            self.turned(self._group_way if self._group_way
+                        else (1 if self.group > was else -1))
+        self._group_way = 0
         self.stack = []
         self.page_item = self.groups[self.group]
         # The title line stays the root's word: the bar is already saying
@@ -1106,6 +1466,18 @@ class MenuModel:
         """
         return self.page_rows.get(self.page())
 
+    def turned(self, way):
+        """Mark that the page changed, and which way it was reached from.
+
+        Called by the three things that replace a page and by nothing else:
+        drilling in, coming back out, and walking the bar. Opening the menu is
+        not one of them - a surface arriving has its own way of arriving, and
+        a page that also slid in from somewhere would be two entrances for one
+        press.
+        """
+        self.turn_seq += 1
+        self.turn_way = way
+
     def _show(self, items, title, select=None):
         """Draw a page: place its tiles and settle the selection on one.
 
@@ -1127,6 +1499,9 @@ class MenuModel:
             self.selected = select
         else:
             self.selected = names[0] if names else None
+        # A page placed again under a selection that has not moved keeps the
+        # row it was on; a page arriving settles on the first one.
+        self.settle_row()
 
     def repack(self):
         """Place the page again, keeping the selection on the same tile.
@@ -1175,7 +1550,46 @@ class MenuModel:
             return False
         self.selected = landed["id"]
         self.taken = None
+        # A card walked onto is a card nobody is inside, and its cursor starts
+        # at the top: where you were in the *last* card is not a place in this
+        # one.
+        self.row = None
+        self.settle_row()
         return True
+
+    def _row_index(self, item):
+        """Where the row cursor sits in one card. 0 where it sits nowhere."""
+        for number, row in enumerate(self.rows_of(item)):
+            if row["id"] == self.row:
+                return number
+        return 0
+
+    def _step_row(self, item, direction):
+        """Move within a card of rows. False where the press leaves it."""
+        rows = self.rows_of(item)
+        if not rows or direction not in ("up", "down"):
+            return False
+        landed = self._row_index(item) + (1 if direction == "down" else -1)
+        if landed < 0 or landed >= len(rows):
+            return False
+        self.row = rows[landed]["id"]
+        return True
+
+    def settle_row(self):
+        """Keep the row cursor somewhere real on the card now in front.
+
+        It survives leaving the card and going back in - B out of a list and
+        A into it again is one gesture somebody made twice, not a reason to be
+        put back at the top - and it is dropped when the selection moves to
+        another tile, where it would be a place in a list nobody is looking at.
+        """
+        rows = self.rows_of(self.current)
+        if not rows:
+            self.row = None
+            return
+        names = [row["id"] for row in rows]
+        if self.row not in names:
+            self.row = names[0]
 
     def select(self, index):
         """Jump the selection to one tile, the way a pointer names it.
@@ -1189,7 +1603,10 @@ class MenuModel:
         index = max(0, min(int(index), len(self.tiles) - 1))
         if self.tiles[index]["item"]["id"] != self.selected:
             self.taken = None
+            # A different card, so the row cursor is somewhere else entirely.
+            self.row = None
         self.selected = self.tiles[index]["item"]["id"]
+        self.settle_row()
 
     def select_id(self, name):
         """Jump the selection to a named tile. False when it is not here."""
@@ -1197,16 +1614,62 @@ class MenuModel:
             if tile["item"]["id"] == name:
                 if name != self.selected:
                     self.taken = None
+                    self.row = None
                 self.selected = name
+                self.settle_row()
+                return True
+        return False
+
+    def select_row(self, name):
+        """Name a row inside the card in front - what a pointer asks for.
+
+        By id and not by number, for the reason a tile is: a row carrying a
+        `when` comes and goes, and the row a cursor is over is the one it is
+        over rather than the third one somebody wrote.
+        """
+        for row in self.rows_of(self.current):
+            if row["id"] == name:
+                self.row = name
                 return True
         return False
 
     # -- holding a control --------------------------------------------------
 
+    @property
+    def entered(self):
+        """Whether the card in front is a card of rows that has been gone into.
+
+        `taken` on a slider means both axes are the tile's; here it means one
+        of them is, and the difference between the two states is the whole of
+        what A did. Until it is true, up and down belong to the **page**: a
+        direction that meant the next row on one tile and the next tile on the
+        one beside it is a page no thumb can be asked to read.
+        """
+        item = self.held
+        return item is not None and item["control"] == ROWS
+
+    def step_row(self, direction):
+        """Walk the entered card. False at either end, and off one entirely.
+
+        No wrapping, for the reason the grid does not wrap: a cursor that
+        reappeared at the far end of a list a thumb was pushing away from is a
+        cursor you have lost. The end of the list is the end of it, and B is
+        the way out.
+        """
+        if not self.entered:
+            return False
+        return self._step_row(self.current, direction)
+
     def takeable(self):
         """The tile in front, if it is one that has to be held to be moved."""
         item = self.current
         if item is not None and item["control"] in TAKEABLE:
+            if self.lone(item):
+                # Nothing to go in for. The one tile this surface already had
+                # with no press on it is the `readout`, for the same reason:
+                # what the machine is doing is published rather than set, and
+                # a press that finds nothing to do is worse than no press.
+                return None
             return item
         return None
 
@@ -1484,19 +1947,27 @@ class MenuModel:
             self.select_id(tile)
 
     def press(self):
-        """Act on the selected tile.
+        """Act on the selected tile, or on the row inside it.
 
         Returns ("enter", item) for a submenu, ("run", item) for a leaf, or
-        ("none", None) when the page is empty.
+        ("none", None) when the page is empty. A card of rows always answers
+        with one of its rows, which is never a page: `acting` is what makes
+        the difference, and everything below here is the same press it was.
         """
-        item = self.current
+        item = self.acting
         if item is None:
             return ("none", None)
+        # Marked before the page can change under it. Drilling in draws no
+        # flash, and should not: the tile it landed on is not on the page that
+        # arrives, and the page arriving is the answer.
+        self.press_seq += 1
+        self.press_hit = item["id"]
         if item["items"] is not None:
             self.stack.append(
                 (self.items, self.selected, self.title, self.page_item)
             )
             self.page_item = item
+            self.turned(1)
             self._show(self.visible(item["items"]), item["label"])
             return ("enter", item)
         return ("run", item)
@@ -1512,6 +1983,15 @@ class MenuModel:
         for other in self.items:
             if other.get("listed") and other["action"] is not None:
                 other["on"] = other is item
+            # And inside a card that lists, where the tick belongs to that
+            # card's own rows. Only the card the pick landed in: two lists on
+            # one page are two questions, and picking a speaker says nothing
+            # about which microphone is in use.
+            rows = other.get("rows") or ()
+            if any(row is item for row in rows):
+                for row in rows:
+                    if row.get("listed") and row["action"] is not None:
+                        row["on"] = row is item
 
     def back(self):
         """Leave the current submenu. False when there is nothing above it.
@@ -1522,6 +2002,7 @@ class MenuModel:
         if not self.stack:
             return False
         items, selected, title, self.page_item = self.stack.pop()
+        self.turned(-1)
         self._show(items, title, selected)
         return True
 
@@ -1546,6 +2027,35 @@ class MenuModel:
             return ""
 
     # -- the payload --------------------------------------------------------
+
+    def _row_state(self, item, state, value):
+        """One row of a card, as the panel draws it.
+
+        The same three questions a tile is asked and no others: what it is
+        called, whether what it sets is already the case, and what a row that
+        steps a number has got to. A row has no cells, no control, no mark of
+        its own to be carried by and nowhere to drill in to, so none of the
+        rest of a tile's payload has anything to say here.
+        """
+        out = {"id": item["id"], "l": item["label"], "i": item["icon"],
+               "d": item["detail"]}
+        if item.get("on") is not None:
+            # A **listed** row knows its own answer, the way a listed tile
+            # does: the daemon can ask a setting what it holds, but not a
+            # device whether the sound is going to it.
+            out["on"] = bool(item["on"])
+            return out
+        if item["action"] is None:
+            return out
+        if state is not None:
+            answer = state(item["action"])
+            if answer is not None:
+                out["on"] = bool(answer)
+        if value is not None:
+            text = value(item["action"])
+            if text:
+                out["d"] = text
+        return out
 
     def head_state(self, texts=None):
         """The read-only grid above the bar.
@@ -1625,7 +2135,7 @@ class MenuModel:
         }
 
     def view_state(self, opened, state=None, value=None, head=None,
-                   keys=None, control=None):
+                   keys=None, control=None, metas=None):
         """The payload the shell plugin draws.
 
         `state` answers "is this already the case?" for one action - the
@@ -1673,11 +2183,27 @@ class MenuModel:
                     # about. Drawn differently because that is the one state
                     # of this surface a press means something else in.
                     row["hd"] = True
-                if control is not None:
+                if control is not None and item["reads"]:
                     # What it is on now. Merged rather than returned as the
                     # row, so a control tile keeps its label, its icon and its
                     # cells like any other.
+                    #
+                    # Asked of a control that **reads** something rather than
+                    # of any control at all: a card of rows is a control with
+                    # no value in it, and the daemon's answer to "what is this
+                    # on?" begins by unpacking the pair it reads from.
                     row.update(control(item) or {})
+            if item.get("rows") is not None:
+                # The card's own rows, drawn in it rather than behind it. They
+                # carry no cells: what places a row is the row above it.
+                row["rs"] = [self._row_state(one, state, value)
+                             for one in self.rows_of(item)]
+                if self.lone(item):
+                    # And that it has nothing to choose between, so the panel
+                    # draws the one line as a reading rather than as a column
+                    # of one. It is the model's to say: the rows are its, and
+                    # what a card *is* should not be worked out twice.
+                    row["one"] = True
             if item.get("on") is not None:
                 # A listed tile knows its own answer: the daemon can ask a
                 # setting what it holds, but not a device whether it is the
@@ -1700,11 +2226,36 @@ class MenuModel:
             "clock": self.clock(),
             "depth": self.depth,
             "sel": self.selected or "",
+            # And which row of it, where the tile in front is a card of rows.
+            # Its own field rather than a second meaning for `sel`: the page
+            # still scrolls to a tile, the ring is still round a tile, and a
+            # panel that had to work out which of the two `sel` meant would be
+            # the place those two answers could disagree.
+            "row": self.row or "",
             "hd": self.taken or "",
             "edit": self.edit,
             "pick": self.picked or "",
             "g": self.group,
+            # Which tile the last press landed on, and which press that was.
+            # An event among states: the panel flashes the tile only when the
+            # serial moves, so a heartbeat re-sending the page does nothing.
+            "n": self.press_seq,
+            "hit": self.press_hit,
+            # And which page turn this is, with the direction it was reached
+            # from. The same event shape as `n` for the same reason: the page
+            # is re-sent twice a second, and a turn the panel has already
+            # drawn must not be drawn again.
+            "turn": self.turn_seq,
+            "way": self.turn_way,
+            # `d` is the group's own detail, and it is what the title line
+            # prints at the top level: the bar names the group and cannot say
+            # what is inside it. On every group rather than only the current
+            # one, because which one that is already travels as `g` and a
+            # payload that answered the same question twice is a payload that
+            # can disagree with itself.
             "groups": [{"l": item["label"], "i": item["icon"],
+                        "d": item["detail"],
+                        "m": drawable(self.group_meta(item, metas)),
                         "id": item["id"]}
                        for item in self.groups],
             "head": head_tiles,

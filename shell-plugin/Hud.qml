@@ -63,19 +63,60 @@ Item {
   // HUD is read while something else is being watched, so the thing it is
   // over has to stay watchable - and how much is not this panel's to decide.
   property real fade: 0.9
-  // How far the drawn corner of a tile reaches in - the menu's own setting,
-  // so a tile is the same shape in both places. Its *height* is not a setting
-  // here at all; see the grid below.
-  property real corner: 10
+  // What a corner is rounded by where the compositor rounds nothing - the
+  // menu's own setting, so a tile is the same shape in both places. It is the
+  // base of `metrics.radius` rather than a radius; the compositor answers
+  // first. A tile's *height* is not a setting here at all; see the grid below.
+  property real corner: 23
   // How far off the edge of the screen the grid starts. `[hud] margin`, and
   // deliberately not the menu's own: a fullscreen card keeps a television's
   // overscan clear of its first tile, and this is a corner somebody put
   // something in on purpose. 0 is the corner itself.
   property int margin: 16
 
+  // The ink the line under a reading is drawn in, and it is `Menu.qml`'s
+  // `spineInk` written out: the travel under a reading here is the travel
+  // under the same reading there, so it is a mirrored measurement and
+  // qml.md 8.2.1's rule for one applies - it stays off this surface's own
+  // numbers and says where it came from. The menu's dim ink at the share a
+  // line takes of it, which is a line's weight rather than a third level of
+  // text (8.1.2).
+  readonly property color spineInk: Util.alpha(Color.menu.text, 0.58 * 0.35)
+
+  // And the line behind the reading, which is the menu's `trailInk` for the
+  // same reason: the accent at half, a tint rather than a fill.
+  readonly property color trailInk: Util.alpha(Color.accent, 0.5)
+
+  // What share of each screen edge is kept clear of anything that has to be
+  // read (`[ui] safe_area`, game mode only). A television crops its own
+  // edges; every margin below goes through `metrics.edge`, which takes this
+  // or the surface's own, whichever is further in.
+  property real safeArea: 0
+
+  // The screen's own measurements, which are not the window's: a bar is a
+  // strip and a keyboard is a card, and the share a television crops is a
+  // share of the picture rather than of whatever surface is standing in it.
+  // A window with no screen yet answers nothing rather than a share of zero.
+  readonly property int screenH: panel.screen ? panel.screen.height : 0
+  readonly property int screenW: panel.screen ? panel.screen.width : 0
+
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
+
+  // How hard these surfaces round a corner, against the desktop's own answer
+  // (`[ui] radius`). From the payload like the scale, and for the same
+  // reason: the shell cannot read omapad's config, and a person who has
+  // rounded one surface has rounded all of them.
+  property real radiusScale: 1.0
+
   Metrics {
     id: metrics
+    radiusScale: root.radiusScale
     scale: root.uiScale
+    motion: root.motion
+    safeArea: root.safeArea
+    cornerBase: root.corner
   }
 
   // The ground a tile is drawn on. Only ever "plain" here: the other two
@@ -99,10 +140,18 @@ Item {
   // Both axes are worked out the same way, and the arithmetic is what puts
   // the far edge of the last one exactly on the page's: `n` cells and `n - 1`
   // gaps add back up to the whole.
-  readonly property int contentMargin: metrics.space(root.margin)
+  // The grid's own inset, held off to the safe area where a television is
+  // cropping one. Two of them, because a share of the height and a share of
+  // the width are two different numbers on a screen that is not square - and
+  // `[hud] margin` is one number because it was a corner somebody put
+  // something in, which is the same corner either way.
+  readonly property int contentMargin: metrics.edge(
+    root.screenH, metrics.space(root.margin))
+  readonly property int contentMarginX: metrics.edge(
+    root.screenW, metrics.space(root.margin))
   readonly property int cellGap: metrics.spacing.xs
   readonly property int cellWidth: {
-    var inner = panel.width - root.contentMargin * 2
+    var inner = panel.width - root.contentMarginX * 2
     return Math.max(1, Math.floor(
       (inner - root.cellGap * (root.cols - 1)) / root.cols))
   }
@@ -140,6 +189,12 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.radius !== undefined)
+        root.radiusScale = Math.max(0, Number(s.radius))
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
+      if (s.safe !== undefined)
+        root.safeArea = Math.max(0, Number(s.safe))
       if (s.opacity !== undefined) root.fade = Number(s.opacity) || 1
       if (s.corner !== undefined) root.corner = Number(s.corner) || 0
       if (s.margin !== undefined) root.margin = Math.max(0, Number(s.margin))
@@ -193,12 +248,12 @@ Item {
     // up - so the last row ends where the page ends, whatever is on it.
     Item {
       id: page
-      x: root.contentMargin
+      x: root.contentMarginX
       y: root.contentMargin
-      width: parent.width - root.contentMargin * 2
+      width: parent.width - root.contentMarginX * 2
       height: parent.height - root.contentMargin * 2
       opacity: root.opened ? root.fade : 0
-      Behavior on opacity { NumberAnimation { duration: 140 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.arrive } }
 
       Repeater {
         model: root.items
@@ -228,18 +283,41 @@ Item {
           // opaque card reads as nothing whatever - the tiles are the only
           // thing there is, and they carry their own.
           Shape {
+            id: ground
             anchors.fill: parent
             preferredRendererType: Shape.CurveRenderer
 
+            // An edge as well as a ground, for the same reason the menu's
+            // tiles have one: a fill alone is a shade, and a shade is what a
+            // theme is free to move. Drawn a hairline in from the tile's own
+            // box and shifted back out by half of it below, because a stroke
+            // straddles the path it follows.
+            readonly property real weight: metrics.spacing.hairline
+
             ShapePath {
-              fillColor: Util.alpha(Color.menu.background, 0.88)
-              strokeColor: "transparent"
-              strokeWidth: -1
+              // One step lighter than the page, the same ground the menu's
+              // tiles carry - there is one arrangement and one page, so there
+              // is one thing a cell is drawn on.
+              fillColor: Qt.tint(Color.menu.background,
+                                 Util.alpha(Color.menu.text, 0.08))
+              // A step off the card, not off the page - see menu.md.
+              strokeColor: Qt.tint(
+                Qt.tint(Color.menu.background,
+                        Util.alpha(Color.menu.text, 0.08)),
+                Util.alpha(Color.menu.text, 0.07))
+              strokeWidth: ground.weight > 0 ? ground.weight : -1
 
               PathSvg {
-                path: tileArt.ground("plain", tile.width, tile.height,
-                                     metrics.px(root.corner))
+                path: tileArt.ground("plain",
+                                     tile.width - ground.weight,
+                                     tile.height - ground.weight,
+                                     metrics.radius.tile)
               }
+            }
+
+            transform: Translate {
+              x: ground.weight / 2
+              y: ground.weight / 2
             }
           }
 
@@ -284,25 +362,26 @@ Item {
               }
             }
 
-            Rectangle {
+            // The travel: a line with the reading marked on it, and it is
+            // `Travel.qml` rather than a bar of this surface's own for the
+            // reason the name and the value above it are the menu's - a page
+            // of readings has to read the same in both places it appears.
+            //
+            // The value is a binding rather than anything a signal starts, so
+            // a delegate rebuilt between two readings is born where the value
+            // already is - qml.md 5.5. A reading has no stops: what it
+            // answers is how far along a scale it has got, and the scale is
+            // the machine's rather than a list of places somebody chose.
+            Travel {
+              id: readingTravel
               visible: tile.hasBar
               width: parent.width
-              height: Math.max(2, metrics.space(4))
-              radius: height / 2
-              color: Util.alpha(Color.menu.text, 0.18)
-
-              // The travel is a binding rather than something a signal
-              // starts, so a delegate rebuilt between two readings is born
-              // where the value already is - qml.md 5.5.
-              Rectangle {
-                height: parent.height
-                radius: parent.radius
-                width: Math.round(
-                  parent.width * (tile.modelData.v !== undefined
-                                  ? tile.modelData.v : 0))
-                color: Color.accent
-                Behavior on width { NumberAnimation { duration: 200 } }
-              }
+              height: readingTravel.implicitHeight
+              ladder: metrics
+              value: tile.modelData.v !== undefined ? tile.modelData.v : 0
+              ink: root.spineInk
+              trail: root.trailInk
+              mark: Color.accent
             }
           }
         }

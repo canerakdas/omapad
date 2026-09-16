@@ -50,9 +50,14 @@ Item {
   readonly property string socketDir: Quickshell.env("XDG_RUNTIME_DIR")
     ? Quickshell.env("XDG_RUNTIME_DIR") + "/omapad" : ""
 
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
+
   Metrics {
     id: metrics
     scale: root.uiScale
+    motion: root.motion
   }
 
   // 0 the instant the click happened, 1 once the burst is over. Everything
@@ -112,6 +117,8 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
       if (s.b !== undefined) root.button = String(s.b)
       if (s.x !== undefined) root.clickX = Number(s.x) || 0
       if (s.y !== undefined) root.clickY = Number(s.y) || 0

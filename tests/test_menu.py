@@ -180,10 +180,25 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(len(system), 1)
         rows = system[0]["items"]
         self.assertEqual(rows[0]["label"], "Start in")
-        # Two values, so it is walked in place rather than opening a submenu
-        # of two rows that was never a place.
-        self.assertEqual(rows[0]["control"], "choice")
-        self.assertEqual(rows[0]["reads"], "pad:start_mode")
+        # A card of rows rather than a chevron: both values are on screen,
+        # each with the line saying how it differs, and the tick says which
+        # one the next start is waiting on. A choice showed one value, so
+        # that line had nowhere to go - and it is the line that makes this
+        # card worth reading rather than pressing.
+        self.assertEqual(rows[0]["control"], "rows")
+        self.assertEqual(
+            [(row["label"], row["action"]) for row in rows[0]["items"]],
+            [("Game mode", "pad:start_mode=game"),
+             ("Desktop", "pad:start_mode=desktop")],
+        )
+        self.assertTrue(all(row["detail"] for row in rows[0]["items"]))
+        # And it builds, which is what says the rows are verbs the parser
+        # accepts inside a card rather than only TOML that looks right.
+        built = build(config.menu_items)
+        card = [item for item in built
+                if item["label"] == "System"][0]["items"][0]
+        self.assertEqual(len(card["rows"]), 2)
+        self.assertIsNone(card["items"])
 
     def test_the_pointer_row_sits_with_the_pointer_s_other_questions(self):
         # Under Controller, after the two rows about the sticks: all three are
@@ -479,6 +494,110 @@ class NavigationTests(unittest.TestCase):
         self.assertFalse(model.group_move(1))
         self.assertEqual(model.press(), ("none", None))
         self.assertFalse(model.back())
+
+
+class PageTurnTests(unittest.TestCase):
+    """Which way the page in front was reached from.
+
+    The panel draws the new page arriving from that side. It is a serial
+    rather than a state because the whole page is re-sent twice a second, and
+    a turn already drawn must not be drawn again.
+    """
+
+    TREE = [
+        {"label": "One", "items": [
+            {"label": "Deeper", "items": [
+                {"label": "Leaf", "action": "exec:true"},
+            ]},
+        ]},
+        {"label": "Two", "items": [
+            {"label": "Other", "action": "exec:true"},
+        ]},
+        {"label": "Three", "items": [
+            {"label": "Third", "action": "exec:true"},
+        ]},
+    ]
+
+    def model(self):
+        model = MenuModel(build(self.TREE))
+        model.reset()
+        return model
+
+    def test_opening_the_menu_is_not_a_turn(self):
+        # A surface arriving has its own way of arriving; a page that also
+        # slid in from somewhere would be two entrances for one press.
+        model = self.model()
+        self.assertEqual(model.turn_seq, 0)
+        self.assertEqual(model.view_state(True)["way"], 0)
+
+    def test_drilling_in_is_a_turn_inwards(self):
+        model = self.model()
+        model.press()
+        self.assertEqual(model.turn_seq, 1)
+        self.assertEqual(model.turn_way, 1)
+
+    def test_and_coming_back_out_is_the_other_way(self):
+        model = self.model()
+        model.press()
+        model.back()
+        self.assertEqual(model.turn_seq, 2)
+        self.assertEqual(model.turn_way, -1)
+
+    def test_walking_the_bar_turns_the_way_the_thumb_pushed(self):
+        model = self.model()
+        model.group_move(1)
+        self.assertEqual((model.turn_seq, model.turn_way), (1, 1))
+        model.group_move(-1)
+        self.assertEqual((model.turn_seq, model.turn_way), (2, -1))
+
+    def test_and_the_wrap_is_still_the_way_the_thumb_pushed(self):
+        # The last chip to the first is a step to the right, and looks like a
+        # jump to the left to anything counting indexes.
+        model = self.model()
+        model.enter_group(len(model.groups) - 1)
+        model.group_move(1)
+        self.assertEqual(model.group, 0)
+        self.assertEqual(model.turn_way, 1)
+
+    def test_a_group_nobody_moved_to_is_not_a_turn(self):
+        model = self.model()
+        before = model.turn_seq
+        model.enter_group(model.group)
+        self.assertEqual(model.turn_seq, before)
+
+
+class ConfirmedRowTests(unittest.TestCase):
+    """`confirm` on a row: what may carry it, and what may not."""
+
+    def test_an_action_row_may_ask_to_be_held(self):
+        items = build([{"label": "Shutdown", "action": "exec:off",
+                        "confirm": True}])
+        self.assertTrue(items[0]["confirm"])
+
+    def test_and_every_other_row_says_nothing(self):
+        items = build([{"label": "Lock", "action": "exec:lock"}])
+        self.assertFalse(items[0]["confirm"])
+
+    def test_a_page_is_not_a_thing_to_be_sure_about(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Windows", "confirm": True,
+                    "items": [{"label": "Close", "action": "exec:x"}]}])
+        self.assertIn("confirm", str(caught.exception))
+
+    def test_nor_is_a_control_that_flips_back(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Vibration", "control": "toggle",
+                    "reads": "pad:rumble", "confirm": True}],
+                  settings=config_module.CHOSEN)
+        self.assertIn("confirm", str(caught.exception))
+
+    def test_and_a_row_cannot_both_repeat_and_be_confirmed(self):
+        # One says a held A means this again, the other that it means this at
+        # last.
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Louder", "action": "exec:up",
+                    "repeat": True, "confirm": True}])
+        self.assertIn("confirm", str(caught.exception))
 
 
 class OpenOnTests(unittest.TestCase):
@@ -791,6 +910,360 @@ class ControlTileTests(unittest.TestCase):
         self.assertEqual((rows[1]["x"], rows[1]["w"]), (1, 2))
 
 
+
+class RowsTileTests(unittest.TestCase):
+    """A card that holds a page rather than opening one."""
+
+    POWER = {
+        "label": "Power",
+        "control": "rows",
+        "detail": "Auto-sleep 30 min",
+        "items": [
+            {"label": "Rest mode", "action": "exec:rest"},
+            {"label": "Restart", "action": "exec:restart"},
+            {"label": "Full shutdown", "action": "exec:off",
+             "confirm": True},
+        ],
+    }
+
+    PAGE = [{"label": "System", "items": [
+        {"label": "Lock", "action": "exec:lock"},
+        dict(POWER),
+        {"label": "Wake", "action": "exec:wake"},
+    ]}]
+
+    def card(self, **keys):
+        entry = dict(self.POWER)
+        entry.update(keys)
+        return build([entry])[0]
+
+    def model(self):
+        return MenuModel(build(self.PAGE))
+
+    # -- what the config may say ------------------------------------------
+
+    def test_the_items_are_held_rather_than_opened(self):
+        item = self.card()
+        self.assertEqual(item["control"], "rows")
+        self.assertEqual([row["label"] for row in item["rows"]],
+                         ["Rest mode", "Restart", "Full shutdown"])
+        # And it reads as a leaf everywhere that asks, which is what keeps
+        # the payload's `sub`, the title line and `press` right.
+        self.assertIsNone(item["items"])
+
+    def test_a_card_with_nothing_in_it_says_so(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows",
+                    "action": "exec:off"}])
+        self.assertIn("has none", str(caught.exception))
+
+    def test_a_row_here_cannot_open_a_page(self):
+        # There is nowhere further in: the card is already the page.
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows", "items": [
+                {"label": "More", "items": [
+                    {"label": "Deeper", "action": "exec:x"}]}]}])
+        self.assertIn("cannot open a page", str(caught.exception))
+
+    def test_nor_can_it_hold_a_value(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows", "items": [
+                {"label": "Vibration", "control": "toggle",
+                 "reads": "pad:rumble"}]}],
+                settings=config_module.CHOSEN)
+        self.assertIn("is a verb", str(caught.exception))
+
+    def test_a_break_ends_a_row_of_cells_and_these_are_not_cells(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows", "items": [
+                {"label": "Rest", "action": "exec:rest"},
+                {"control": "row_break"}]}])
+        self.assertIn("break", str(caught.exception))
+
+    def test_a_card_may_list_its_rows_instead_of_holding_them(self):
+        # Which is the whole point of one for a device: what is plugged in is
+        # not something a config file knows, and the card is read when the
+        # page it sits on settles rather than at a press, because nobody
+        # enters a card.
+        item = build([{"label": "Output", "control": "rows",
+                       "empty": "No outputs found",
+                       "action": "exec:set %1", "from": "list-outputs"}])[0]
+        self.assertEqual(item["from"], "list-outputs")
+        self.assertIsNone(item["items"])
+        # Seeded with its own words rather than with nothing: a blank card on
+        # a page you are looking at reads as a drawing fault.
+        self.assertEqual([row["label"] for row in item["rows"]],
+                         ["No outputs found"])
+
+    def test_a_listing_with_one_line_is_a_reading_rather_than_a_list(self):
+        # One pair of speakers in the room is one row: picking it sets what is
+        # already set, and a column of alternatives with a single alternative
+        # in it is a card of furniture round a fact.
+        item = build([{"label": "Output", "control": "rows",
+                       "action": "exec:set %1", "from": "list-outputs"}])[0]
+        item["rows"][:] = listed(item, ["* Speakers\t1"], 10)
+        model = MenuModel([dict(item)])
+        self.assertTrue(model.lone(model.current))
+        # So there is nothing to go in for, and A finds nothing to do.
+        self.assertIsNone(model.takeable())
+        card = [tile for tile in model.view_state(True)["items"]
+                if tile["id"] == "output"][0]
+        self.assertTrue(card["one"])
+
+    def test_and_a_second_line_makes_it_a_list_again(self):
+        item = build([{"label": "Output", "control": "rows",
+                       "action": "exec:set %1", "from": "list-outputs"}])[0]
+        item["rows"][:] = listed(item, ["* Speakers\t1", "The TV\t2"], 10)
+        model = MenuModel([dict(item)])
+        self.assertFalse(model.lone(model.current))
+        self.assertIsNotNone(model.takeable())
+        card = [tile for tile in model.view_state(True)["items"]
+                if tile["id"] == "output"][0]
+        self.assertNotIn("one", card)
+
+    def test_but_a_card_somebody_wrote_one_row_into_is_still_a_card(self):
+        # A verb is a verb whether or not it has company; only a *listing*
+        # with one line is a fact rather than a choice.
+        model = MenuModel(build([{"label": "Power", "control": "rows",
+                                  "items": [{"label": "Rest",
+                                             "action": "exec:rest"}]}]))
+        self.assertFalse(model.lone(model.current))
+        self.assertIsNotNone(model.takeable())
+
+    def test_and_what_the_command_prints_becomes_its_rows(self):
+        item = build([{"label": "Output", "control": "rows",
+                       "action": "exec:set %1", "from": "list-outputs"}])[0]
+        item["rows"][:] = listed(item, ["* Speakers\t1", "The TV\t2"], 10)
+        model = MenuModel([dict(item)])
+        self.assertEqual([row["label"] for row in model.rows_of(model.current)],
+                         ["Speakers", "The TV"])
+        self.assertEqual([row["on"] for row in model.rows_of(model.current)],
+                         [True, False])
+
+    def test_a_card_has_no_mark_of_its_own(self):
+        # An icon everywhere else here is the big mark in a card's corner. A
+        # card of rows has no corner to spare, and a glyph at the heading's
+        # size in front of tracked capitals reads as a bullet - so it is said
+        # rather than accepted and drawn nowhere.
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows", "icon": "P",
+                    "items": [{"label": "Rest", "action": "exec:rest"}]}])
+        self.assertIn("no mark of its own", str(caught.exception))
+
+    def test_but_a_row_in_one_may_carry_a_mark(self):
+        item = build([{"label": "Power", "control": "rows", "items": [
+            {"label": "Rest", "icon": "R", "action": "exec:rest"}]}])[0]
+        self.assertEqual(item["rows"][0]["icon"], "R")
+
+    def test_a_card_is_not_a_page_and_spends_no_key(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows",
+                    "keys": {"Y": {"tap": "exec:x"}},
+                    "items": [{"label": "Rest", "action": "exec:rest"}]}])
+        self.assertIn("only a page can spend a key", str(caught.exception))
+
+    def test_it_asks_for_a_stack_of_cells_by_default(self):
+        self.assertEqual(self.card()["span"], (2, 3))
+
+    def test_and_a_row_of_it_may_be_held_like_any_other(self):
+        item = self.card()
+        self.assertTrue(item["rows"][2]["confirm"])
+
+    # -- going in, and walking it ------------------------------------------
+
+    def test_a_card_is_entered_before_it_is_walked(self):
+        model = self.model()
+        model.select_id("power")
+        self.assertFalse(model.entered)
+        # Down is the page's until A goes in: the tile below is what a thumb
+        # pushing down is reaching for, and a card that answered with its own
+        # second row would make one direction mean two things.
+        self.assertFalse(model.step_row("down"))
+        self.assertEqual(model.row, "rest-mode")
+
+    def test_and_a_is_what_goes_in(self):
+        model = self.model()
+        model.select_id("power")
+        self.assertIs(model.takeable(), model.current)
+        self.assertTrue(model.take())
+        self.assertTrue(model.entered)
+
+    def test_down_the_page_walks_past_the_card_rather_than_into_it(self):
+        page = [{"label": "System", "items": [
+            dict(self.POWER),
+            {"control": "row_break"},
+            {"label": "Wake", "action": "exec:wake"},
+        ]}]
+        model = MenuModel(build(page))
+        model.select_id("power")
+        self.assertTrue(model.step("down"))
+        self.assertEqual(model.selected, "wake")
+
+    def test_and_walking_off_a_card_puts_nobody_inside_the_next_one(self):
+        page = [{"label": "System", "items": [
+            dict(self.POWER),
+            dict(self.POWER, label="Sound", id="sound"),
+        ]}]
+        model = MenuModel(build(page))
+        model.select_id("power")
+        model.take()
+        model.step_row("down")
+        model.step("right")
+        self.assertEqual(model.selected, "sound")
+        self.assertFalse(model.entered)
+        # And its cursor starts at the top: where you were in the last card
+        # is not a place in this one.
+        self.assertEqual(model.row, "rest-mode")
+
+    def test_inside_it_up_and_down_are_the_card_s(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        self.assertTrue(model.step_row("down"))
+        self.assertEqual(model.row, "restart")
+        self.assertTrue(model.step_row("down"))
+        self.assertEqual(model.row, "full-shutdown")
+        self.assertTrue(model.step_row("up"))
+        self.assertEqual(model.row, "restart")
+
+    def test_and_the_end_of_the_list_is_the_end_of_it(self):
+        # No wrapping, for the reason the grid does not wrap: a cursor that
+        # reappeared at the far end is a cursor you have lost. B is the way
+        # out.
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        self.assertFalse(model.step_row("up"))
+        self.assertEqual(model.row, "rest-mode")
+        for _ in range(2):
+            model.step_row("down")
+        self.assertFalse(model.step_row("down"))
+        self.assertEqual(model.row, "full-shutdown")
+
+    def test_leaving_keeps_the_row_for_the_next_time_in(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        model.step_row("down")
+        self.assertTrue(model.release())
+        self.assertFalse(model.entered)
+        model.take()
+        self.assertEqual(model.row, "restart")
+
+    def test_a_row_that_is_not_offered_is_not_walked_to(self):
+        page = [{"label": "System", "items": [
+            {"label": "Power", "control": "rows", "items": [
+                {"label": "Rest", "action": "exec:rest"},
+                {"label": "Unlock", "action": "exec:unlock", "when": "locked"},
+                {"label": "Restart", "action": "exec:restart"},
+            ]},
+        ]}]
+        model = MenuModel(build(page))
+        model.take()
+        model.step_row("down")
+        self.assertEqual(model.row, "restart")
+
+    def test_naming_a_row_is_how_a_pointer_reaches_one(self):
+        model = self.model()
+        model.select_id("power")
+        self.assertTrue(model.select_row("full-shutdown"))
+        self.assertEqual(model.row, "full-shutdown")
+        self.assertFalse(model.select_row("nothing-here"))
+
+    def test_leaving_the_card_forgets_the_row(self):
+        model = self.model()
+        model.select_id("power")
+        model.select_id("lock")
+        self.assertIsNone(model.row)
+
+    # -- pressing it -------------------------------------------------------
+
+    def test_a_press_is_aimed_at_the_row_once_you_are_inside(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        model.step_row("down")
+        kind, item = model.press()
+        self.assertEqual(kind, "run")
+        self.assertEqual(item["label"], "Restart")
+        # And the flash lands on the row, which is the thing that was pressed.
+        self.assertEqual(model.press_hit, "restart")
+
+    def test_and_at_the_card_before_you_are(self):
+        # Which is what lets `takeable()` catch the press and turn it into
+        # going in, rather than a row running from outside the list.
+        model = self.model()
+        model.select_id("power")
+        self.assertEqual(model.acting["label"], "Power")
+
+    def test_and_a_card_with_no_row_under_the_cursor_presses_nothing(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        model.row = "gone"
+        self.assertEqual(model.press()[0], "none")
+
+    def test_acting_is_the_tile_itself_everywhere_else(self):
+        model = self.model()
+        self.assertEqual(model.acting["label"], "Lock")
+        self.assertIs(model.acting, model.current)
+
+    # -- drawing it --------------------------------------------------------
+
+    def test_the_payload_carries_the_rows_and_the_one_in_front(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        model.step_row("down")
+        state = model.view_state(True)
+        # And that somebody is inside it, which is what says the row cursor
+        # may be drawn at all.
+        self.assertEqual(state["hd"], "power")
+        self.assertEqual(state["row"], "restart")
+        card = [tile for tile in state["items"] if tile["id"] == "power"][0]
+        self.assertEqual(card["k"], "rows")
+        self.assertFalse(card["sub"])
+        self.assertEqual([row["l"] for row in card["rs"]],
+                         ["Rest mode", "Restart", "Full shutdown"])
+        self.assertEqual(card["d"], "Auto-sleep 30 min")
+
+    def test_a_row_is_ticked_by_the_same_question_a_tile_is(self):
+        model = self.model()
+        state = model.view_state(
+            True, state=lambda action: action.command == "restart")
+        card = [tile for tile in state["items"] if tile["id"] == "power"][0]
+        self.assertEqual([row.get("on") for row in card["rs"]],
+                         [False, True, False])
+
+    def test_and_a_row_that_steps_a_number_prints_where_it_got_to(self):
+        model = self.model()
+        state = model.view_state(True, value=lambda action: "9 a second")
+        card = [tile for tile in state["items"] if tile["id"] == "power"][0]
+        self.assertEqual(card["rs"][0]["d"], "9 a second")
+
+    def test_a_card_is_not_asked_what_value_it_is_on(self):
+        # It is a control that reads nothing, and the daemon's answer to that
+        # question starts by unpacking the pair a tile reads from. Asked, it
+        # took the whole daemon down on the next heartbeat.
+        model = self.model()
+        asked = []
+
+        def control(item):
+            asked.append(item["id"])
+            return {}
+
+        model.view_state(True, control=control)
+        self.assertNotIn("power", asked)
+
+    def test_a_page_placed_again_keeps_the_row_it_was_on(self):
+        model = self.model()
+        model.select_id("power")
+        model.take()
+        model.step_row("down")
+        model.repack()
+        self.assertEqual(model.selected, "power")
+        self.assertEqual(model.row, "restart")
+
 class TakenTests(unittest.TestCase):
     """A control with a range, and the two axes it borrows while it is held."""
 
@@ -899,6 +1372,91 @@ class TakenTests(unittest.TestCase):
         state = self.model().view_state(True)
         self.assertEqual(state["hd"], "")
         self.assertFalse([row for row in state["items"] if "hd" in row])
+
+
+class GroupDetailTests(unittest.TestCase):
+    """What the bar cannot say, and the title line now does."""
+
+    def state(self):
+        model = MenuModel(build([
+            {"label": "Now", "detail": "Sound, screen, what is playing",
+             "items": [{"label": "One", "action": "nop"}]},
+            {"label": "Apps", "items": [{"label": "Two", "action": "nop"}]},
+        ]))
+        return model.view_state(True)
+
+    def test_a_group_carries_its_own_detail(self):
+        rows = self.state()["groups"]
+        self.assertEqual(rows[0]["d"], "Sound, screen, what is playing")
+
+    def test_a_group_written_without_one_says_nothing(self):
+        # Empty rather than absent: the panel reads `groups[g].d` and a key
+        # that is sometimes there is a key it has to test for twice.
+        rows = self.state()["groups"]
+        self.assertEqual(rows[1]["d"], "")
+
+    def test_every_group_carries_it_not_only_the_current_one(self):
+        # Which group is in front already travels as `g`. A payload that
+        # answered that twice is one that can disagree with itself.
+        rows = self.state()["groups"]
+        self.assertTrue(all("d" in row for row in rows))
+
+
+class PressMarkTests(unittest.TestCase):
+    """The one event on a surface of states: which tile A landed on."""
+
+    def model(self):
+        return MenuModel(build([{"label": "Group", "items": [
+            {"label": "One", "action": "nop"},
+            {"label": "Two", "action": "nop"},
+            {"label": "Deeper", "items": [
+                {"label": "Inside", "action": "nop"},
+            ]},
+        ]}]))
+
+    def test_nobody_has_pressed_anything_yet(self):
+        # Never 0 once a press has happened, so 0 is the panel's own proof
+        # that it has nothing to draw - the same guard `ripple.py` keeps.
+        state = self.model().view_state(True)
+        self.assertEqual(state["n"], 0)
+        self.assertEqual(state["hit"], "")
+
+    def test_a_press_names_the_tile_it_landed_on(self):
+        model = self.model()
+        model.select(0)
+        before = model.view_state(True)["n"]
+        model.press()
+        state = model.view_state(True)
+        self.assertEqual(state["n"], before + 1)
+        self.assertEqual(state["hit"], model.items[0]["id"])
+
+    def test_the_count_moves_for_every_press(self):
+        # A tile pressed twice has to read as two presses, or the second one
+        # is a payload the panel throws away as a duplicate.
+        model = self.model()
+        model.select(0)
+        model.press()
+        first = model.view_state(True)["n"]
+        model.press()
+        self.assertEqual(model.view_state(True)["n"], first + 1)
+
+    def test_an_empty_page_marks_nothing(self):
+        model = MenuModel(build([]))
+        model.press()
+        self.assertEqual(model.view_state(True)["n"], 0)
+
+    def test_drilling_in_still_counts_as_a_press(self):
+        # The tile it names is not on the page that arrives, so the panel
+        # finds nothing to light - which is right, because the page changing
+        # is the answer. The count still moves: a serial with a hole in it is
+        # one the panel cannot reason about.
+        model = self.model()
+        model.select_id("deeper")
+        model.press()
+        state = model.view_state(True)
+        self.assertEqual(state["n"], 1)
+        self.assertEqual(state["hit"], "deeper")
+        self.assertNotIn("deeper", [row["id"] for row in state["items"]])
 
 
 class ArrangeTests(unittest.TestCase):

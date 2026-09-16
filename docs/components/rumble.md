@@ -26,7 +26,7 @@ Four words, uploaded once at `attach()`, in `VOCABULARY`:
 | `tick` | a press landed | `FF_RUMBLE` | a binding's `rumble`, `[snap] rumble`, `[mode] rumble`, the confirmation countdown |
 | `edge` | you cannot go further | `FF_SQUARE`, two cycles | a control at its end, the grid's rim, a transport direction the player says is closed |
 | `commit` | that took | `FF_TRIANGLE`, one cycle | a switch flipped, a choice walked, a tile picked up or put down |
-| `texture` | it is moving | `FF_SINE`, `replay.length = 0` | **started** when a scrub begins, **stopped** when it ends |
+| `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** while a control is moving, **stopped** when it stops |
 
 **The waveform is not a setting.** A square wave is what makes an edge feel
 like an edge, and making it configurable is offering to turn a bump into a
@@ -34,29 +34,73 @@ hum. Strength and length are settings, because those are taste. `cycles` is
 the same argument one field along - two cycles is what reads as a bump rather
 than a click - so the period is computed from the length rather than named.
 
-**`texture` has no fallback, and the other three do.** Where a pad has no
-periodic effects `edge` and `commit` are played as plain ticks; `texture` is
-simply unavailable. Degrading a *continuous* effect onto one that has to be
-stopped is the tick that sticks on arriving through a new door, and a hum
-stuck on is not the same risk as a click stuck on.
+**`texture` is the one word with two motors to say something with**, and that
+is why it is plain `FF_RUMBLE` where the two words above it are periodic: a
+periodic effect carries one magnitude, and one magnitude cannot say a
+direction. A pad wires its low-frequency motor on the left and its
+high-frequency one on the right, so a value pushed right is felt on the right.
 
-**`texture` ships off** (`[rumble] texture = false`). Roadmap 17's rule - *a
-scheme where every press buzzes says nothing* - applied to the newest gesture:
-it is the likeliest of the four to annoy, and the default says so.
+**One level, and the side is the message.** It rose with the distance from
+where a push began for a pass, which is a second reading of the number the
+tile is already printing - and what a hand pushing a control is asking is
+whether the push landed. So `aim(name, side)` takes "left", "right" or "both"
+and plays the effect's own strength there: `[rumble] texture_strength`, an
+absolute level like `edge_strength` and `commit_strength`.
+
+**Up and down are the left motor**, both of them. A list inside a card is
+walked with the D-pad, the D-pad is under the left thumb, and a vertical push
+has no left and right to answer with. `daemon.menu_feel(direction, sideways)`
+is the one place that decides it.
+
+**It is re-uploaded in place while it runs.** `EVIOCSFF` with an effect's own
+id replaces what that slot holds, so the level follows the value without a gap
+- one round trip per step of a push, which is the thing this file otherwise
+refuses. It is allowed here because it *is* the press's own work rather than
+something happening underneath one, and because a level that cannot change
+while the thumb moves is not a level. The write is skipped where the
+magnitudes have not changed, which is most steps of a held repeat.
+
+**It ships on now** (`[rumble] texture = true`), where it shipped off, and it
+needs no waveform a pad might not have - so every pad that rumbles at all can
+say it. Roadmap 17's rule - *a scheme where every press buzzes says nothing* -
+is what kept the old hum switched off, and it still would: a buzz that says
+*which way you just pushed* is not a press buzzing, it is the only thing on
+the pad that answers a direction.
 
 **Nothing buzzes on a plain move.** Not a tile to the next tile, not a chip to
 the next chip. `[snap] rumble`'s comment is the older half of the same rule -
 *a step that repeats while it is held would buzz all the way down a list* -
 which is also why a scrubbing control does not tick per step: it holds one
-continuous `texture` and stops it when the direction is let go.
+continuous `texture`, aims it at how far the value has come, and stops it when
+the direction is let go.
+
+**And that is one of the two places the speakers say something the motor
+cannot.** [`sound.md`](sound.md) carries the same three played words, said at
+the same call site by `daemon.say()`, plus two of its own. `move` is this
+paragraph: a step repeating under a held direction buzzes and the same step
+*ticks*, because a sound decays and a vibration does not - so a selection
+walking a page is heard and never felt, and `say(name, rumble=False)` is what
+that asymmetry looks like in the code.
+
+`back` is the other, and it is the opposite asymmetry: it *does* tick, because
+a press is a press and the hands have no business finding out that something
+was cancelled by feeling nothing. What the motor cannot do is be **lower**. It
+can be shorter or weaker, which says *less happened*; only a pitch falling
+where another rose says *this one went the other way*. So `say()` maps both
+`move` and `back` onto the motor's `tick` - they are the two words
+`VOCABULARY` does not hold - and the speakers are what tell the two presses
+apart. Nothing here changes: the motor's rule is still the motor's.
 
 ## Surface
 
 `Rumble(config)`, then `attach(device)` on connect and `detach()` on
 disconnect. `play(name)` fires a pulse and `pulse()` is `play("tick")` under
 its old name, so nothing that called it changed. `start(name)` / `stop(name)`
-begin and end a held effect, both idempotent; `stop_held()` ends everything
-still running, which is what `release_everything()` owes the motor.
+begin and end a held effect, both idempotent, and `aim(name, side)` holds one
+on "left", "right" or "both" at that effect's own strength - anything else
+stops it.
+`stop_held()` ends everything still running, which is what
+`release_everything()` owes the motor.
 `settle(now)` every loop tick ends a pulse that has run its length - a held
 effect has no length to run out, so nothing there can cut one short.
 `available` asks whether anything is uploaded, `has(name)` whether this pad

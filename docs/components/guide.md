@@ -80,10 +80,24 @@ it printed.
 ## Payload - `guide.sock`
 
 ```
-open, page, count, title, note, cols: [[ {b, k, d, h} ]]
+open, page, count, turn, way, title, note, cols: [[ {b, k, d, h} ]]
 ```
 
 `b` badge text, `k` badge kind, `d` what a tap does, `h` what a hold does.
+
+`turn` and `way` are the page turn as an **event** - a serial the panel
+compares with the last one it drew, because the card is re-sent every
+heartbeat and a turn already animated must not be animated again. `page`
+cannot answer it: the pages wrap, so the last to the first is a step to the
+right that looks like a jump to the left.
+
+This is the surface where that matters most, because here a page turn **is** a
+direction: it is a literal L or R. `Guide.qml` slides the columns in from the
+side the shoulder pushed from, by one `columnGap` - the card's own unit of
+horizontal separation, since this surface is one of the ones still built from
+`space()` rather than the menu's ladder - over `time.follow`. A `Translate`
+rather than an assigned `x`, because the Row is laid out by a Column and an
+assigned x would be fighting the layout for the same property.
 
 ## The panel
 

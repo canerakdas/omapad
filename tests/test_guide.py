@@ -385,5 +385,32 @@ class ActionTests(unittest.TestCase):
         self.assertTrue(binding.holdable)
 
 
+
+class PageTurnTests(unittest.TestCase):
+    """Which way a shoulder turned the card, for the panel to draw."""
+
+    def model(self):
+        return guide.GuideModel(shipped_config())
+
+    def test_a_turn_carries_the_way_the_shoulder_pushed(self):
+        model = self.model()
+        self.assertEqual(model.view_state(True)["turn"], 0)
+        model.move(1)
+        state = model.view_state(True)
+        self.assertEqual((state["turn"], state["way"]), (1, 1))
+        model.move(-1)
+        state = model.view_state(True)
+        self.assertEqual((state["turn"], state["way"]), (2, -1))
+
+    def test_and_the_wrap_is_still_that_way(self):
+        # The pages wrap, so the index cannot answer it: the last to the
+        # first is a step right that looks like a jump left.
+        model = self.model()
+        model.index = len(model.pages) - 1
+        model.move(1)
+        self.assertEqual(model.index, 0)
+        self.assertEqual(model.view_state(True)["way"], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

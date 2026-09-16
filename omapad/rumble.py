@@ -13,7 +13,7 @@ a log line.
 import logging
 import time
 
-from .linux_input import FF_RUMBLE, FF_SINE, FF_SQUARE, FF_TRIANGLE
+from .linux_input import FF_RUMBLE, FF_SQUARE, FF_TRIANGLE
 
 log = logging.getLogger("omapad")
 
@@ -29,11 +29,6 @@ log = logging.getLogger("omapad")
 # and it is late enough that a tick behaving normally has stopped before it
 # fires.
 SETTLE_MARGIN = 0.05
-
-# How fast the texture hums. A frequency is what makes a hum a hum rather than
-# a stutter, so it is the same kind of decision as the waveform below and is
-# kept out of the config for the same reason.
-TEXTURE_PERIOD_MS = 120
 
 # The four things the motor can say, and the waveform that says each. The
 # waveform is not a setting: a square wave is what makes an edge feel like an
@@ -62,8 +57,17 @@ VOCABULARY = {
         "waveform": FF_TRIANGLE, "cycles": 1, "fallback": True, "held": False,
     },
     "texture": {
-        # It is moving, and it keeps moving until something lets go.
-        "waveform": FF_SINE, "cycles": 0, "fallback": False, "held": True,
+        # It is moving - and **which way it has gone, and how far**. The one
+        # word with two motors to say something with rather than one: a pad
+        # has a low-frequency motor on the left and a high-frequency one on
+        # the right, so a value pushed right is felt on the right and the
+        # level is how far it has come from where it stood. That is why it is
+        # plain FF_RUMBLE and not the sine it was: a periodic effect carries
+        # one magnitude, and one magnitude cannot say a direction.
+        #
+        # It is held, and `aim()` rather than `start()` is how it is held -
+        # the level moves with the value, which is the whole of what it says.
+        "waveform": None, "cycles": 1, "fallback": True, "held": True,
     },
 }
 
@@ -118,6 +122,10 @@ class Rumble:
         self.slots = 0
         self._settle_at = None
         self._held = set()
+        # What each held effect was last aimed at, so a push that has not
+        # changed the level costs nothing: a step of a slider arrives every
+        # repeat, and most of them land on the magnitude already running.
+        self._aimed = {}
         self._read(config)
 
     def _read(self, config):
@@ -203,9 +211,15 @@ class Rumble:
             if waveform is None:
                 # The weak level is which motor a given pad wires rather than
                 # how hard this effect is, so a fallback plays on the same
-                # motors the tick does.
+                # motors the tick does. A **held** effect is the exception: it
+                # is uploaded even on both motors and then aimed, because its
+                # two magnitudes are the two directions it exists to tell
+                # apart - and a pad that is told to hold it without being told
+                # which way should buzz evenly rather than lopsidedly.
+                weak = (_magnitude(strength) if VOCABULARY[name]["held"]
+                        else self.weak)
                 effect = self.device.upload_rumble(
-                    _magnitude(strength), self.weak, length_ms
+                    _magnitude(strength), weak, length_ms
                 )
             else:
                 effect = self.device.upload_periodic(
@@ -218,15 +232,13 @@ class Rumble:
         self.effects[name] = effect
 
     def _period(self, name, length_ms):
-        cycles = VOCABULARY[name]["cycles"]
-        if not cycles:
-            return TEXTURE_PERIOD_MS
-        return max(1, length_ms // cycles)
+        return max(1, length_ms // VOCABULARY[name]["cycles"])
 
     def detach(self):
         """Give the slots back, if the pad is still there to take them."""
         self._settle_at = None
         self._held.clear()
+        self._aimed.clear()
         if self.device is not None:
             for effect in self.effects.values():
                 try:
@@ -266,8 +278,53 @@ class Rumble:
         if self._write(effect, 1):
             self._held.add(name)
 
+    def aim(self, name, side):
+        """Hold an effect on one side of the pad, at that effect's strength.
+
+        `side` is "left", "right" or "both". A pad wires its low-frequency
+        motor on the left and its high-frequency one on the right, so the
+        hand that made the move is the hand that feels it - which is the
+        whole of what this says. **It is one level rather than a scale**: a
+        vibration that rose with the distance from where a push started was
+        a second reading of a number the screen is already showing, and what
+        a hand wants from a control it is pushing is to know the push landed.
+
+        Re-uploaded in place rather than erased and uploaded again: EVIOCSFF
+        with an effect's own id replaces what that slot holds, so a push that
+        changes direction changes motor without a gap. The write is skipped
+        where the side has not changed, which is every step after the first.
+        """
+        if not VOCABULARY[name]["held"]:
+            raise ValueError("%s is played, not aimed" % name)
+        effect = self.effects.get(name)
+        if effect is None:
+            return
+        level = _magnitude(self.levels[name][0])
+        levels = (level if side in ("left", "both") else 0,
+                  level if side in ("right", "both") else 0)
+        if levels == (0, 0):
+            self.stop(name)
+            return
+        if levels == self._aimed.get(name) and name in self._held:
+            return
+        try:
+            self.device.upload_rumble(levels[0], levels[1], 0, effect)
+        except OSError as exc:
+            # The pad went away between the step and the level; the reconnect
+            # path notices on its own, the way _write's does.
+            log.debug("could not aim the %s effect: %s", name, exc)
+            return
+        self._aimed[name] = levels
+        # Played again on every change rather than only on the first: a
+        # driver that takes a new magnitude on the running effect and one
+        # that wants it played again are both answered, and playing a
+        # continuous effect that is already running has no seam in it.
+        if self._write(effect, 1):
+            self._held.add(name)
+
     def stop(self, name):
         """End a held effect. Idempotent, and safe on a pad that has gone."""
+        self._aimed.pop(name, None)
         if name not in self._held:
             return
         self._held.discard(name)
@@ -289,6 +346,7 @@ class Rumble:
             log.debug("rumble failed: %s", exc)
             self.effects = {}
             self._held.clear()
+            self._aimed.clear()
             self._settle_at = None
             return False
         return True

@@ -95,6 +95,20 @@ reading against: every other entry configures the daemon that is running, so
 mode the *next* start comes up in. It has no branch on purpose - acting on it
 would swap the mode under someone who only said what to do next time.
 
+`first_run` (`[menu] first_run`) is the other one that is not like the rest: it
+is not a preference at all but a **mark** - whether the menu still owes
+somebody a first start - and it is in this table because `settings.toml` is the
+only place the pad can write anything down. `Daemon.set_menu()` writes it
+false, without going through `Daemon.set_setting()`: there is nothing to apply,
+nothing to repaint, and a notification announcing that a mark had been written
+is the machine talking about itself.
+
+`hold_scale` (`[confirm] scale`) is the one whose branch has to invalidate a
+cache. The scale is applied when a `Binding` is built, so that the wait the
+loop fires on is the wait the game bar fills a badge over - which means the
+resolved bindings hold the old number until `apply_setting()` clears
+`bindings` and `page_keys`.
+
 ## Adding a setting
 
 1. Add it to `config/config.toml` with its default **and a comment saying what

@@ -7,6 +7,7 @@ generated everywhere else.
 
 ```bash
 python3 assets/generate.py       # after editing anything in shapes/
+python3 assets/sounds.py         # after changing a number in sounds.py
 omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 ```
 
@@ -25,6 +26,8 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
+| `sounds/` | Generated: the four WAVs a press is answered with. Nothing hand-made stands behind them - the source is the table in `sounds.py`. See [`sound.md`](sound.md). |
+| `sounds.py` | The other generator, and the only one with no `shapes/`: a sound is arithmetic rather than a drawing, so its source is the numbers beside it. |
 | `truetype.py`, `svgpath.py`, `place.py` | Its parts. |
 
 ## Two outputs, same numbers
@@ -170,7 +173,7 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
 - **A ground is the one drawing that answers to a size, and it answers by not
   being one drawing.** A menu tile is `w` cells by `h` rows, so it has no fixed
   aspect and the rule above would rule it out entirely - which is exactly why
-  the slider's track and the dial's shaded zone are *not* drawn art. A corner
+  the slider's travel and the dial's shaded zone are *not* drawn art. A corner
   is not parameterised by anything, though, and a straight edge does not have
   to be drawn to be right. So `assets/shapes/ground-*.svg` is a **quarter**:
   the corner, with the box it turns in filled behind it. `corner_run` takes out

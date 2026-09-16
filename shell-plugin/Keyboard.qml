@@ -47,11 +47,42 @@ Item {
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
   property string badgeStyle: "filled"
+
+  // Whether this surface may still hold the screen awake: the daemon's
+  // answer to whether anybody is holding the pad (`[idle] awake_ms`),
+  // stamped on every surface's payload because it is true of all of them.
+  property bool awake: true
   readonly property bool stencil: root.badgeStyle === "stencil"
+
+  // What share of each screen edge is kept clear of anything that has to be
+  // read (`[ui] safe_area`, game mode only). A television crops its own
+  // edges; every margin below goes through `metrics.edge`, which takes this
+  // or the surface's own, whichever is further in.
+  property real safeArea: 0
+
+  // The screen's own measurements, which are not the window's: a bar is a
+  // strip and a keyboard is a card, and the share a television crops is a
+  // share of the picture rather than of whatever surface is standing in it.
+  // A window with no screen yet answers nothing rather than a share of zero.
+  readonly property int screenH: panel.screen ? panel.screen.height : 0
+  readonly property int screenW: panel.screen ? panel.screen.width : 0
+
+  // How far the card stands off the screen. Half of Hyprland's `gaps_out` is
+  // what every other Omarchy surface keeps, and it is the floor here rather
+  // than the answer: a television crops the bottom of the picture, and the
+  // bottom of this card is the space bar.
+  readonly property int edgeGap: metrics.edge(root.screenH, Style.gapsOut)
+  readonly property int edgeSide: metrics.edge(root.screenW, Style.gapsOut)
+
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
 
   Metrics {
     id: metrics
     scale: root.uiScale
+    motion: root.motion
+    safeArea: root.safeArea
   }
 
   // The drawn controller buttons, and the font their labels are set in. The
@@ -195,6 +226,13 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
+      if (s.safe !== undefined)
+        root.safeArea = Math.max(0, Number(s.safe))
+      // Whether the pad has been touched lately enough to go on holding
+      // the screen awake. See the inhibitor at the foot of this file.
+      if (s.awake !== undefined) root.awake = !!s.awake
       if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.rows !== undefined && root.fresh("rows", s.rows))
         root.rows = s.rows
@@ -235,7 +273,7 @@ Item {
     anchors { bottom: true; left: true; right: true }
     // The card sizes itself; the window only needs to be tall enough to hold
     // it plus the gap it keeps from the screen edge.
-    implicitHeight: card.height + Style.gapsOut * 2
+    implicitHeight: card.height + root.edgeGap * 2
     color: "transparent"
     WlrLayershell.namespace: "omapad-osk"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -246,7 +284,7 @@ Item {
     // (its height plus the margin it keeps from the screen edge), not the
     // window's, so the compositor's own gaps_out is not counted twice.
     exclusionMode: ExclusionMode.Normal
-    exclusiveZone: card.height + Style.gapsOut
+    exclusiveZone: card.height + root.edgeGap
     // Navigation is on the controller, so the surface takes no pointer input
     // and never blocks the window it is typing into.
     mask: Region {}
@@ -257,8 +295,8 @@ Item {
       anchors.bottom: parent.bottom
       // Same distance from the screen edge that every other Omarchy surface
       // keeps: half of Hyprland's gaps_out.
-      anchors.bottomMargin: Style.gapsOut
-      width: Math.min(parent.width - Style.gapsOut * 2, root.maxWidth)
+      anchors.bottomMargin: root.edgeGap
+      width: Math.min(parent.width - root.edgeSide * 2, root.maxWidth)
       height: card.borderTop + card.borderBottom + root.pad * 2 +
         rowsColumn.height
       // The bar's own ground rather than the menu's: the keyboard sits where
@@ -268,7 +306,7 @@ Item {
         Math.max(1, metrics.space(1)))
       radius: Style.cornerRadius
       opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 110 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
 
       Column {
         id: rowsColumn
@@ -442,6 +480,12 @@ Item {
   // `respectInhibitors: true`, so this is respected automatically.
   IdleInhibitor {
     window: panel
-    enabled: root.opened
+    // Not `opened` alone: pad input is invisible to the compositor, which is
+    // why this is held at all, and a hold with nobody at the other end of it
+    // is a surface left open on a television keeping the screensaver off all
+    // night. `awake` is the daemon's answer to whether the pad has been
+    // touched lately - `[idle] awake_ms` - and it rides on every surface's
+    // payload because it is true of all of them at once.
+    enabled: root.opened && root.awake
   }
 }

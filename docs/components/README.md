@@ -40,7 +40,10 @@ socket between them.
 
 ## The surfaces
 
-Each is a model in the daemon, a socket, and a panel that only draws.
+Each is a model in the daemon, a socket, and a panel that only draws. The
+sounds are the exception that says what a surface actually is: there is no
+window, nothing to place and nothing to see, and it belongs here anyway
+because it is a model in the daemon and a socket the daemon streams to.
 
 | Component | Daemon | Panel | Socket |
 |---|---|---|---|
@@ -51,6 +54,7 @@ Each is a model in the daemon, a socket, and a panel that only draws.
 | [Game bar](gamebar.md) | `gamebar.py` | `GameBar.qml` | `gamebar.sock` |
 | [Mapping wizard](mapping.md) | `mapping.py` | `Mapping.qml` | `mapping.sock` |
 | [Click burst](ripple.md) | `ripple.py` | `Ripple.qml` | `ripple.sock` |
+| [Sounds](sound.md) | `sound.py` | `Sound.qml` | `sound.sock` |
 | [Bar widget](status.md) | `daemon.status_state()` | `PadStatus.qml` | `status.sock` |
 
 ## Everything else

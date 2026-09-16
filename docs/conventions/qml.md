@@ -223,10 +223,49 @@ dimming it is what the Omarchy menu does too.
 `Color.bar.*` for the game bar. A console's own palette would fight every
 Omarchy theme but one.
 
+**8.1.1** A colour is a *role*, and contrast between two of a theme's roles
+can never be assumed - a theme whose accent sits close to its surface exists,
+which is why a tile says its state in ink **and** in silhouette. The trap has
+a name: `Color.menu.selectedText` defaults to `accent`, so anything filled
+solid with `Color.accent` and labelled with it is a label that is not there.
+Anything filled solid takes `Ink.on(ground, first, second)`, which measures;
+and the candidates are only ever colours the theme is guaranteed to have
+defined. Everywhere else, tint rather than fill and the question does not
+arise.
+
+**8.1.2** **A dim ink is a level, not a fade, and there are three.** The design
+publishes exactly three inks over a card - primary, muted and dim - and
+publishes them as *measured* colours, each at 4.5:1 or better on the ground it
+is drawn on. `Menu.qml` names the lower two as `inkMuted` and `inkDim` and every
+call site takes one of them. Picking a number at the call site is how that
+surface ended up with 0.36, 0.42, 0.52 and 0.58 in one file, three of which are
+below the floor: a second line nobody can read from a sofa is a line not doing
+the job it is there for. A number of its own needs a comment saying what it is
+receding *from* and why it is not one of the three.
+
 **8.2** Every measurement goes through `Metrics`, which multiplies `Style` by
 the scale the daemon stamps on the payload. `Style.cornerRadius` and
 `Style.gapsOut` are NOT scaled — they are the compositor's geometry, shared
 with every window on screen.
+
+**8.2.0** A radius comes from `metrics.radius`, never from `Style.cornerRadius`
+at the call site. Two rungs are named: `radius.card` is the compositor's own
+rounding, unscaled, and anything that reads as a window takes it, square
+included; `radius.tile` is the base scaled, and everything drawn *inside* a
+card takes it. The base is `Style.cornerRadius` where the compositor has one
+and the surface's own `cornerBase` where it rounds nothing — a desktop that
+rounds nothing is saying so about windows, and a tile is not a window. A pill
+stays `height / 2`: round because it is round, which is a geometric identity
+rather than a decision.
+
+`metrics.radiusScale` (`[ui] radius`) multiplies whichever base is in force,
+and it reaches both named rungs: rounding one thing on a surface and not the
+rest is the split this ladder exists to end. It is a **multiplier** because
+the base is never ours to choose - what the setting says is how far off the
+desktop's own answer these surfaces stand - and its stops are a √2 ladder like
+every other size here, for the reason 8.2.2 gives about gaps: a corner either
+reads as rounder or it does not, and the rungs in between are ones nobody can
+name.
 
 **8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` (five
 sizes: 10, 12, 16, 24, 47) and `metrics.gap` (nine: 3, 4, 6, 8, 11, 16, 23,
@@ -246,16 +285,66 @@ fullscreen HUD that row sits in the bar's band saying the same four words
 about the same four buttons. Putting a mirrored measurement on the ladder is
 how the two quietly stop matching.
 
-**8.2.2** The two ladders climb at different rates and that is deliberate:
-space by √2, type by the fourth root of the silver ratio. Do not "correct" one
-to the other. A gap either separates two things or it does not, so it wants
-few rungs far apart; type at that rung has no room for both a label and the
-line under it.
+**8.2.2** **One ladder, both questions.** Space and type both climb by √2 —
+`gap` off `Style.spacing.sm`, `type` off `Style.font.caption` — so the design
+this surface is built to and this surface's own scale are the same ladder hung
+from two anchors, and the design's 11, 16, 23, 32, 45 land on the named rungs.
+Type ran on the fourth root of the ratio once, for a menu that was a page of
+labels with a detail line under each; a cell whose value is the thing it
+exists to say wants that value two √2 rungs above the word naming it, and the
+finer ladder cannot reach that without stopping on rungs nobody can name.
 
-**8.2.3** Sizes between the named ones come from `metrics.rung(base, n)` for
-space and `metrics.step(base, n)` for type, never from arithmetic on a rung.
+**8.2.5** **A margin against the edge of the *screen* goes through
+`metrics.edge(span, own)`**, which answers the surface's own margin or the
+share `[ui] safe_area` keeps clear, whichever stands further in. The span is
+the screen's, never the window's: a bar is a strip and a keyboard is a card,
+and what a television crops is a share of the picture. It is not scaled -
+`factor` is how far away the reader is, and this is how much of the picture
+the set never draws. A margin that is not against the screen edge stays off
+it: a centred card's padding is a distance from its own border, and holding
+that off to a share of the screen would blow the card's inside out to keep a
+gap it is nowhere near.
+
+**8.2.4** **A duration comes from `metrics.time`, never from a number at the
+call site.** Three are named - `brisk` a fade inside a tile, `follow` a view
+catching up with a selection, `arrive` a whole surface or a leaning badge -
+and they are a list rather than a ladder: a fade twice another fade is just a
+slower fade. There were four: `fill` was how long a bar took to answer a
+number, and it went when the bars did - a mark on a line is *where the value
+is* rather than a length growing towards it, so it lands on the frame the
+value changes (8.2.4.1) and nothing is left to time. They all go through
+`metrics.ms()`, which multiplies by `[ui] motion` off the payload, so a person
+who has asked the screen to hold still is answered on every surface at once.
+`tests/test_shell_plugin.py` fails on a duration that is neither.
+
+Time is scaled by motion and **not** by `factor`: a surface drawn twice as
+large does not take twice as long to fade. And a countdown is not motion -
+`[ripple] ms` and the confirm badge's lap say how long a promise takes, they
+are settings already, and they stay off this.
+
+**8.2.4.1** **Three properties transition and no others**, which is the
+design's own rule rather than a QML one: a ring's colour, the glow round it,
+and a press brightening. Everything else about a state - a ground filling, an
+ink colour inverting on it, a badge changing what it prints - switches
+outright on the frame the state changes. So a `Behavior` belongs on
+`strokeColor`, on a halo's or a sheen's `opacity`, and nowhere else. A nav
+card whose accent fill crossfaded would read as a card being painted; walking
+a bar is one card lighting up.
+
+A colour fades with `ColorAnimation`, not `NumberAnimation`, and takes
+`metrics.time.brisk` - which is the design's 90 ms linear, and linear is what
+both default to.
+
+The panel never asks whether motion is wanted - it is handed a number, and the
+daemon has already folded the compositor's own `animations:enabled` into it
+(`daemon.view_motion`). A panel that read a system preference for itself would
+be the second place that answer lives.
+
+
+**8.2.3** Sizes between the named ones come from `metrics.rung(base, n)`,
+never from arithmetic on a rung.
 `metrics.type.fine - metrics.gap.xxs` happens to be the right number and says
-nothing; `metrics.step(metrics.type.fine, -1)` says it is a step down the same
+nothing; `metrics.rung(metrics.type.fine, -1)` says it is a step down the same
 ladder. `metrics.silver` (1 + √2) is the proportion for one line set over
 another.
 
@@ -310,6 +399,19 @@ Qt caches the directory listing per process, so a brand-new file fails with a
 misleading `File name case mismatch` and the panel silently stays down. Panel
 entry points (`keepLoaded: true`) have been seen to resist `rescanPlugins`
 even on an edit; the bar widget never does.
+
+**A shared component is worse than an entry point**, and this is the one that
+costs an afternoon: `Metrics.qml`, `TileArt.qml`, `ButtonArt.qml` and the rest
+are not scanned at all - `rescanPlugins` walks the *plugin's* entry points, and
+a component is only re-read when whatever imports it is. A change to a ladder
+or a shape therefore takes on the next restart and not before, while every
+panel carries on drawing the old numbers and the log says nothing, because
+nothing is wrong. Edit one of those and go straight to `omarchy-restart-shell`.
+
+The way to be sure is to look rather than to reason: the surface is on screen,
+so `grim` it before and after, and compare the **same** page at both ends of
+whatever was changed. Two different pages at two different settings is not a
+comparison, and it reads as a difference that is not there.
 
 `shell-plugin/` is symlinked into `~/.config/omarchy/plugins/`, so the checkout
 is the live source. `omarchy-plugin-validate` rejects a symlink *inside* a

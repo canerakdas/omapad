@@ -80,12 +80,14 @@ action = "exec:omarchy-menu toggle apps"
 | `items` | a submenu; mutually exclusive with `action` |
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |
 | `stay` | one press, menu stays up. What a row that changes a setting the menu itself prints needs |
+| `countdown` | a row that is **pressed and then waits**: A starts `[menu] countdown` seconds (or the number this says), the row prints them, and B stops it. For what takes the screen away - logging out, rebooting. Only on an action row, and never beside `confirm` or `repeat` |
+| `confirm` | a row that is **held** rather than pressed: A starts the announced hold every other one of ours makes - the tile fills, the pad ticks, a notification says what is coming, B and letting go both back out - and only when it has counted down does the row run. Both waits are `[confirm]`'s, `[confirm] scale` reaches them, and the legend says `Hold to confirm` while the tile is in front. Only on an action row, and never beside `repeat` |
 | `from` | a command whose output **is** the submenu, read at the press. With `action` as the template each line runs, and `empty` for what the page says when it finds nothing |
-| `when` | the states the row is offered in - `game`, `handed_over`, `locked`, any one of them being enough. Read when the menu opens. For a row that could do nothing useful elsewhere: the workspace lock has nothing to lock to on a desktop |
+| `when` | the states the row is offered in - `game`, `handed_over`, `locked`, `kept`, `first_run`, any one of them being enough. Read when the menu opens. For a row that could do nothing useful elsewhere: the workspace lock has nothing to lock to on a desktop |
 | `open_on` | the menu opens on this tile while its `when` holds. Needs a `when` |
 | `id` | what a layout calls this tile. A slug of the label unless said, and unique on its page |
 | `span` | `[width, height]` in cells. `[1, 1]` unless said, and never wider than `[menu] columns` |
-| `control` | what kind of tile this is. `row_break` ends the row and draws nothing; `toggle`, `choice`, `slider`, `gauge` and `media` hold a value |
+| `control` | what kind of tile this is. `row_break` ends the row and draws nothing; `rows` draws its own `items` as lines inside it; `toggle`, `choice`, `slider`, `gauge` and `media` hold a value |
 | `shows` | which stick a `gauge` draws the position of, `left` or `right`. Required on one, refused on anything else |
 | `reads` | where a control takes its value, `pad:<setting>` or `live:<reading>`. Required on a control, refused on anything else |
 
@@ -96,6 +98,45 @@ which path.
 the window you opened is not left behind the dimming. `stay` is the exception,
 and it is what a setting row wants: choosing a badge layout and being thrown
 out means opening the menu four times to try two of them.
+
+## Rows nobody can take back
+
+The question to ask first is **what a second press undoes**. Not what sounds
+serious: Lock and Suspend are one button away from where you were, and both
+are a plain press. Logout, Reboot, Shutdown and Close window are not - whatever
+was unsaved is gone.
+
+There are **two** answers and they are for two different presses.
+
+| | Gesture | For |
+|---|---|---|
+| `confirm = true` | A is **held**; the tile fills, the pad ticks, B or letting go backs out | where the gesture is already in the hand and is over in a second |
+| `countdown = true` | A is **pressed**, then the row counts `[menu] countdown` seconds down and runs; B stops it | where what happens next takes the screen away |
+
+**The hold** is the same gesture a binding's `confirm = true` makes,
+deliberately: somebody who has held a shoulder to cross a workspace over a game
+already knows what a filling badge means. `Close window` is the one the shipped
+tree spends it on - you are looking at the window, and the answer is wanted
+now.
+
+**The countdown** is for the three under `System > Power`. Being sure that you
+meant to log out is not a thing to do with a thumb; it is a thing to be given
+long enough to change your mind about, and holding A for ten seconds is not a
+gesture anybody makes. The menu stays up, the row prints the number, the legend
+says `Cancel` on B - and **only** B stops it, because ten seconds is long
+enough to want to look at something else on the page.
+
+`countdown = 5` sets the length for one row; `true` takes `[menu] countdown`.
+A row is held or counted, never both, and neither goes beside `repeat`. It
+works on a plain **tile** as well as on a row in a card - `Reboot` and
+`Shutdown` are written both ways, a row in `Power` and a cell of their own,
+because they are the two anybody walks to that page for. **Give each copy its
+own `id`**: the flash and the countdown both name a tile by id, and two things
+answering to one name is two things lighting up for one press.
+
+Spend either sparingly. A page where three rows in four have to be held is a
+page where holding means nothing, and the one row that needed it is hidden
+among them.
 
 ## Rows that know the answer
 
@@ -203,8 +244,13 @@ became one tile; four became one.
 one value, so the line each row of a tick submenu carried saying *how the
 choices differ* has nowhere to go. `Button labels` and `Profile` keep their
 submenus for exactly that: getting either wrong scrambles the face buttons,
-and the sentence under each choice is what stops you. `Button style` and
-`Start in` converted because their two values say the difference themselves.
+and the sentence under each choice is what stops you. `Button style` converted
+because its two values say the difference themselves.
+
+**Where the sentence is the problem, the answer is a card of rows** rather
+than a submenu - see below. `Start in` is the worked example: as a choice it
+read `Game mode` and you had to press it to find out what else there was; as a
+card it shows both values, each with its own line, and fills the one waiting.
 
 Give a control tile room for its name **over** the control - `Hide the
 pointer` is `span = [2, 1]` because three words over a switch do not fit in
@@ -218,6 +264,18 @@ tile in front, and only while the menu is open - so reach for one when the
 thing being set is about a *stick*, and not otherwise. Everything else on this
 surface costs the loop nothing.
 
+**A slider whose setting has `stops` draws itself differently**, and the
+setting decides rather than the row: the bar becomes one segment per stop, lit
+up to the one you are on, and the line above it prints that stop's word rather
+than a percentage. `Corners` is the one that ships. See
+[`pad-setting.md`](pad-setting.md).
+
+**A slider whose setting has `stops` draws itself differently**, and the
+setting decides rather than the row: the bar becomes one segment per stop, lit
+up to the one you are on, and the line above it prints that stop's word rather
+than a percentage. `Corners` is the one that ships. See
+[`pad-setting.md`](pad-setting.md).
+
 **A slider is how a number gets a tile.** `pad:<name>=up|down` rows are the
 shape a number had before there was one: two rows saying "faster" and
 "slower", neither of which could say what the number was or that it had
@@ -229,6 +287,153 @@ meant** (faster the longer a direction is held), and **either trigger sweeps
 it** whether or not it has been taken. Once it is taken, **A keeps what it is
 on and B puts it back** - leaving is what B means everywhere, and a slider is
 where that finally has something to undo.
+
+## A card of verbs, drawn as rows
+
+`control = "rows"` draws a tile's `items` **inside** it, one to a line, instead
+of drilling into them:
+
+```toml
+[[menu.items.items]]
+label = "Power"
+control = "rows"
+detail = "Auto-sleep 30 min"      # the line along the foot; optional
+span = [2, 3]                     # the default, and usually right
+
+  [[menu.items.items.items]]
+  label = "Rest mode"
+  action = "exec:systemctl suspend"
+
+  [[menu.items.items.items]]
+  label = "Full shutdown"
+  action = "exec:systemctl poweroff"
+  confirm = true
+```
+
+**Reach for one when the tiles you are about to write are verbs.** A verb has
+nothing to show but its name, so a cell spent on one says a single word - and
+four side by side say four words in the room one sentence needs. `Screensaver`
+drawn as `Screensa…` is what that costs, and it is the test: if the labels on a
+run of tiles do not fit a cell and none of them has a value to show, they are a
+card of rows.
+
+**Do not reach for one where a tile has something to show.** A value, what is
+playing, where a stick is - those are cards because the drawing needs the room,
+and a row is one line of text. `omapad check` refuses a control inside a card
+rather than letting it draw a blank line.
+
+The tile's own `label` is the heading and its `detail` the line along the foot,
+both small and in capitals - the two ends of a card, the way every other tile
+on this surface is read. A row takes `label`, `icon`, `action`, and `confirm`,
+`repeat` or `stay` like any other row; the hold fills the **row**, and the
+legend says `Hold to confirm` over the row that carries one rather than over
+the whole card.
+
+**A row may carry its own `detail`**, and that is the thing a choice tile could
+never have: the sentence saying how this value differs from the one under it.
+It is drawn small under the name, dim until the row is in front.
+
+```toml
+[[menu.items.items]]
+label = "Start in"
+detail = "The mode at the next start"
+control = "rows"
+span = [3, 2]                     # three, because a sentence needs the width
+
+  [[menu.items.items.items]]
+  label = "Game mode"
+  detail = "A bigger bar; nothing else changes"
+  action = "pad:start_mode=game"
+  stay = true
+
+  [[menu.items.items.items]]
+  label = "Desktop"
+  detail = "Omarchy's own bar, at its own size"
+  action = "pad:start_mode=desktop"
+  stay = true
+```
+
+A row that sets something answers the same question a tile does, and in a card
+it is said by **filling the row** rather than by a mark: the one in force has a
+ground and the rest are words on the card. `stay` is what keeps the menu up
+while you watch it move. Give a card carrying detail lines **three cells** -
+forty characters do not fit in two.
+
+What a card may not do, each of which `omapad check` names:
+
+- **A row cannot open a page.** The card is already the page, so there is
+  nowhere further in for a level to be.
+- **A row cannot hold a value**, and a `row_break` is not a row: a break ends a
+  row of cells, and these are not cells.
+- **A card spends no X or Y.** A key is spent while a page is *in front*, and
+  nothing is ever in front of a card of rows.
+- **A card takes no `icon`.** An icon everywhere else here is the big mark in a
+  tile's top corner - what says which tile this is from across a room - and a
+  card of rows has no corner to spare. Set at the heading's size in front of
+  tracked capitals a glyph reads as a bullet. The marks go on the **rows**,
+  where a row that needs one says so.
+
+### A card that lists what is plugged in
+
+A card takes `from` like a submenu does, and that is what `Audio` is made of:
+two cards, one of outputs and one of inputs, each a command's output drawn
+where it stands.
+
+```toml
+[[menu.items.items]]
+label = "Output"
+detail = "Speakers, headphones, the TV"
+control = "rows"
+span = [3, 3]
+empty = "No outputs found"
+action = "exec:omarchy-audio-output-set-default %1 %2"
+from = "..."          # prints: label \t %1 \t %2, one row per line
+```
+
+**A listed card is read when the page it stands on settles**, not at a press -
+nobody enters a card, it is already open. `[menu] group_settle_ms` is that
+wait, the same one the bar takes, so walking across four pages spawns one
+command rather than four. Until the first answer the card draws its own
+`empty` words: a blank card on a page you are looking at reads as a drawing
+fault rather than as a question nobody has answered yet.
+
+**A listing that finds one thing is drawn as a reading**, not as a list: the
+heading names it, the line is the answer, and A does nothing - there is nothing
+to choose between. Plug a second device in and it is a list again. A card you
+wrote one row into is unaffected; a verb is a verb whether or not it has
+company.
+
+Everything else about a listing is unchanged - `*` marks the one in force, the
+values are quoted on the way in, and picking one keeps the menu up and moves
+the fill. It was `Devices` opening on `Output` opening on the outputs: two
+presses in before a name you could pick, and each of those pages held exactly
+one thing.
+
+### Going in, and coming back out
+
+**A card is entered with A**, the way a slider is taken, and up and down belong
+to the page until it is. That is not friction, it is the only way one direction
+can mean one thing: with the rows walked in place, down on a card meant the
+next *row* while down on the tile beside it meant the next tile, and the tile
+underneath - which is what a thumb pushing down is reaching for - was two more
+presses away.
+
+Inside, up and down walk the rows and stop at either end (left and right say
+nothing - a list runs down the card), A runs the row in front, and **B leaves
+the card without leaving the page**. The row you were on is still there the
+next time you go in.
+
+**Two marks, one thing each.** A line runs down the side of the list. The row
+**in force** is its length of that line, lit, with a small wedge leaving it to
+the right - a state,
+so it is drawn always, on a card nobody has selected. The row **A would run**
+has a faint ground instead, and only while the card has been entered: up and
+down belong to the page until A goes in.
+
+A card of verbs has nothing lit, because nothing on one is in force.
+
+The line is capped with a small cross at each end, so it begins and ends
+somewhere rather than at the edge of whatever is behind it.
 
 ## A page the person has rearranged
 

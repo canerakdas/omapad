@@ -56,11 +56,33 @@ Item {
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
   property string badgeStyle: "filled"
+
+  // Whether this surface may still hold the screen awake: the daemon's
+  // answer to whether anybody is holding the pad (`[idle] awake_ms`),
+  // stamped on every surface's payload because it is true of all of them.
+  property bool awake: true
+
+  // Which page turn the panel has drawn, and how far the page still has to
+  // travel back to where it belongs. See `enterPage`.
+  property int turn: 0
+  property real shift: 0
   readonly property bool stencil: root.badgeStyle === "stencil"
+
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
+
+  // How hard these surfaces round a corner, against the desktop's own answer
+  // (`[ui] radius`). From the payload like the scale, and for the same
+  // reason: the shell cannot read omapad's config, and a person who has
+  // rounded one surface has rounded all of them.
+  property real radiusScale: 1.0
 
   Metrics {
     id: metrics
+    radiusScale: root.radiusScale
     scale: root.uiScale
+    motion: root.motion
   }
 
   // The square `omarchy.workspaces` puts where the focused number would be,
@@ -136,11 +158,27 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
+      // Whether the pad has been touched lately enough to go on holding
+      // the screen awake. See the inhibitor at the foot of this file.
+      if (s.awake !== undefined) root.awake = !!s.awake
       if (s.badge !== undefined) root.badgeStyle = String(s.badge)
+      if (s.radius !== undefined)
+        root.radiusScale = Math.max(0, Number(s.radius))
       if (s.bar !== undefined) root.overBar = !!s.bar
       if (s.title !== undefined) root.title = s.title
       if (s.note !== undefined) root.note = s.note
       if (s.page !== undefined) root.page = s.page
+      // A page reached with the right shoulder arrives from the right and
+      // settles leftwards, and the left shoulder the other way. This card is
+      // the one surface whose page turn *is* a direction - a literal L or R -
+      // so it is the one where content moving the way the press did says the
+      // most.
+      if (s.turn !== undefined && Number(s.turn) !== root.turn) {
+        root.turn = Number(s.turn)
+        root.enterPage(Number(s.way) || 0)
+      }
       if (s.count !== undefined) root.count = s.count
       if (s.cols !== undefined && root.fresh("cols", s.cols))
         root.cols = s.cols
@@ -312,7 +350,7 @@ Item {
       anchors.fill: parent
       color: Color.menu.scrim
       opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 110 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
     }
 
     BorderSurface {
@@ -325,9 +363,9 @@ Item {
       color: Color.menu.background
       borderSpec: Border.surfaceSpec("menu", "border", Color.menu.border,
         Math.max(1, metrics.space(2)))
-      radius: Style.cornerRadius
+      radius: metrics.radius.card
       opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 110 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
       clip: true
 
       Column {
@@ -374,6 +412,11 @@ Item {
           id: columns
           width: parent.width
           spacing: root.columnGap
+          // A transform rather than `x`: this Row is laid out by the Column
+          // above it, and an assigned x would be fighting the layout for the
+          // same property - the rule the game bar's leaning badge carries.
+          // The card clips, so a page on its way in is cut at the edge.
+          transform: Translate { x: root.shift }
 
           Repeater {
             model: root.cols
@@ -473,8 +516,43 @@ Item {
   // Reading a page produces no Wayland input at all, so the compositor would
   // happily start the screensaver underneath it. Same inhibitor the keyboard
   // and the menu bind.
+  // The page's own arrival, run home rather than to a position, so a turn
+  // that lands while the last one is still moving carries on from wherever it
+  // is instead of jumping back to the edge.
+  //
+  // **One column gap is the whole distance**, and it is that rather than a
+  // number because this card has a unit of horizontal separation already: the
+  // space between two of its columns is what "a step sideways" is worth here.
+  // This surface is not on the menu's ladder - it is one of the ones still
+  // built from `space()` and `font` - and half a surface on each is what that
+  // ladder exists to end.
+  function enterPage(way) {
+    turning.stop()
+    if (way === 0 || metrics.time.follow <= 0) {
+      root.shift = 0
+      return
+    }
+    root.shift = way * root.columnGap
+    turning.start()
+  }
+
+  NumberAnimation {
+    id: turning
+    target: root
+    property: "shift"
+    to: 0
+    duration: metrics.time.follow
+    easing.type: Easing.OutCubic
+  }
+
   IdleInhibitor {
     window: panel
-    enabled: root.opened
+    // Not `opened` alone: pad input is invisible to the compositor, which is
+    // why this is held at all, and a hold with nobody at the other end of it
+    // is a surface left open on a television keeping the screensaver off all
+    // night. `awake` is the daemon's answer to whether the pad has been
+    // touched lately - `[idle] awake_ms` - and it rides on every surface's
+    // payload because it is true of all of them at once.
+    enabled: root.opened && root.awake
   }
 }

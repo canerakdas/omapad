@@ -18,6 +18,7 @@ omapad/
   assets/           the drawn buttons: sources, generator, generated SVGs
     shapes/         hand-drawn sources - edit these
     buttons/        generated, do not edit
+    sounds/         generated, do not edit - see sounds.py
   config/           the shipped defaults (config.toml)
   systemd/          the user unit
   udev/             the uinput rule
@@ -26,6 +27,7 @@ omapad/
     conventions/    how to write in each language
     components/     one document per component
     procedures/     one document per recurring job
+    research/       documents written outside this project, kept as received
   manifest.json     the Omarchy plugin manifest - at the root, not in
                     shell-plugin/, so `omarchy plugin add` finds it
   README.md         the user-facing manual, authoritative
@@ -45,12 +47,14 @@ omapad/
 | Generated QML | `shell-plugin/` | `<Thing>Art.qml`, with `GENERATED` in the first comment line | `ButtonArt.qml`, `ControlArt.qml` |
 | Shape source | `assets/shapes/` | `<family>-<name>.svg`, family first | `bumper-left.svg`, `sys-plus.svg`, `dpad-up.svg` |
 | Generated button | `assets/buttons/` | `<kind>-<side>-<label>.svg`, or `<kind>-<label>.svg` where there is no side | `bumper-l-lb.svg`, `face-a.svg`, `system-menu.svg` |
+| Generated sound | `assets/sounds/` | `<voice>.wav`, the voice's own name and nothing else, because the daemon names the file by naming the cue | `commit.wav`, `move.wav` |
 | Executable | `bin/` | `omapad` or `omapad-<thing>`, no extension, `chmod +x` | `bin/omapad` |
 | Unit / rule | `systemd/`, `udev/` | what the packaging convention demands: `omapad.service`, `99-omapad-<thing>.rules` | |
 | Vendored asset | beside what loads it | the upstream filename, unchanged, with its licence file next to it | `shell-plugin/fonts/FiraCode-Medium.ttf`, `OFL.txt` |
 | Manifest / unit / rule | where the tool that reads it demands | the name that tool demands, never a name of ours | `manifest.json`, `omapad.service` |
 | Documentation | `docs/` | `kebab-case.md`, one component per file | `docs/components/linux-input.md` |
 | Procedure | `docs/procedures/` | `pad-<job>.md`, `kebab-case`, naming the job rather than the component. The rest of the rules are [`procedures.md`](procedures.md) | `docs/procedures/pad-bindings.md` |
+| Imported reference | `docs/research/` | `kebab-case.md`, named for what was surveyed rather than for who wrote it or when | `docs/research/console-launcher-ux.md` |
 
 ## Names that have to agree across the tree
 

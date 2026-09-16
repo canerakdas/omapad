@@ -193,6 +193,34 @@ is saying how much longer, and a press brightening the same fill would erase
 it. `Click` is the one click surface, laid over the thing it fires so the
 window's mask and what the bar answers are the same handful of items.
 
+**The window, the ground and the row are three rectangles, and `[ui]
+safe_area` separates the last from the other two.** A television crops the
+outermost band of the picture, and the outermost band is exactly where this
+bar stands - printing the one thing on screen that says what every button
+does. So in game mode the *window* reaches the edge and reserves the whole
+strip, the *ground* fills that window whatever the safe share is, and it is
+the *row* inside that comes in.
+
+Getting those last two the other way round is what the bar looked like when
+the ground was inset bodily: a strip floating a centimetre off the bottom and
+off both ends, saying something about the shape of the screen rather than
+about what a set crops. The broadcast rule it is borrowed from says it
+plainly - backgrounds bleed to the edge, and what has to be read stays inside.
+
+The window is never given the margin either: that would leave the compositor
+to work out an exclusion zone around a gap, and a game sliding under the gap
+is worse than a bar sitting further in.
+
+`[ui] safe_area` ships at **0**, so on a monitor none of this moves anything -
+see the README. The three rectangles are what makes the setting usable when
+somebody on a set turns it on.
+
+`Menu.qml` arrives at the same two numbers from the same screen for the
+fullscreen legend, which sits in this bar's band: the row that answers the
+menu is the row the bar answered before it, and a row that came in off the
+edge by a different amount would be exactly the drift that band exists to
+stop.
+
 Settings: `[gamebar] enabled`, `position`, `height`, `confirm_lean`,
 `confirm_fill_delay_ms`, `click`, `brief`, `omit`,
 `kinds`, `socket`.

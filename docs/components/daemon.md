@@ -67,6 +67,26 @@ costs tens, and nothing on the loop may do it.
   (`ANNOUNCED_MS`).
 - `allowed()` and `pending_confirm()` - actions from `[confirm]` need a second
   press.
+- `menu_arm()` / `check_menu_confirm()` / `menu_disarm()` - the same gesture
+  for a menu row that cannot be taken back, drawn on the tile rather than on a
+  badge. See [`menu.md`](menu.md).
+- `ramped()` - how a held direction accelerates. One helper for both places a
+  walk is timed: `fire_repeats` (the D-pad, through `repeat_start`) and the
+  two stick walkers, which keep their own countdown off the tick's `dt`.
+- `touched()` / `check_awake()` - whether anybody is holding the pad, which is
+  what the surfaces' idle inhibitors and game mode's `stay-awake` now follow
+  rather than a surface being open. `handle_button` is the one place every
+  button, trigger and D-pad direction passes through; a stick says so only
+  past its dead zone, or a pad with drift would hold the screen awake for
+  ever. Rides on every payload through `scaled()`, because what it answers is
+  true of all the surfaces at once.
+- `[confirm] scale` and `slack_ms` - what the gesture costs the hand making it.
+  The scale is applied in `Binding` rather than here, so every wait on the pad
+  is already the true one wherever it is read; the slack lives in
+  `HeldAction.released_at`, which `release_binding()` sets instead of popping
+  the entry and `check_hold_timers()` gives up on. Only a hold that has
+  **announced itself** may be released: before that, letting go is how a tap
+  is made.
 
 `handle_button()` owns the two things that are true of *every* button event,
 whatever the routing does with it: what is down (`gamebar.pressed`, which

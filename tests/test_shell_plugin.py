@@ -16,14 +16,15 @@ PLUGIN = os.path.join(
 )
 
 OPENS = re.compile(r"^(\s*)(?:\w+\s*:\s*)?Text \{\s*$")
+OPENS_TRAVEL = re.compile(r"^(\s*)(?:\w+\s*:\s*)?Travel \{\s*$")
 
 
-def text_blocks(source):
+def text_blocks(source, opens=OPENS):
     """Every `Text { … }` in one file, as (line number, body)."""
     lines = source.split("\n")
     blocks = []
     for index, line in enumerate(lines):
-        if not OPENS.match(line):
+        if not opens.match(line):
             continue
         depth = 1
         body = []
@@ -170,6 +171,101 @@ class EverySocketIsDrawn(unittest.TestCase):
                 reached,
                 "%s draws %s and is neither mounted in Surfaces.qml nor an "
                 "entry point" % (name, sock))
+
+
+class MotionTests(unittest.TestCase):
+    """Every animation on every surface goes through one multiplier."""
+
+    def setUp(self):
+        self.files = sorted(
+            name for name in os.listdir(PLUGIN) if name.endswith(".qml")
+        )
+
+    def test_every_panel_that_draws_takes_the_motion_off_the_payload(self):
+        # A panel that kept its own 1.0 would animate at full speed after
+        # somebody had turned motion off, and nothing on screen would say
+        # which surface had not been told.
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            if "Metrics {" not in source:
+                continue
+            self.assertIn(
+                "motion: root.motion", source,
+                "%s builds Metrics without handing it the motion" % name)
+            self.assertIn(
+                "s.motion", source,
+                "%s never reads the motion off its payload" % name)
+
+    def test_every_surface_on_a_screen_edge_reads_the_safe_area(self):
+        # The four that put something against the edge of the screen. A
+        # panel that drew inside a card, or over a pointer, has no edge to
+        # be cropped at and takes nothing.
+        for name in ("Menu.qml", "Hud.qml", "GameBar.qml", "Keyboard.qml"):
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            self.assertIn("safeArea: root.safeArea", source, name)
+            self.assertIn("s.safe", source,
+                          "%s never reads the safe area off its payload" % name)
+            self.assertIn("metrics.edge(", source,
+                          "%s takes the safe area and never spends it" % name)
+
+    def test_no_animation_carries_its_own_number(self):
+        # The exceptions are the two countdowns - `[ripple] ms` and the
+        # confirm badge's lap - which are how long a promise takes rather
+        # than how long a thing takes to move, and are settings already.
+        allowed = ("duration: metrics.time.", "duration: root.burstMs",
+                   "duration: Math.max(1, badge.lapMs)",
+                   "duration: badge.arming ?")
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                lines = handle.read().splitlines()
+            for n, line in enumerate(lines, 1):
+                if "duration:" not in line:
+                    continue
+                self.assertTrue(
+                    any(word in line for word in allowed),
+                    "%s:%d sets a duration off the ladder: %s"
+                    % (name, n, line.strip()))
+
+
+class TravelTests(unittest.TestCase):
+    """The line a value sits on takes everything it draws with from the call
+    site, and says nothing when it is handed none of it.
+
+    `Travel.qml` names no colour (qml.md 8.1) and builds no `Metrics` of its
+    own - the scale on the payload belongs to the surface, not to a component
+    inside one. So a travel missing `ladder` draws a one-pixel line with no
+    mark anywhere on it, and one missing a colour draws nothing at all: a
+    slider that looks like an empty card, with nothing in any log about it.
+    """
+
+    REQUIRED = ("ladder:", "value:", "ink:", "trail:", "mark:")
+
+    def setUp(self):
+        self.files = sorted(
+            name for name in os.listdir(PLUGIN) if name.endswith(".qml")
+        )
+
+    def test_the_plugin_still_draws_a_travel(self):
+        # A rename would otherwise turn the test below into a pass over
+        # nothing, the way it would for `Text`.
+        found = 0
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                found += len(text_blocks(handle.read(), OPENS_TRAVEL))
+        self.assertGreater(found, 1)
+
+    def test_every_travel_is_handed_what_it_draws_with(self):
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                blocks = text_blocks(handle.read(), OPENS_TRAVEL)
+            for number, body in blocks:
+                for field in self.REQUIRED:
+                    self.assertIn(
+                        field, body,
+                        "%s:%d draws a travel with no %s"
+                        % (name, number, field))
 
 
 class PlainTextTests(unittest.TestCase):

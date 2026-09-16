@@ -173,6 +173,12 @@ PAD_NAMES = {
     "badge_style": "Button style",
     "hide_pointer": "Hide the pointer",
     "start_mode": "Start in",
+    "hold_scale": "Hold time",
+    "radius": "Corners",
+    # Named for the tile it decides, because that is the only place anybody
+    # sees it: the menu opening once is what writes it, and a binding is only
+    # ever how somebody asks for that page back.
+    "first_run": "Start here",
 }
 
 PAD_VALUES = {
@@ -624,6 +630,13 @@ class GuideModel:
         self.layout = config.badge_layout(None)
         self.pages = []
         self.index = 0
+        # Which page turn this is, and which way the shoulder pushed. The
+        # card is re-sent every heartbeat, so the panel needs the serial to
+        # tell a turn from the same page arriving again - and the way,
+        # because the pages wrap: the last to the first is a step right that
+        # looks like a jump left to anything counting indexes.
+        self.turn_seq = 0
+        self.turn_way = 0
         self.rebuild()
 
     def rebuild(self, available=None, menu_keys=None, menu_page=""):
@@ -646,6 +659,8 @@ class GuideModel:
         if not self.pages:
             return
         self.index = (self.index + step) % len(self.pages)
+        self.turn_seq += 1
+        self.turn_way = 1 if step > 0 else -1
 
     @property
     def title(self):
@@ -661,6 +676,9 @@ class GuideModel:
         return {
             "open": opened,
             "page": self.index,
+            # The turn, as an event rather than a state. See `move`.
+            "turn": self.turn_seq,
+            "way": self.turn_way,
             "count": len(self.pages),
             "title": page["title"],
             "note": page["note"],

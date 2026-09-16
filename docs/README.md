@@ -10,6 +10,7 @@ whoever is changing the code.
 | [`conventions/`](conventions/) | How to write in each language this project uses, and how files and folders are named. |
 | [`components/`](components/) | One document per component: what it owns, what it may assume, what breaks it. |
 | [`procedures/`](procedures/) | One document per recurring job that spans several files and fails silently: bindings, surfaces, settings, menu rows, wording, badge art, diagnosis. Adding one: [`conventions/procedures.md`](conventions/procedures.md). |
+| [`research/`](research/) | Documents written outside this project that a decision inside it was made against. Evidence, never a rule. |
 
 ## Conventions
 

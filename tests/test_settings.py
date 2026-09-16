@@ -57,6 +57,64 @@ class RequestTests(unittest.TestCase):
         )
 
 
+class IdleConfigTests(unittest.TestCase):
+    def test_the_hold_on_the_screen_ships_with_an_end(self):
+        self.assertGreater(shipped().idle_awake, 0.0)
+
+    def test_a_wait_that_is_not_a_length_of_time_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"idle": {"awake_ms": -1}})
+        self.assertIn("idle.awake_ms", str(caught.exception))
+
+
+class RepeatRampConfigTests(unittest.TestCase):
+    """The three tables that say how a held direction accelerates."""
+
+    def test_every_walk_on_the_pad_ships_with_one(self):
+        config = shipped()
+        for ramp, over in ((config.menu_repeat_ramp,
+                            config.menu_repeat_ramp_time),
+                           (config.osk_repeat_ramp,
+                            config.osk_repeat_ramp_time),
+                           (config.traverse_repeat_ramp,
+                            config.traverse_repeat_ramp_time)):
+            self.assertGreater(ramp, 1.0)
+            self.assertGreater(over, 0.0)
+
+    def test_a_ramp_that_would_slow_a_walk_down_is_named(self):
+        for table in ("menu", "osk", "traverse"):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({table: {"repeat_ramp": 0.5}})
+            self.assertIn("%s.repeat_ramp" % table, str(caught.exception))
+
+    def test_and_a_ramp_time_that_is_not_a_length_of_time(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"osk": {"repeat_ramp_ms": -1}})
+        self.assertIn("osk.repeat_ramp_ms", str(caught.exception))
+
+
+class HoldAssistConfigTests(unittest.TestCase):
+    """What `[confirm]` refuses, so `omapad check` names it rather than a press."""
+
+    def test_a_scale_outside_the_gesture_is_named(self):
+        for value in (0.4, 2.5, 0):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({"confirm": {"scale": value}})
+            self.assertIn("confirm.scale", str(caught.exception))
+
+    def test_and_a_slack_that_is_not_a_length_of_time(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"confirm": {"slack_ms": -1}})
+        self.assertIn("confirm.slack_ms", str(caught.exception))
+
+    def test_the_shipped_answers_are_the_gesture_as_it_was(self):
+        # Both ship neutral: every hold is the length its binding was written
+        # at, and letting go is how you back out.
+        config = shipped()
+        self.assertEqual(config.confirm_scale, 1.0)
+        self.assertEqual(config.confirm_slack_ms, 0)
+
+
 class ApplyTests(unittest.TestCase):
     def setUp(self):
         self.config = shipped()
@@ -128,6 +186,109 @@ class ApplyTests(unittest.TestCase):
         # A choice or a switch is ticked instead, so it has nothing to add.
         self.assertEqual(config_module.setting_text("layout", "xbox"), "")
         self.assertEqual(config_module.setting_text("rumble", True), "")
+
+    def test_the_few_placed_settings_walk_stops_and_the_rest_do_not(self):
+        """Which settings are places to be, and which are amounts to cover.
+
+        A control drawn in segments has to have few enough of them to count
+        from a sofa. Twenty-one is not few, and a pointer speed is a distance
+        to cross rather than a handful of places to stand.
+        """
+        placed, swept = set(), set()
+        for name, spec in config_module.CHOSEN.items():
+            if spec["kind"] != "number":
+                continue
+            (placed if spec.get("stops") else swept).add(name)
+        self.assertEqual(placed, {"radius", "motion", "hold_scale"})
+        for name in placed:
+            self.assertLessEqual(len(config_module.CHOSEN[name]["stops"]), 7)
+        self.assertEqual(swept, {"sound_volume", "rumble_strength",
+                                 "scroll_speed", "pointer_speed",
+                                 "left_deadzone", "right_deadzone"})
+
+    def test_motion_is_worded_because_off_is_the_stop_that_matters(self):
+        # It exists for somebody who cannot read a moving screen, and the stop
+        # that answers them should say so rather than print 0%.
+        self.assertEqual(config_module.setting_text("motion", 0.0), "Off")
+        self.assertEqual(config_module.setting_text("motion", 1.0), "Full")
+        self.assertEqual(self.set("motion", "down"), 0.75)
+        self.assertEqual(config_module.setting_text("motion", 0.75), "Most")
+
+    def test_hold_time_keeps_its_number_because_it_is_an_amount(self):
+        # Seven segments and a percentage: a hold at 150% is half again as
+        # long as the one the binding was written at, and a word standing
+        # there would say less than the quantity does.
+        self.assertEqual(config_module.setting_text("hold_scale", 1.5), "150%")
+        self.assertEqual(self.set("hold_scale", "down"), 0.75)
+        self.assertEqual(config_module.setting_text("hold_scale", 0.75), "75%")
+
+    def test_a_corner_walks_a_ladder_rather_than_a_range(self):
+        # A corner is a size, and every size on these surfaces climbs by the
+        # silver ratio. Six presses cross the whole of it, and each one is a
+        # corner you can tell from the last - which a tenth of a step is not.
+        self.assertEqual(self.config.ui_radius, 1.0)
+        self.assertEqual(self.set("radius", "up"), 1.414)
+        self.assertEqual(self.set("radius", "up"), 1.414)   # the top stop
+        for expected in (1.0, 0.707, 0.5, 0.0):
+            self.assertEqual(self.set("radius", "down"), expected)
+        # Zero is the stop under the bottom of the ladder, and it is square:
+        # no amount of dividing reaches it, so it is a stop rather than a sum.
+        self.assertEqual(self.set("radius", "down"), 0.0)
+        self.assertEqual(self.set("radius", "up"), 0.5)
+
+    def test_a_corner_somebody_wrote_by_hand_steps_from_where_it_is(self):
+        # Not moved onto the ladder and then stepped: one press from 1.2 is
+        # the stop above it, rather than a number 1.2 was rounded to first.
+        self.config.ui_radius = 1.2
+        self.assertEqual(self.set("radius", "up"), 1.414)
+
+    def test_a_corner_bar_is_drawn_by_its_stops(self):
+        # The stops are a proportion apart, so a bar that spaced them by their
+        # arithmetic would bunch the bottom half into its first third.
+        spec = config_module.CHOSEN["radius"]
+        self.assertEqual(config_module.setting_share(spec, 0.0), 0.0)
+        self.assertEqual(config_module.setting_share(spec, 1.0), 0.75)
+        self.assertEqual(config_module.setting_share(spec, 1.414), 1.0)
+        # And a plain number is still measured along its range.
+        speed = config_module.CHOSEN["scroll_speed"]
+        self.assertAlmostEqual(
+            config_module.setting_share(speed, 20.5), 0.5, places=2)
+
+    def test_a_stop_says_which_corner_it_is_rather_than_a_percentage(self):
+        # A ladder has somewhere to be rather than an amount to be at, and
+        # "141%" is a number you have to divide before it says anything -
+        # against what? The segments under it already say how far along.
+        self.assertEqual(config_module.setting_text("radius", 1.0),
+                         "The desktop's")
+        self.assertEqual(config_module.setting_text("radius", 0.0), "Square")
+        self.assertEqual(config_module.setting_text("radius", 1.414), "Round")
+        # And every stop has one, in the order somebody walking them reads.
+        spec = config_module.CHOSEN["radius"]
+        self.assertEqual(
+            [spec["words"][stop] for stop in spec["stops"]],
+            ["Square", "Barely", "Slight", "The desktop's", "Round"])
+
+    def test_a_number_written_between_two_stops_still_says_itself(self):
+        self.assertEqual(config_module.setting_text("radius", 1.2), "1.2")
+
+    def test_the_hold_time_steps_between_a_half_and_a_double(self):
+        # The ends are the gesture's: under a half a tap and a hold stop being
+        # different presses, and over a double a hold is one nobody reaches
+        # the end of.
+        self.assertEqual(self.config.confirm_scale, 1.0)
+        self.assertEqual(self.set("hold_scale", "down"), 0.75)
+        self.assertEqual(self.set("hold_scale", "0.1"), 0.5)   # clamped
+        self.assertEqual(self.set("hold_scale", "down"), 0.5)
+        self.assertEqual(self.set("hold_scale", "9"), 2.0)     # and the other end
+        self.assertEqual(config_module.setting_text("hold_scale", 0.5), "50%")
+
+    def test_the_first_start_is_a_mark_the_pad_writes_down(self):
+        # Not a preference anybody browses: it is in this table because
+        # settings.toml is where the pad writes things down, and a mark it
+        # could not write is a first start that happens every morning.
+        self.assertTrue(self.config.menu_first_run)
+        self.assertEqual(self.set("first_run", "off"), False)
+        self.assertEqual(self.config.chosen, {"first_run": False})
 
     def test_the_mode_at_the_next_start_is_chosen_from_the_pad(self):
         # The one setting here that is about a start other than this one, so

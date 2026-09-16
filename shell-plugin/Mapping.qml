@@ -62,11 +62,21 @@ Item {
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
   property string badgeStyle: "filled"
+
+  // Whether this surface may still hold the screen awake: the daemon's
+  // answer to whether anybody is holding the pad (`[idle] awake_ms`),
+  // stamped on every surface's payload because it is true of all of them.
+  property bool awake: true
   readonly property bool stencil: root.badgeStyle === "stencil"
+
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
 
   Metrics {
     id: metrics
     scale: root.uiScale
+    motion: root.motion
   }
 
   // Same measurements as the menu and the guide, so all four read as one.
@@ -109,6 +119,11 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
+      // Whether the pad has been touched lately enough to go on holding
+      // the screen awake. See the inhibitor at the foot of this file.
+      if (s.awake !== undefined) root.awake = !!s.awake
       if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.bar !== undefined) root.overBar = !!s.bar
       // `root.` on every one of these: a bare name resolves against the whole
@@ -263,7 +278,7 @@ Item {
       anchors.fill: parent
       color: Color.menu.scrim
       opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 110 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
     }
 
     BorderSurface {
@@ -278,7 +293,7 @@ Item {
         Math.max(1, metrics.space(2)))
       radius: Style.cornerRadius
       opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: 110 } }
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
       clip: true
 
       Column {
@@ -464,6 +479,12 @@ Item {
   // inhibitor the other three bind.
   IdleInhibitor {
     window: panel
-    enabled: root.opened
+    // Not `opened` alone: pad input is invisible to the compositor, which is
+    // why this is held at all, and a hold with nobody at the other end of it
+    // is a surface left open on a television keeping the screensaver off all
+    // night. `awake` is the daemon's answer to whether the pad has been
+    // touched lately - `[idle] awake_ms` - and it rides on every surface's
+    // payload because it is true of all of them at once.
+    enabled: root.opened && root.awake
   }
 }

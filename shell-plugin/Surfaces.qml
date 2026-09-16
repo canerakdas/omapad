@@ -5,7 +5,8 @@
 // the mapping screen, the game-mode bar, the readings it leaves on screen and
 // the burst a click leaves at the pointer - each fed by its own socket.
 // Mounting them here keeps them in one hot-reloading plugin directory instead
-// of seven.
+// of seven. The eighth draws nothing at all and is mounted here for the same
+// reason the rest are: it is a socket the daemon streams to.
 //
 // The shell's summon/hide/toggle contract lands on `open()`, `close()` and
 // `opened` below, so `omarchy-shell shell summon <id>` and an Omarchy keybind
@@ -35,6 +36,10 @@ Item {
   // Not summonable and never opened: it answers a click rather than a
   // button, and the daemon speaks to it one burst at a time.
   Ripple {}
+  // The surface with no window. Nothing to summon, nothing to hide, nothing
+  // to place: it plays a cue and there is no such thing as one being on
+  // screen. See Sound.qml for why its bank is loaded rather than imported.
+  Sound {}
 
   // The surfaces a summon can name, keyed by omapad's own control verb. The
   // game bar is deliberately absent: it follows game mode rather than being

@@ -3085,9 +3085,908 @@ the `sed` does is wording, which *is* omapad's business where the lookup is not,
 and a failure has no place, no `Temp` and no `Wind` in it, so the sentence the
 helper wrote passes straight through.
 
+### 55. A hold some hands cannot make · ✅ Done · S
+
+From the September 2026 console-launcher survey in
+[`research/console-launcher-ux.md`](research/console-launcher-ux.md), §4.10:
+*button remapping system-wide; hold-to-press → toggle alternative for
+hold-confirm actions.* Everything else in that paragraph this project already
+had - remapping is a screen, reduce-motion is a slider, no menu is on a timer -
+and this one it did not: **every hold on the pad was a hold, at a length
+written into the binding.** Two seconds of keeping a shoulder down is a gesture
+some hands cannot make at all, and others make by accident.
+
+The literal XAG answer - a press that latches the button down - does not fit
+here, and finding out why is most of what this item is. Every announced hold in
+the shipped tree is **half of a tap/hold pair**: `L` walks a browser tab and,
+held, walks a workspace. A gesture that replaced the hold with a press has to
+take the press from somewhere, and the only place to take it from is the tap.
+So the answer is two numbers rather than a new gesture, and each of them
+removes a different part of the difficulty:
+
+| `[confirm]` | What it takes away |
+|---|---|
+| `scale` | the length. One multiplier over **every** wait on the pad - the announced pair, a binding's own `hold_ms`, the half-second a plain hold takes - bounded to 0.5–2.0, because under a half a tap and a hold stop being different gestures and over a double nobody reaches the end of one |
+| `slack_ms` | the *continuity*. How long the finger may come off a hold that has **already announced itself**. Set it to `confirm_ms` and letting go after the tick stops cancelling at all: hold until the pad ticks, take the thumb off, and it still fires |
+
+- **The scale is applied in `Binding`, not where the timers are read.** The
+  game bar fills a badge over `hold_ms` and empties it over `confirm_ms`; a
+  scale that reached the loop and not the payload would be a promise counting
+  down over a bar that had already finished. The cost is a cache to clear -
+  `apply_setting` drops `bindings` and `page_keys`.
+- **The slack starts at the announcement and never before it.** Before it,
+  letting go is how a tap is made, and a browser tab that waited out a slack
+  nobody turned on for tabs would be the bill for a setting about something
+  else.
+- `hold_scale` is on the pad as `Controller ▸ Hold time`, which is the whole
+  point: the person who cannot make the gesture is the last person who should
+  have to find a text editor to say so.
+
+Both ship neutral - `scale = 1.0`, `slack_ms = 0` - so the gesture is exactly
+what it was until somebody says otherwise.
+
+### 56. The first start nobody walks to a keyboard for · ✅ Done · S
+
+The same survey, §4.10 again: *accessibility settings reachable from the
+first-run flow and from the overlay.* The second half was true - motion is on
+`Display`, vibration and sound on `Controller` - and the first half could not
+be, because **this program had no first run at all.** It starts, it works, and
+what it can do about a screen somebody reads badly or a motor somebody cannot
+feel is four pages away from a person who does not yet know there is a menu.
+
+A machine driven from a sofa is the machine nobody walks to a keyboard to set
+up, so the first start has to offer what a first start decides, from the pad.
+It is one tile, `Start here`, at the top of `Now`, and behind it one page: the
+bindings guide, the mapping screen, vibration, sounds, motion and item 55's
+hold time. Every row reads the same `pad:` setting its home row does, so this
+is not a fifth place to keep them and the two cannot drift.
+
+- **`when = ["first_run"]` is how it goes away**, which makes it the first
+  state in `menu.WHEN` that nobody can point at twice. That is the rule the
+  list is kept short by, and this is the one thing it is worth breaking for: a
+  row true exactly once is what a first start *is*.
+- **Opening the menu is what answers it**, not pressing the tile. Somebody who
+  opens the menu, reads the tile and walks off has been offered the page; a
+  greeting waiting to be pressed would be on the first page for ever.
+- **The mark is a setting because settings.toml is the only thing the pad can
+  write.** `[menu] first_run`, written false by `set_menu` rather than through
+  `set_setting` - nothing to apply, nothing to repaint, and a notification
+  saying a mark had been written is the machine talking about itself. Deleting
+  the line brings the tile back, which the file's own header already explains.
+- **It cost the suite a rule.** Opening a menu now writes a file, and
+  `tests/test_kbd.py` built a real daemon without redirecting the path - so a
+  test run replaced the settings this pad had chosen from the sofa. Both
+  harnesses redirect it now and `test_packaging.py` fails if a third one
+  forgets.
+
+### 57. A walk that never got any faster · ✅ Done · S
+
+[`research/console-launcher-ux.md`](research/console-launcher-ux.md) §4.2:
+*analog stick + D-pad both navigate, with stick auto-repeat and **acceleration**
+on hold*, and §3's tvOS note that inertia is what makes a long row navigable at
+all. Ours had the repeat and not the acceleration: a held direction stepped
+every `repeat_rate_ms` from the first step to the last.
+
+The same survey asks for edge-to-edge in six presses or a jump control, and the
+keyboard's first page is fourteen keys wide. **The steps closing up is that
+jump control** - the distance is the same and the journey stops being a count.
+
+`ramped(rate, ramp, ramp_time, held)` is the whole of it, and it is linear in
+*speed* rather than in the gap: ramping the gap spends most of the acceleration
+in the first tenth of the walk and then crawls, and what a thumb is doing is
+covering distance. It reaches both places a walk is timed - `fire_repeats`,
+where a held button's repeat lives, and the two stick walkers, which count down
+off the tick's own `dt` - so `[menu]`, `[osk]` and `[traverse]` each carry the
+pair. A reversal starts it again: somebody pushing the other way has gone too
+far, not further.
+
+2.5 over a second ships everywhere, and 1.0 is the walk exactly as it was.
+
+### 58. A machine that shut down under a resting thumb · ✅ Done · S
+
+§4.3: *hold A to confirm destructive or irreversible actions*. The pad had the
+gesture already - an announced hold, with a tick, a notification, a filling
+badge and a cancel button - and it was reachable **only from a binding**.
+`System ▸ Shutdown` was one press of A, the same press as `Volume`.
+
+So `confirm = true` on a menu row, and deliberately the same gesture rather
+than a second one: the two waits are `[confirm]`'s, item 55's scale reaches
+them, letting go and the cancel button both back out, and somebody who has held
+a shoulder to cross a workspace over a game already knows what a filling shape
+means.
+
+- **The tile fills, not a badge.** The bar says which *button* is counting
+  down; the tile is the thing being looked at, so the page says which *row* is.
+  Clipped to the tile's own ground the way the badge's sweep is clipped to the
+  badge's drawing, in over `hold_ms` and back out over `confirm_ms` - empty at
+  the moment it runs.
+- **The legend says it before anybody presses anything.** While the tile is in
+  front, A's word on the foot of the card is `Hold to confirm`. A gesture you
+  find out about by making it is a gesture nobody makes on purpose.
+- **What earns it is what a second press does not undo**, not what sounds
+  serious. Logout, Reboot, Shutdown and Close window; Lock and Suspend stay a
+  press, because both are one button away from where you were.
+- `build()` refuses it on a page (opening one is not a thing to be sure about),
+  on a control (nothing a switch or a slider does is one-way) and beside
+  `repeat` (one says *this again*, the other *this at last*).
+
+### 59. The screen that never went dark · ✅ Done · S
+
+§4.5's last row: *after N minutes idle, dim the chrome and show art - it
+protects OLEDs and looks intentional.* This program had the opposite: item 02
+bound an idle inhibitor under the keyboard, the guide, the mapping screen and
+the game bar, and game mode asks the desktop for `stay-awake` outright. A menu
+left open on a television held the screensaver off all night.
+
+The launcher half of that row is not ours to build - the desktop already has a
+screensaver, and this is not a shell. **The fault was only that we were holding
+it off with nobody at the other end of the hold.** So the hold follows the
+thumb rather than the surface: a press, a D-pad step, a stick past its dead
+zone, and `[idle] awake_ms` later omapad lets go and the desktop decides. The
+next press takes it back.
+
+- **`handle_button` is the one place every button, trigger and D-pad direction
+  passes through**, so that is where somebody being there is recorded. A stick
+  says so only past its dead zone - a pad with drift would otherwise hold the
+  screen awake for ever on its own, which is the one failure this must not
+  have.
+- **`awake` rides on every surface's payload** through `scaled()`, because what
+  it answers is true of all of them at once, and each panel binds its inhibitor
+  to `opened && awake` rather than to `opened`.
+- It closes item 02's open caveat from the other side as well: what holds the
+  screen awake is now pad *activity* rather than a surface being open, which is
+  what that caveat asked for.
+
+### 60. A vocabulary with no word for going back · ✅ Done · S
+
+[`research/console-launcher-ux.md`](research/console-launcher-ux.md) §4.6:
+*every focus move gets an audible tick; every confirm gets a distinct sound;
+**cancels and back get a lower, softer one***. We had the first two and not the
+third: `VOICES` was four words, and B either sounded like A or said nothing at
+all.
+
+`back` is the fifth, and the arithmetic in `assets/sounds.py` is the argument:
+it is the **commit's own note and the commit's own interval inverted** - that
+one bends up a fourth over its length, this one bends down the same fourth
+from the same place - softer and shorter besides, because leaving is the
+smaller event. A pair that shares a note and mirrors an interval is how a room
+tells two presses apart without anybody having been taught which is which.
+
+- **It ticks the motor, unlike `move`.** A press is a press, and the hands
+  have no business finding out that something was cancelled by feeling
+  nothing. What a motor cannot be is *lower*: it can be shorter or weaker,
+  which says less happened, and only a falling pitch says *this went the other
+  way*. So `say()` maps both of the words `rumble.VOCABULARY` does not hold
+  onto its `tick`.
+- **It follows the verb, never the surface going away.** `menu:back`,
+  `menu:close`, `osk:close` and `osk:toggle` on the way out, `guide:close`, a
+  control put back with B, and either kind of countdown backed out of. A row
+  that ran and took the menu with it has an answer of its own, and two sounds
+  for one press is one of them arguing with the other.
+- It found one thing already wrong: `menu_untake` said `commit` for **both**
+  ways off a control, so putting a slider back sounded exactly like keeping
+  it. A is `commit` and B is `back` now, which is what those two words are.
+- The fifth place a voice has to be named is `SoundBank.qml`, and it is the
+  one no Python import would ever notice. `tests/test_sound.py` reads that
+  list out of the QML now: a cue the bank does not load is a press that ticks
+  the hands and says nothing to the room.
+
+### 61. A page that was swapped where it stood · ✅ Done · S
+
+§4.6 again: *transitions are rapid and **directional** - content moves in the
+direction of the input*. Ours were rapid and had no direction at all: a
+submenu, the next chip along and the next page of the guide all replaced what
+was there without anything saying where it had come from.
+
+So a page now **arrives from the side it was reached from** - in from the
+right going deeper or forward, in from the left coming back - over the same
+110 ms everything else on these surfaces takes.
+
+- **The model is what knows a page changed**, so `turn_seq` / `turn_way` are
+  the model's, in `press_seq`'s shape and for `press_seq`'s reason: the page
+  is re-sent twice a second, and a turn already drawn must not be drawn
+  again. What the panel does with it is a drawing and stays the panel's.
+- **The bar had to say the direction rather than have it worked out.** It
+  wraps, so the last chip to the first is a step right that looks like a jump
+  left to anything comparing indexes. `group_move` leaves the way behind for
+  `enter_group`; the guide's `move(step)` does the same.
+- **Opening a surface is not a turn.** A surface arriving already has a way of
+  arriving, and a page that also slid in from somewhere would be two
+  entrances for one press.
+- In the menu the offset is added to `cellX` and shared by every tile rather
+  than wrapped in a container: it is only ever on its way back to zero, and a
+  wrapper would be one more Item between the Flickable and every tile for the
+  sake of that. In the guide it is a `Translate`, because that Row is laid out
+  by a Column and an assigned `x` would fight the layout.
+- It is motion like any other, so `[ui] motion = 0` lands every page where it
+  belongs at once - and the countdown on a held row deliberately still does
+  not come through there.
+
+### 62. A bar that came off its own edge · ✅ Done · S
+
+Asked for from the sofa: *alttaki bar çok altta kalmış ve sağında solunda çok
+boşluk var, onu eski haline çevirelim.*
+
+`[ui] safe_area` was a twentieth of each side and it was applied whenever game
+mode was on, on the argument that game mode is when a television is being
+used. The screen it was being read on was a 1920×1200 monitor, which crops
+nothing: 96 pixels off each end of the bar and 60 off the bottom, for a set
+that was not there. A bar standing a centimetre clear of three edges says
+something about the shape of the screen, which is not what a safe area is for.
+
+Two things were wrong and they are separate:
+
+- **The default.** Game mode is the *couch environment*, not proof of a
+  television - the README has said so since item 24 - and a couch is as often
+  a desk monitor turned up loud. So it ships at **0**. A guess that costs a
+  twentieth of every edge is worse than no guess: the person on a set knows
+  they are on one and can write the line, and the person on a monitor has no
+  way of knowing what took their margins away.
+- **What the share moved.** The bar's ground was being inset bodily. The rule
+  it is borrowed from says the opposite - backgrounds bleed to the edge, and
+  what has to be *read* comes in - so the ground fills the window again at any
+  safe share and the row of hints inside it is what moves. That is what makes
+  the setting worth turning on rather than something that looks broken when
+  you do.
+
+It also caught two tests reading the developer's own `~/.config/omapad`:
+`config_module.load(path)` merges settings.toml over whatever a test wrote, so
+three validation tests had been passing on this machine's answers rather than
+on the file they wrote - and started failing the day somebody turned the sound
+on from the menu. `only()` in `test_daemon.py` is the fix, and
+`test_packaging.py` now fails any test that loads a config without naming the
+layers under it.
+
+### 63. A corner nobody could argue with · ✅ Done · S
+
+Asked for from the sofa: *radius'u OS'e göre yap ama menüden arttırılıp
+azaltılabilsin, silver ratio'ya göre bir bak.*
+
+The first half was already true and worth saying out loud: the base is
+`decoration:rounding`, the compositor's own answer about every window on this
+machine, and `[menu] tile_corner` only where it rounds nothing - a desktop
+that rounds nothing is saying that about *windows*, and a tile is not a
+window. What was missing is the second half: nothing could move it from the
+pad, and it is the one measurement you can only judge by looking at the thing
+it sets.
+
+`[ui] radius` is a **multiplier** over whichever base is in force, and it is a
+multiplier rather than a number precisely because the base is never ours to
+choose. 1.0 is exactly what the desktop rounds; 0 is square. `Display ▸
+Corners` is the same number, set from the surface it changes - the tiles round
+under the thumb moving the slider, which is why `apply_setting` pushes every
+open view rather than waiting out the heartbeat.
+
+**The silver ratio is where the third part of the ask landed.** The ladder
+itself was already sound - `radius.card` and `radius.tile` are one base, one
+scaled and one not, with `rung()` for anything off them - so what wanted
+answering was the *stepping*. A corner is a size, every size on these surfaces
+climbs by √2, and 23 pixels against 25 is not a difference anybody sees from a
+sofa. So the setting walks stops rather than an amount: `0, 0.5, 0.71, 1,
+1.414` - four presses end to end, each a corner you can tell from the last,
+and it stops one rung above the desktop's own answer: two rungs past that a
+128-pixel tile is a circle, which is a different shape rather than a rounder
+corner.
+
+- `stops` in a `CHOSEN` spec is the general shape of that, and three things
+  had to learn it: `set_setting` walks the list, `setting_share` draws the bar
+  by its stops (spacing them by their arithmetic bunches the bottom half of a
+  ladder into the first third of the track), and the trigger sweep crosses it
+  in stops rather than in the value's own range.
+- **No ramp on a ladder.** The ramp exists because a pointer speed is
+  thirty-eight presses end to end; six is not, and a held direction would
+  cross the whole thing in the first push.
+- Zero is the stop *under* the bottom rung rather than a rung: no amount of
+  dividing reaches it, and square is a thing somebody may want.
+- **The tile is a different tile, and the design already had it.** Asked from
+  the sofa with a picture: *bunu yüzdeli değil de şöyle yapsak nasıl olur. bu
+  tasarım tasarım klasöründe vardı ama hiç kullanmadın.* `Console OS
+  v2.dc.html`'s Haptics cell is a caption, a word at the top of the type
+  ladder, and four equal segments - and it is what a stopped control wants:
+  the segments say how far along without arithmetic, which frees the line
+  above them to say *which* stop. `141%` is a number you have to divide
+  before it means anything, and against what? So `words` name the five
+  (`Square · Barely · Slight · The desktop's · Round`) and `seg`/`at` draw the
+  bar. A
+  continuous number keeps its percentage and its unbroken bar.
+- **And then everything else shaped like it**, asked for in the same breath:
+  *benzer olanlarda da bu componenti kullan.* Which turned out to be two
+  questions rather than one. **Few stops** decides the segments - `motion`
+  (five) and `hold_scale` (seven) joined `radius`, while a pointer speed's
+  thirty-nine places and the motor's twenty-one keep the unbroken bar, because
+  a control drawn in segments has to have few enough of them to count from a
+  sofa. **A place rather than an amount** decides the word: `motion` is worded
+  because `Off` is the stop it exists to be able to say, and `hold_scale` is
+  not, because 150% of the length a binding was written at is a quantity and
+  `Slower` would say less than it does.
+
+**What it cost to find out it worked.** `rescanPlugins` does not reach a
+shared component: it walks the plugin's entry points, and `Metrics.qml` is
+imported by them rather than being one. So the panels went on drawing the old
+ladder with nothing in the log - nothing was wrong - and the first check said
+the setting did nothing. The second said it did, on the strength of two
+screenshots of two *different* pages. Both are written down in
+[`conventions/qml.md`](conventions/qml.md) §9 now: restart the shell for a
+component, and compare the same page at both ends or do not claim a
+difference.
+
+### 64. Four verbs drawn as four squares · ✅ Done · M
+
+Asked for from the sofa with a picture: *menüde örneğin button style için şu
+component kullanılmalı, work altında tasarımı da var, bu hali anlaşılmaz duruyor.*
+The picture is `Console OS v2 UI mockups`' Power cell: a heading, three verbs
+one to a line, the one in front on a ground, and a line along the foot.
+
+The shape of what was wrong is a width. Item 50 made the menu a grid because
+**a list says every row is worth the same** and what is playing is not worth
+the same as the row beside it - which is true, and it cut the other way for
+the rows that have nothing to be worth. A verb has no value to show, so a cell
+spent on one says a single word, and the two pages where that lands hardest
+say it plainly: `System` draws `Lock`, `Suspend`, `Logout` and `Reboot` as four
+identical squares, and `Display` draws `Scale down` as `Scale do…` and
+`Screensaver` as `Screensa…`. Four cells, four words, and an elision in two of
+them.
+
+`control = "rows"` is the answer, and it is a **card that holds a page rather
+than opening one**: the `items` under it are drawn inside it, and each row has
+the card's whole width to be as long as it is. It is not a submenu with the
+drilling taken out - a submenu is a page you go to and come back from, and its
+rows get a card each. These are already in front of you.
+
+**It was built without a `taken` and that was wrong**, which the sofa found in
+one press: *a'ya basmadan yukarı aşağı seçememem lazım, altta bir kart olsa ona
+gitmesi beklenir, kendi içinde bir alttaki seçeneğe değil.* Walking the rows
+with the page's own up and down is cheaper and reads fine on a card with
+nothing under it. Put a tile below one and **down means two different things a
+cell apart**: the next row here, the next card there, and the tile a thumb was
+actually reaching for two presses further on. No page can be walked that way.
+
+So a card is entered, and `TAKEABLE` already had the shape: `entered` is
+`taken` narrowed to one axis. A slider took both and answers left and right; a
+card took the one that runs down it and answers up and down. A goes in, A runs
+the row, B comes out of the card without coming out of the page, and the row
+you were on is waiting the next time. The walk does not wrap, for the reason
+the grid does not.
+
+**And the marks settled on a spine and a pointer**, asked for with a picture:
+*bu itemlarin solunda bir cizgi olsa ve aktif olana dogru bir ok olsa ici dolu
+cizgi ile birlesik nasil durur?* - and then *a'ya basili degilken de aktif
+olani gostersin.*
+
+The line is structure: it is what makes a stack of words read as a list rather
+than as four labels that happen to be under one another, so it is there
+whether or not anybody is inside the card. Every row draws its own segment and
+the spacing between rows is 0, because a single `Column` child asking for the
+`Column`'s own height is a binding loop - the one that happened drew a line
+down the whole card with no rows on it.
+
+The **pointer** marked the cursor at first - drawn either way, dim outside the
+card and accent in - and that lasted one pass. From the sofa: *cizgi gibi ok da
+surekli cizilsin aktif secili bir item varsa, arka plana da gerek kalmayacak
+boylelikle. a'ya basinca aktif olana soluk bir arka plan ver.*
+
+Which is the jobs the right way round. The card had **one line with a mark on
+it** saying where A would land, and **a ground two pixels away** saying which
+row was in force: two answers to *which row matters*, drawn at the same place
+in the same row. Give the persistent mark the persistent state and the
+transient mark the transient one and both become readable at a glance - the
+pointer is the row in force, drawn always and on a card nobody has selected,
+and the ground is the cursor, faint and only once A has gone in. A card of
+verbs has no pointer at all, because nothing on it is in force.
+
+The ground's left corners are square, so it meets the spine rather than
+curving away and leaving a sliver of card between the two.
+
+Two last measurements, both `Metrics.silver` and both asked for by eye from the
+sofa. **The pointer's sides**: it was near enough equilateral and read as a
+squat blob on the line, because a mark whose flat edge is the line it stands on
+wants that edge to be the long one - base over length is the ratio now. And
+**the ends of the spine**: the line carries on past the first row and the last
+one and is capped at both, every arm the stroke weight set against itself at
+the same ratio. A line that began exactly at the first row's top edge began
+nowhere; it read as the edge of the ground behind it rather than as a thing of
+its own.
+
+The caps turned **right** at first and that was one shape too many: two of them
+facing the same way are a bracket, and a bracket *holds* what is inside it,
+which is a claim about the rows. A `T` at the head and its mirror at the foot
+is a stop instead - it says the line ends here and nothing about what the line
+is next to.
+
+**And then the mark on the line stopped being a drawing.** A pointer beside a
+line that already changes colour at that row is the same thing said twice - one
+of them a whole shape, on a card whose entire argument is that a row has
+nothing to show but its name.
+
+What replaced it first was **weight**: the lit length a hairline wider. That
+was the wrong silhouette and the sofa found the second half of it before the
+first - *bence 1px daha artsin ortali durmuyor*, because growing on one side
+alone moves the line off its own centre. Centred it was honest and still wrong,
+for a reason the fix makes plain: a line that changes *weight* for one row
+reads as the line, not as the row. Something **leaving** the line reads as the
+row.
+
+So the mark leaves the line at that row, reaching as far sideways as the caps
+reach along - one distance on the card rather than two that are nearly the
+same - and centred on the row so it marks the row rather than a place in it.
+
+It was a flat **stub** first, and a stub is a line crossing a line: two strokes
+of the same weight meeting at a right angle, which is what the caps at the ends
+of the spine already are. It is a **wedge** now, wider where it leaves and
+flat at the line's own weight where it arrives. A taper is not a second cap: it
+says the mark comes *out of* the line rather than across it, and keeping the
+tip flat keeps what it reaches a measurement rather than a point. The rise
+where it leaves is the reach at `Metrics.silver`, which is the proportion a
+mark whose flat edge is the line it stands on wants.
+
+Which is a triangle again, four marks later - but computed from the spine's own
+numbers rather than drawn, so it follows the line at any scale. The drawing was
+never the part that was wrong.
+
+`rows:point` left `assets/shapes/` on the way. Three drawn marks were tried
+here and none survived - a tick at the far end of the row, a radio ring at the
+head of it, and the pointer - which is worth writing down next to the rule
+about never hand-drawing a badge: that rule is about *what* a drawing is made
+of, and says nothing about whether a drawing was the right answer at all.
+
+And the `T` found the ratio in the wrong place, spotted by eye and confirmed
+with a pixel scan: *solu ve sagi uzun gibi, silver ratio olduguna emin misin.*
+It was, and on one **arm** - which is half a crossbar, so doubling it for the
+cross left the cap 12 across against 5 along. The quantity is spent once now:
+the line carries on past the rows by the stroke at silver, and the cap is as
+wide as that, half either side.
+
+**Two overlaps, and both are the same fault.** A corner's two bars start from
+one origin if you write them the obvious way, and the cursor's ground fills the
+row from its left edge, which is where the spine is. Every ink here is the
+theme's own at a share of itself, so a thing painted twice is a thing painted
+darker: the pixel where the corner's bars crossed was the brightest on the
+card, and the spine changed colour for the length of whichever row the cursor
+was on. Neither was a drawing decision - both were two things asked to occupy
+one place. The horizontal bar takes the outermost weight and the vertical
+starts under it; the ground starts where the spine ends, and so do the sweep
+and the press ring.
+
+- **The drawing had to say it twice.** A card nobody is inside draws **no
+  cursor** - a cursor would promise a walk that press does not make. And an
+  entered card is not *lifted*: filling with the accent and cutting its corners
+  is what a tile out of the page's order does, and it made the card the loudest
+  thing on the page with the least readable rows on it.
+
+  It takes a **heavier ring** instead - and that found a real fault two moves
+  later. Four pixels cut the border (*a'ya basinca border kesiliyor*): the halo
+  sat `ring + its own half` outside the tile, in the gap between cells, so at
+  four it went past the gap and the grid clipped it on the leftmost tile of a
+  page. **The sum was wrong rather than the ring.** The ring is drawn *inward*,
+  straddling a path inset by half its weight, so it occupies the first `weight`
+  pixels inside the tile and the halo has only the box to clear - a one-pixel
+  error while every ring was a hairline, and a four-pixel one the moment one
+  was not. `halo.out` is a hairline clear of the tile now and a ring may be any
+  weight without moving it.
+
+  Taking the ring away instead was the wrong repair, and it said so at once
+  (*kartin secildigi anlasilmiyor*): the rail says which **row**, and a
+  two-pixel mark on one row is no answer at all to which **card**.
+
+**And then the two marks on a row, which took three passes.** Asked for from
+the sofa twice: *yandaki tik bir sey anlatmiyor ve fontlar cok soluk*, and then
+*soldaki tick de kotu sadece arka plan olsun, a'ya basinca solda 2px genislikli
+bir cizgi olsun aktif olani gosteren.* Both were right and the second one is
+the better design.
+
+- **A tick at the far end of the row** was the grid's own mark, and out there
+  it says nothing: a tick has no second state, so a reader sees one row
+  carrying something and three carrying a gap, at the opposite end of the card
+  from the words it is about.
+- **A radio ring at the head of each row** was the design's, and it says more -
+  an empty ring beside every row says *these are alternatives* before it says
+  which one. But it is a second drawing for something the row can simply
+  **be**, and it took the slot a row's own glyph wants.
+- **The ground says it now**, and the cursor is **two pixels of rule** down the
+  row's left edge, drawn only inside the card. One mark each, and the card's
+  own ring and ground go back to meaning the card is selected rather than
+  saying the same sentence twice at two sizes.
+
+**The inks were the other half of it, and they were a real fault.** The surface
+had picked a number at each call site - 0.36, 0.42, 0.52, 0.58 - and the design
+publishes exactly three levels, each *measured* at 4.5:1 or better on the
+ground it sits on. A second line at 0.36 is a sentence you have to walk onto in
+order to read, which is a line not doing the job it exists for. `inkMuted` and
+`inkDim` are those two levels named once, and the call sites take them.
+
+- **The row cursor is a second cursor, not a second kind of `selected`.**
+  Everything the page does to a tile - carry it, hide it, resize it, scroll to
+  it, ring it - is still done to the tile; only a press reaches further in.
+  `acting` is that one question, and it is what makes `confirm`, `stay` and
+  `repeat` the row's answers. The legend asks it too, so `A` reads `Hold to
+  confirm` over `Full shutdown` and `Pick` over `Rest mode` beside it, and the
+  hold fills the row rather than the card.
+- **What a row may be is a short list, and the parser holds it**: a verb, with
+  no page under it, no control on it, and no `from` listing to fill it. Each
+  of those is a tile that could never draw itself, and `omapad check` is where
+  that gets said. A card spends no X or Y either - a key is spent while a page
+  is in front, and nothing is ever in front of a card of rows.
+- **Found on the way**, and it took the daemon down twice a second rather
+  than quietly: `view_state` asked the daemon what every tile with a `control`
+  was *on*, and the daemon's answer starts by unpacking the pair a tile reads
+  from. A card of rows is a control that reads nothing. The condition is
+  whether a tile **reads** something, not whether it is a control, and it has
+  a test now.
+
+**And then the first page that asked for one**, from the sofa: *system altında
+game mode kartı var ve bu kartta yeni yaptığımız tasarımı kullanmak
+istiyorum.* `System › Start in` was a `choice` - a card reading `Game mode`
+with a chevron either side, which is a card you have to press to find out what
+else there is. It is a card of two rows now, and converting it settled the one
+thing the control was still missing.
+
+**A row carries its own line.** Item 50 named the price of a choice tile: it
+shows one value, so *the sentence saying how the choices differ has nowhere to
+go*, and `Button labels` and `Profile` kept their submenus for exactly that. A
+row is as wide as the card it sits in, so it has somewhere to put one - which
+makes a card of rows the third shape, and the only one that pays nothing. The
+three answer three questions now: a **submenu** is for choices that are a place
+of their own, a **choice** for two values whose names are the whole difference
+in one cell, and a **card of rows** for a short list you want to *read* rather
+than press.
+
+- **Three cells, not two.** Forty characters do not fit in two beside a tick,
+  and `pad-menu.md` says so where somebody would write the next one.
+- **A row that sets something ticks**, by the same `state(action)` a tile is
+  asked, so a card of them is a list of choices rather than a list of guesses -
+  and `stay` is what keeps the menu up while the tick moves.
+- `Button labels` and `Profile` are the two this now unblocks, and they are
+  deliberately not converted here: that is a face-button question and it gets
+  its own pass.
+
+`README.md` and `pad-menu.md` carry the worked example both ways round - the
+verbs, and the settings. The test for *when* to reach for one is the elision: a
+run of tiles whose labels do not fit a cell and none of which has a value to
+show is a card of rows.
+
+**Then the rest of the tree, from a list the sofa picked off.** Four pages
+converted, and each was a different argument for the same shape:
+
+- **`Windows`** was four cells reading `Fullscre…`, `Next win…`, `Float / …`
+  and `Close wi…` - four words cut in half on a page two thirds empty. The
+  whole group is one card now.
+- **`Controller › Button labels`** and **`Profile`** were submenus, and item
+  50 said why they had to stay ones: a `choice` tile shows one value, so the
+  sentence saying how the choices differ had nowhere to go, and getting either
+  wrong scrambles the face buttons. A row is as wide as the card, so it keeps
+  the sentence - and all of them are in front of you rather than a level down.
+- **`System`** was five power verbs as five squares, which is the scatter the
+  control exists to end. `Omarchy menu` stayed a tile: it is a door out of this
+  menu rather than something the machine does.
+
+**And the three under Power stopped being a hold**, asked for from the sofa:
+*basili tutmasin 10 9 8 diye geri sayim yapsin b ile cancel edilebilsin.*
+Which is right, and it splits one question into two.
+
+A **hold** is the right gesture where it is already in the hand and is over in
+a second - `Close window`, with the window in front of you, wanting an answer
+now. It is the wrong one for logging out. What those three do is take the
+screen away, and being sure about that is not something to do with a thumb: it
+is something to be given long enough to change your mind about. Holding A for
+ten seconds is not a gesture anybody makes.
+
+So `countdown` is a second answer rather than a replacement. A is an ordinary
+press, the row prints `[menu] countdown` seconds beside its name, and B stops
+it - the legend says `Cancel` while it runs. Three things it does not do: no
+tick per second (a pad buzzing ten times through a decision is the opposite of
+what the wait is for), no `[confirm] scale` (that is for a hand that cannot
+keep a button down, and this asks nobody to keep anything down), and no
+stopping on a cursor move - ten seconds is long enough to want to look at
+something else, and a count that died because a thumb brushed a stick would be
+worse than no count at all.
+
+**Reboot and Shutdown are written twice, and that is the point**, asked for
+from the sofa: *reboot ve shutdown bu grup disinda ayri 1x1 tile olarak da
+dursun.* They are rows in the card like the other three, and they are also the
+two anybody walks to that page for - so they are a cell each as well, where a
+thumb reaches them without going into a card first. Item 48's argument about a
+row you have to go and find, spent on the two rows it is true of.
+
+Two things that had to follow. **Both copies count down** - a press guarded in
+one place and cheap in the other is worse than not guarding it - which meant
+the number had to be drawable on a *tile* as well as on a row, in the corner
+the tick and the chevron share. And **each copy needs its own id**: the flash,
+the countdown and the fill all name a tile by id, and two things answering to
+one name is two things lighting up for one press.
+
+**And a card can list**, which the first pass refused. `Audio` was `Devices`
+opening on `Output` opening on the outputs: two presses in before a name you
+could pick, and each of those pages held exactly one thing. It is two cards on
+one page now. The refusal had a real reason - a listing is read at the press
+that enters the page it fills, and nobody enters a card - and the answer was a
+second lifetime rather than a special case: `menu_cards_settled` reads the
+listing cards on the page in front once the page stops changing, on the bar's
+own `group_settle_ms` and for the bar's own reason. A card is seeded with its
+`empty` words so it is never blank while the command runs.
+
+**And a listing that finds one thing is not a list**, said from the sofa the
+moment it was on screen: *tek secenek varsa boyle gorunmesin, output ve
+microphone kotu gorunuyor, kullanici da secim yapamaz zaten.* One pair of
+speakers in the room is one row - picking it sets what is already set - and a
+column of alternatives with a single alternative in it is a card of furniture
+round a fact. It is a **reading** then, and drawn as one: the heading names it,
+the line is the answer, and `takeable()` refuses the card, which is the
+`readout` tile's own argument one control along. Plug a television in and the
+second row makes it a list again. Only a card that *lists*: a card somebody
+wrote one row into meant that row.
+
+**Found on the way**, and both were the same shape of fault - a field asked of
+the wrong thing:
+
+- `_row_state` did not carry a **listed** row's own `on`, so the card of
+  outputs drew every device unfilled. A listed row knows its own answer; the
+  daemon can ask a setting what it holds but not a device whether the sound is
+  going to it, and the tile payload had said so for a year.
+- `choose()` moved the fill among the page's tiles and not among a card's
+  rows, and then among *every* card's rows when it was taught to - picking a
+  speaker said something about which microphone was in use.
+
+**And one that cost an afternoon of drawing**: a `readonly property int left`
+on the row delegate. `Item` has a FINAL `left`, so the whole component failed
+to compile - and the way that fails is the panel never coming up at all, with
+one line about it in `qs -p /usr/share/omarchy/shell log` and nothing anywhere
+else. The rule in `qml.md` about reading that log first is what found it.
+
+### 65. One line, and three drawings of it · ✅ Done · S
+
+Said from the sofa, reading item 64's card back: *button labels için yaptığımız
+tasarım aslında dikey slider gibi, mevcut kademeli slider ve slider'ı da benzer
+bir tasarıma geçirebilir miyiz.* It is the right reading of the drawing. A card
+of rows is a two-pixel line with the row in force lit along its own length and
+a wedge leaving it - which is a vertical slider, and the card next to it drew
+its actual slider as a rounded eight-pixel trough with a fill running along it.
+
+So there were three drawings of *where along something a number is*: the
+trough, the trough cut into segments for a stepped value (63), and the spine.
+There is one now. `shell-plugin/Travel.qml` is the line, drawn along the foot
+of a slider, a stepped slider and a reading in the menu, and under a reading on
+the HUD - which had its own copy of the trough, for the rule that a page of
+readings must read the same in both places it appears.
+
+- **The measurements moved to the ladder.** `metrics.spine` holds the five -
+  the weight, how far the line carries past what it measures, the cross's reach
+  either side, and the mark's reach out of the line and its base on it - and
+  both the row card and the travel read them from there. Two copies of a stroke
+  weight is how one drawing quietly becomes two.
+- **Nothing fills**, which was the question asked back with three pictures and
+  answered by picking the quietest: a bar filled to the value draws a number as
+  mass, and the figure at the top of the card has already said it in words.
+  What is drawn is where the value *is* - the line's own length there, in the
+  accent, with the wedge over it. A stop is a length of line, so standing on
+  one lights the whole of it; a continuous value lights the mark's own base.
+- **It reverses half of 63.** The segments were chosen so *how far along* could
+  be read without arithmetic; it is read off the mark's place between the
+  crosses now, which is quieter. The trade was made with the picture in front
+  of us and it buys one drawing where there were three. `seg` and `at` on the
+  payload are untouched - how a value is drawn was always the panel's.
+- **The stops are the cap repeated.** A cross at the end of a line says the
+  line ends here; a cross partway along says it about a place the value may
+  stand. The two controls then differ by exactly what the two controls differ
+  by, and the ends of the line are values - a slider at its minimum stands on
+  the cross, where a spine would have carried on past the last row.
+- **`metrics.time.fill` went with the troughs**, and `qml.md` is down to three
+  durations. A mark is where the value is rather than a length growing towards
+  it, so it lands on the frame the value changes - which is 8.2.4.1, the rule
+  the filling bar was the exception to.
+
+**The crossings were wrong on the first pass**, and the sofa said so at a
+glance: *dikey ve yatay çizgiler iç içe geçmiş görünüyor.* Each cross was one
+bar run through the line, so the pixel where the two met was painted twice -
+and every ink here is the theme's own at a share of itself, which makes a
+square painted twice a square painted brighter. Seven of those along a stepped
+control and the drawing reads as two strokes laid over one another. It is the
+rule the row card's caps have carried since they were drawn; the travel now
+carries it too, with the line taking the crossing and the arms starting above
+and below it.
+
+**And the plain line did not show a press**, said as soon as the crossings
+were fixed: *kullanıcı düz çizgi olan versiyonda değişimi görebilmeli.* True,
+and it is the cost of the quietest of the three treatments - a press moves the
+mark a few pixels, and on a continuous slider there was nothing else on the
+line to see move. The stepped one never had the problem: a whole stop lights.
+
+So the line **behind** the value is drawn in the accent at half. It is the old
+bar's length at one twentieth of its ink - a tint rather than a fill, which is
+what qml.md 8.1 asks for everywhere the accent is not carrying a solid - and
+the full accent still marks one place. Three strengths were rendered side by
+side to pick it: a fifth (this surface's tint for a lit ground) is not there at
+all on a two-pixel line, and the ink at its dim level makes the trail the
+brightest thing on the card, which puts the eye behind the value instead of on
+it.
+
+What that buys back is item 63's own argument, which the first pass had spent:
+the segments were chosen so *how far along* could be read without arithmetic,
+and a trail running to the stop you are on reads exactly that - on both kinds
+of slider and on a reading, in one drawing.
+
+**And then the lit line crossed them too**, which is the same fault one layer
+up: *düz sliderda aktif olan sol yatay çizgi ile dikey çizgi yine iç içe
+geçti.* Splitting each cross into two arms had fixed the ink and not the
+figure - whatever the value lights runs through every stop it has passed, so a
+blue line and a grey bar still read as two strokes laid over one another. The
+stops **hang under the line** now, one tick each, as long as the spine carries
+past the last row of the card next door. Nothing on the drawing overlaps
+anything: wedge above, ticks below, and one unbroken line between them.
+
+**And the mark stopped being a wedge**, which is the third thing the screen
+said and the clearest of them: *yatay sliderlarda ok gibi olmasın, kalın çizgi
+gibi olsun, sol ve sağındaki üçgenleri kaldır.* The wedge is the row card's own
+mark, and turned a quarter it is an arrow lying on the line - an arrow points
+somewhere, and beside a horizontal line there is nothing to point at. The mark
+is the line **thickened** now: as tall as the wedge reached, half again as long
+as that, its foot on the line. At the wedge's own width it was as wide as it
+was tall, and a square standing on a line is a knob rather than a length of it.
+
+**And the two drawings settled on one stroke**, which is where the passes
+above were heading: *yatay ve dikey için tüm çizgileri aynı yapalım, --+-- gibi
+olsun, üstte ve altta aynı; kalınlık bardaki en sol ve en sağdaki çizginin
+kalınlığı olsun; dikeyde en üstte ve en altta bir boşluk var sonrasında
+başlıyor, yatayda da bunu ekle.* So:
+
+- **One figure, three jobs.** The cap at each end of a line, a stop a stepped
+  value may stand on, and the place the value has got to are the same cross at
+  the same size - `metrics.spine.cross`, the arm stepped a rung and halved -
+  with equal reach either side. The row card's caps took it too: the `T` with
+  a quantity of its own is gone, and `reach` with it.
+- **The value's mark is that cross in the accent**, which is the end of the
+  wedge here. A wedge points at something, which is right beside a row and
+  wrong along the foot of a card; the thickened line that replaced it for a
+  pass was a block sitting on a stroke.
+- **The line runs on past the travel at both ends**, so a slider at its
+  minimum stands an arm inside the cross that ends its line - the run of bare
+  line a spine already had above its first row and below its last.
+- **And nothing is painted twice.** The dim strokes are two arms with the line
+  taking the crossing; the accent one is a single piece, because an opaque
+  colour covers the line rather than tinting it. That is what the two earlier
+  passes were reaching for by splitting the cross and then by hanging it under
+  the line.
+
+**The stepped one then wanted its run solid**, which is the last thing the
+screen said: *yatay parçalı olanın solundaki hafif soluk turuncu da düz turuncu
+olsun, en sağda ortadaki turuncu bar da aktif olduğu alanın en sağında
+görünsün.* Both halves are the same correction. A stop is a place the value has
+**stood on**, so the stops behind the mark are places it has been and the run
+over them is as solid as the mark itself - the tint is for a continuous value,
+which has been at every point behind it and stood at none. And the mark belongs
+at the **far edge** of the stop it is on rather than the middle: a stop is a
+length the value has reached the end of. It stands on that stop's own stroke,
+so the accent covers it instead of landing half a weight beside it.
+
+Checked by rendering `Travel.qml` on its own against a fake ladder - at both
+kinds and at 0, mid and full - and then headless through `grabToImage`, which
+is the cheaper loop: it costs no shell restart and no screen, so the crossings
+were compared at four times life size and the three trail strengths on one
+sheet, instead of squinted at.
+
+### 66. A hum that said nothing about the value under it · ✅ Done · S
+
+Asked for in the same sitting as the line above it, and it is the same ask one
+sense along: *yatay çizgiyi hareket ettirirken A'ya basmadan önceki hâline göre
+ne kadar soldan sağa giderse sağda titreşim artsın, yukarı aşağıda da sabit,
+solda titreşim artsın veya azalsın - tabi bunları yaparken mevcut titreşimin
+strengthine göre yapsın.*
+
+The `texture` said *it is moving*, which is the least interesting thing about a
+value being changed: the thumb already knows it is moving, because it is the
+thing doing it. What it says now is **which way, and how far from where it
+stood** - the same sentence the line on screen says, told to the hand.
+
+- **Two motors, which is why it stopped being a sine.** A pad wires its
+  low-frequency motor on the left and its high-frequency one on the right, so a
+  value pushed right is felt on the right - and a periodic effect carries one
+  magnitude, which cannot say a direction. `texture` is plain `FF_RUMBLE` now.
+  It loses a waveform a pad might not have, so it also stops being the one word
+  some pads simply cannot say.
+- **The mark is where A found the value.** `_menu_from` is set by `menu_take()`
+  - the same point B puts the value back to - and the level is the distance
+  from it. Push back to the mark and the motor goes quiet; a pause in the
+  middle of pushing is not letting go of the mark, because A has not been let
+  go of. A control moved with no mode at all - a trigger sweeps one without
+  taking it - marks where the push began and lets that go when it settles.
+- **Up and down were already still**, which is the third clause of the ask and
+  cost nothing: a taken control answers one axis because a range is one
+  dimension, so there was nothing to keep the motor from following.
+- **The strength is the one already chosen.** The floor is `texture_strength`,
+  so the first step away is felt at all; the ceiling is the **tick's** own
+  `strong` - the `Strength` tile on the Controller page - so a value pushed the
+  whole way is exactly as strong as a press, and turning the vibration down
+  turns this down with it. No new setting: both ends were numbers somebody had
+  already set.
+- **`aim()` re-uploads the effect in place.** `EVIOCSFF` with an effect's own
+  id replaces what the slot holds, and a running effect picks the new level up
+  without a gap. One round trip per step is the thing `rumble.py` otherwise
+  refuses - allowed because it *is* the press's own work rather than something
+  happening underneath one - and it is skipped where the magnitudes have not
+  changed, which is most steps of a held repeat.
+- **And it ships on**, where it shipped off. Roadmap 17's rule is that a scheme
+  where every press buzzes says nothing; a buzz that says *which way you just
+  pushed* is not that scheme.
+
+**The scale came back out a day later**, from the same chair: *titreşimleri de
+artan azalan değil sabit bir hâle getirelim, hamlenin yapıldığı yönde titreşim
+verebilirsek daha iyi olur geri bildirim için; dikeyde dpad olduğu için sola
+titreşim versek daha iyi.* Right on all three counts. A level that rose with
+the distance from where a push began is a second reading of the number the
+tile is already printing, and what a hand on a control is asking is whether
+the push landed - so it is one flat level, `texture_strength`, re-derived at
+0.25 because a level that used to climb to a ceiling could afford to start
+low. The side is the whole message: `aim(name, side)` takes "left", "right" or
+"both". And **up and down are the left motor**, both of them, because a list
+is walked with the D-pad and the D-pad is under that thumb - which is also the
+first time the vertical instrument is felt at all, on the same
+`MENU_SCRUB_HOLD` a scrubbed slider uses. `_menu_from` and `menu_share()` went
+with the scale.
+
+### 67. The instrument, read off a Braun meter · 🗑 Removed · M
+
+Five passes had gone into the line at the foot of a slider, and the sixth ask
+was the honest one: *bu barlar bir türlü olmadı, yatayda ve dikeyde Dieter
+Rams'in oluşturduğu barlardan ilham alarak bir şeyler dener misin* - and then,
+when sketches came back without a source: *örnek görseller lazım yoksa olmaz.*
+
+So the reference came first: a Braun **T1000**'s tuning meter, photographed
+close (Wikimedia Commons). Four things are in it, and the fourth is what every
+pass here had been missing.
+
+- A **rule** with its **ticks hanging under it**, never across it.
+- The ticks all **one weight**, told apart by **length**: the ends of the
+  scale and the places that matter are long, a printed division is half.
+- A **needle** at the value, crossing the whole instrument.
+- And the only solid colour on it sits in a **channel of its own, under the
+  ticks**.
+
+That last one is the answer to three passes of the same fault. The marks and
+the filled run were being drawn on **one line**, so a lit run always crossed a
+dim mark: splitting each mark into two arms fixed the doubled ink and not the
+figure, hanging the marks under the line moved the crossing rather than ending
+it, and a cross in the accent only hid it. The registers are what make the
+drawing hold: **the fill is not on the scale.**
+
+`Travel.qml` is that instrument now - scale, channel, needle - and the row
+card's spine is the same instrument turned. `metrics.spine` carries its five
+measurements: the stroke `weight`, the `arm` a rule runs past what it
+measures, a major `tick` (the arm a rung up, because an arm reads as a corner
+and a mark has to be found from a sofa), a `minor` at half of that, the
+`gutter` between the registers, and the `lead` the needle stands above the
+rule.
+
+A stepped value's places are the tick **ends** rather than the segments
+between them - five stops are five ticks and four divisions - and a continuous
+one prints tenths, which is a division somebody can count and the same on
+every tile.
+
+**And it was taken back out**, the same evening, from the same chair: *kötü
+oldu, eski hâline geri alabilir misin ondan ilerleyelim.* Built, looked at,
+dropped - so the surfaces are back on the single line of item 65, with its
+crosses at the ends and at the stops, its solid run on a stepped control and
+its tint on a continuous one, and the row card back on its spine and wedge.
+
+What the item measured is worth keeping, because it is the only thing here
+that was read off an instrument rather than argued into being:
+
+- **Two registers is a real answer to a real fault.** Five passes of one-line
+  drawing had the marks and the fill on the same stroke, and every one of them
+  read as two strokes laid over one another. Braun's meter does not have that
+  problem because the fill is not on the scale.
+- **A scale can be printed on a control that has no places.** Tenths under a
+  continuous slider are honest - a printed division rather than a claim about
+  how the value moves - and nothing before this had tried it.
+- **And it is too much furniture for a tile.** Three registers plus a needle
+  is an instrument panel's worth of drawing at the foot of a cell that is
+  mostly a word and a number, which is what the sofa said in three words.
+
+`metrics.spine` kept `cross`, `markOut` and `markBase`; `tick`, `minor`,
+`gutter` and `lead` went out with the drawing. The rumble work that landed in
+the same sitting (66) is **not** part of this and stayed.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–54**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–66**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

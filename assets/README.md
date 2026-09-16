@@ -61,7 +61,7 @@ a selection to the border alone, and the border is the thinnest thing on a tile.
 
 A tile is `w` cells by `h` rows, though, which is the one aspect the badge rule
 rules out: a drawing scaled by one factor cannot be a rectangle of any shape.
-That is the rule the slider's track and the dial's shaded zone are not drawn
+That is the rule the slider's travel and the dial's shaded zone are not drawn
 under, and a ground would fall under it too — except that **only the edges are
 parameterised**. A corner is not, and a straight line does not have to be drawn
 to be right.

@@ -274,6 +274,22 @@ class EveryControlIsDrawn(unittest.TestCase):
         # which are type. It is the one tile with no control on it at all,
         # and listing it here is what says that was meant.
         "readout": (),
+        # Nothing, and it reached for art three times to get here. A tick at
+        # the far end of the row said nothing - a mark with no second state,
+        # at the opposite end of the card from the words it is about. A radio
+        # ring at the head of each row said more and was a second drawing for
+        # something the row can simply *be*. A pointer on the line said it
+        # best and was still one shape too many: the line it stood on already
+        # changes colour at that row, and a card whose whole argument is that
+        # a row has nothing to show but its name is the last place to spend a
+        # drawing on saying which row.
+        #
+        # What is left is a **hairline** of extra weight where the line is
+        # lit, which is the silhouette the colour needs beside it (qml.md
+        # 8.1.1). Like the ground under the cursor and the spine itself, it is
+        # the slider's track argument one shape along: a rectangle as tall as
+        # whatever it is drawn on, which no drawing can be.
+        "rows": (),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark

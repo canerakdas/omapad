@@ -90,11 +90,35 @@ Item {
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
   property string badgeStyle: "filled"
+
+  // Whether this surface may still hold the screen awake: the daemon's
+  // answer to whether anybody is holding the pad (`[idle] awake_ms`),
+  // stamped on every surface's payload because it is true of all of them.
+  property bool awake: true
   readonly property bool stencil: root.badgeStyle === "stencil"
+
+  // What share of each screen edge is kept clear of anything that has to be
+  // read (`[ui] safe_area`, game mode only). A television crops its own
+  // edges; every margin below goes through `metrics.edge`, which takes this
+  // or the surface's own, whichever is further in.
+  property real safeArea: 0
+
+  // The screen's own measurements, which are not the window's: a bar is a
+  // strip and a keyboard is a card, and the share a television crops is a
+  // share of the picture rather than of whatever surface is standing in it.
+  // A window with no screen yet answers nothing rather than a share of zero.
+  readonly property int screenH: panel.screen ? panel.screen.height : 0
+  readonly property int screenW: panel.screen ? panel.screen.width : 0
+
+  // How long everything on this surface takes to move, as a multiplier over
+  // the durations in `Metrics` (`[ui] motion`). 0 is motion off.
+  property real motion: 1.0
 
   Metrics {
     id: metrics
     scale: root.uiScale
+    motion: root.motion
+    safeArea: root.safeArea
   }
 
   // The drawn buttons, and the font their labels are set in.
@@ -117,6 +141,18 @@ Item {
   // two above: what counts as "longer than a tap" is the user's, not ours.
   property int fillDelayMs: 60
   readonly property int sideMargin: metrics.space(18)
+  // How far the bar stands off the edge it is anchored to, and off the two
+  // ends. A bar is the surface a television crops first - it is the strip
+  // furthest out on the screen, and it is the one that says what every button
+  // does - so where a set is eating its own edges the bar comes in off them.
+  //
+  // The window still reaches the edge and still reserves the whole strip:
+  // what moves is the ground the badges are drawn on. A window that had been
+  // given a margin instead would leave the compositor to work out an
+  // exclusion zone around it, and a game that opened under the gap rather
+  // than under the bar is worse than a bar sitting a little further in.
+  readonly property int safeGap: metrics.edge(root.screenH, 0)
+  readonly property int safeSide: metrics.edge(root.screenW, 0)
   readonly property int badgeUnit: metrics.badge(
     Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
   readonly property int barHeight: Math.max(metrics.space(wantedHeight),
@@ -265,6 +301,13 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.motion !== undefined)
+        root.motion = Math.max(0, Number(s.motion))
+      if (s.safe !== undefined)
+        root.safeArea = Math.max(0, Number(s.safe))
+      // Whether the pad has been touched lately enough to go on holding
+      // the screen awake. See the inhibitor at the foot of this file.
+      if (s.awake !== undefined) root.awake = !!s.awake
       if (s.badge !== undefined) root.badgeStyle = String(s.badge)
       if (s.pos !== undefined) root.wantedPosition = String(s.pos)
       if (s.h !== undefined) root.wantedHeight = Number(s.h)
@@ -478,7 +521,7 @@ Item {
     // the confirm window by itself.
     readonly property bool leans: root.leanReach > 0 && badge.lean !== 0
 
-    Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+    Behavior on scale { NumberAnimation { duration: metrics.time.brisk; easing.type: Easing.OutCubic } }
 
     // Where the countdown has got to, entered from wherever the badge
     // currently is rather than from the step it just took. A signal handler
@@ -543,7 +586,7 @@ Item {
       // short enough to be over before the eye asks how long it will take.
       // What is worth setting is how far it goes, which is `confirm_lean` -
       // that is the part a sofa's distance argues with.
-      duration: 140
+      duration: metrics.time.arrive
       // Out of the gate and settling into the lean, the way a thing that has
       // been pushed arrives: linear read as the start of a walk, and a walk
       // is what the badge must not look like now that the fill is the clock.
@@ -575,7 +618,7 @@ Item {
         PauseAnimation { duration: badge.arming ? badge.lapWaitMs : 0 }
 
         NumberAnimation {
-          duration: badge.arming ? badge.lapRampMs : 140
+          duration: badge.arming ? badge.lapRampMs : metrics.time.arrive
           easing.type: Easing.Linear
         }
       }
@@ -597,10 +640,10 @@ Item {
 
       // Long enough to be seen as a change, short enough that a tap still
       // reads as a tap rather than as a glow that arrives after the press.
-      Behavior on fill { ColorAnimation { duration: 90 } }
+      Behavior on fill { ColorAnimation { duration: metrics.time.brisk } }
       // The label crosses on the same clock as the fill it is trading places
       // with; two durations would show the badge as blank in between.
-      Behavior on ink { ColorAnimation { duration: 90 } }
+      Behavior on ink { ColorAnimation { duration: metrics.time.brisk } }
     }
 
     // A counted-down hold fills the badge in from the left, the way anything
@@ -694,7 +737,7 @@ Item {
       left: true
       right: true
     }
-    implicitHeight: root.barHeight
+    implicitHeight: root.barHeight + root.safeGap
     color: "transparent"
     WlrLayershell.namespace: "omapad-gamebar"
     WlrLayershell.layer: WlrLayer.Top
@@ -710,11 +753,30 @@ Item {
     // the wallpaper.
     mask: Region { item: root.clickable ? bar : null }
 
+    // **The ground reaches the edges; what has to be read comes in.** That is
+    // the broadcast rule the safe area is borrowed from, and getting it the
+    // other way round is what a bar looks like when it has been inset
+    // bodily: a strip floating a centimetre off the bottom and off both
+    // ends, saying something about the shape of the screen rather than about
+    // what a set crops. So this fills the window whatever the safe area is,
+    // and `bar` below - which every measurement on this surface is taken
+    // from - is the box that comes in.
     Rectangle {
-      id: bar
-
       anchors.fill: parent
       color: root.barTransparent ? "transparent" : Color.bar.background
+    }
+
+    Item {
+      id: bar
+
+      // Everything below measures from `bar`, so insetting it here is the
+      // whole of the safe area on this surface: the height a badge is sized
+      // against is the bar's, not the window's.
+      anchors.fill: parent
+      anchors.topMargin: root.edge === "bottom" ? 0 : root.safeGap
+      anchors.bottomMargin: root.edge === "bottom" ? root.safeGap : 0
+      anchors.leftMargin: root.safeSide
+      anchors.rightMargin: root.safeSide
 
       // Left: the door, and which button walks through it. Drawn only when
       // omapad says a button really opens it. The clock is inside the menu
@@ -785,8 +847,8 @@ Item {
           // is several badges wide, and the same factor would swing it.
           scale: door.down ? 0.96 : 1
 
-          Behavior on color { ColorAnimation { duration: 90 } }
-          Behavior on scale { NumberAnimation { duration: 90; easing.type: Easing.OutCubic } }
+          Behavior on color { ColorAnimation { duration: metrics.time.brisk } }
+          Behavior on scale { NumberAnimation { duration: metrics.time.brisk; easing.type: Easing.OutCubic } }
 
           Click {
             id: doorClick
@@ -1036,6 +1098,12 @@ Item {
   // the desk's pointer rather than a sign of anyone in front of the screen.
   IdleInhibitor {
     window: panel
-    enabled: root.opened
+    // Not `opened` alone: pad input is invisible to the compositor, which is
+    // why this is held at all, and a hold with nobody at the other end of it
+    // is a surface left open on a television keeping the screensaver off all
+    // night. `awake` is the daemon's answer to whether the pad has been
+    // touched lately - `[idle] awake_ms` - and it rides on every surface's
+    // payload because it is true of all of them at once.
+    enabled: root.opened && root.awake
   }
 }

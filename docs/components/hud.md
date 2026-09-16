@@ -78,6 +78,15 @@ it defaults to a hair off the edge and 0 is the corner itself. The panel's
 `ExclusionMode.Normal` does the rest - the last row stops where the bars
 start, rather than under one.
 
+**`[ui] safe_area` is the floor under it, and only in game mode.** The corner
+is deliberate and stays deliberate on a monitor; on a television the corner is
+the part of the picture the set does not draw, so the grid is held off to a
+share of the screen instead - and two shares rather than one, because a
+twentieth of the height and a twentieth of the width are different numbers.
+`[hud] margin` stays one number for the reason it always was: it is the same
+corner on either axis. Whichever is further in wins, so a margin raised past
+the safe area is still the margin.
+
 **It is a setting, not a surface that is opened.** `[hud] show` is in
 `config.CHOSEN`, so the switch on the page, `omapad ctl hud on` and the
 settings file are three doors onto one value - and it is still on tomorrow.
@@ -162,11 +171,18 @@ Four things worth knowing before changing any of it:
   busy, or a helper a second late, must not be able to empty the HUD. A source
   that has *never* answered has no value, and that is how a tile knows not to
   draw itself.
-- **Only a share has a bar.** `fraction()` answers `None` for anything with no
-  `full` in `READINGS`: a thermometer's top of scale is a number somebody would
-  have to invent, and a bar drawn against an invented maximum says a different
-  thing on every machine it is read on. The daemon then sends no `v` and the
-  panel draws no track.
+- **Only a share has a line under it.** `fraction()` answers `None` for
+  anything with no `full` in `READINGS`: a thermometer's top of scale is a
+  number somebody would have to invent, and a line drawn against an invented
+  maximum says a different thing on every machine it is read on. The daemon
+  then sends no `v` and the panel draws no travel.
+
+  What it draws where there is one is `Travel.qml`, the menu's own - a line
+  with the reading marked on it, no bar and nothing filled. The same reading
+  is drawn on both surfaces, so it is one drawing in one file; see
+  [`menu.md`](menu.md) for the argument. The ink is the menu's `spineInk`
+  written out here, which is a mirrored measurement and stays off this
+  surface's own numbers (qml.md 8.2.1).
 
 ## Asking, and not asking
 
@@ -195,8 +211,9 @@ moves:
 
 `rows` is `[hud] rows` - how many the screen is cut into, **not** how tall
 the page came out. `corner` is `[menu] tile_corner`, so a tile is the same
-shape in both places; there is no `cell`, because a cell's height is this
-grid's to work out. They travel for the reason every geometry setting does:
+shape in both places - the base of `metrics.radius` where the compositor
+rounds nothing, not a radius; there is no `cell`, because a cell's height is
+this grid's to work out. They travel for the reason every geometry setting does:
 the shell cannot read the config. `v` is absent where there is no bar.
 
 ## Changing it

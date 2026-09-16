@@ -156,9 +156,15 @@ written for a submenu of rows, and a `choice` tile has no siblings on screen:
 it shows one value at a time, so the line explaining how the choices differ has
 nowhere to go.
 
-So a submenu converts to a tile only where **the values say the difference
-themselves**. `Button style` did: `Filled` and `Stencil` are two looks whose
-names are the description. `Start in` did: `Desktop` and `Game mode`.
+So a submenu converts to a **choice** tile only where **the values say the
+difference themselves**. `Button style` did: `Filled` and `Stencil` are two
+looks whose names are the description.
+
+`Start in` did too, and has since converted again - to a `rows` card, which is
+the shape that keeps both. Its two rows say `Desktop` and `Game mode` *and*
+carry the line under each, because a row is as wide as the card it is in. Where
+a submenu was kept only for the sentence, that is now the thing to reach for
+rather than the reason not to convert.
 
 `Button labels` and `Profile` did **not**, and this is the reason rather than
 an oversight. Getting either wrong scrambles the face buttons, and the

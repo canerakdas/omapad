@@ -126,7 +126,7 @@ in the other. The dial's rim is an outer arc with `sweep 1` and an inner with
 The one drawing here that answers to a size, and the one place the rule above
 bends. A menu tile is `w` cells by `h` rows - no fixed aspect at all - so a
 drawing scaled by one factor cannot be its outline. That is exactly why the
-slider's track and the dial's shaded zone are *not* art.
+slider's travel and the dial's shaded zone are *not* art.
 
 A ground gets away with it because **only its edges are parameterised**. A
 corner is not, and a straight line does not have to be drawn to be right. So
