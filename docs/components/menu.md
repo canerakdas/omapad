@@ -98,6 +98,7 @@ anything a button can.
 |---|---|
 | `label` | required, and the tile's name unless `id` says otherwise |
 | `icon`, `detail` | what is drawn above and under it |
+| `icon_font` | the family that glyph is set in, where it is not the surface's own |
 | `action` **xor** `items` | what it does, or what it opens |
 | `from` + `empty` | a page it lists rather than holds |
 | `repeat`, `stay` | what happens when it runs |
@@ -1565,9 +1566,36 @@ answered the same question twice is one that can disagree with itself. `head` is
 same three letters a badge takes on `gamebar.sock` - and `cols`, `rows` and
 `headrows` are the grids' shapes. On a tile, `l` label, `i` icon, `d` detail,
 `sub` whether it drills in, `x`/`y`/`w`/`h` its cells, and `k` its control
-where it has one. A control tile adds what it is on: `on` for a switch, `t`
+where it has one.
+
+`f` rides beside `i` where a glyph is somebody else's: a glyph only exists in
+the font that drew it, and Omarchy's own mark is at U+E900 in `omarchy.ttf` and
+nowhere in a Nerd Font. It is off the wire for every row that has nothing to
+say about it, so the panel's test is one `undefined` and every other tile costs
+nothing - `root.glyphFont()` is the one place that asks. A row inside a card
+carries it the same way.
+
+**`m` is the line a config file could not write.** A tile's `meta` is the same
+`{from, ttl, empty}` table a nav card's is, run by the same refresh, and what
+it says stands where the tile's *written* line stands: the heading of a card
+of rows, the detail of anything else. `Windows` is what it ships for - the
+card is about the window in front, the menu has blurred that window, and
+`WINDOWS` over four verbs says only what the page is already called. Off the
+wire for a tile with no `meta` and for one whose command has said nothing and
+left no `empty` word, so the panel falls back to `l` and never draws a blank
+heading while a command is thinking. It goes through `drawable()` like every
+other string somebody else wrote: a window titles itself.
+
+Only the tiles of the **page in front** are refreshed, with the bar's chips -
+a `meta` is a subprocess with a clock on it, and a command answering for a
+page nobody is looking at is the cost that refresh is written to avoid.
+
+A control tile adds what it is on: `on` for a switch, `t`
 for the words a choice or a slider is showing, `v` for how far along a slider
-is (0..1), and `hd` where it is the one being held. A media tile's `l` and `d`
+is (0..1), `b` for where along it stood when A took it, and `hd` where it is
+the one being held. `b` is on the wire **only while the tile is held and only
+while it differs from `v`**: a control nobody is holding has no *before*, and
+the panel draws the distance between the two rather than either of them. A media tile's `l` and `d`
 are overwritten with the title and the artist. The surface carries `hd`
 too, as the held tile's id or empty.
 

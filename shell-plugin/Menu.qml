@@ -419,6 +419,16 @@ Item {
   // accent, so the loudest thing on the line is still where the value is.
   readonly property color trailInk: Util.alpha(Color.accent, 0.5)
 
+  // **Which font a glyph is set in.** The surface's own, unless the row that
+  // carries it named another: a glyph only exists in the font that drew it,
+  // and Omarchy's own mark is at U+E900 in `omarchy.ttf` and nowhere in a
+  // Nerd Font. The daemon leaves `f` off every row that has nothing to say
+  // about it, so this is one `undefined` test and no cost anywhere else.
+  function glyphFont(item) {
+    return (item && item.f !== undefined && item.f.length > 0)
+      ? item.f : metrics.font.family
+  }
+
   readonly property color rowGround:
     Qt.tint(root.cellGround, Util.alpha(Color.menu.text, 0.10))
   readonly property int cellHeight: metrics.space(root.cellUnit)
@@ -1478,7 +1488,7 @@ Item {
                     text: nav.hasIcon ? nav.modelData.i : ""
                     textFormat: Text.PlainText
                     color: nav.navInk
-                    font.family: metrics.font.family
+                    font.family: root.glyphFont(nav.modelData)
                     font.pixelSize: nav.iconSize
                   }
                 }
@@ -1622,6 +1632,17 @@ Item {
 
                 readonly property bool selected: tile.modelData.id === root.sel
                 readonly property bool ticked: tile.modelData.on === true
+
+                // **What the tile says about itself that a config file could
+                // not.** `m` is a command's last answer, or the word the row
+                // said to use until there is one - and off the wire for every
+                // tile that has neither, so a page draws what it was written
+                // with and never a blank line while a command is thinking. It
+                // stands where the written line stands: the heading of a card
+                // of rows, the detail of any other tile.
+                readonly property string says:
+                  (tile.modelData.m !== undefined && tile.modelData.m.length > 0)
+                    ? tile.modelData.m : ""
 
                 // **Concentric is a radius, not only a centre.** A rounded
                 // rectangle drawn `out` pixels outside another one has to
@@ -2495,7 +2516,7 @@ Item {
                     text: tile.hasIcon ? tile.modelData.i : ""
                     textFormat: Text.PlainText
                     color: tile.lit ? Color.accent : tile.ink
-                    font.family: metrics.font.family
+                    font.family: root.glyphFont(tile.modelData)
                     font.pixelSize: tile.iconSize
                   }
                 }
@@ -2514,15 +2535,19 @@ Item {
                   // A media tile's second line is the artist and is worth a
                   // one-row tile's room; everything else earns one by being
                   // two rows tall.
-                  visible: tile.named && tile.modelData.d !== undefined
-                    && tile.modelData.d.length > 0
+                  // The live line where there is one, the written one where
+                  // there is not - the same order the card's heading takes.
+                  readonly property string line: tile.says.length > 0
+                    ? tile.says
+                    : (tile.modelData.d !== undefined ? tile.modelData.d : "")
+                  visible: tile.named && detailText.line.length > 0
                     && (tile.media || tile.modelData.h > 1)
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.leftMargin: tile.pad
                   anchors.rightMargin: tile.pad
                   y: labelText.y - detailText.height - metrics.gap.xxs
-                  text: visible ? tile.modelData.d : ""
+                  text: detailText.visible ? detailText.line : ""
                   textFormat: Text.PlainText
                   color: tile.ink
                   opacity: root.inkDim
@@ -2578,10 +2603,20 @@ Item {
                   id: columnHead
                   visible: tile.column
                   anchors.left: parent.left
+                  // **Held off the right edge as well**, which it was not
+                  // while the only thing it could print was a label somebody
+                  // had written to fit. A heading that names the window in
+                  // front is as long as that window's own title, and a card
+                  // is the width it is.
+                  anchors.right: parent.right
                   anchors.top: parent.top
                   anchors.leftMargin: tile.pad
+                  anchors.rightMargin: tile.pad
                   anchors.topMargin: tile.pad
-                  text: tile.column ? tile.modelData.l : ""
+                  elide: Text.ElideRight
+                  text: tile.column
+                    ? (tile.says.length > 0 ? tile.says : tile.modelData.l)
+                    : ""
                   textFormat: Text.PlainText
                   color: tile.ink
                   opacity: root.inkMuted
@@ -3067,7 +3102,7 @@ Item {
                           textFormat: Text.PlainText
                           color: line.here ? Color.accent : tile.ink
                           opacity: line.here ? 1 : root.inkMuted
-                          font.family: metrics.font.family
+                          font.family: root.glyphFont(line.modelData)
                           font.pixelSize: metrics.type.body
                         }
                       }

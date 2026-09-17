@@ -2313,7 +2313,13 @@ class Daemon:
         if not self.menu_open:
             return
         now = time.monotonic()
-        for meta in meta_sources(self.menu.groups):
+        # The bar's chips, and the tiles of the page in front. Not every tile
+        # in the tree: a `meta` is a subprocess with a clock on it, and a
+        # command answering for a page nobody is looking at is the cost this
+        # refresh is written to avoid. A tile walked to is asked about when
+        # the page it is on arrives.
+        tiles = [tile["item"] for tile in self.menu.tiles]
+        for meta in meta_sources(list(self.menu.groups) + tiles):
             due = self._menu_meta_due.get(meta["id"], 0.0)
             if due and now < due:
                 continue

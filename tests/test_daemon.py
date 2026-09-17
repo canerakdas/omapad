@@ -25,6 +25,7 @@ from omapad import uinput
 from omapad import actions
 from omapad import menu as menu_module
 from omapad import guide as guide_module
+from omapad import sysinfo as sysinfo_module
 from omapad.linux_input import AbsInfo
 
 XBOX = ("Beitong KP20A/KP40A Controller", "20BC:5127")
@@ -345,6 +346,18 @@ class DaemonTestCase(unittest.TestCase):
             if button == name:
                 return code
         raise AssertionError("%s is not on this profile" % name)
+
+    def metas(self):
+        """Every command an open menu runs for a line rather than for a row.
+
+        One per nav card, plus one for any tile on the page in front that has
+        a `meta` - the line a config file cannot write, like the window the
+        `Windows` card names. A test counting what a *page* spends filters
+        these out: they are the cost of the menu being open at all.
+        """
+        tiles = [tile["item"] for tile in self.daemon.menu.tiles]
+        return {meta["from"] for meta
+                in meta_sources(list(self.daemon.menu.groups) + tiles)}
 
     def press(self, name):
         if name in self.daemon.trigger_axes.values():
@@ -3578,11 +3591,13 @@ class ListedMenuTests(DaemonTestCase):
 
     def listings(self):
         # Only the cards' own commands. The bar runs one per group for the
-        # word under each nav card, so what a page spends is no longer the
-        # whole of what an open menu does - and matching on the text of the
-        # command is no use when a `meta` reads the same thing a card lists.
-        metas = {meta["from"] for meta in meta_sources(self.daemon.menu.groups)}
-        return [one for one in self.session.captured if one not in metas]
+        # word under each nav card, and a tile on the page in front may run
+        # one for the line it cannot write down, so what a page spends is no
+        # longer the whole of what an open menu does - and matching on the
+        # text of the command is no use when a `meta` reads the same thing a
+        # card lists.
+        return [one for one in self.session.captured
+                if one not in self.metas()]
 
     def test_the_devices_are_read_when_the_page_settles(self):
         # Not at load: which outputs exist changes while the daemon runs, and
@@ -3770,8 +3785,7 @@ class LiveTests(DaemonTestCase):
         # The four a page of controls reads. A nav card's `meta` is a command
         # too and lands in the same queue, so it is filtered out here: what
         # this counts is what `live` asked for, not what an open menu spends.
-        metas = [meta["from"] for meta in meta_sources(self.daemon.menu.groups)]
-        asked = [one for one in self.asked() if one not in metas]
+        asked = [one for one in self.asked() if one not in self.metas()]
         self.assertEqual(len(asked), 4)
         self.assertTrue(any("get-sink-volume" in one for one in asked))
         self.assertTrue(any("get-sink-mute" in one for one in asked))
@@ -4523,8 +4537,8 @@ class ListedMenuWorkerTests(DaemonTestCase):
                 if tile["l"] == label][0]
 
     def listings(self):
-        metas = {meta["from"] for meta in meta_sources(self.daemon.menu.groups)}
-        return [one for one in self.commands.submitted if one[0] not in metas]
+        return [one for one in self.commands.submitted
+                if one[0] not in self.metas()]
 
     def test_the_page_is_drawn_before_the_answer_arrives(self):
         self.enter("Audio")
@@ -6404,6 +6418,164 @@ class HeadRefreshTests(DaemonTestCase):
         self.daemon.menu_open = False
         self.daemon.menu_head_refresh()
         self.assertEqual(self.asked(), [])
+
+
+class MetaRefreshTests(DaemonTestCase):
+    """What an open menu runs for its live lines, and how often.
+
+    `menu_head_refresh`'s neighbour, and the more expensive of the two: a
+    head has two or three lines, a bar has one per group, and a page adds one
+    per tile that carries a `meta`. Every one of them is a subprocess, and
+    the loop calls this on every tick - so what stops a row of two-word
+    labels being eight shells a second is the `ttl` and nothing else.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.session.lines = ["two windows"]
+
+    def tree(self, entries):
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(entries), columns=self.config.menu_columns)
+        self.daemon.menu_open = True
+
+    def asked(self):
+        return list(self.session.captured)
+
+    def deliver(self):
+        for key, lines in self.commands.drain():
+            self.daemon._command_jobs.pop(key)(lines)
+
+    def test_every_group_whose_meta_is_a_command_is_asked_for(self):
+        self.tree([
+            {"label": "Windows", "meta": {"from": "count-windows", "ttl": 5},
+             "items": [{"label": "Close", "action": "exec:true"}]},
+            {"label": "Audio", "meta": {"from": "which-sink", "ttl": 5},
+             "items": [{"label": "Mute", "action": "exec:true"}]},
+        ])
+        self.daemon.menu_meta_refresh()
+        self.assertEqual(sorted(self.asked()),
+                         ["count-windows", "which-sink"])
+
+    def test_a_page_of_ticks_costs_one_command_per_meta(self):
+        # The budget, and the whole reason a `ttl` is not optional politeness
+        # here: the loop calls this on every tick, and a menu left open is
+        # tens of thousands of them. One shell per ttl, however many ticks
+        # went past inside it.
+        self.tree([
+            {"label": "Windows", "meta": {"from": "count-windows", "ttl": 5},
+             "items": [{"label": "Close", "action": "exec:true"}]},
+        ])
+        for _ in range(240):
+            self.daemon.menu_meta_refresh()
+            self.deliver()
+        self.assertEqual(self.asked(), ["count-windows"])
+
+    def test_and_the_next_ttl_asks_again(self):
+        # Stale is the other failure: a card that answered once and never
+        # again names the window that was in front an hour ago.
+        self.tree([
+            {"label": "Windows", "meta": {"from": "count-windows", "ttl": 5},
+             "items": [{"label": "Close", "action": "exec:true"}]},
+        ])
+        self.daemon.menu_meta_refresh()
+        self.deliver()
+        for key in self.daemon._menu_meta_due:
+            self.daemon._menu_meta_due[key] = 0.0
+        self.daemon.menu_meta_refresh()
+        self.assertEqual(self.asked(), ["count-windows", "count-windows"])
+
+    def test_a_tile_on_the_page_in_front_is_asked_about_too(self):
+        # The line a config file cannot write: `Close window` has to name the
+        # window in front, and nobody can type that into a TOML file.
+        self.tree([
+            {"label": "Windows", "items": [
+                {"label": "Close", "action": "exec:true",
+                 "meta": {"from": "which-window", "ttl": 2}},
+            ]},
+        ])
+        self.daemon.menu.enter_group(0)
+        self.daemon.menu_meta_refresh()
+        self.assertEqual(self.asked(), ["which-window"])
+
+    def test_but_not_one_on_a_page_nobody_is_looking_at(self):
+        # The tiles of every page in the tree would be a command per row of
+        # the whole menu, per ttl, for the rows nobody has walked to. A page
+        # is asked about when it arrives.
+        self.tree([
+            {"label": "Windows", "items": [
+                {"label": "Close", "action": "exec:true",
+                 "meta": {"from": "which-window", "ttl": 2}},
+            ]},
+            {"label": "Audio", "items": [
+                {"label": "Mute", "action": "exec:true"},
+            ]},
+        ])
+        self.daemon.menu.enter_group(1)
+        self.daemon.menu_meta_refresh()
+        self.assertEqual(self.asked(), [])
+
+    def test_nothing_is_asked_for_while_the_menu_is_down(self):
+        # A daemon nobody is looking at must not count windows for ever.
+        self.tree([
+            {"label": "Windows", "meta": {"from": "count-windows", "ttl": 5},
+             "items": [{"label": "Close", "action": "exec:true"}]},
+        ])
+        self.daemon.menu_open = False
+        self.daemon.menu_meta_refresh()
+        self.assertEqual(self.asked(), [])
+
+
+class SysRefreshBudgetTests(DaemonTestCase):
+    """How often the readings are asked for, and for how many of them."""
+
+    def setUp(self):
+        super().setUp()
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+
+    def reads(self):
+        return list(self.session.captured)
+
+    def test_a_reading_nothing_draws_is_never_asked_for(self):
+        # Every surface that can print one is down, so nothing is owed an
+        # answer - and nothing is remembered as asked either.
+        self.daemon.menu_open = False
+        self.daemon.hud_open = False
+        self.daemon.gamebar_open = False
+        for _ in range(60):
+            self.daemon.sys_refresh(time.monotonic())
+        self.assertEqual(self.reads(), [])
+        self.assertEqual(self.daemon._sys_poll, {})
+
+    def page_of_readings(self):
+        """A menu page drawing two of the machine's readings."""
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(
+                [{"label": "Machine", "items": [
+                    {"label": "Processor", "control": "readout",
+                     "reads": "sys:cpu"},
+                    {"label": "Memory", "control": "readout",
+                     "reads": "sys:memory"},
+                ]}],
+                machine=sysinfo_module.READINGS),
+            columns=self.config.menu_columns)
+        self.daemon.menu.enter_group(0)
+        self.daemon.menu_open = True
+
+    def test_a_page_of_ticks_costs_one_read_per_poll(self):
+        # procfs is microseconds, which is why it is read on the loop at all
+        # - but sixty of them a second is still sixty, and a `cmd:` source is
+        # a subprocess like any other.
+        self.page_of_readings()
+        names = self.daemon.sys_names()
+        self.assertEqual(sorted(names), ["cpu", "memory"])
+        now = time.monotonic()
+        for _ in range(240):
+            self.daemon.sys_refresh(now)
+        self.assertEqual(sorted(self.daemon._sys_poll), sorted(names))
+        for name in names:
+            self.assertGreater(self.daemon._sys_poll[name], now)
 
 
 class ScrimOverTheBarTests(DaemonTestCase):

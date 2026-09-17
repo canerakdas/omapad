@@ -253,14 +253,29 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         item = {
             "label": label,
             "icon": str(entry.get("icon", "")),
+            # **Which font the icon is set in, where it is not the surface's
+            # own.** A glyph is only in the font that drew it: Omarchy's own
+            # mark lives at U+E900 in `omarchy.ttf` and is nowhere in a Nerd
+            # Font, so a row that prints it has to say where it came from.
+            # The Omarchy menu has the same field for the same reason
+            # (`iconFont` in its JSONC), which is what this is named after.
+            # Empty - which is every other row - means the surface's own.
+            "icon_font": str(entry.get("icon_font", "")).strip(),
             "detail": str(entry.get("detail", "")),
             # What a group says under its name on the bar, in the two or
             # three words a nav card has room for: what is playing, which
-            # output, how many windows. Only a group's is ever drawn - a tile
-            # has its `detail`, and the card under the bar is the only thing
-            # with a second line to fill. Left unset, a group falls back to
-            # how many tiles its page holds, which is true of every group and
+            # output, how many windows. Left unset, a group falls back to how
+            # many tiles its page holds, which is true of every group and
             # needs nobody to maintain it.
+            #
+            # **A tile takes one too, and it is the line a tile cannot
+            # write.** A `detail` is a sentence set down in a config file, so
+            # it can say what a row does and never what the machine is
+            # doing - and `Windows > Close window` is the row where that is
+            # not enough: what the page has to name is the window in front,
+            # which is not something anybody can write down. So a tile's
+            # `meta` replaces the line it is *about* itself with: the heading
+            # on a card of rows, the detail line on any other tile.
             "meta": _group_meta(entry.get("meta"), path),
             "items": None,
             "action": None,
@@ -942,6 +957,25 @@ def _group_meta(spec, path):
     return {"id": "", "text": "",
             "from": source, "ttl": _ttl(spec.get("ttl"), path),
             "empty": str(spec.get("empty", "")).strip()}
+
+
+def tile_meta(item, texts=None):
+    """What a tile's heading or detail prints, or "" where it says nothing.
+
+    `MenuModel.group_meta` one surface down, and deliberately the same three
+    answers in the same order: a literal, the command's last word, then what
+    to say when it has printed nothing. The difference is the fallback - a
+    group with no meta says how many tiles it holds, and a tile with none
+    says what the config called it, which the payload is already carrying.
+    """
+    meta = item.get("meta")
+    if not meta:
+        return ""
+    if meta["text"]:
+        return meta["text"]
+    if not meta["from"]:
+        return ""
+    return (texts or {}).get(meta["id"]) or meta["empty"]
 
 
 def meta_sources(items):
@@ -2045,6 +2079,8 @@ class MenuModel:
         """
         out = {"id": item["id"], "l": item["label"], "i": item["icon"],
                "d": item["detail"]}
+        if item.get("icon_font"):
+            out["f"] = item["icon_font"]
         if item.get("on") is not None:
             # A **listed** row knows its own answer, the way a listed tile
             # does: the daemon can ask a setting what it holds, but not a
@@ -2175,6 +2211,23 @@ class MenuModel:
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
             }
+            if item.get("icon_font"):
+                # Off the wire where there is none, so the panel's test for
+                # "is this glyph somebody else's" is one `undefined` check and
+                # every other tile costs nothing.
+                row["f"] = item["icon_font"]
+            # Through `drawable` because it is somebody else's words: a
+            # window titles itself, and a title is exactly the string qml.md
+            # 8.6 is about.
+            said = drawable(tile_meta(item, metas))
+            if said:
+                # The live line, where the tile has one: the heading of a card
+                # of rows, the detail of anything else. Off the wire entirely
+                # for a tile that has no `meta`, and for one whose command has
+                # said nothing and left no `empty` word to say instead - so a
+                # page draws what the config called it until there is
+                # something truer to draw.
+                row["m"] = said
             if self.edit and self.hidden(item["id"]):
                 # Drawn only so it can be put back, and drawn as what it is.
                 row["off"] = True

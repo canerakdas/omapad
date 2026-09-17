@@ -2704,6 +2704,19 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
   control = "rows"
   span = [3, 3]
   detail = "Close window is held, not pressed"
+  # **And the heading names the window rather than the page.** `Close window`
+  # is the row on this surface where a written line is not enough: the menu
+  # blurs what is behind it, so the thing about to be closed is a shape you
+  # cannot read, and `WINDOWS` over four verbs says only what the page is
+  # already called. A `meta` is the one line a tile can have that knows what
+  # the machine is doing, and here it answers the question the card is for.
+  #
+  # The title where there is one and the class where there is not - a window
+  # with no title still has a name - cut to what a heading holds. Two seconds
+  # of freshness: nothing takes focus while the menu is up, so this is about
+  # what was in front when it opened rather than about keeping up with
+  # anything.
+  meta = { from = """hyprctl activewindow -j | jq -r 'if (.title // "") != "" then .title else (.class // "") end' | cut -c1-34""", ttl = 2, empty = "Windows" }
 
     [[menu.items.items.items]]
     label = "Fullscreen"

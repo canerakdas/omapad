@@ -2363,13 +2363,32 @@ meta = { from = "…", ttl = 10, empty = "Nothing out" }
 
 **Give it a `ttl`.** There is one of these per group, so a card without one is
 a subprocess a second for a row of two-word labels. Leave `meta` out and the
-card says how many tiles its page holds. Each tile takes either an
+card says how many tiles its page holds.
+
+**A tile takes one too**, and it is the line a tile cannot write for itself: a
+`detail` is a sentence set down in a config file, so it can say what a row does
+and never what the machine is doing. A tile's `meta` stands where its written
+line stands — the heading on a card of rows, the detail line on any other tile
+— and only the page in front spends anything.
+
+```toml
+[[menu.items.items]]
+label = "Windows"
+control = "rows"
+meta = { from = "hyprctl activewindow -j | jq -r .title", ttl = 2, empty = "Windows" }
+```
+
+That is what `Workspaces › Windows` ships with: the card is about the window in
+front, the menu has blurred that window, and `WINDOWS` over four verbs says
+only what the page is already called. With the title there, `Close window` is a
+row about something you can name. Each tile takes either an
 `action` (**the same grammar** as the button bindings) or an `items` list that
 opens a page of its own.
 
 ```toml
 [[menu.items]]
 icon = ""                     # any glyph in the shell's font
+icon_font = ""                # the font that glyph came from, if not the shell's
 label = "Audio"                 # a group, so a noun: it is a place you go
 detail = "Where the sound goes"
 

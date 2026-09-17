@@ -2204,6 +2204,63 @@ class ViewTests(unittest.TestCase):
     def setUp(self):
         self.model = MenuModel(build(GROUPED))
 
+    def test_a_glyph_can_name_the_font_it_came_from(self):
+        # A glyph only exists in the font that drew it: Omarchy's own mark is
+        # at U+E900 in omarchy.ttf and nowhere in a Nerd Font, so the row that
+        # prints it says where it came from and the panel sets it in that.
+        model = MenuModel(build([
+            {"label": "System", "items": [
+                {"label": "Omarchy menu", "icon": "\ue900",
+                 "icon_font": "omarchy",
+                 "action": "exec:omarchy-menu toggle"},
+                {"label": "Plain", "icon": "A", "action": "exec:true"},
+            ]},
+        ]))
+        tiles = model.view_state(True)["items"]
+        door = [one for one in tiles if one["l"] == "Omarchy menu"][0]
+        plain = [one for one in tiles if one["l"] == "Plain"][0]
+        self.assertEqual(door["f"], "omarchy")
+        # Off the wire for everything that has nothing to say about it.
+        self.assertNotIn("f", plain)
+
+    def test_a_tile_says_what_a_config_file_could_not(self):
+        # `meta` on a tile is the line nobody can write down: what the machine
+        # is doing right now. `Windows` is the case it ships for - what the
+        # card is about is the window in front, and the menu has blurred it.
+        model = MenuModel(build([
+            {"label": "Workspaces", "items": [
+                {"label": "Windows", "control": "rows",
+                 "meta": {"from": "hyprctl activewindow -j",
+                          "ttl": 2, "empty": "Windows"},
+                 "items": [{"label": "Close", "action": "exec:true"}]},
+                {"label": "Plain", "action": "exec:true"},
+            ]},
+        ]))
+        # Until the command has answered, the row's own `empty` word - a
+        # heading that went blank while a command was thinking would be the
+        # card saying nothing at all.
+        tiles = model.view_state(True)["items"]
+        self.assertEqual([one for one in tiles
+                          if one["l"] == "Windows"][0]["m"], "Windows")
+        tiles = model.view_state(True, metas={"windows": "Alacritty"})["items"]
+        card = [one for one in tiles if one["l"] == "Windows"][0]
+        self.assertEqual(card["m"], "Alacritty")
+        # The label is still on the wire: it is what the tile is called, and
+        # what a saved arrangement and the daemon's own flash name it by.
+        self.assertEqual(card["l"], "Windows")
+        self.assertNotIn("m", [one for one in tiles if one["l"] == "Plain"][0])
+
+    def test_and_says_its_own_word_where_the_command_says_nothing(self):
+        model = MenuModel(build([
+            {"label": "Workspaces", "items": [
+                {"label": "Windows", "control": "rows",
+                 "meta": {"from": "true", "ttl": 2, "empty": "Nothing open"},
+                 "items": [{"label": "Close", "action": "exec:true"}]},
+            ]},
+        ]))
+        tiles = model.view_state(True, metas={})["items"]
+        self.assertEqual(tiles[0]["m"], "Nothing open")
+
     def test_the_payload_carries_what_the_plugin_draws(self):
         state = self.model.view_state(True)
         self.assertTrue(state["open"])

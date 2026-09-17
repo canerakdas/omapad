@@ -66,6 +66,7 @@ An entry needs a `label`, and has **either** an `action` **or** nested `items`
 ```toml
 [[menu.items]]
 icon = "󰀻"                      # any glyph in the shell's font
+# icon_font = "omarchy"         # only where the glyph is not in that font
 label = "All apps"
 detail = "Everything installed"   # the second line; optional
 action = "exec:omarchy-menu toggle apps"
@@ -75,7 +76,9 @@ action = "exec:omarchy-menu toggle apps"
 |---|---|
 | `label` | required |
 | `icon` | a glyph the shell's font has |
-| `detail` | one line under the label - written once, so it cannot know anything live. ~40 characters, says what happens: [`pad-wording`](pad-wording.md) |
+| `icon_font` | the family that glyph came from, where it is not the shell's - a glyph only exists in the font that drew it, and Omarchy's own mark (U+E900) is in `omarchy.ttf` and nowhere else |
+| `detail` | one line under the label - written once, so it cannot know anything live. ~40 characters, says what happens: [`pad-wording`](pad-wording.md). Drawn only where the tile is two rows or taller; a one-row tile has no room for it |
+| `meta` | the line the tile **cannot** write down: `{ from = "...", ttl = 2, empty = "..." }`, a command's answer standing where the written line stands - the heading on a card of rows, the detail on anything else. Run only while its page is in front. For the question a config file cannot answer, like which window `Windows` is about to close |
 | `action` | the binding grammar, parsed at load |
 | `items` | a submenu; mutually exclusive with `action` |
 | `repeat` | a row you **nudge** rather than pick: hold A and it repeats, the menu stays put. Volume, brightness, a speed |
