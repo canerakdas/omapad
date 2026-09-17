@@ -3,6 +3,7 @@
 import argparse
 import errno
 import logging
+import os
 import select
 import signal
 import sys
@@ -35,10 +36,11 @@ def build_parser():
         "command",
         nargs="?",
         default="run",
-        choices=("run", "dump", "check", "ctl", "unit"),
+        choices=("run", "dump", "check", "budget", "ctl", "unit"),
         help="run the daemon (default), print controller events, validate the "
-        "configuration, send a command to a running daemon, or write the "
-        "systemd user unit for this checkout",
+        "configuration, price what the daemon costs while idle, send a "
+        "command to a running daemon, or write the systemd user unit for "
+        "this checkout",
     )
     parser.add_argument(
         "args",
@@ -53,7 +55,8 @@ def build_parser():
         "press <BUTTON> [tap|hold], "
         "lock <on|off|toggle>, keep <on|off|toggle>, "
         "hud <on|off|toggle>, "
-        "mode <toggle|desktop|game>, status; for unit: check",
+        "mode <toggle|desktop|game>, status; for unit: check; "
+        "for budget: how many seconds to sample",
     )
     return parser
 
@@ -545,6 +548,198 @@ def cmd_run(config):
     return 0
 
 
+def _proc_kb(pid, name):
+    """One `VmRSS:`-style line out of /proc/<pid>/status, in kB."""
+    try:
+        with open("/proc/%d/status" % pid) as handle:
+            for line in handle:
+                if line.startswith(name + ":"):
+                    return int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def _cpu_ticks(pid):
+    """utime + stime for the process, in clock ticks, or None."""
+    try:
+        with open("/proc/%d/stat" % pid) as handle:
+            text = handle.read()
+    except OSError:
+        return None
+    # The command sits in brackets and may contain spaces; everything after
+    # the closing bracket is fixed-width - the same reading `handover.py`
+    # takes of the same file, for the same reason.
+    fields = text[text.rfind(")") + 2:].split()
+    try:
+        return int(fields[11]) + int(fields[12])
+    except (IndexError, ValueError):
+        return None
+
+
+def _daemon_status(config):
+    """The running daemon's status as a dict, or None and why not."""
+    from . import control, paths
+
+    try:
+        reply = control.send("status", config.control_socket)
+    except (paths.RuntimeDirError, OSError, ConnectionRefusedError) as exc:
+        return None, "no running daemon (%s)" % exc
+    fields = {}
+    for part in reply.split():
+        key, _, value = part.partition("=")
+        if value:
+            fields[key] = value
+    if not fields.get("pid", "").isdigit():
+        return None, ("this daemon is older than the command and cannot say "
+                      "which process it is - restart it")
+    return fields, None
+
+
+def _pad_question_cost(config):
+    """What one ask of *does the window in front hold the pad* costs here.
+
+    Measured rather than quoted, because it scales with how many processes
+    are up - a fact about the machine in front of you rather than about
+    omapad. Our own pid stands in for the focused window: what is being timed
+    is the walk and the descriptors, and any live process has both.
+    """
+    from . import handover
+
+    device = li.find_device(config.device_match)
+    if device is None:
+        return None, None
+    nodes = handover.device_nodes(device.path)
+    device.close()
+
+    def median(call, rounds=9):
+        call()
+        runs = []
+        for _ in range(rounds):
+            started = time.perf_counter()
+            call()
+            runs.append((time.perf_counter() - started) * 1000.0)
+        runs.sort()
+        return runs[len(runs) // 2]
+
+    asked = median(lambda: handover.wants_pad(
+        os.getpid(), nodes, depth=config.handover_depth,
+        siblings=config.handover_siblings))
+    whole = median(lambda: handover.holders(nodes))
+    return asked, whole
+
+
+def _menu_command_rows(config):
+    """Every command an open menu runs for a line, with how often.
+
+    Static - it comes out of the ttls in the config file - so it answers with
+    nothing running, and it is the number a new `meta` row changes.
+    """
+    from . import menu
+
+    try:
+        items = menu.build(config.menu_items, columns=config.menu_columns,
+                           settings=config_module.CHOSEN,
+                           readings=live_module.READINGS,
+                           machine=sysinfo_module.READINGS,
+                           countdown=config.menu_countdown)
+        head = menu.build_head(config.menu_head, columns=config.menu_columns)
+    except menu.MenuError:
+        # `check` is the command that names a broken menu; this one declines
+        # to price a tree it could not build.
+        return None
+    sources = list(menu.meta_sources(items))
+    for cell in head:
+        sources.extend(menu.head_sources(cell))
+    return [(source["from"], source["ttl"]) for source in sources]
+
+
+def cmd_budget(config, words):
+    """What omapad costs while nothing is happening, on this machine.
+
+    The companion to the counting tests: those hold a surface to one command
+    per ttl and one walk of /proc per focus change, and this says what those
+    come to in milliseconds and megabytes here. A count nobody has priced is
+    not a budget, and a millisecond nobody has counted is not one either.
+    """
+    seconds = 10.0
+    if words:
+        try:
+            seconds = float(words[0])
+        except ValueError:
+            print("omapad: budget takes a number of seconds", file=sys.stderr)
+            return 2
+        if seconds <= 0:
+            print("omapad: a sample needs a length", file=sys.stderr)
+            return 2
+
+    fields, why = _daemon_status(config)
+    if fields is None:
+        print("daemon: %s" % why)
+    else:
+        pid = int(fields["pid"])
+        open_now = [name for name in ("osk", "menu", "guide", "map")
+                    if fields.get(name) == "open"]
+        print("daemon: pid %d, %s mode, %s"
+              % (pid, fields.get("mode", "?"),
+                 ", ".join(open_now) + " open" if open_now
+                 else "nothing open"))
+        was, ticks = _proc_kb(pid, "VmRSS"), _cpu_ticks(pid)
+        time.sleep(seconds)
+        now, ticks_now = _proc_kb(pid, "VmRSS"), _cpu_ticks(pid)
+        peak = _proc_kb(pid, "VmHWM")
+        if was is None or now is None:
+            print("memory: the process went away while it was being read")
+        else:
+            print("memory: %.1f MB, %.1f MB at its highest, %+d kB over %gs"
+                  % (now / 1024.0, (peak or now) / 1024.0, now - was, seconds))
+        if ticks is None or ticks_now is None:
+            print("cpu: the process went away while it was being read")
+        elif ticks_now - ticks < 5:
+            # The kernel counts in clock ticks - a hundredth of a second -
+            # and a handful of them is a number with no digits in it. Say so
+            # rather than print a confident 0.00%: a daemon this quiet needs
+            # a longer sample, not a rounder answer.
+            hertz = os.sysconf("SC_CLK_TCK")
+            print("cpu: under %.2f%% of one core - too quiet to price in %gs, "
+                  "try omapad budget 60"
+                  % (5.0 / hertz / seconds * 100.0, seconds))
+        else:
+            hertz = os.sysconf("SC_CLK_TCK")
+            share = (ticks_now - ticks) / float(hertz) / seconds * 100.0
+            print("cpu: %.2f%% of one core over %gs" % (share, seconds))
+
+    asked, whole = _pad_question_cost(config)
+    if asked is None:
+        print("the pad question: no controller to price it against")
+    else:
+        # Per second, as a share of one core: the ask divided by how often it
+        # is made. This is the line `handover_poll` moves.
+        share = asked / 10.0 / config.handover_poll
+        print("the pad question: %.2f ms an ask, every %gs - %.3f%% of one "
+              "core" % (asked, config.handover_poll, share))
+        print("  a whole scan of /proc, which it no longer does: %.2f ms"
+              % whole)
+
+    rows = _menu_command_rows(config)
+    if rows is None:
+        print("menu commands: the menu will not parse - run omapad check")
+        return 1
+    a_minute = sum(60.0 / ttl for _, ttl in rows if ttl > 0)
+    print("menu commands: %d a minute while the menu is open, from %d rows"
+          % (round(a_minute), len(rows)))
+    for source, ttl in sorted(rows, key=lambda row: -(60.0 / row[1])
+                              if row[1] > 0 else 0):
+        # One line each, elided: what the row is for is recognising which
+        # command this is, and a `meta` may be a whole pipeline with newlines
+        # in it that would take the list apart.
+        flat = " ".join(source.split())
+        if len(flat) > 64:
+            flat = flat[:63] + "\u2026"
+        print("  %-9s %s" % ("every %gs" % ttl if ttl > 0 else "once", flat))
+    return 0
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
     logging.basicConfig(
@@ -563,6 +758,8 @@ def main(argv=None):
         return 1
     if args.command == "ctl":
         return cmd_ctl(config, args.args)
+    if args.command == "budget":
+        return cmd_budget(config, args.args)
     if args.command == "check" and args.layout:
         return cmd_check_layout(config)
     return {"run": cmd_run, "dump": cmd_dump,

@@ -50,6 +50,22 @@ This is where a click on a game-bar badge lands: the panel knows what a badge
 prints and nothing about what it does, so it sends the name back and the daemon
 answers with the same binding a press would find.
 
+## `status`
+
+One line of `key=value`, in the order the daemon builds it:
+
+```
+mode=game pad=ours lock=off keep=off osk=closed menu=closed guide=closed
+map=closed hud=off layer=game pid=979662 device=Microsoft Xbox Series S|X
+```
+
+`device` is last because a pad names itself with spaces in it, so anything
+after it would have to be parsed backwards; `pid` sits immediately before it
+for the same reason, and exists because [`omapad
+budget`](cli.md) has to know which process to read `/proc` for. Asking the
+daemon beats guessing from a command line, and a daemon too old to answer says
+so rather than being guessed at.
+
 ## Rules
 
 - **The socket is optional.** It failing to bind is a log line, not a startup

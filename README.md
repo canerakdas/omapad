@@ -126,6 +126,7 @@ Checking it:
 
 ```bash
 omapad check                    # config + the connected pad
+omapad budget                   # what it costs while nothing is happening
 systemctl --user status omapad
 journalctl --user -u omapad -f
 ```

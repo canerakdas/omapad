@@ -4039,8 +4039,14 @@ class Daemon:
             return "ok"
         if verb == "status":
             return (
+                # `pid` last but one, and `device` still last, because a
+                # device names itself with spaces in it and everything after
+                # it would have to be parsed backwards. It is here because
+                # `omapad budget` has to find the process to read /proc for,
+                # and asking the daemon is better than guessing from a
+                # command line.
                 "mode=%s pad=%s lock=%s keep=%s osk=%s menu=%s guide=%s "
-                "map=%s hud=%s layer=%s device=%s"
+                "map=%s hud=%s layer=%s pid=%d device=%s"
                 % (
                     self.mode,
                     "app" if self.handed_over else "ours",
@@ -4052,6 +4058,7 @@ class Daemon:
                     "open" if self.mapping_open else "closed",
                     "on" if self.hud_open else "off",
                     self.current_layer,
+                    os.getpid(),
                     self.device.name if self.device else "none",
                 )
             )
