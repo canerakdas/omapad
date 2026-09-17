@@ -576,6 +576,15 @@ Item {
       if (s.safe !== undefined)
         root.safeArea = Math.max(0, Number(s.safe))
       if (s.bar !== undefined) root.overBar = !!s.bar
+      // **Only the whole surface may say that something has ended.** Three
+      // fields below mean *gone* by being absent - the chronograph, the row
+      // being held towards running, the row counting down - and the short
+      // push carries none of them, because it carries almost nothing
+      // (menu.md: "no `items` key at all", which is what marks it). Read as
+      // authoritative, a stream that never mentions the clock wiped its three
+      // sub-dials every frame. It went unnoticed while the short push only
+      // flew for a gauge; a held ring streams on any page, clocks included.
+      var whole = s.items !== undefined
       if (s.cols !== undefined) root.cols = Number(s.cols) || 6
       if (s.rows !== undefined) root.rows = Number(s.rows) || 1
       if (s.headrows !== undefined) root.headRows = Number(s.headrows) || 0
@@ -589,8 +598,10 @@ Item {
       // Not through `fresh`: this one is *meant* to differ every time, and
       // what it costs is three properties on one tile rather than a page of
       // delegates. Cleared where the payload has none, so a page without a
-      // chronograph draws none.
-      root.chronoState = s.chrono !== undefined ? s.chrono : ({})
+      // chronograph draws none - but only where the payload is the *whole*
+      // surface. See `whole` above.
+      if (whole)
+        root.chronoState = s.chrono !== undefined ? s.chrono : ({})
       if (s.groups !== undefined && root.fresh("groups", s.groups))
         root.groups = s.groups
       if (s.head !== undefined && root.fresh("head", s.head))
@@ -615,12 +626,15 @@ Item {
       }
       if (s.press_ms !== undefined) root.pressMs = Number(s.press_ms) || 0
       // Absent while nothing is held, so the line says nothing about a
-      // gesture nobody is making - and absent is what ends one.
-      root.holding = (s.confirm !== undefined) ? s.confirm : null
+      // gesture nobody is making - and absent is what ends one. On the whole
+      // surface only, for `chronoState`'s reason.
+      if (whole)
+        root.holding = (s.confirm !== undefined) ? s.confirm : null
       // And which row is counting down, with the whole seconds left on it.
       // Absent while nothing is counting, the same way `confirm` is - so a
       // line that says nothing about one is what ends it here.
-      root.counting = (s.count !== undefined) ? s.count : null
+      if (whole)
+        root.counting = (s.count !== undefined) ? s.count : null
       if (s.hit !== undefined) root.pressHit = String(s.hit)
       if (s.cell !== undefined) root.cellUnit = Number(s.cell) || 34
       if (s.edit !== undefined) root.editing = !!s.edit
@@ -2344,6 +2358,15 @@ Item {
                   tile.modelData.id === root.picked && root.editing
                 readonly property bool off: tile.modelData.off === true
                 readonly property bool taken: tile.modelData.hd === true
+                // Whether the short push's held-value fields are *this*
+                // tile's. Matched by id rather than by `taken`, because the
+                // stream falls silent when nothing is being turned and the
+                // last line it sent stands: read as "whatever is held", a
+                // ring's number followed the next tile that was taken onto
+                // the screen. `hid` is the daemon saying which tile it means.
+                readonly property bool streaming:
+                  root.live.hid !== undefined
+                  && root.live.hid === tile.modelData.id
                 // Counting down to running, where the press landed on the
                 // tile itself rather than on a row inside one. `Reboot` and
                 // `Shutdown` were written both ways on the System page for a
@@ -2459,9 +2482,18 @@ Item {
                     // rather than receives, and `Clock.qml`'s header says
                     // why: a number that changes ten times a second cannot
                     // come off a wire written twice a second.
+                    // And the ring being turned is the other: a value
+                    // followed rather than stepped changes on every frame a
+                    // thumb moves, so it rides the short push beside the
+                    // thumb (`ht`) rather than rebuilding twenty tiles to
+                    // print one number. The words are still the daemon's -
+                    // unlike the clock, a level has a unit the panel does
+                    // not hold.
                     text: tile.chrono ? clockFace.words
-                      : (tile.modelData.t !== undefined
-                         ? tile.modelData.t : "")
+                      : (tile.streaming && root.live.ht !== undefined
+                         ? String(root.live.ht)
+                         : (tile.modelData.t !== undefined
+                            ? tile.modelData.t : ""))
                     textFormat: Text.PlainText
                     // Ink, not the accent. The accent on this cell is the
                     // travel along the bottom - that is the thing that is
@@ -3450,27 +3482,36 @@ Item {
                     // Bindings rather than anything a signal starts, so a
                     // delegate rebuilt mid-turn is born where the value
                     // already is - qml.md 5.5.
-                    value: tile.modelData.v !== undefined
-                      ? tile.modelData.v : 0
+                    // While this is the ring being turned, where round it
+                    // the value has got comes off the short push (`hv`): the
+                    // full one rebuilds every tile on the page, which at the
+                    // rate a followed dial moves is the cost `menu_gauge`
+                    // warns about, paid to move one pointer. The daemon
+                    // sends it only for a ring whose value is continuous;
+                    // a ladder and a list step rarely enough to ride the
+                    // surface, and their `seg` and `at` are only on it.
+                    value: tile.streaming && root.live.hv !== undefined
+                      ? Number(root.live.hv)
+                      : (tile.modelData.v !== undefined
+                         ? tile.modelData.v : 0)
                     stops: tile.modelData.seg !== undefined
                       ? Number(tile.modelData.seg) : 0
                     at: tile.modelData.at !== undefined
                       ? Number(tile.modelData.at) : 0
-                    // Where it stood when A took it. Only while it is held:
-                    // the daemon leaves the field off a control nobody is
-                    // holding, and a negative here is that absence.
-                    was: tile.modelData.b !== undefined
-                      ? Number(tile.modelData.b) : -1
+                    // `b` - where it stood when A took it - is the travel's
+                    // and not read here: a ring draws no ghost, because a
+                    // second figure out of the same middle is a clock rather
+                    // than a value and its history. `Knob.qml` argues it.
+                    //
                     // The rim and the scale are the card's structure, the
-                    // trail is how far round the value has got, the ghost is
-                    // what this press changed, and the mark is where it is.
+                    // trail is how far round the value has got, and the mark
+                    // is where it is.
                     // The first of them is the dial's own number rather than
                     // one of the three inks (qml.md 8.1.2): a ring beside a
                     // dial at a different strength is two circles rather than
                     // two tiles.
                     ink: Util.alpha(Color.menu.text, 0.3)
                     trail: root.trailInk
-                    ghost: root.ghostInk
                     mark: tile.mark
                   }
 

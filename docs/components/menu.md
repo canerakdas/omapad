@@ -680,6 +680,14 @@ went; what the ghost adds is the other end of the comparison.
 held and only while it differs from `v`. Let go with A and it goes; let go with
 B and the value goes back to exactly where it stands.
 
+**The ghost is the line's alone: a ring does not draw one.** It is the fourth
+place the knob parts company with the travel, and the circle's rather than a
+preference - a mark on a line has somewhere of its own to stand, while *where
+was it* on a ring can only be a second pointer out of the same middle, and two
+rectangles turned out of one hub is a clock. The tile would stop reading as a
+value and start reading as a time. What a turn has done is legible anyway, in
+the run lengthening behind the pointer.
+
 **The length between the two was drawn for three passes and none of them
 lived.** A dashed run on the line read as the line itself gone faint. A row of
 chevrons was a second alphabet on a drawing that has one figure. A leaning
@@ -800,7 +808,10 @@ is a knob's alone and has its own section below:
 - **Either trigger**, taken or not, is how you cross the distance to it. A
   pull is a rate rather than a repeat: fully in crosses the whole range in
   `[menu] sweep_ms`, half in takes twice as long. The two pull against each
-  other, so both in is still.
+  other, so both in is still. Half in is half of the travel *past*
+  `[device] trigger_rest`: a rate is the one reading where a trigger resting
+  off its minimum moves a value on its own, and that floor is where the pull
+  starts - see [daemon](daemon.md).
 
 The sweep moves in **whole steps** of the setting's own `step`, so a value a
 trigger swept to is one the D-pad could have landed on. Three ways to one set
@@ -827,24 +838,128 @@ of a stick is that movement rather than a stand-in for it. It is the whole
 argument for the control - a ring that could only be pushed sideways would be
 a slider drawn round a corner.
 
-Four things about it, and each is a promise rather than a tuning:
+**Two gestures, and `[menu] turn` picks between them.** They are not a tuning
+of each other; they are different controls that happen to share a drawing.
 
-- **Relative, never absolute.** What moves the value is how far round the
-  thumb has travelled since the last frame, not where it is pointing. A stick
-  pushed to two o'clock that set the volume to three quarters would be a
-  control that jumps the moment it is touched, and nothing on a pad may do
-  that to a sink.
-- **The grip is what makes an angle measurable.** Near the middle of a stick's
-  travel a degree is noise - a resting thumb crosses whole quadrants without
-  moving - so nothing turns below `[menu] turn_grip`, and coming off it drops
-  the angle rather than remembering it. Gripping again starts from wherever
-  the thumb landed, which is the other half of the no-jump promise.
-- **Whole steps**, like the sweep: a value a thumb turned to is one the D-pad
-  could have landed on. Three ways in, one set of numbers - which is also what
-  keeps the push rate the sweep's rather than the frame's, so a turning ring
-  costs what a swept bar costs and no more.
-- **`[menu] turn_degrees` is the gearing**: how far round the whole range is.
-  A quarter turn is twitchy on a volume and right on a list of four.
+- **`aim`** (`menu_turn_aim`, and what ships) puts the value **where the thumb
+  points**. The ring has a pointer and the stick is one, so they are the same
+  figure: take it, point at the number, let go. Winding a dial round to a
+  place you can already see is the long way round a thing you are looking
+  straight at. A number is **followed rather than stepped** - see below.
+- **`carry`** (`menu_turn_carry`) moves it by **how far the thumb has
+  travelled** since the last frame, never by where it is pointing. Nothing can
+  jump on the frame a hand lands on the stick, which is the whole of its
+  argument: an aimed dial grabbed at two o'clock puts the volume at two
+  o'clock, and on a sink that is a loud press made by not looking.
+
+`aim` is the default because the drawing was already a dial. The promise it
+gives up is written down in `AimedKnobTests` rather than left to be
+discovered - `test_an_aimed_ring_moves_on_the_frame_the_thumb_lands` is that
+entry - and `carry`, which keeps it, is one word away in the config with its
+own ledger in `KnobTests`.
+
+**The gap under the dial is the two end stops.** `Knob.qml` leaves the bottom
+quarter of the circle open - the scale is 270 degrees from half past seven to
+half past four - and under `aim` a thumb pointing into that quarter is past
+one end or the other: nearer the left foot is the bottom of the range, nearer
+the right is the top. So the quarter that has no scale is not a dead sector
+that ignores a hand, it is the hole a real knob's stops sit either side of,
+and a ring still does not wrap. `knob_place()` is that arithmetic, and
+`KNOB_ARC_FROM` / `KNOB_ARC_SWEEP` are the same two numbers `Knob.qml` draws
+from - **not settings: an aimed knob is only honest while the daemon's
+arithmetic and the panel's arc are the same arc.** The panel cannot read the
+config and the daemon cannot read the QML, so they are written twice and
+`test_shell_plugin.KnobArcTests` holds them to each other.
+
+The rest are promises rather than tunings, and both gestures make them:
+
+- **The grip is what makes an angle measurable - and the two gestures need
+  different amounts of it.** Near the middle of a stick's travel a degree is
+  noise, a resting thumb crossing whole quadrants without moving. What that
+  noise *does* is what differs: `carry` integrates travel, so a wobble adds up
+  into real movement and the radius has to keep the sum honest
+  (`[menu] turn_grip`, half the stick); `aim` reads a bearing and keeps
+  nothing, so a wobble is an error that corrects itself the moment the thumb
+  moves on, and the radius only has to make the bearing mean something
+  (`[menu] aim_grip`, a quarter).
+
+  **The second number is measured rather than chosen.** An aimed dial
+  inherited `carry`'s half and that was a wall: logged on the machine, a thumb
+  turning the volume the way a hand turns a dial reached **0.44 to 0.49** of
+  the stick's travel and was refused on every frame, so the ring did nothing
+  until it was shoved past half. It read as a control answering late - and
+  every other suspect (the loop at 125 Hz, the pad at 500-2000 axis events a
+  second, the stream, the panel) measured clean first. `pad-diagnose`'s ladder
+  is what found it; a guess would have changed the wrong number.
+
+  Coming off the grip drops the angle rather than remembering it. Gripping
+  again starts from wherever the thumb landed, which is the other half of
+  `carry`'s no-jump promise.
+
+- **The motor says nothing while an aimed dial follows.** `texture` answers a
+  direction, and a control you point at has its direction already - the hand's
+  own, with the ring under the thumb making it. [`rumble.md`](rumble.md) holds
+  the argument and the measurement; `edge` stays, and `carry` keeps the hum
+  because winding is a push.
+
+- **A dial follows the hand, not the spring** (`menu_letting_go`). A stick let
+  go of does not return straight to the middle: its two axes come back at
+  their own rates, so the bearing swings on the way in. Measured on the
+  machine, a ring released at 18 degrees read 27 and then 38 over the two
+  frames it took to fall past the grip, and dragged the volume four percent up
+  behind it - the value ending where the spring passed rather than where the
+  thumb pointed, which is the one thing a control you aim at must not do.
+  Lowering the grip for `aim` made it worse by leaving more of the return
+  inside the reading, so the answer is here rather than in a radius.
+
+  The spring is told from the thumb by **how fast the stick is falling
+  inward**, and nothing about it is marginal: aiming moves about a thousandth
+  of the travel a frame, a released stick a quarter of it, and
+  `[menu] turn_return` sits between two numbers two orders of magnitude apart.
+  It is **latched** rather than judged per frame - letting go is a thing that
+  has happened, not a thing that is true this instant - and holds until the
+  stick is pushed back out or comes to rest under the grip. `carry` winds on
+  that same swing, more quietly: nineteen degrees is most of a step at the
+  shipped gearing, so both gestures read it.
+- **Whole steps under `carry`**, like the sweep: a value a thumb *wound* to is
+  one the D-pad could have landed on. Three ways in, one set of numbers.
+
+  **`aim` follows a number instead, and that is not a relaxation of the
+  rule - it is the rule meeting a gesture that is not a press.** A step is how
+  far one press moves a value; it was never what the value is *allowed to be*,
+  and the two are the same question only where the places are countable.
+  Quantised to `step`, a volume aimed at moved five percent at a time under a
+  thumb travelling smoothly, which reads as the dial jumping rather than as
+  the hand being followed - the control's one promise, broken by the one
+  gesture it was built for. So an aimed number lands on anything it can
+  *say*: `knob_fine()` is `1/scale` - whole percent for a level, because that
+  is what `_word` writes into the command, and whole pixels a second for a
+  speed, because that is what it prints. A ladder and a list keep their stops,
+  there being nothing between two rungs or two words to land on
+  (`menu_turn_stop`).
+
+  What that costs is a level per frame instead of per step, which is why
+  `live_write` coalesces onto `[live] write_ms`: a helper is about thirty
+  milliseconds and the loop runs at `poll_hz`, so the machine is told where
+  the thumb *is* rather than everywhere it has been. Sent one per frame, a
+  swept dial queued most of a second of `pactl` - the sound arrived late, and
+  the `settle_ms` check that landed mid-queue reported a sink halfway through
+  it and rewound the ring. A switch and the player's own buttons never
+  coalesce: two presses of Next mean two tracks.
+- **Two numbers gear `carry`, and the slower wins.** An aimed dial has no
+  gearing to have - the scale is the whole of it - so these do nothing under
+  `aim`. `[menu] turn_degrees` is how
+  far round the whole range is, and `[menu] turn_step_degrees` is the floor
+  under one step of that - because the range is the *control's* length and a
+  thumb aims at a *step*. The knobs a page can hold run from one step end to
+  end (a pair of words) to thirty-eight (the pointer's speed); geared by the
+  range alone, the same 270 degrees is a quarter turn per step on the first
+  and seven degrees on the last. Seven degrees is a wobble, not an aim, and
+  volume at 13.5 was close enough to it that a thumb crossing the rim carried
+  a third of the range it was only passing over. `menu_turn_step()` takes the
+  larger of the two, so the floor only ever slows a dial down: a ladder of
+  five stops is 67 degrees a stop already and is untouched, while volume
+  becomes a dozen detents to the turn and the range takes two of them.
 
 **A ring does not wrap.** A list walked with A comes back round to where it
 started, and that is right for a press - there is one way through it, and
@@ -910,8 +1025,10 @@ a quarter of that otherwise.
 ### Two pushes, and why the second one costs nothing
 
 - `push_menu_view()` - the whole surface, including `items`. Unchanged.
-- `push_menu_live()` - `{open, sel, g, live: {x, y}}` and **no `items` key at
-  all**.
+- `push_menu_live()` - `{open, sel, g, live: {x, y, hid, hv, ht}}` and **no
+  `items` key at all**. `x`/`y` are where the watched thumb is; `hid`/`hv`/`ht`
+  are the ring being turned - which tile it is, where round it the value has
+  got, and the number in words.
 
 The panel's `applyState` gets past its own "same line as last time" guard,
 finds `s.items === undefined`, and so never reaches `fresh()` - the model is
@@ -926,6 +1043,45 @@ carries the whole thing.
 `sel` rides along **on purpose**: the stream has to be meaningful on its own,
 so the panel never has to correlate two of them to know which gauge these
 floats belong to.
+
+**`hv`/`ht` are here because an aimed dial broke `menu_gauge`'s premise.** That
+doc says a setting rides the *full* push - it changes only when something
+presses, and streaming it would send it sixty times a second to say the same
+thing. A number followed rather than stepped changes on every frame a thumb
+moves, so the premise stopped holding for the one tile that is turned: the
+surface was being rebuilt at `poll_hz` to move one pointer, which is the cost
+this section exists to avoid, and it read as a ring lagging the hand. A held
+ring's value is therefore a gauge like any other. Only a **continuous** one:
+a ladder and a list step rarely enough to ride the surface, and their drawing
+needs `seg` and `at`, which are on the full push alone. `menu_adjust(quiet=)`
+is what stands the full push down, and `menu_settle` pays it back with one
+rebuild when the hand comes off - the tiles behind the ring were drawn from a
+payload that is by then a push old.
+
+**`hid` is `sel`'s rule one field along, and it was learned the hard way.** A
+stream that carries almost nothing is still read on its own, so a value has to
+name its tile. `hv`/`ht` first shipped without one and the panel matched them
+to whatever tile was *held* - which is right for exactly as long as something
+is being turned. The stream falls silent when nothing is (there is nothing to
+say, and saying nothing is the point of the guard above), so the last line it
+sent stands: let go of the volume ring, take the Strength slider next, and the
+slider wore the volume's percentage. Two tiles, one number, and nothing in any
+log. The fix is the field, not the panel's cleverness.
+
+The words are the daemon's rather than spelled in the panel, unlike the clock:
+what a value is called is a wording decision, and the panel holds no minimum,
+maximum or unit to spell one with.
+
+**Only the whole surface may say that something has ended.** Three fields mean
+*gone* by being absent - `chrono`, `confirm` and `count` - and the short push
+carries none of them, because it carries almost nothing. Read as
+authoritative it ends all three, which on screen was a clock losing its three
+sub-dials for as long as a ring was being turned beside it. It went unnoticed
+for as long as the short push only flew for a gauge; a held ring streams on
+any page, clocks included. `applyState` takes `s.items !== undefined` as the
+mark of a whole surface - the same absence that makes the short push cheap -
+and guards the three with it. `test_shell_plugin.ShortPushTests` holds both
+halves of that contract, the guard and the daemon's leaving `items` off.
 
 **The floats are quantised in the daemon**, `round(x, 3)`, and not as a noise
 filter: it is what makes the guard work, so a thumb resting off the stick stops
@@ -1419,6 +1575,32 @@ desktop, rather than by two that can disagree. Nothing that way leaves the
 selection where it is: a grid that wrapped would put the cursor at the far side
 of a page a thumb was pushing away from, which in two dimensions is losing it.
 
+**What `choose` is handed is narrower here than on a desktop: the tiles
+`snap.beside` says are beside this one** - the rows a sideways press covers,
+the columns an up or down one does. A desktop is sparse, so a window with
+nothing beside it is one a flick still has to reach; a page is *packed*, so
+what is under your thumb is under the tile you are on, and a press that left
+the band was a thumb pushing down and a cursor crossing the page.
+
+Both halves of that were reported from the sofa. Scored from the tile's
+centre, a press of left at the start of a band found the tile one row up and a
+column back - `Button labels` landing on `Vibration`, because a one-cell
+tile's right edge is left of a three-cell tile's centre. And scored without a
+band, a press into a hole found whatever was nearest past the edge: `Profile`
+answered down with `Button style` at the far right, `Screen` answered up with
+`Corners` beside it, and `Workspace lock` - which ends a row while the pad is
+in game mode, with nothing under it until `Keep the controller` joins it -
+answered down with `Mute`, at the other end of the row below.
+
+**The band is the one rule that can strand somebody**, and that is what
+`ShippedPageTests` is for: tiles are packed first fit, so a small one can
+backfill a hole and end up with nothing beside it, and a tile you can see and
+cannot select is worse than any crooked jump. Every shipped page is walked end
+to end in every state a `when` can put it in. The looser rule was measured
+against it over twenty thousand generated pages and reached nothing the band
+does not, so there is no fallback: a page that strands a tile strands it
+either way, and that is a packing to fix rather than a press to bend.
+
 `[menu] bias` is its own number rather than `[snap] bias`, and it is measured
 rather than inherited: windows are large and sparse, tiles are small and
 touching, and `tests/test_menu.py`'s golden fixtures are what it was set from.
@@ -1753,11 +1935,15 @@ carries it the same way.
 it says stands where the tile's *written* line stands: the heading of a card
 of rows, the detail of anything else. `Windows` is what it ships for - the
 card is about the window in front, the menu has blurred that window, and
-`WINDOWS` over four verbs says only what the page is already called. Off the
-wire for a tile with no `meta` and for one whose command has said nothing and
-left no `empty` word, so the panel falls back to `l` and never draws a blank
-heading while a command is thinking. It goes through `drawable()` like every
-other string somebody else wrote: a window titles itself.
+`WINDOWS` over four verbs says only what the page is already called. `System >
+Update` is the second, and it is the same argument about the machine rather
+than about a window: how many packages are waiting is a number nothing written
+in a config file can hold, and it is the number the tile exists to be pressed
+about. Off the wire for a tile with no `meta` and for one whose command has
+said nothing and left no `empty` word, so the panel falls back to `l` and never
+draws a blank heading while a command is thinking. It goes through
+`drawable()` like every other string somebody else wrote: a window titles
+itself.
 
 Only the tiles of the **page in front** are refreshed, with the bar's chips -
 a `meta` is a subprocess with a clock on it, and a command answering for a
@@ -1766,8 +1952,8 @@ page nobody is looking at is the cost that refresh is written to avoid.
 A control tile adds what it is on: `on` for a switch, `t`
 for the words a choice, a slider or a knob is showing, `v` for how far along a
 slider is or how far round a knob is (0..1), `b` for where it stood when A
-took it, and `hd` where it is the one being held. A knob adds no field of its
-own at all - `seg` and `at` are the slider's ladder fields doing a second job,
+took it - which the travel draws and the ring ignores - and `hd` where it is
+the one being held. A knob adds no field of its own at all - `seg` and `at` are the slider's ladder fields doing a second job,
 so a list is drawn from which place out of how many exactly as a ladder is,
 and the two drawings of one control cannot disagree about what they were
 sent. `b` is on the wire **only while the tile is held and only

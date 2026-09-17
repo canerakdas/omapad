@@ -26,7 +26,7 @@ Four words, uploaded once at `attach()`, in `VOCABULARY`:
 | `tick` | a press landed | `FF_RUMBLE` | a binding's `rumble`, `[snap] rumble`, `[mode] rumble`, the confirmation countdown |
 | `edge` | you cannot go further | `FF_SQUARE`, two cycles | a control at its end, the grid's rim, a transport direction the player says is closed |
 | `commit` | that took | `FF_TRIANGLE`, one cycle | a switch flipped, a choice walked, a tile picked up or put down |
-| `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** while a control is moving, **stopped** when it stops |
+| `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** while a control is being *pushed*, **stopped** when it stops |
 
 **The waveform is not a setting.** A square wave is what makes an edge feel
 like an edge, and making it configurable is offering to turn a bump into a
@@ -55,6 +55,20 @@ saying which, which is the scheme this effect was kept switched off for. A
 step of a selection is heard and not felt, wherever it is walked.
 `daemon.menu_feel(direction)` is the one place that decides the side.
 
+**A control you point at is not a push, and gets none of this.** The word
+earns its place two paragraphs above by being *the only thing on the pad that
+answers a direction* - and that is a claim about a control you push. An aimed
+knob (`[menu] turn = "aim"`) has its direction already: it is the hand's own,
+and the ring is under the thumb making it. Worse than redundant, the direction
+there is the sign of the last difference rather than of a push, so a thumb
+resting two degrees off the end of a scale flips it every frame - measured,
+seven motor swaps in eight frames, an `EVIOCSFF` apiece, which is the write
+the paragraph below says is skipped. Roadmap 17's rule is the short version:
+*a scheme where every press buzzes says nothing.* `edge` stays, because *you
+cannot go further* is the one thing there the screen cannot say faster;
+`carry` keeps `texture`, because winding really is a push.
+`daemon.menu_adjust(feel=False)` is where that is said.
+
 **It is re-uploaded in place while it runs.** `EVIOCSFF` with an effect's own
 id replaces what that slot holds, so the level follows the value without a gap
 - one round trip per step of a push, which is the thing this file otherwise
@@ -75,7 +89,8 @@ the next chip, not a row to the next row inside a card. `[snap] rumble`'s commen
 *a step that repeats while it is held would buzz all the way down a list* -
 which is also why a scrubbing control does not tick per step: it holds one
 continuous `texture`, aims it at how far the value has come, and stops it when
-the direction is let go.
+the direction is let go. A *pointed-at* control holds none at all, for the
+reason above.
 
 **And that is one of the two places the speakers say something the motor
 cannot.** [`sound.md`](sound.md) carries the same three played words, said at

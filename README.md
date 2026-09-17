@@ -2384,9 +2384,16 @@ meta = { from = "hyprctl activewindow -j | jq -r .title", ttl = 2, empty = "Wind
 That is what `Workspaces › Windows` ships with: the card is about the window in
 front, the menu has blurred that window, and `WINDOWS` over four verbs says
 only what the page is already called. With the title there, `Close window` is a
-row about something you can name. Each tile takes either an
-`action` (**the same grammar** as the button bindings) or an `items` list that
-opens a page of its own.
+row about something you can name.
+
+`System › Update` is the other one that ships with a `meta`, and it is the same
+argument about a different fact: the tile says `12 waiting` where there is
+something to install and `Up to date` where there is not, which is what the
+card on the bar says about the page — and pressing it opens the update in a
+terminal.
+
+Each tile takes either an `action` (**the same grammar** as the button
+bindings) or an `items` list that opens a page of its own.
 
 ```toml
 [[menu.items]]
@@ -2552,13 +2559,51 @@ range, and then **A keeps what it is on and B puts it back**.
 **A `knob` is the same value as a ring**, and the difference is the hand
 rather than the drawing. A slider is a length and a knob is an angle, and the
 stick you walk the page with is already a turn — so once A has taken a knob,
-**carrying your thumb round the stick turns it**, as well as the left and
-right that move a slider and the triggers that sweep one. It follows how far
-your thumb has travelled rather than where it is pointing, so nothing jumps
-the moment you touch the stick, and it does nothing until the stick is pushed
-far enough over for the angle to mean something. `[menu] turn_degrees` is how
-far round the whole range is and `[menu] turn_grip` is how far over it has to
-be.
+**the stick turns it**, as well as the left and right that move a slider and
+the triggers that sweep one. Either way it does nothing until the stick is
+pushed far enough over for the angle to mean something — `[menu] aim_grip` (a
+quarter of the stick) when you point at it, `[menu] turn_grip` (half) when you
+wind it. Two numbers because the two gestures ask different things of the
+stick: winding adds up how far your thumb has travelled, so a wobble near the
+middle accumulates and the radius has to keep that sum honest; pointing keeps
+nothing, so a wobble corrects itself the moment your thumb moves on. Raise
+either if a dial moves when you did not mean to touch it.
+
+And **letting go of the stick does not take the value with it.** A stick you
+release does not come straight back to the middle — its two axes return at
+their own rates, so the pointer would swing on the way in and leave the value
+where the spring passed rather than where you aimed. omapad tells the spring
+from your thumb by how fast the stick is falling inward (`[menu] turn_return`,
+in stick travel a second) and stops reading the moment it is crossed, until
+you push back out. Lower it if a dial still creeps as you let go; raise it if
+pulling the stick back towards the middle while you turn stops the ring
+answering.
+
+`[menu] turn` says which gesture it is, and they are different controls that
+share a drawing:
+
+- **`turn = "aim"`** (the default) — **where you point is where it goes.** The
+  ring has a pointer and so does your hand, so they are the same figure: take
+  it, point at the number, let go. Twelve o'clock is the middle of the scale,
+  half past seven is the bottom and half past four is the top. The quarter of
+  the circle left open under the dial is its **two end stops** — point into it
+  left of centre for the bottom of the range and right of centre for the top —
+  so a ring still does not come round at the ends, and pushing against one
+  ticks the way a real stop does. A number is **followed, not stepped**: it
+  lands on anything it can say — whole percent for volume, whole pixels a
+  second for the pointer — rather than on the steps a press moves it by, so a
+  thumb moving smoothly moves it smoothly. A ladder of corners and a list of
+  words keep their stops, there being nothing in between to land on.
+- **`turn = "carry"`** — the value moves by **how far your thumb has
+  travelled**, never by where it is pointing, so nothing jumps the moment you
+  touch the stick. That is what it is for: an aimed dial grabbed at two
+  o'clock puts the volume at two o'clock, and if you reach for the stick
+  without looking that is a loud press. In exchange you wind rather than
+  point. Its gearing is two numbers and the slower wins — `turn_degrees` (270)
+  is how far round the whole range is, `turn_step_degrees` (30) is the closest
+  together two steps may ever be, so volume is a five-percent detent every 30°
+  and a ladder of five corners, already 67° a stop, turns as it always did.
+  Neither number does anything under `aim`, which has no gearing to have.
 
 It is two cells square, like the dial and the clock, and it is the one control
 that also reads a **list**: its stops are the values, printed round the scale,
@@ -2889,7 +2934,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 | **Display** | scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
 | **Controller** | everything about the pad — see below |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
-| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, and the way out into the Omarchy menu |
+| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, and the way out into the Omarchy menu |
 
 What you change now, then what you open, then what is on screen, then the room,
 then the pad, then the machine. `Now` is where the menu opens, which is why the
@@ -3992,6 +4037,24 @@ it, lower `pointer.recenter_limit` and reconnect.
 **The pointer drifts** — not enough dead zone on that stick: raise
 `pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller
 › Sticks**, where you can watch the pointer settle as you move the bar.
+
+**A control in the menu climbs on its own — the volume goes up with the pad on
+the table** — a trigger resting off its minimum. The sticks are not the only
+axes that lie about where they rest: a Beitong KP40A in XInput mode sits `ZR`
+a fifth of the way in and never comes back down. Nothing notices while a
+trigger is only a button — `device.trigger_release` is above that — but in the
+menu a pull is a **rate**, so a fifth of a pull crosses the tile's whole range
+every seven seconds or so, for as long as the menu is open. `device.trigger_rest`
+(0.25) is the floor: at or below it there is no pull at all, and what is left
+is spread over the rest of the travel, so the sweep still runs from nothing to
+full speed. Ask the pad where yours is sitting — a trigger at rest sends no
+event, so `dump` cannot see one and `omapad check` prints it:
+
+```
+ZR rests at 0.18 of its travel
+```
+
+If that number is above the floor, `check` says so and names what to raise.
 
 **Steam presses keys at startup** — a virtual keyboard that declares `BTN_*`
 codes gets a `js*` node from the kernel, and Steam, scanning for controllers at

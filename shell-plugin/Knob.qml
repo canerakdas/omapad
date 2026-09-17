@@ -6,7 +6,7 @@
 // rather than translate, which is the whole argument for the control and the
 // only reason there are two drawings of one value on this surface.
 //
-// **It is not the travel bent round.** Three things are decided differently
+// **It is not the travel bent round.** Four things are decided differently
 // here, and each of them is the circle's rather than a preference:
 //
 // - **A ring needs no caps.** A line has to say where it stops, because a
@@ -24,12 +24,19 @@
 //   differ by - whether the scale has places printed on it - which is
 //   `Travel.qml`'s own rule about `stops` and is the whole difference between
 //   the drawings there too.
+// - **Nothing is drawn where the value started.** A line has room for a
+//   second mark on it, and the gap between the two is what the press did -
+//   which is why a travel leaves one. A ring would have to answer *where was
+//   it* with a second figure out of the same middle, and two rectangles
+//   turned out of one hub is a clock: the tile stops reading as a value and
+//   starts reading as a time. The turn reports itself anyway - the run behind
+//   the pointer lengthens under the thumb, which is the whole reason that run
+//   is drawn.
 //
 // **What it keeps** is the rest of that file's argument, because the two are
 // one control: nothing fills, the run behind the value says how far it has
-// come, a scale with stops fills that run in the accent and one without them
-// tints it at half, and the mark left where a press began is one faint figure
-// with nothing drawn between it and the value.
+// come, and a scale with stops fills that run in the accent where one without
+// them tints it at half.
 //
 // **The rim is generated and nothing else is.** It is the gauge's own
 // `dial-face.svg`, because a knob is the same circle as the dial beside it
@@ -71,20 +78,14 @@ Item {
   // distance to cover rather than places to stand.
   property int stops: 0
   property int at: 0
-  // **Where the value stood when it was taken**, 0 to 1, or negative for a
-  // control nobody is holding. Same field and same argument as the travel's:
-  // a press moves a knob by a step, and the one question a hand asks while it
-  // turns - *what have I done to this* - is answered by where it started.
-  property real was: -1
 
-  // The scale, the part of it the value has covered, the pointer and the
-  // ghost it leaves. All of them the caller's: this file names no colour, for
-  // qml.md 8.1's reason, and a ring handed none of them draws an empty card
-  // with nothing in any log about it.
+  // The scale, the part of it the value has covered, and the pointer. All of
+  // them the caller's: this file names no colour, for qml.md 8.1's reason,
+  // and a ring handed none of them draws an empty card with nothing in any
+  // log about it.
   property color ink: "transparent"
   property color trail: "transparent"
   property color mark: "transparent"
-  property color ghost: "transparent"
 
   // Square, because it is round, and the smaller side because a ring in a
   // wide box is a ring with air either side of it.
@@ -107,15 +108,13 @@ Item {
   readonly property int divisions: knob.stepped
     ? Math.max(1, knob.stops - 1) : 1
 
-  // Where the value is, and where it was found. **A stepped value stands on a
-  // stop**, not between two: its places are the marks themselves, so the
-  // first of them is the start of the scale with nothing covered behind it -
-  // `Travel.qml`'s own correction, and the same one a ring needs.
+  // Where the value is. **A stepped value stands on a stop**, not between two:
+  // its places are the marks themselves, so the first of them is the start of
+  // the scale with nothing covered behind it - `Travel.qml`'s own correction,
+  // and the same one a ring needs.
   readonly property real here: knob.stepped
     ? Math.max(0, Math.min(knob.divisions, knob.at)) / knob.divisions
     : knob.share
-  readonly property bool changed: knob.was >= 0
-    && Math.abs(knob.was - knob.here) > 0.0005
 
   function angleAt(place) {
     return knob.arcFrom + knob.arcSweep * place
@@ -232,30 +231,8 @@ Item {
       }
     }
 
-    // **Where the value was found**, if it has been taken and has moved
-    // since. One faint pointer, and nothing drawn between it and the value:
-    // what a hand is asking is *where was it*, and the distance is then read
-    // the way every other distance on this drawing is, by looking.
-    Item {
-      visible: knob.changed
-      x: face.width / 2
-      y: face.height / 2
-      width: 0
-      height: 0
-      rotation: knob.turnAt(Math.max(0, Math.min(1, knob.was)))
-
-      Rectangle {
-        x: -knob.pointerWeight / 2
-        y: -knob.pointerTo
-        width: knob.pointerWeight
-        height: knob.pointerTo - knob.pointerFrom
-        radius: width / 2
-        color: knob.ghost
-      }
-    }
-
-    // And the value itself. The loudest thing on the drawing, because it is
-    // the one thing the tile exists to say.
+    // The value. The loudest thing on the drawing, and the only figure out
+    // of the middle, because it is the one thing the tile exists to say.
     Item {
       x: face.width / 2
       y: face.height / 2
@@ -273,9 +250,10 @@ Item {
       }
     }
 
-    // What the pointers meet under. The clock's own, for the clock's reason:
+    // What the pointer comes out of. The clock's own, for the clock's reason:
     // the join at the middle of a turning rectangle is not parameterised by
-    // anything, and two of them crossing is the one place their corners show.
+    // anything, and a rectangle stopped short of the centre is the one place
+    // its corners show.
     BadgeArt {
       anchors.fill: parent
       drawn: knob.art ? knob.art.find("clock", "hub") : null

@@ -138,6 +138,26 @@ def under(windows, x, y):
     return found
 
 
+def beside(one, other, horizontal):
+    """Do two rectangles share any of the band a press walks along?
+
+    The band of a sideways press is the rows the window covers, and of an up
+    or down one its columns. Touching is not sharing: a tile whose bottom edge
+    is another's top edge is above it, not beside it.
+
+    Geometry, like everything else here - but it is the menu that reaches for
+    it. A page is *packed*, so every tile has something beside it and a press
+    that left the band would be crossing the page; a desktop is not, so a
+    window with nothing beside it is a window a press has to be allowed to
+    reach. `menu.py` says which of the two it is looking at.
+    """
+    low, high = (one[1], one[3]) if horizontal else (one[0], one[2])
+    other_low, other_high = (
+        (other[1], other[3]) if horizontal else (other[0], other[2])
+    )
+    return other_low < high and low < other_high
+
+
 def choose(windows, x, y, direction, bias=PERPENDICULAR_WEIGHT):
     """The window a flick in `direction` should land on, or None.
 
@@ -151,6 +171,15 @@ def choose(windows, x, y, direction, bias=PERPENDICULAR_WEIGHT):
     the same column share a centre x, so a centre test makes the one below
     count as being to the right of a pointer a few pixels left of it, and a
     press meant for the next column walks downwards instead.
+
+    And "that way" is measured from the near edge of the window the pointer is
+    **in**, not from the pointer. A point in the middle of a wide window has
+    half that window's neighbours behind it: a tile one row up and a column to
+    the left has a right edge left of the centre, so a press of left scored it
+    as being to the left and the cursor went up. Nothing overlapping what you
+    are standing on is that way from it, whatever the bias makes of the
+    distance. With no window under the pointer there is no edge to measure
+    from and the point is the whole of the answer.
     """
     step = DIRECTIONS.get(direction)
     if step is None:
@@ -158,6 +187,15 @@ def choose(windows, x, y, direction, bias=PERPENDICULAR_WEIGHT):
     here = under(windows, x, y)
     horizontal = step[0] != 0
     forwards = (step[0] if horizontal else step[1]) > 0
+    # The edge the press pushed against, or None where nothing is under the
+    # pointer. Windows touch, so a neighbour starting exactly on it counts.
+    edge = None
+    if here is not None:
+        mine = rect(here)
+        if horizontal:
+            edge = mine[2] if forwards else mine[0]
+        else:
+            edge = mine[3] if forwards else mine[1]
 
     best = None
     best_score = None
@@ -167,11 +205,15 @@ def choose(windows, x, y, direction, bias=PERPENDICULAR_WEIGHT):
         box = rect(window)
         if horizontal:
             along = box[0] - x if forwards else x - box[2]
+            near, far = box[0], box[2]
             low, high, at = box[1], box[3], y
         else:
             along = box[1] - y if forwards else y - box[3]
+            near, far = box[1], box[3]
             low, high, at = box[0], box[2], x
         if along <= 0:
+            continue
+        if edge is not None and (near < edge if forwards else far > edge):
             continue
         perpendicular = 0.0 if low <= at <= high else min(
             abs(at - low), abs(at - high)

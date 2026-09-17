@@ -319,6 +319,33 @@ def _report_readings(config):
     print(line)
 
 
+def _report_triggers(config, device, trigger_axes):
+    """Where the triggers are sitting, when that is not at their minimum.
+
+    The companion to the stuck-button line above, and found the same way: an
+    axis resting above its advertised minimum sends no event, so `dump` cannot
+    see one and neither can a thumb. What it costs is a sweep that runs on its
+    own - `[device] trigger_rest` is the floor, and this is how you learn what
+    yours has to clear.
+    """
+    for code, name in sorted(trigger_axes.items(), key=lambda pair: pair[1]):
+        info = device.absinfo(code)
+        if info is None:
+            continue
+        span = max(info.maximum - info.minimum, 1)
+        rest = (info.value - info.minimum) / float(span)
+        if rest <= 0:
+            continue
+        if rest > config.trigger_rest:
+            print(
+                "%s rests at %.2f of its travel, past device.trigger_rest "
+                "(%.2f) - with nothing touching it, raise that above %.2f"
+                % (name, rest, config.trigger_rest, rest)
+            )
+        else:
+            print("%s rests at %.2f of its travel" % (name, rest))
+
+
 def cmd_check(config):
     """Parse every binding so mistakes surface before the daemon starts."""
     from . import actions, menu, osk
@@ -386,7 +413,7 @@ def cmd_check(config):
             file=sys.stderr,
         )
     else:
-        profile_name, buttons, _ = config.profile_for(
+        profile_name, buttons, trigger_axes = config.profile_for(
             device.name, device.vid_pid
         )
         # The layout as well as the profile: badges printing the wrong pad's
@@ -421,6 +448,7 @@ def cmd_check(config):
                     buttons.get(code, "0x%03x" % code) for code in held
                 )
             )
+        _report_triggers(config, device, trigger_axes)
         device.close()
     _report_readings(config)
     _check_settings(config)

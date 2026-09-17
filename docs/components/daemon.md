@@ -104,6 +104,19 @@ pointer's own (`POINTER_STAYS`). What hides it is the compositor;
 Triggers arriving as analog axes (`handle_trigger`) are thresholded with
 hysteresis from `[device]`; the hat is `handle_hat()`.
 
+`trigger_pull()` is the other half of that axis - how far in it is rather than
+whether it is down - and it carries `[device] trigger_rest`, a floor under the
+same argument `calibrate_axis` makes about a stick's centre: **an advertised
+minimum is a claim, not a measurement.** A Beitong KP40A in XInput mode rests
+`ABS_RZ` at 47 of 255 and stays there. The button sense never saw it -
+`trigger_release` is above that - but a pull is a *rate* wherever one is read,
+so the menu's sweep crossed a control's range with nobody touching the pad,
+and `wants_frames()` held the loop at frame rate for ever on the same
+fraction. Everything at or below the floor is no pull; what is left is
+rescaled over the rest of the travel, for `apply_curve`'s reason. `omapad
+check` prints where each trigger is sitting, because an axis at rest sends no
+event and `dump` therefore cannot see one.
+
 ## Sticks
 
 `stick_vector()` and `scroll_vector()` apply `apply_curve()` - deadzone plus an

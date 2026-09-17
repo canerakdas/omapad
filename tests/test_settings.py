@@ -67,6 +67,74 @@ class IdleConfigTests(unittest.TestCase):
         self.assertIn("idle.awake_ms", str(caught.exception))
 
 
+class TurnGearingConfigTests(unittest.TestCase):
+    """The two numbers that gear a knob, and what `[menu]` refuses."""
+
+    def test_both_ship_and_the_floor_is_the_slower_on_a_fine_control(self):
+        config = shipped()
+        self.assertGreater(config.menu_turn_degrees, 0.0)
+        # Volume is twenty steps: the range alone would put them 13.5 degrees
+        # apart, which is the wobble this floor exists to be above.
+        self.assertGreater(config.menu_turn_step_degrees,
+                           config.menu_turn_degrees * 0.05)
+
+    def test_the_shipped_gesture_is_the_one_the_drawing_already_was(self):
+        self.assertEqual(shipped().menu_turn, "aim")
+
+    def test_a_gesture_no_ring_has_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"menu": {"turn": "spin"}})
+        self.assertIn("menu.turn", str(caught.exception))
+
+    def test_each_gesture_carries_its_own_grip(self):
+        config = shipped()
+        self.assertLess(config.menu_aim_grip, config.menu_turn_grip)
+
+    def test_a_grip_that_is_not_a_share_of_the_stick_is_named(self):
+        for key in ("turn_grip", "aim_grip"):
+            for value in (0, 1.0, -0.2):
+                with self.assertRaises(config_module.ConfigError) as caught:
+                    config_module.Config({"menu": {key: value}})
+                self.assertIn("menu.%s" % key, str(caught.exception))
+
+    def test_a_return_speed_that_is_not_a_rate_is_named(self):
+        for value in (0, -1.0):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({"menu": {"turn_return": value}})
+            self.assertIn("menu.turn_return", str(caught.exception))
+
+    def test_a_gearing_that_is_not_an_angle_is_named(self):
+        for key in ("turn_degrees", "turn_step_degrees"):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({"menu": {key: 0}})
+            self.assertIn("menu.%s" % key, str(caught.exception))
+
+
+class TriggerRestConfigTests(unittest.TestCase):
+    """The floor under an analog trigger, and what `[device]` refuses."""
+
+    def test_the_shipped_floor_clears_a_pad_that_rests_off_its_minimum(self):
+        # A Beitong KP40A in XInput mode rests ABS_RZ at 47 of 255. The
+        # shipped answer has to be above that or the sweep runs on its own on
+        # a pad this project names in its own config.
+        self.assertGreater(shipped().trigger_rest, 47 / 255.0)
+
+    def test_a_floor_outside_the_travel_is_named(self):
+        for value in (-0.1, 1.0, 2.0):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({"device": {"trigger_rest": value}})
+            self.assertIn("device.trigger_rest", str(caught.exception))
+
+    def test_a_floor_over_the_release_point_is_named(self):
+        # A trigger held as a button and reading as not pulled at the same
+        # time: the sweep would stop halfway in while its layer stayed open.
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"device": {"trigger_rest": 0.4,
+                                             "trigger_release": 0.3}})
+        self.assertIn("device.trigger_rest", str(caught.exception))
+        self.assertIn("device.trigger_release", str(caught.exception))
+
+
 class RepeatRampConfigTests(unittest.TestCase):
     """The three tables that say how a held direction accelerates."""
 

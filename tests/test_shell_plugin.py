@@ -6,6 +6,7 @@ format is exactly that kind of rule: it draws every string anyone has ever
 typed correctly, and fetches a resource for the one a device named itself.
 """
 
+import io
 import json
 import os
 import re
@@ -278,9 +279,13 @@ class KnobTests(unittest.TestCase):
     `ControlArt` of its own - a copy per knob on the page is what a component
     that cannot be a singleton costs. So a knob missing `art` draws a scale
     with no rim round it, and one missing a colour draws nothing at all.
+
+    No `ghost:`, and that is the one field it does not inherit: a ring draws
+    nothing where the value started, because a second pointer out of the same
+    middle reads as a clock.
     """
 
-    REQUIRED = ("art:", "value:", "ink:", "trail:", "ghost:", "mark:")
+    REQUIRED = ("art:", "value:", "ink:", "trail:", "mark:")
 
     def setUp(self):
         self.files = sorted(
@@ -341,3 +346,83 @@ class PlainTextTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KnobArcTests(unittest.TestCase):
+    """The one arc, written in two files that cannot read each other.
+
+    An aimed knob puts the value where the thumb points, and "where it points"
+    is only true against the arc actually drawn. The panel cannot read the
+    config and the daemon cannot read the QML, so the numbers are in both -
+    and this is what stops them drifting apart in silence, which on screen
+    would look like a dial that is simply a bit wrong.
+    """
+
+    def test_the_daemon_aims_at_the_arc_the_panel_draws(self):
+        import sys
+        sys.path.insert(0, os.path.dirname(PLUGIN))
+        from omapad import daemon as daemon_module
+
+        source = io.open(os.path.join(PLUGIN, "Knob.qml")).read()
+        for name, attribute in (("arcFrom", "KNOB_ARC_FROM"),
+                                ("arcSweep", "KNOB_ARC_SWEEP")):
+            found = re.search(r"property real %s:\s*(-?[\d.]+)" % name, source)
+            self.assertIsNotNone(found, "Knob.qml has no %s" % name)
+            self.assertEqual(float(found.group(1)),
+                             getattr(daemon_module, attribute))
+
+
+class ShortPushTests(unittest.TestCase):
+    """What a payload that carries almost nothing is not allowed to say.
+
+    Three fields on this surface mean *gone* by being absent: the
+    chronograph, the row held towards running, the row counting down. The
+    short push carries none of them because it carries almost nothing, so
+    read as authoritative it ends all three - which on screen is a clock
+    losing its sub-dials for as long as a ring is being turned. The guard is
+    one `var whole` and it is the kind of thing a later edit drops without
+    noticing, so it is held here.
+    """
+
+    ENDED = ("root.chronoState =", "root.holding =", "root.counting =")
+
+    def test_only_the_whole_surface_may_end_something(self):
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        lines = source.split("\n")
+        self.assertIn("var whole = s.items !== undefined", source)
+        for needle in self.ENDED:
+            found = [n for n, line in enumerate(lines) if needle in line]
+            self.assertEqual(len(found), 1, "%s once" % needle)
+            guard = lines[found[0] - 1].strip()
+            self.assertEqual(guard, "if (whole)",
+                             "%s is not guarded by the whole-surface test"
+                             % needle)
+
+    def test_a_streamed_value_is_matched_to_its_own_tile(self):
+        # Never `taken`: the stream falls silent when nothing is turned, and
+        # the last line stands - so "whatever is held" wore a stale number.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        self.assertIn("root.live.hid === tile.modelData.id", source)
+        lines = source.split("\n")
+        for field in ("root.live.ht", "root.live.hv"):
+            used = [n for n, line in enumerate(lines) if field in line]
+            self.assertTrue(used, "%s is not read at all" % field)
+            for n in used:
+                # The guard may sit a line above, the expressions here being
+                # wrapped: the test is that it is in the same one.
+                near = "\n".join(lines[max(0, n - 2):n + 1])
+                self.assertIn("tile.streaming", near,
+                              "%s on line %d is not scoped to its tile"
+                              % (field, n + 1))
+
+    def test_the_short_push_really_does_leave_the_items_out(self):
+        # The guard reads `items` as the mark of a whole surface, so the
+        # daemon has to keep leaving it off - the two halves of one contract.
+        import sys
+        sys.path.insert(0, os.path.dirname(PLUGIN))
+        from omapad import menu as menu_module
+
+        short = menu_module.MenuModel.live_state(
+            menu_module.MenuModel([], columns=6), True, {"hv": 0.5})
+        self.assertNotIn("items", short)
+

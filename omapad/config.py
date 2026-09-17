@@ -970,6 +970,15 @@ class Config:
             self.pad_mappings[identity.strip().upper()] = entry
         self.trigger_threshold = float(device.get("trigger_threshold", 0.45))
         self.trigger_release = float(device.get("trigger_release", 0.30))
+        self.trigger_rest = float(device.get("trigger_rest", 0.25))
+        if not 0.0 <= self.trigger_rest < 1.0:
+            raise ConfigError("device.trigger_rest is between 0 and 1")
+        # Below the release point, or a trigger could be held as a button and
+        # read as not pulled at the same time - the sweep would stop dead
+        # halfway in while the layer it opened stayed open.
+        if self.trigger_rest >= self.trigger_release:
+            raise ConfigError(
+                "device.trigger_rest must be below device.trigger_release")
 
         mode = data.get("mode", {})
         self.start_mode = mode.get("start", "desktop")
@@ -1599,12 +1608,46 @@ class Config:
         # reading at all. The first is the gearing of the one gesture on this
         # pad that is a turn; the second is what stops a thumb resting near
         # the middle - where a degree is noise - from moving anything.
+        # Which gesture a ring answers to. `aim` puts the value where the
+        # thumb points, because a drawn knob has a pointer and the stick is
+        # one; `carry` moves it by how far the thumb has travelled, which
+        # cannot jump on the frame a hand lands. The two gearing numbers
+        # below are `carry`'s alone - an aimed dial has no gearing to have.
+        self.menu_turn = str(menu.get("turn", "aim"))
+        if self.menu_turn not in ("aim", "carry"):
+            raise ConfigError("menu.turn must be 'aim' or 'carry'")
         self.menu_turn_degrees = float(menu.get("turn_degrees", 270.0))
         if self.menu_turn_degrees <= 0:
             raise ConfigError("menu.turn_degrees must be positive")
+        # And the floor under one step of it, because the gearing above is of
+        # the *range* and a thumb aims at a step: the same 270 degrees is a
+        # quarter turn per step on a pair of words and seven degrees on the
+        # pointer's speed. This is the angle a thumb can stop inside, and the
+        # slower of the two always wins.
+        self.menu_turn_step_degrees = float(
+            menu.get("turn_step_degrees", 30.0))
+        if self.menu_turn_step_degrees <= 0:
+            raise ConfigError("menu.turn_step_degrees must be positive")
+        # `carry`'s, and `aim` has its own below: one integrates travel and
+        # the other reads a bearing, so they do not need the same radius.
         self.menu_turn_grip = float(menu.get("turn_grip", 0.5))
         if not 0.0 < self.menu_turn_grip < 1.0:
             raise ConfigError("menu.turn_grip is between 0 and 1")
+        # And `aim`'s, which is lower because it keeps nothing: a wobble is an
+        # error that corrects itself rather than one that accumulates. Half
+        # the travel was a wall - a thumb turning a dial the way a hand turns
+        # one reaches about 0.45 of it and stops there.
+        self.menu_aim_grip = float(menu.get("aim_grip", 0.25))
+        if not 0.0 < self.menu_aim_grip < 1.0:
+            raise ConfigError("menu.aim_grip is between 0 and 1")
+        # How fast the stick has to be falling inward before it is a stick
+        # coming home rather than a thumb still turning. A rate, in stick
+        # travel a second: aiming moves about a thousandth of the travel a
+        # frame, a spring a quarter of it, so this sits between two numbers
+        # two orders of magnitude apart.
+        self.menu_turn_return = float(menu.get("turn_return", 4.0))
+        if self.menu_turn_return <= 0:
+            raise ConfigError("menu.turn_return must be positive")
         # What the sticks do while the menu is up. The implicit surface layers
         # keep the base roles everywhere else, so this is a documented new
         # case rather than a general mechanism: the left one walks the tiles
@@ -1681,9 +1724,15 @@ class Config:
         self.live_timeout = float(live.get("timeout_ms", 1000)) / 1000.0
         self.live_poll = float(live.get("poll_ms", 2000)) / 1000.0
         self.live_settle = float(live.get("settle_ms", 250)) / 1000.0
+        # How often a number somebody is still moving is actually sent. A
+        # level supersedes the one before it, so the ones in between are work
+        # for a value nobody stopped on - and the loop can ask far faster than
+        # a helper can answer.
+        self.live_write = float(live.get("write_ms", 60)) / 1000.0
         for key, value in (("timeout_ms", self.live_timeout),
                            ("poll_ms", self.live_poll),
-                           ("settle_ms", self.live_settle)):
+                           ("settle_ms", self.live_settle),
+                           ("write_ms", self.live_write)):
             if value <= 0:
                 raise ConfigError("live.%s must be positive" % key)
 

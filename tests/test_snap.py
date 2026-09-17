@@ -122,6 +122,26 @@ class ChooseTests(unittest.TestCase):
         # Off to the side is dear: only the one in line answers.
         self.assertIs(snap.choose(pool, 400, 500, "right", 6.0), ahead)
 
+    def test_a_window_beside_the_one_you_are_in_is_not_that_way(self):
+        # The press is measured from the near edge of the window the pointer
+        # is in, not from the pointer: half of a wide window's neighbours sit
+        # behind its centre, and a left that lands on something overlapping
+        # what you are standing on is a left that went up.
+        wide = window(0, 400, 800, 300)
+        above = window(0, 0, 200, 200)
+        pool = [wide, above]
+        self.assertIsNone(snap.choose(pool, 400, 550, "left"))
+        # And it is still reachable the way it actually lies.
+        self.assertIs(snap.choose(pool, 400, 550, "up"), above)
+
+    def test_a_neighbour_that_starts_exactly_on_the_edge_counts(self):
+        # Tiles touch, so the window next door begins where this one ends.
+        here = window(0, 0, 400, 400)
+        next_door = window(400, 0, 400, 400)
+        self.assertIs(
+            snap.choose([here, next_door], 200, 200, "right"), next_door
+        )
+
     def test_an_unknown_direction_asks_for_nothing(self):
         self.assertIsNone(snap.choose(TILED, 380, 450, "sideways"))
 

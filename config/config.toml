@@ -137,6 +137,24 @@ layout = "auto"
 trigger_threshold = 0.45
 trigger_release = 0.30
 
+# And where the trigger *rests*, as a fraction of that travel. A pad's
+# advertised minimum is a claim rather than a measurement, and plenty of them
+# rest well above it - a Beitong KP40A in XInput mode sits a fifth of the way
+# in and never comes back down. That reads as a pull nobody is making, and the
+# menu's sweep is a rate: the tile under the cursor crosses its range on its
+# own, which is a volume that climbs while the pad is on the table.
+#
+# Everything at or below this is no pull at all, and what is left is spread
+# over the rest of the travel, so a trigger still sweeps from nothing to full
+# speed rather than starting partway up. It sits just under `trigger_release`:
+# the sweep stops a hair before the button sense calls the trigger let go.
+#
+# Raise it if a control still drifts with nobody holding the pad; lower it
+# towards 0 - on a pad that truly rests at its minimum - to have the sweep
+# answer the lightest touch. A trigger at rest sends no event, so `dump` never
+# sees one: `omapad check` is what prints where yours is sitting.
+trigger_rest = 0.25
+
 # ---------------------------------------------------------------------------
 # The keyboard on the desk.
 #
@@ -598,7 +616,9 @@ same_monitor = true           # false lets a flick cross to the next screen
 # What a window off to the side costs against one straight ahead, both measured
 # edge to edge. Below 1 the nearest window wins whatever direction was pressed,
 # which makes the press meaningless; far above it only a window perfectly in
-# line is ever reachable.
+# line is ever reachable. It decides between the windows that way, never
+# whether one is: nothing overlapping the window you are in is ever the
+# answer, at any number here.
 bias = 2.0
 # A tick under the thumb when a snap lands, and only when it lands: a flick
 # into an empty edge that buzzed would say the same thing as one that worked.
@@ -1154,6 +1174,22 @@ media_set = "omarchy-shell media %1"
 timeout_ms = 1000             # how late an answer may be before it is dropped
 poll_ms = 2000                # how often the selected tile is re-asked
 settle_ms = 250               # and how long after a press the helper is asked
+
+# How often a number somebody is still moving is actually sent. A level
+# supersedes the one before it, so the ones in between are round trips for a
+# value nobody stopped on - and `volume_set` is a shell, a helper that names
+# the sink and a `pactl`, about thirty milliseconds, while the loop asks at
+# `[pointer] poll_hz`. Sent one per frame, a thumb sweeping a dial queues most
+# of a second of work: the sound arrives late and the check that lands while
+# the queue is draining reports a sink halfway through it, which rewinds the
+# ring under your thumb.
+#
+# So a number is held and the newest one goes out on this beat; the last one
+# always goes, whatever the beat. Lower it to have the machine follow a thumb
+# more closely, raise it if a helper on this machine is slower than most.
+# Switches and the player's own buttons are never held - two presses of Next
+# mean two tracks.
+write_ms = 60
                               # what it actually did
 
 # ---------------------------------------------------------------------------
@@ -2256,7 +2292,10 @@ cell = 128
 # own number because tiles are small and touching where windows are large and
 # sparse. Below 1 the nearest tile wins whatever direction was pressed, which
 # makes the press meaningless; far above it only a tile perfectly in line is
-# ever reachable.
+# ever reachable. It decides between the tiles that way, never whether one is:
+# a press walks the band it pushes along - the rows a sideways one covers, the
+# columns an up or down one does - so a tile that is not beside this one is
+# not what any number here reaches.
 bias = 2.0
 repeat_delay_ms = 400         # hold a direction this long before it walks
 repeat_rate_ms = 110          # then one tile every this many ms
@@ -2319,17 +2358,85 @@ sweep_ms = 1500
 # how far the thumb has travelled rather than where it is pointing, and
 # nothing jumps the moment the stick is touched.
 #
+# Which of the two gestures it is, and they are genuinely different controls.
+#
+#   aim    where the thumb points is where the value goes. The pointer on the
+#          screen and the stick in your hand are the same figure, so a knob is
+#          one push: take it, point at the number, let go. The quarter the
+#          scale leaves open at the bottom is its two end stops - point into
+#          it left of centre for the bottom of the range and right of centre
+#          for the top - so a ring still does not come round at the ends.
+#   carry  the value moves by how far your thumb has travelled since the last
+#          frame, never by where it is pointing. Nothing can jump on the frame
+#          you touch the stick, which is what this is for: grabbing an aimed
+#          dial at two o'clock puts the volume at two o'clock, and on a sink
+#          that is a loud press made by not looking. Winding, in exchange.
+#
+# `turn_degrees` and `turn_step_degrees` are `carry`'s gearing and do nothing
+# under `aim`, which has no gearing to have - the scale is the whole of it.
+turn = "aim"
+
 # `turn_degrees` is the gearing: how far round a thumb has to carry it to
 # cross the whole range. A quarter turn is twitchy on a volume and right on a
 # list of four; raise it for finer aim, lower it to cross a range in one
 # sweep of the thumb.
 turn_degrees = 270
+# And the floor under one step of that: the gearing above is of the whole
+# range, and a thumb aims at a *step*. How many steps a knob has is the
+# control's business, not the dial's - a pair of words is one step end to end
+# and the pointer's speed is thirty-eight - so at 270 for the range the same
+# turn is a quarter of a circle per step on the first and seven degrees on the
+# last. Seven degrees is not an aim, it is a wobble; volume sat at 13.5 and a
+# thumb crossing the rim moved a third of the range it was passing over.
+#
+# So the two are read together and the slower wins: the range still crosses in
+# `turn_degrees` unless that would put two steps closer together than this, at
+# which point the step is this and the range takes as long as it takes. 30 is
+# about a dozen detents to the turn, which is where a clicking knob puts them.
+# Lower it for a faster dial you have to aim at; raise it for one you can stop
+# on without looking, at the cost of more turning.
+turn_step_degrees = 30
 # And how far over the stick has to be before any of that bites. Near the
 # middle of a stick's travel an angle is noise - a resting thumb crosses whole
 # quadrants without moving - so below this nothing turns, and coming back over
 # it starts from wherever the thumb landed. Raise it if a resting hand still
 # moves a value, lower it to turn without pushing the stick so far.
 turn_grip = 0.5
+
+# And the same for `aim`, which is lower on purpose. The two gestures are not
+# asking the stick for the same thing: `carry` adds up how far your thumb has
+# travelled, so a wobble near the middle accumulates into real movement and
+# the radius has to be big enough to keep that sum honest. `aim` reads where
+# you are pointing and keeps nothing, so a wobble is an error that corrects
+# itself the moment your thumb moves on - it only needs enough radius for the
+# bearing to mean something.
+#
+# Half the travel, inherited from `carry`, was a wall: measured on a pad, a
+# thumb turning a dial the way a hand turns one reaches about 0.45 of the
+# stick and stays there, so the ring did nothing at all until it was shoved
+# past half - which reads as a control that answers late rather than one that
+# is waiting. Raise it if a dial moves when you did not mean to touch it;
+# lower it for a ring that answers a smaller push.
+aim_grip = 0.25
+
+# And when a stick has stopped being a hand. A stick you let go of does not
+# come straight back to the middle: its two axes return at their own rates, so
+# the bearing swings on the way in - measured on a pad, a ring let go of at 18
+# degrees read 27 and then 38 over the two frames it took to fall past the
+# grip, and pulled the volume four percent up behind it. The value ended where
+# the spring passed rather than where you were pointing, which is the one
+# thing a control you aim at must not do.
+#
+# So the spring is told from the thumb by how fast the stick is falling
+# inward, in stick travel a second. Turning, it moves about a thousandth of
+# the travel a frame; released, it crosses a quarter of it - this sits between
+# two numbers two orders of magnitude apart, and the reading stops the moment
+# it is crossed until you push back out. Both gestures use it; `carry` winds
+# on that same swing, more quietly.
+#
+# Lower it if a dial still creeps as you let go; raise it if pulling the stick
+# back towards the middle while you turn stops the ring answering.
+turn_return = 4.0
 
 # What the sticks do while the menu is up. Every other surface keeps whatever
 # the base layer's sticks were doing - the pointer still works under the
@@ -3511,6 +3618,41 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
       printf '%s\t%s\n' "${name%.*}" "$file"
     done
   """
+
+  # **The count on the bar, and the thing that answers it.** The nav card has
+  # said `12 waiting` under `System` since a chip learned to say what a place
+  # is doing, and a count on its own is a notice: it brings somebody to this
+  # page and leaves them looking for the row that takes it. This is that row,
+  # and it asks the **same** question on the same clock - a tile that
+  # disagreed with the card that sent you here would be the surface arguing
+  # with itself.
+  #
+  # `checkupdates` prints a line per package and nothing at all when there is
+  # nothing, so the up-to-date case is the `empty` word and costs no
+  # arithmetic. A quarter of an hour of freshness, because it copies the
+  # package database and asks a mirror: that is not a question to re-ask
+  # every time somebody walks across this page.
+  #
+  # **The guard is in the terminal it opens, not here.** `omarchy-update` says
+  # what it is about to do and asks before it starts, so a `confirm` on the
+  # tile would be the same question twice, the second one from a page that is
+  # about to close. The wrapper is Omarchy's own, the window its own menu and
+  # its own bar open this in.
+  #
+  # **And no written `detail` at all.** A `meta` stands where the written line
+  # stands and falls back to its own `empty` word, so a tile with both has one
+  # line that can never be drawn. `Up to date` is what it says while the
+  # command is still counting, which is what the card on the bar has always
+  # said in the same seconds.
+  [[menu.items.items]]
+  icon = "󰚰"
+  label = "Update"
+  # The band's own cell, beside the three cards: the page had exactly a card's
+  # worth of room left, and a shorter tile would leave a strip under it that
+  # nothing after the break can reach.
+  span = [3, 3]
+  meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \" waiting\" : \"\"}'", ttl = 900, empty = "Up to date" }
+  action = "exec:omarchy-launch-floating-terminal-with-presentation omarchy-update"
 
   # **Reboot and Shutdown were a cell each as well, and are not any more.**
   # They were rows in the card above *and* tiles beside it, on item 48's

@@ -194,6 +194,49 @@ _RESIZE = {
 # than anything to taste.
 MENU_SCRUB_HOLD = 0.2
 
+# Where a ring's scale starts and how far round it goes, in degrees clockwise
+# from three o'clock - the same convention `atan2(y, x)` answers in with `y`
+# down the screen. **Not a setting: it is the drawing's own geometry**, and an
+# aimed knob is only honest while the daemon's arithmetic and `Knob.qml`'s arc
+# are the same arc. The numbers live in both files because the panel cannot
+# read the config and the daemon cannot read the QML; `test_shell_plugin`
+# holds them to each other.
+KNOB_ARC_FROM = 135.0
+KNOB_ARC_SWEEP = 270.0
+
+
+def knob_fine(spec):
+    """The smallest difference a value can actually say. Not its step.
+
+    **A step is how far one press moves a value, not what the value is allowed
+    to be** - and those are the same question only for a control whose places
+    are countable. An aimed dial is a position, so what it can land on is
+    everything the control can express, which is what it prints and what its
+    command writes: `_word` sends a level as whole percent, so volume can say
+    a hundred things and quantising it to the D-pad's twenty was a dial that
+    jumped five at a time under a thumb moving smoothly.
+
+    A value with no `scale` is already in its own units - pixels a second -
+    and one of those is the finest thing it can be.
+    """
+    scale = float(spec.get("scale") or 1)
+    return 1.0 / scale if scale > 0 else 1.0
+
+
+def knob_place(angle):
+    """A bearing in screen degrees -> where round a ring's scale it is, 0..1.
+
+    The quarter the scale does not cover is under the dial, which is where a
+    real knob puts the hole its two end stops sit either side of. A thumb
+    pointing into it is past one end or the other and takes the nearer one, so
+    the gap reads as the stops it is between rather than as a dead sector that
+    ignores a hand.
+    """
+    travelled = (angle - KNOB_ARC_FROM) % 360.0
+    if travelled <= KNOB_ARC_SWEEP:
+        return travelled / KNOB_ARC_SWEEP
+    return 1.0 if travelled < (KNOB_ARC_SWEEP + 360.0) / 2.0 else 0.0
+
 # How often the desktop's theme is looked at. One `stat` of a file, on the
 # same beat the surfaces already heartbeat at, so a pointer drawn from the old
 # palette catches up before anybody has finished looking at the new one. Not a
@@ -402,6 +445,10 @@ class Daemon:
         # to where it left.
         self._menu_turn = 0.0
         self._menu_angle = None
+        # How far out the thumb was last frame, and whether the stick has
+        # been let go of - `menu_letting_go`.
+        self._menu_reach = None
+        self._menu_letgo = False
         # And where along its travel the value stood when A took it, as the
         # share the tile is drawn from. `_menu_before` is the same moment in
         # the setting's own units and exists so B can put it back; this one is
@@ -441,6 +488,13 @@ class Daemon:
         self._live_asking = set()
         self._live_poll = {}
         self._live_due = {}
+        # A number a scrub is still moving, and when each reading last went
+        # out - the pair that coalesces a swept level onto `[live] write_ms`.
+        self._live_pending = {}
+        self._live_sent = {}
+        # A change the short push carried, so the surface still owes itself a
+        # rebuild when the hand comes off.
+        self._menu_quiet = False
         # When the next gauge frame is due, and the last one sent. The floats
         # are quantised and compared so a thumb resting off the stick stops
         # the stream entirely rather than pushing ADC jitter at a screen
@@ -2312,6 +2366,8 @@ class Daemon:
             # what it is doing now.
             self._live_poll.clear()
             self._live_due.clear()
+            self._live_pending.clear()
+            self._live_sent.clear()
             # Where it was, for the next press.
             self._menu_where = self.menu.where()
         if opened:
@@ -2590,6 +2646,39 @@ class Daemon:
         self.menu.select_row(name)
         self.push_menu_view()
 
+    def menu_reads(self, item):
+        """The spec a control is drawn from and what it is on. `(None, None)`.
+
+        The pair `menu_share` normalises and `menu_range` measures, handed out
+        whole for the one caller that needs the shape as well as the number:
+        an aimed ring asks whether a value has places or a length, and those
+        are two different gestures on one control.
+        """
+        if not item or not item["reads"]:
+            return (None, None)
+        source, name = item["reads"]
+        try:
+            if source == "pad":
+                return (CHOSEN.get(name), self.config.setting(name))
+            if source == "live":
+                return (live_module.READINGS.get(name), self.live.value(name))
+        except KeyError:
+            return (None, None)
+        return (None, None)
+
+    def menu_text(self, item, value):
+        """What a control is on, in the words its tile prints.
+
+        One place, because a value on the short push and the same value on the
+        full one must be the same sentence - a number that changed its wording
+        when the surface was last rebuilt would read as the tile correcting
+        itself.
+        """
+        source, name = item["reads"]
+        if source == "live":
+            return live_module.text(name, value)
+        return self.setting_words(name, value)
+
     def menu_share(self, item):
         """Where a control sits along its own travel, 0..1, or None.
 
@@ -2790,13 +2879,29 @@ class Daemon:
         if names:
             self.live_read(names)
 
-    def live_write(self, name, asked):
+    def live_write(self, name, asked, quiet=False):
         """Change what the machine is doing. True where anything was sent.
 
         The value moves on the tile at the press rather than a round trip
         later, and the generation counter is what keeps that honest: a read
         started before this can land after it, and would rewind the bar for a
         tenth of a second - a flicker nobody can reproduce.
+
+        **A number is a position, and only the newest one is worth sending.**
+        `volume_set` is a shell, a helper that names the sink and a `pactl` -
+        about thirty milliseconds of it - and the loop runs at `poll_hz`, so a
+        thumb crossing a scale asks for levels far faster than the machine can
+        take them. Sent one per step, a flick across a dial queues most of a
+        second of work for twenty levels nobody stopped on: the sound arrives
+        late, and the re-read that lands while the queue is still draining
+        reports a sink halfway through it and rewinds the ring. It is
+        `menu_settle`'s own argument about `rumble_strength`, one surface
+        along - so a number coalesces onto `[live] write_ms` and the machine
+        is told where the thumb *is* rather than everywhere it has been.
+
+        **A switch and a transport do not coalesce**, and must not: two
+        presses of Next mean two tracks. Only a value that supersedes the one
+        before it can be dropped.
         """
         command, value = self.live.apply(name, asked)
         if command is None:
@@ -2806,17 +2911,48 @@ class Daemon:
             if value is not None or asked[0] == "do":
                 self.menu_edge()
             return False
+        spec = live_module.READINGS.get(name) or {}
+        if spec.get("kind") == "number":
+            self._live_pending[name] = command
+            self.live_flush()
+        else:
+            self.live_send(name, command)
+        if quiet:
+            # The short push is carrying the number; the surface is rebuilt
+            # once, when the hand comes off. See `menu_adjust`.
+            self._menu_quiet = True
+        elif self.menu_open:
+            self.push_menu_view()
+        return True
+
+    def live_send(self, name, command):
+        """Hand one command to the worker, and arm the read that checks it."""
         if not self.submit_command(command, _nothing,
                                    self.config.live_timeout):
             # No worker to run it in, so it is run on the loop - a daemon that
             # could not make a pipe is slower, not broken.
             self.session.capture(command, self.config.live_timeout)
+        now = time.monotonic()
+        self._live_sent[name] = now
         # Asked again once, after the helper has had time to land: what it
-        # actually did is the machine's answer rather than ours.
-        self._live_due[name] = time.monotonic() + self.config.live_settle
-        if self.menu_open:
-            self.push_menu_view()
-        return True
+        # actually did is the machine's answer rather than ours. Off the
+        # moment it was *sent* rather than asked for, or a coalesced write
+        # would be checked before it had gone out.
+        self._live_due[name] = now + self.config.live_settle
+
+    def live_flush(self, force=False):
+        """Send what a scrub has been holding, once its interval is up.
+
+        `force` is the end of the push: whatever the last level asked for was
+        has to reach the machine whether or not the interval has run, or a
+        dial would stop a step short of wherever the hand let go of it - which
+        is the one failure a coalescer must not have.
+        """
+        now = time.monotonic()
+        for name in list(self._live_pending):
+            if force or now - self._live_sent.get(name, 0.0) >= \
+                    self.config.live_write:
+                self.live_send(name, self._live_pending.pop(name))
 
     def live_control(self, item, name):
         """What a live tile is on, for the payload it is drawn from."""
@@ -3101,13 +3237,60 @@ class Daemon:
         """
         if not self.menu_open:
             return None
+        live = {}
         stick = self.menu.watching()
-        if not stick or stick not in STICK_AXES:
-            return None
-        code_x, code_y = STICK_AXES[stick]
+        if stick and stick in STICK_AXES:
+            code_x, code_y = STICK_AXES[stick]
+            live["x"] = round(self.axes[code_x], 3)
+            live["y"] = round(self.axes[code_y], 3)
+        live.update(self.menu_held_live())
+        return live or None
+
+    def menu_held_live(self):
+        """The dial being turned, for the stream rather than the surface.
+
+        **A value that moves at frame rate is a gauge, whatever tile it is
+        on.** `menu_gauge` says the other half of this: a setting rides the
+        full push because it changes only when something presses, and putting
+        it in the stream would send it sixty times a second to say the same
+        thing. An aimed knob broke that premise - a number followed rather
+        than stepped changes on every frame a thumb moves - and the full push
+        rebuilds every tile on the page, which is the cost that doc warns
+        about, now paid to move one pointer.
+
+        So a held ring's value goes on the short push: `hv` where round it is
+        and `ht` the number in words, beside the thumb the same stream already
+        carries. Only a continuous one - a ladder and a list step rarely
+        enough that the surface can afford to be rebuilt, and their drawing
+        needs `seg` and `at`, which live on the full push.
+
+        The words are the daemon's rather than spelled in the panel, unlike
+        the clock: what a value is called is a wording decision, and the panel
+        has no minimum, maximum or unit to spell one with.
+        """
+        held = self.menu.held
+        if held is None or held["control"] != menu_module.KNOB:
+            return {}
+        spec, value = self.menu_reads(held)
+        if spec is None or value is None:
+            return {}
+        if spec.get("stops") or spec.get("kind") == "choice":
+            return {}
+        share = self.menu_share(held)
+        if share is None:
+            return {}
         return {
-            "x": round(self.axes[code_x], 3),
-            "y": round(self.axes[code_y], 3),
+            # **Which tile these belong to.** `sel` rides the stream for this
+            # reason and `hid` is the same reason one field along: a push that
+            # carries almost nothing is still read on its own, and a value
+            # that does not name its tile is a value the panel will put on
+            # whichever tile happens to be held. It did - a ring released and
+            # a slider taken next wore the ring's number, because the stream
+            # says nothing at all when nothing is being turned and the last
+            # line it *did* send stands until another one replaces it.
+            "hid": held["id"],
+            "hv": round(max(0.0, min(1.0, share)), 3),
+            "ht": self.menu_text(held, value),
         }
 
     def push_menu_live(self, now):
@@ -3152,7 +3335,7 @@ class Daemon:
         """
         turning = self.menu_turning()
         if turning is not None:
-            self.check_menu_turn(stick, turning)
+            self.check_menu_turn(stick, turning, dt)
             return
         code_x, code_y = STICK_AXES[stick]
         x, y = self.axes[code_x], self.axes[code_y]
@@ -3300,8 +3483,26 @@ class Daemon:
         """
         self.rumble.aim("texture", "right" if direction > 0 else "left")
 
-    def menu_adjust(self, item, direction, steps=None):
+    def menu_adjust(self, item, direction, steps=None, to=None, quiet=False,
+                    feel=True):
         """Move a control one way. False where it has nowhere left to go.
+
+        `to` is an absolute value rather than a count of steps, which is what
+        an aimed ring asks for: a dial is followed rather than stepped, so
+        where it lands is a number rather than a distance from the last one.
+        `direction` is still which way that is, because the tick and the
+        texture are about the way a hand is going.
+
+        `quiet` says the short push is carrying this one - `menu_held_live` -
+        so the surface is not rebuilt for it. A dial followed at frame rate
+        would otherwise rebuild every tile on the page to move one pointer,
+        which is the cost `menu_gauge` names. The rebuild is owed rather than
+        skipped: `menu_settle` pushes once when the hand comes off.
+
+        `feel` is off for the one control the motor has nothing to say about -
+        see `menu_turn_aim`. The two are separate answers to separate
+        questions and only happen to be asked by the same caller: one is about
+        what the panel is sent, the other about what the hand is told.
 
         The new value lands in the config and on the tile, and nowhere else
         until the push settles: a slider is one decision made over a second,
@@ -3311,9 +3512,10 @@ class Daemon:
         says once.
         """
         source, name = item["reads"]
-        if steps is None:
+        if steps is None and to is None:
             steps = self.menu_ramp((item["id"], direction))
-            if source == "pad" and CHOSEN.get(name, {}).get("stops"):
+            if source == "pad" and CHOSEN.get(name, {}).get("stops") \
+                    and steps is not None:
                 # No ramp on a ladder. It exists because a speed is
                 # thirty-eight presses end to end; a ladder is six, and a
                 # held direction would cross the whole of it in the first
@@ -3322,18 +3524,27 @@ class Daemon:
         if source == "live":
             # No file to write and nothing to apply: the machine is where the
             # value lives, and the tile is showing what it last said.
-            moved = self.live_write(name, ("step", direction * steps))
+            asked = ("set", to) if to is not None \
+                else ("step", direction * steps)
+            moved = self.live_write(name, asked, quiet=quiet)
             if moved:
                 self._menu_edged = False
                 self._menu_moving = MENU_SCRUB_HOLD
-                self.menu_feel(direction)
+                # `feel` is the caller's answer for this branch too. It was
+                # honoured below and dropped here, which left the one ring the
+                # shipped tree puts a thumb on - how loud it is - flipping the
+                # motor every frame of an aimed turn: the sign of the last
+                # difference rather than of a push. See `menu_turn_aim`.
+                if feel:
+                    self.menu_feel(direction)
             return moved
         if source != "pad":
             return False
         try:
             before = self.config.setting(name)
             value = self.config.set_setting(
-                name, self.menu_request(item, name, direction, steps))
+                name, ("set", to) if to is not None
+                else self.menu_request(item, name, direction, steps))
         except (KeyError, ValueError) as exc:
             # A setting that went away under a config someone edited.
             log.warning("menu: %s: %s", name, exc)
@@ -3347,8 +3558,12 @@ class Daemon:
         # One continuous effect rather than a tick per step: `[snap] rumble`'s
         # rule is that a step repeating under a held button would buzz all the
         # way down a list, and a slider is that list with the numbers showing.
-        self.menu_feel(direction)
-        self.push_menu_view()
+        if feel:
+            self.menu_feel(direction)
+        if quiet:
+            self._menu_quiet = True
+        else:
+            self.push_menu_view()
         return True
 
     def menu_request(self, item, name, direction, steps):
@@ -3483,7 +3698,7 @@ class Daemon:
             return None
         return held
 
-    def check_menu_turn(self, stick, item):
+    def check_menu_turn(self, stick, item, dt):
         """The stick's angle, turning the one control that has one.
 
         **Why the stick at all.** Every other way into a value on this surface
@@ -3493,33 +3708,208 @@ class Daemon:
         this is the only place where what the hand does and what the drawing
         does are the same movement. It is the whole argument for the control.
 
-        **It is relative, and that is not a detail.** What moves the value is
-        how far round the thumb has travelled since the last frame, never
-        where it is pointing: a knob is grabbed rather than aimed, and a stick
-        pushed to two o'clock that set the volume to three quarters would be a
-        control that jumps the moment it is touched. Nothing on a pad should
-        be able to do that to a sink.
+        **The grip is what makes an angle measurable**, and the two gestures
+        do not need the same amount of it. Near the middle of a stick's travel
+        a degree is noise - a thumb resting there crosses whole quadrants
+        without moving - but what that noise *does* differs: `carry`
+        integrates travel, so a wobble accumulates into real movement and the
+        radius has to be large enough to keep the integral clean
+        (`turn_grip`). `aim` reads a bearing and keeps nothing, so a wobble is
+        an error that corrects itself the moment the thumb moves on, and the
+        radius only has to be enough for the bearing to mean something
+        (`aim_grip`).
 
-        **The grip is what makes an angle measurable.** Near the middle of a
-        stick's travel a degree is noise - a thumb resting there crosses whole
-        quadrants without moving - so nothing turns until the stick is
-        `[menu] turn_grip` of the way over, and coming off it drops the angle
-        rather than remembering it. Gripping again starts from wherever the
-        thumb came back on, which is the other half of the no-jump promise.
+        **Measured, not guessed.** `turn_grip` is half the stick's travel, and
+        an aimed dial inheriting it was the wall a hand kept hitting: logged
+        on the machine, a thumb turning the volume the way a hand naturally
+        turns one reached 0.44 to 0.49 of travel and was refused every frame -
+        the dial did nothing until it was shoved past half, which is a control
+        that reads as late rather than as still.
 
-        Whole steps, like the sweep: a value a thumb turned to is one the
-        D-pad could have landed on. Three ways in, one set of numbers.
+        `[menu] turn` is which of the two gestures a ring answers to - see
+        `menu_turn_aim` and `menu_turn_carry`, which are the argument, and
+        which differ about what a value may land on as well as about what
+        moves it.
         """
         code_x, code_y = STICK_AXES[stick]
         x, y = self.axes[code_x], self.axes[code_y]
-        if (x * x + y * y) ** 0.5 < self.config.menu_turn_grip:
+        aiming = self.config.menu_turn == "aim"
+        grip = self.config.menu_aim_grip if aiming \
+            else self.config.menu_turn_grip
+        reach = (x * x + y * y) ** 0.5
+        if reach < grip:
             self._menu_angle = None
             self._menu_way = None
+            self._menu_reach = None
+            self._menu_letgo = False
+            return
+        if self.menu_letting_go(reach, dt):
             return
         # Screen angle, so clockwise is positive with `y` down the screen -
         # which is the direction the drawing turns in and the direction a
         # right-handed hand means by "up".
         angle = math.degrees(math.atan2(y, x))
+        if aiming:
+            self.menu_turn_aim(angle, item)
+        else:
+            self.menu_turn_carry(angle, item)
+
+    def menu_letting_go(self, reach, dt):
+        """Is this the stick coming home rather than a thumb still aiming?
+
+        **A dial follows the hand, not the spring.** A stick let go of does
+        not return straight to the middle: its two axes come back at their own
+        rates, so the bearing swings on the way in - measured on the machine,
+        a ring released at 18 degrees read 27 and then 38 over the two frames
+        it took to fall past the grip, and dragged the volume four percent up
+        behind it. The value ended where the spring passed, not where the
+        thumb was pointing, which is the one thing a control you aim must not
+        do. Lowering the grip made it worse by leaving more of the return
+        inside the reading, so the fix belongs here rather than in a radius.
+
+        **The two are told apart by how fast the stick is falling inward**,
+        and there is nothing marginal about it: aiming, the reach moves about
+        a thousandth of the travel a frame; released, it crosses a quarter of
+        it. `[menu] turn_return` sits two orders of magnitude clear of both.
+
+        Latched rather than judged per frame, because letting go is a thing
+        that has happened rather than a thing that is true this instant: it
+        holds until the stick is pushed back out or comes to rest under the
+        grip. The angle is dropped with it so `carry` cannot wind on a stale
+        bearing when the hand comes back.
+        """
+        last, self._menu_reach = self._menu_reach, reach
+        if last is not None and dt > 0:
+            if (last - reach) / dt > self.config.menu_turn_return:
+                self._menu_letgo = True
+                self._menu_angle = None
+            elif reach > last:
+                # Pushed back out: a hand, and this gesture is on again.
+                self._menu_letgo = False
+        return self._menu_letgo
+
+    def menu_turn_aim(self, angle, item):
+        """Where the thumb is pointing *is* the value. `[menu] turn = "aim"`.
+
+        **The pointer goes where the thumb goes**, because a knob drawn on a
+        screen has a pointer and the stick is one: they are the same figure,
+        and asking somebody to wind a dial round to a number they can already
+        see the place of is asking them to work the long way round a thing
+        they are looking straight at. Aimed, the whole control is one push -
+        take it, point, let go - and the scale reads like what it is, a dial
+        with a position rather than a distance to cover.
+
+        **The gap under the dial is the two end stops**, which is what a gap
+        in a real one is. `Knob.qml` leaves the bottom quarter open, and a
+        thumb pointing into it is past one end or the other: nearer the left
+        foot is the bottom of the scale, nearer the right is the top. So a
+        ring still does not wrap, and the one direction a thumb can travel
+        that the scale has no answer for has the only two answers it could.
+
+        **A number is followed, not stepped.** The other two ways in are
+        presses and land on the D-pad's own numbers, but a thumb sweeping a
+        dial is not making presses: quantised to `step`, volume moved five
+        percent at a time under a hand moving smoothly, which reads as the
+        control jumping rather than as the hand being followed. So the places
+        an aimed number can land are every one it can *say* - `knob_fine` -
+        and a ladder and a list keep their stops, because there is nothing
+        between two of those to land on.
+
+        **The motor says nothing while it follows**, and that is `rumble.md`'s
+        own rule rather than an exception to it. `texture` means *the push
+        landed, on this side*, and it earns its place by being "the only thing
+        on the pad that answers a direction" - which is true of a control you
+        push and false of one you point at, where the direction is the hand's
+        own and the ring is under the thumb making it. Worse than redundant:
+        the direction here is the sign of the last difference rather than of a
+        push, so a thumb resting two degrees off the top of the scale flipped
+        it every frame - measured, seven motor swaps in eight frames, an
+        `EVIOCSFF` apiece. Roadmap 17's rule is the short version: a scheme
+        where every press buzzes says nothing. `edge` stays, because *you
+        cannot go further* is the one thing here the screen cannot say faster,
+        and `carry` keeps `texture` because winding really is a push.
+
+        **What this costs is a level per frame**, which is why `live_write`
+        coalesces: a helper takes about thirty milliseconds and the loop runs
+        at `poll_hz`, so the machine is told where the thumb is rather than
+        everywhere it has been.
+
+        **What it does not cost is the promise `carry` keeps.** Grabbing the
+        stick at two o'clock puts the value at two o'clock, on the frame it
+        crosses the grip - there is no other way for an aimed control to
+        behave, and on a sink that is a loud press made by not looking.
+        `carry` is that promise and is one word away in the config; this is
+        the default because a dial you point at is the thing the drawing
+        already is.
+        """
+        spec, value = self.menu_reads(item)
+        if spec is None or value is None:
+            return
+        place = knob_place(angle)
+        if spec.get("stops") or spec.get("kind") == "choice":
+            return self.menu_turn_stop(item, place)
+        low, high = float(spec["min"]), float(spec["max"])
+        if high <= low:
+            return  # a range with nowhere to point at
+        fine = knob_fine(spec)
+        want = min(high, max(low, round((low + place * (high - low)) / fine)
+                             * fine))
+        if abs(want - float(value)) < fine / 2.0:
+            return self.menu_turn_still(place)
+        self.menu_adjust(item, 1 if want > value else -1, to=want,
+                         quiet=True, feel=False)
+
+    def menu_turn_stop(self, item, place):
+        """An aimed ring on a ladder or a list: the nearest place, not a value.
+
+        Stops are somewhere to *be* rather than a distance to cover - there is
+        no arithmetic between `Filled` and `Stencil`, and a ladder's rungs are
+        a proportion apart rather than a step - so this one still quantises,
+        and to the stop rather than to the number.
+        """
+        found, here = self.menu_range(item), self.menu_share(item)
+        if found is None or here is None:
+            return
+        span, step = found
+        if span <= 0 or step <= 0:
+            return  # a list of one: a ring with nowhere to point at
+        want = int(round(place * span / step))
+        have = int(round(max(0.0, min(1.0, here)) * span / step))
+        if want == have:
+            return self.menu_turn_still(place)
+        self.menu_adjust(item, 1 if want > have else -1, abs(want - have))
+
+    def menu_turn_still(self, place):
+        """A thumb pointing at what the value already is. Two answers.
+
+        Pointed at an end and already standing on it, a hand is pushing
+        against a stop and gets the tick a stop gives - `menu_edge` says it
+        once and not per frame. Anywhere else the push is simply still live,
+        or a thumb resting between two numbers would settle and write the file
+        under a hand that has not finished.
+        """
+        if place <= 0.0 or place >= 1.0:
+            self.menu_edge()
+            return
+        self._menu_moving = MENU_SCRUB_HOLD
+
+    def menu_turn_carry(self, angle, item):
+        """How far round the thumb has come since last frame. `turn = "carry"`.
+
+        **Relative, and that is the whole of it.** What moves the value is the
+        travel rather than the bearing, so nothing can jump on the frame a
+        hand lands on the stick: a knob is grabbed rather than pointed at, and
+        coming off the grip drops the angle rather than remembering it, so
+        gripping again starts from wherever the thumb came back on. On a sink
+        that is the difference between a dial and a volume that answers a
+        careless push at full scale.
+
+        What it costs is that the drawing and the hand stop being the same
+        figure - the pointer says three quarters and the thumb says two
+        o'clock - and that crossing a range is winding rather than pointing.
+        `[menu] turn_degrees` and `turn_step_degrees` are its gearing; `aim`
+        has none to have, which is the other half of the trade.
+        """
         last, self._menu_angle = self._menu_angle, angle
         if last is None:
             # The frame the thumb landed on. It has travelled nothing yet, and
@@ -3535,8 +3925,9 @@ class Daemon:
         if found is None:
             return
         span, step = found
-        degrees = max(1.0, self.config.menu_turn_degrees)
-        self._menu_turn += moved / degrees * span
+        if span <= 0:
+            return  # a list of one: a ring with nowhere to turn to
+        self._menu_turn += moved * step / self.menu_turn_step(span, step)
         steps = int(self._menu_turn / step)
         if not steps:
             # The push is live from the first degree rather than the first
@@ -3547,15 +3938,56 @@ class Daemon:
         self._menu_turn -= steps * step
         self.menu_adjust(item, 1 if steps > 0 else -1, abs(steps))
 
+    def menu_turn_step(self, span, step):
+        """How far round the thumb carries one step of this control.
+
+        **`turn_degrees` gears the range, and a thumb aims at a step** - and
+        the two are only the same number on a control whose range happens to
+        be the right number of steps long. The knobs a page can hold are 1
+        step end to end (a pair of words) and 38 (the pointer's speed); at
+        270 degrees for the range that is a quarter turn for the first and
+        seven degrees for the last. Seven degrees is not an aim, it is a
+        wobble, and volume - twenty steps, 13.5 degrees each - sat close
+        enough to it that a thumb crossing the rim moved a third of the range
+        it was only passing over.
+
+        So the gearing is the slower of the two: the range crosses in
+        `turn_degrees`, *unless* that would put two steps closer together
+        than `turn_step_degrees`, which is the angle a thumb can actually
+        stop inside. It only ever makes a knob slower - a ladder of five
+        stops is already well past the floor and is untouched - and what it
+        buys is a detent you can land on, at the cost of a range that takes
+        more than one turn to cross on a control with many steps.
+        """
+        return max(self.config.menu_turn_degrees * step / span,
+                   self.config.menu_turn_step_degrees)
+
     def trigger_pull(self, name):
-        """How far a trigger is pulled, 0..1.
+        """How far a trigger is pulled, 0..1, past where it rests.
+
+        **The advertised minimum is a claim, not a measurement** - the same
+        thing `calibrate_axis` says about a stick's centre, and triggers lie
+        about it too: a Beitong KP40A in XInput mode rests `ABS_RZ` at 47 of
+        255, a fifth of the way in, and reports it as a pull for ever. The
+        button sense never noticed because `trigger_release` is above that,
+        but the menu's sweep is a *rate*: any fraction at all and the control
+        under the cursor crosses its range on its own, which is a volume that
+        climbs while nobody is touching the pad. So everything below
+        `[device] trigger_rest` is not a pull.
+
+        Rescaled over what is left rather than clipped, for `apply_curve`'s
+        reason: a sweep that began at a fifth of full speed the moment the
+        floor was crossed would be a trigger that jumps.
 
         A pad that reports its triggers as buttons has no fraction to give, so
         down is all the way in: the sweep is a little blunter there and works.
         """
         level = self.trigger_level.get(name)
         if level is not None:
-            return level
+            rest = self.config.trigger_rest
+            if level <= rest:
+                return 0.0
+            return (level - rest) / (1.0 - rest)
         return 1.0 if name in self.pressed else 0.0
 
     def menu_settle(self, dt=0.0, force=False):
@@ -3573,6 +4005,17 @@ class Daemon:
         self._menu_moving = 0.0
         self._menu_way = None
         self._menu_sweep = 0.0
+        # The level the hand let go on, whether or not its interval had run.
+        # A coalescer that drops the last write is a dial that stops a step
+        # short of where it was put.
+        self.live_flush(force=True)
+        if self._menu_quiet:
+            # The rebuild the stream stood in for. Owed rather than skipped:
+            # the tiles behind the one being turned were drawn from a payload
+            # that is now a push old, and this is the frame nobody is looking
+            # at a moving pointer.
+            self._menu_quiet = False
+            self.push_menu_view()
         # The part of a step a turn had not finished, dropped with the sweep's
         # own. **Not the angle**: what a settle ends is a push, and the thumb
         # is still on the stick. Clearing that here read as a knob that turned
@@ -5433,6 +5876,8 @@ class Daemon:
         """Is there anything to integrate or time out between events?"""
         if self.repeats:
             return True
+        if self._live_pending:
+            return True  # a level still to go out, held back to coalesce
         if self._menu_confirm is not None:
             return True  # a row counting down towards running
         if self.rumble.settling:
@@ -5472,6 +5917,9 @@ class Daemon:
         return any(abs(value) > deadzone for value in self.axes.values())
 
     def tick(self, dt):
+        # Before anything else that might ask for a level: a scrub that has
+        # been holding one only reaches the machine from here.
+        self.live_flush()
         if self.menu_open:
             # Here rather than beside the heartbeat: a sweep is something to
             # integrate between events, which is exactly what this is for, and

@@ -3678,12 +3678,12 @@ class ControlTileTests(DaemonTestCase):
         self.assertIsNone(self.daemon.menu_control(item))
 
 
-class KnobTests(DaemonTestCase):
-    """The same value, turned: the payload it is drawn from and the gesture.
+class KnobHarness(DaemonTestCase):
+    """A page of three rings, and a thumb to put on the stick.
 
-    A knob is the slider's twin everywhere but two places - it reads a list as
-    readily as a number, and the stick that walks the page turns it instead -
-    so what is tested here is those two and the promises they make.
+    Shared by both gestures: `[menu] turn` is the one thing that differs
+    between an aimed dial and a carried one, and the promises each makes are
+    separate ledgers below.
     """
 
     TREE = [{"label": "Dials", "items": [
@@ -3739,6 +3739,22 @@ class KnobTests(DaemonTestCase):
         self.feed((li.EV_ABS, li.ABS_X, 0), (li.EV_ABS, li.ABS_Y, 0))
         self.daemon.tick(0.02)
 
+
+class KnobTests(KnobHarness):
+    """The same value, turned: the payload it is drawn from, and `carry`.
+
+    A knob is the slider's twin everywhere but two places - it reads a list as
+    readily as a number, and the stick that walks the page turns it instead -
+    so what is tested here is those two and the promises they make. The
+    gesture here is `turn = "carry"`, whose whole claim is that nothing can
+    jump on the frame a hand lands on the stick; `AimedKnobTests` is the
+    other one, and is what ships.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.menu_turn = "carry"
+
     def test_a_knob_draws_where_along_its_range_the_value_is(self):
         row = self.drawn("Speed")
         self.assertEqual(row["k"], "knob")
@@ -3792,15 +3808,42 @@ class KnobTests(DaemonTestCase):
         self.assertEqual(self.config.pointer_speed, before)
 
     def test_carrying_it_half_way_round_moves_half_the_range(self):
-        self.take("Speed")
-        spec = config_module.CHOSEN["pointer_speed"]
-        self.config.set_setting("pointer_speed", ("set", spec["min"]))
+        # On a control whose steps are further apart than the floor, which is
+        # where `turn_degrees` still means what it says. A ladder of five
+        # stops is 67 degrees a stop and never meets `turn_step_degrees`.
+        self.take("Corner")
+        stops = config_module.CHOSEN["radius"]["stops"]
+        self.config.set_setting("radius", ("set", stops[0]))
         self.grip(0)
-        # `turn_degrees` crosses the whole range, so half of it is half.
-        self.grip(self.config.menu_turn_degrees / 2)
-        span = spec["max"] - spec["min"]
-        self.assertAlmostEqual(self.config.pointer_speed - spec["min"],
-                               span / 2, delta=spec["step"] * 2)
+        # A degree past half, because the last of a whole step is worth
+        # nothing until it is crossed and `grip` lands on whole axis counts.
+        self.grip(self.config.menu_turn_degrees / 2 + 1)
+        self.assertEqual(self.config.setting("radius"),
+                         stops[len(stops) // 2])
+
+    def test_a_knob_with_many_steps_keeps_them_a_thumb_apart(self):
+        # The gearing is of the range and a thumb aims at a step: at 270
+        # degrees for the whole of it the pointer's 38 steps are 7 degrees
+        # each, which is a wobble rather than an aim. The floor is what the
+        # step becomes, and the range takes longer than one turn instead.
+        step = config_module.CHOSEN["pointer_speed"]["step"]
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", 2000.0))
+        self.grip(0)
+        self.grip(self.config.menu_turn_step_degrees * 0.9)
+        self.assertEqual(self.config.pointer_speed, 2000.0)
+        self.grip(self.config.menu_turn_step_degrees * 1.1)
+        self.assertEqual(self.config.pointer_speed, 2000.0 + step)
+
+    def test_a_knob_with_few_steps_is_left_at_the_gearing(self):
+        # The floor only ever slows a dial down. A ladder already past it
+        # turns at `turn_degrees`, or every knob would inherit the slowest.
+        self.assertEqual(
+            self.daemon.menu_turn_step(4.0, 1.0),
+            self.config.menu_turn_degrees / 4.0)
+        self.assertEqual(
+            self.daemon.menu_turn_step(3800.0, 100.0),
+            self.config.menu_turn_step_degrees)
 
     def test_and_the_other_way_round_takes_it_back(self):
         self.take("Speed")
@@ -3912,6 +3955,346 @@ class KnobTests(DaemonTestCase):
         row = self.drawn("Style")
         self.assertTrue(row["hd"])
         self.assertEqual(row["b"], 0.0)
+
+
+class AimedKnobTests(KnobHarness):
+    """`turn = "aim"`: the pointer goes where the thumb goes. What ships.
+
+    The drawing already has a pointer and the stick already is one, so the
+    promises here are about the two being the same figure - and about the
+    quarter of the circle the scale does not cover, which is where a real
+    knob puts the hole between its end stops.
+    """
+
+    SPEED = None
+
+    def setUp(self):
+        super().setUp()
+        self.config.menu_turn = "aim"
+        self.SPEED = config_module.CHOSEN["pointer_speed"]
+
+    def at(self, degrees):
+        """Point the thumb, and say what the value became."""
+        self.grip(degrees)
+        return self.config.pointer_speed
+
+    def test_twelve_o_clock_is_the_middle_of_the_scale(self):
+        # The top of a dial is the middle of its travel, because the scale is
+        # hung symmetrically about it. Nothing is wound to get there.
+        self.take("Speed")
+        span = self.SPEED["max"] - self.SPEED["min"]
+        self.assertAlmostEqual(self.at(-90), self.SPEED["min"] + span / 2,
+                               delta=self.SPEED["step"])
+
+    def test_the_two_feet_of_the_arc_are_the_two_ends_of_the_range(self):
+        self.take("Speed")
+        self.assertEqual(self.at(135), self.SPEED["min"])
+        self.assertEqual(self.at(45), self.SPEED["max"])
+
+    def test_the_gap_under_the_dial_is_the_two_end_stops(self):
+        # The quarter the scale leaves open is not a dead sector: a thumb
+        # pointing into it is past one end or the other, and takes the nearer.
+        self.take("Speed")
+        self.at(-90)
+        self.assertEqual(self.at(100), self.SPEED["min"])   # down, left of it
+        self.assertEqual(self.at(80), self.SPEED["max"])    # down, right of it
+
+    def test_an_aimed_ring_moves_on_the_frame_the_thumb_lands(self):
+        # The promise `carry` keeps and this one gives up, written down
+        # rather than left to be discovered: there is no other way for a
+        # pointed-at control to behave, and it is why `carry` still exists.
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", self.SPEED["min"]))
+        self.assertGreater(self.at(-90), self.SPEED["min"])
+
+    def test_a_thumb_held_on_one_step_asks_for_nothing_more(self):
+        # The delta is against where the value *is*, so a hand resting on a
+        # number sends one change and then stops - on a sink that is the
+        # difference between one `pactl` and sixty a second.
+        self.take("Speed")
+        landed = self.at(-45)
+        for _ in range(5):
+            self.assertEqual(self.at(-45), landed)
+
+    def test_a_number_is_followed_rather_than_stepped(self):
+        # The fault the detents were. The other two ways in are presses and
+        # land on the D-pad's own numbers, but a thumb sweeping a dial is not
+        # making presses: quantised to `step`, volume moved five percent at a
+        # time under a hand moving smoothly, which reads as the control
+        # jumping rather than as the hand being followed.
+        self.take("Speed")
+        landed = [self.at(degrees) for degrees in (-100, -80, -60, -40)]
+        self.assertEqual(len(set(landed)), len(landed))
+        self.assertTrue(any(value % self.SPEED["step"] for value in landed))
+
+    def test_and_it_lands_on_what_the_value_can_say(self):
+        # Every number it can express, and no finer: a speed counts in whole
+        # pixels a second, and a level in whole percent, because that is what
+        # the one prints and the other writes into its command.
+        self.assertEqual(daemon_module.knob_fine(self.SPEED), 1.0)
+        self.assertEqual(
+            daemon_module.knob_fine(
+                daemon_module.live_module.READINGS["volume"]), 0.01)
+        self.take("Speed")
+        for degrees in (-120, -60, 0, 170):
+            self.assertEqual(self.at(degrees) % 1.0, 0.0)
+
+    def test_but_a_ladder_still_lands_on_a_stop(self):
+        # There is nothing between two rungs to land on, and nothing between
+        # two words at all - so those keep their places.
+        stops = config_module.CHOSEN["radius"]["stops"]
+        self.take("Corner")
+        for degrees in (-120, -90, -30, 20):
+            self.grip(degrees)
+            self.assertIn(self.config.setting("radius"), stops)
+
+    def test_a_thumb_near_the_middle_of_the_stick_aims_at_nothing(self):
+        # The grip is still what makes a bearing worth reading: near the
+        # middle a degree is noise, and an aimed dial would chase it.
+        self.take("Speed")
+        before = self.config.pointer_speed
+        self.grip(-90, reach=self.config.menu_aim_grip / 2)
+        self.assertEqual(self.config.pointer_speed, before)
+
+    def test_an_aimed_dial_answers_a_push_a_hand_actually_makes(self):
+        # The wall this number exists to not be. Logged on the machine, a
+        # thumb turning a dial the way a hand turns one reaches 0.44 to 0.49
+        # of the stick's travel and stops there - so at `carry`'s half the
+        # ring did nothing at all until it was shoved past, which is a
+        # control that reads as late rather than as waiting.
+        self.assertLess(self.config.menu_aim_grip, 0.44)
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", self.SPEED["min"]))
+        # From the middle, the way a hand arrives on a stick - and the way
+        # `calibrate_axis` needs it, the first reading being the rest.
+        self.letgo()
+        self.grip(-90, reach=0.45)
+        self.assertGreater(self.config.pointer_speed, self.SPEED["min"])
+
+    def test_and_a_carried_one_keeps_the_radius_its_sum_needs(self):
+        # `carry` adds up travel, so a wobble accumulates into real movement:
+        # it is the gesture that has to insist on the radius, and it still
+        # does. One number per gesture, because they ask different things.
+        self.assertGreater(self.config.menu_turn_grip,
+                           self.config.menu_aim_grip)
+        self.config.menu_turn = "carry"
+        self.take("Speed")
+        before = self.config.pointer_speed
+        self.letgo()
+        self.grip(0, reach=0.45)
+        self.grip(90, reach=0.45)
+        self.assertEqual(self.config.pointer_speed, before)
+        # And the same push is answered once it is aimed rather than carried,
+        # so what the test just saw is the threshold and not a dead stick.
+        self.config.menu_turn = "aim"
+        self.grip(45, reach=0.45)
+        self.assertNotEqual(self.config.pointer_speed, before)
+
+    def test_the_stick_still_walks_the_page_while_nothing_is_held(self):
+        # Aimed or carried, a tile the selection is only passing over cannot
+        # own the stick. A is what lends it.
+        self.land("Speed")
+        before = self.config.pointer_speed
+        self.grip(-90)
+        self.assertEqual(self.config.pointer_speed, before)
+
+    def test_a_list_is_pointed_at_by_its_places(self):
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.take("Style")
+        self.grip(135)
+        self.assertEqual(self.config.setting("badge_style"), choices[0])
+        self.grip(45)
+        self.assertEqual(self.config.setting("badge_style"), choices[-1])
+
+    def test_a_ladder_is_pointed_at_by_its_stops(self):
+        stops = config_module.CHOSEN["radius"]["stops"]
+        self.take("Corner")
+        self.grip(-90)
+        self.assertEqual(self.config.setting("radius"),
+                         stops[len(stops) // 2])
+
+    def test_the_gearing_numbers_do_nothing_to_an_aimed_dial(self):
+        # `turn_degrees` is how far a thumb *carries* one, and an aimed one is
+        # not carried anywhere: the scale is the whole of the gearing.
+        self.take("Speed")
+        self.config.menu_turn_degrees = 720.0
+        self.config.menu_turn_step_degrees = 90.0
+        self.assertEqual(self.at(45), self.SPEED["max"])
+        self.assertEqual(self.at(135), self.SPEED["min"])
+
+    def test_a_turning_ring_rides_the_short_push(self):
+        # The cost `menu_gauge` names, arriving on the one tile whose value
+        # moves at frame rate: the full push rebuilds every delegate on the
+        # page, and a dial followed by a thumb would pay that per frame to
+        # move one pointer.
+        self.take("Speed")
+        self.menu_client.sent.clear()
+        self.at(-100)
+        self.at(-80)
+        self.assertEqual(self.menu_client.sent, [])
+        live = self.daemon.menu_live()
+        self.assertIn("hv", live)
+        self.assertTrue(live["ht"])
+
+    def test_the_stream_is_what_actually_reaches_the_panel(self):
+        # Through `push_menu_live`, which is the loop's own call and not
+        # `tick`'s: the rate gate and the "same line as last time" guard are
+        # between the value and the wire, and a test that asks the model
+        # instead would pass with nothing being sent at all.
+        import time as _time
+        self.take("Speed")
+        self.menu_client.sent.clear()
+        seen = []
+        for degrees in (-120, -100, -80, -60):
+            self.grip(degrees)
+            # Past the gate every time, the way sixty a second is.
+            self.daemon._menu_live_due = 0.0
+            self.daemon.push_menu_live(_time.monotonic())
+            if self.menu_client.sent:
+                seen.append(self.menu_client.sent[-1])
+                self.menu_client.sent.clear()
+        self.assertEqual(len(seen), 4)
+        for line in seen:
+            self.assertNotIn("items", line)     # no delegate is rebuilt
+            self.assertIn("hv", line["live"])
+        self.assertEqual(len({line["live"]["hv"] for line in seen}), 4)
+
+    def test_the_stream_names_the_tile_its_value_belongs_to(self):
+        # The fault: the stream says nothing at all when nothing is being
+        # turned, so the last line it sent stands. Read as "whatever is
+        # held", a ring let go of and a slider taken next put the ring's
+        # number on the slider - Strength wearing the volume's percentage.
+        # `sel` rides the stream for this same reason, one field along.
+        self.take("Speed")
+        self.grip(-90)
+        live = self.daemon.menu_live()
+        speed = self.land("Speed")
+        self.assertEqual(live["hid"], speed["id"])
+
+    def test_and_says_nothing_about_a_tile_that_is_not_a_followed_ring(self):
+        # A ladder is held the same way and rides the surface, so the stream
+        # must not claim it either - or its tile would wear the last ring's
+        # number for as long as it was held.
+        self.take("Corner")
+        self.assertEqual(self.daemon.menu_held_live(), {})
+
+    def test_and_the_surface_is_rebuilt_once_when_the_hand_comes_off(self):
+        # Owed rather than skipped: the tiles behind the ring were drawn from
+        # a payload that is now a push old.
+        self.take("Speed")
+        self.at(-100)
+        self.menu_client.sent.clear()
+        self.letgo()
+        self.daemon.menu_settle(force=True)
+        self.assertEqual(len(self.menu_client.sent), 1)
+        self.assertIn("items", self.menu_client.sent[-1])
+
+    def test_a_ladder_keeps_the_surface_because_it_steps_rarely(self):
+        # And has to: `seg` and `at` are on the full push alone, so a rung
+        # drawn from the stream would be a ring with no marks on it.
+        self.take("Corner")
+        self.assertEqual(self.daemon.menu_held_live(), {})
+        self.menu_client.sent.clear()
+        self.grip(-90)
+        self.assertTrue(self.menu_client.sent)
+
+    def test_nothing_rides_the_stream_while_no_ring_is_held(self):
+        self.land("Speed")
+        self.assertEqual(self.daemon.menu_held_live(), {})
+
+    def test_a_stick_let_go_of_does_not_take_the_value_with_it(self):
+        # Measured on the machine: released at 18 degrees, the bearing read
+        # 27 and then 38 over the two frames it took to fall past the grip -
+        # the axes come back at their own rates, so the bearing swings on the
+        # way in - and the volume went four percent up behind it. A control
+        # you aim at must end where the thumb was pointing.
+        self.take("Speed")
+        self.letgo()
+        self.grip(18, reach=1.0)
+        self.grip(18, reach=1.0)
+        aimed = self.config.pointer_speed
+        self.grip(27, reach=0.76)
+        self.grip(38, reach=0.37)
+        self.assertEqual(self.config.pointer_speed, aimed)
+
+    def test_but_a_thumb_easing_off_while_it_turns_still_aims(self):
+        # The discriminator is a rate, and the two are two orders of
+        # magnitude apart: a hand crosses a thousandth of the travel a frame
+        # and a spring a quarter of it. Easing off is still a hand.
+        self.take("Speed")
+        self.letgo()
+        self.grip(0, reach=0.95)
+        before = self.config.pointer_speed
+        self.grip(30, reach=0.94)
+        self.assertNotEqual(self.config.pointer_speed, before)
+
+    def test_and_pushing_back_out_takes_the_ring_again(self):
+        # Latched rather than judged each frame - letting go is a thing that
+        # has happened - but a hand coming back is a hand.
+        self.take("Speed")
+        self.letgo()
+        self.grip(0, reach=1.0)
+        self.grip(30, reach=0.4)
+        latched = self.config.pointer_speed
+        self.grip(60, reach=1.0)
+        self.assertNotEqual(self.config.pointer_speed, latched)
+
+    def test_and_a_carried_ring_is_not_wound_by_the_spring_either(self):
+        # `carry` integrates that same swing, more quietly: nineteen degrees
+        # of it is most of a step at the shipped gearing.
+        self.config.menu_turn = "carry"
+        self.take("Speed")
+        self.letgo()
+        self.grip(18, reach=1.0)
+        self.grip(18, reach=1.0)
+        aimed = self.config.pointer_speed
+        self.grip(27, reach=0.76)
+        self.grip(38, reach=0.55)
+        self.assertEqual(self.config.pointer_speed, aimed)
+
+    def test_the_motor_says_nothing_while_a_dial_is_followed(self):
+        # `texture` means "the push landed, on this side", and it earns its
+        # place by being the only thing on the pad that answers a direction -
+        # which a pointed-at control does not need, the direction being the
+        # hand's own. Measured before this: a thumb resting two degrees off
+        # the top of the scale flipped the side every frame, seven motor
+        # swaps in eight, an EVIOCSFF apiece.
+        sides = []
+        self.daemon.rumble.aim = lambda name, side: sides.append(side)
+        self.take("Speed")
+        self.letgo()
+        self.grip(44, reach=1.0)
+        sides.clear()
+        for degrees in (44, 46, 44, 46, 44, 46):
+            self.grip(degrees, reach=1.0)
+        self.assertEqual(sides, [])
+
+    def test_but_a_carried_one_keeps_it_because_winding_is_a_push(self):
+        sides = []
+        self.daemon.rumble.aim = lambda name, side: sides.append(side)
+        self.config.menu_turn = "carry"
+        self.take("Speed")
+        self.letgo()
+        self.grip(0, reach=1.0)
+        self.grip(90, reach=1.0)
+        self.assertTrue(sides)
+
+    def test_and_an_end_is_still_felt_because_the_screen_cannot_say_it(self):
+        # What survives: *you cannot go further* is the one thing here the
+        # motor says faster than the ring does.
+        self.take("Speed")
+        self.letgo()
+        self.grip(90, reach=1.0)          # into the gap, past the bottom
+        self.daemon._menu_edged = False
+        self.grip(90, reach=1.0)
+        self.assertTrue(self.daemon._menu_edged)
+
+    def test_the_end_of_a_ring_is_still_felt_as_an_end(self):
+        self.take("Speed")
+        self.at(135)
+        self.daemon._menu_edged = False
+        self.at(135)
+        self.assertTrue(self.daemon._menu_edged)
 
 
 class PageKeyTests(DaemonTestCase):
@@ -4325,6 +4708,30 @@ class LiveTests(DaemonTestCase):
         self.assertTrue([one for one in self.asked()
                          if "set-sink-volume" in one])
         self.assertGreater(self.tile("Volume")["v"], 0.6)
+
+    def test_an_aimed_ring_on_the_machine_s_own_number_is_silent_too(self):
+        # Reported from the couch: the volume buzzed the whole way round the
+        # dial and kept buzzing after the thumb had stopped. `feel` was
+        # honoured on a setting and dropped on a live value, so the one ring
+        # the shipped tree puts a thumb on was the only one still flipping
+        # the motor every frame - `AimedKnobTests` cannot see it, a setting
+        # taking the other branch of `menu_adjust`.
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        self.daemon.menu_command("press")
+        sides = []
+        self.daemon.rumble.aim = lambda name, side: sides.append(side)
+        for degrees in (-100, -80, -60, -80, -60):
+            radians = math.radians(degrees)
+            self.feed(
+                (li.EV_ABS, li.ABS_X, int(32767 * 0.9 * math.cos(radians))),
+                (li.EV_ABS, li.ABS_Y, int(32767 * 0.9 * math.sin(radians))),
+            )
+            self.daemon.tick(0.02)
+        # The thumb moved the value, or this proves nothing about the motor.
+        self.assertTrue([one for one in self.asked()
+                         if "set-sink-volume" in one])
+        self.assertEqual(sides, [])
 
     def test_a_knob_reads_the_machine_the_way_a_slider_would(self):
         # Two drawings of one control: the same number through the same
@@ -6258,16 +6665,20 @@ class SnapTests(DaemonTestCase):
 
     def test_the_bias_reaches_the_choice(self):
         # A window closer to the right but well off the pointer's line,
-        # against one further right that the pointer lines up with.
-        aside = snap_window("0xccc", 500, 900, 300, 200)
-        self.hypr.answers["clients"] = [self.left, self.right, aside]
+        # against one further right that the pointer lines up with. Both are
+        # clear of the window the pointer is in: what the bias decides is
+        # which of the windows *that way* answers, never whether one beside
+        # the pointer counts as being that way at all.
+        aside = snap_window("0xccc", 768, 700, 300, 200)
+        ahead = snap_window("0xddd", 1200, 400, 300, 200)
+        self.hypr.answers["clients"] = [self.left, aside, ahead]
         self.config.snap_bias = 0.1
         self.assertTrue(self.daemon.snap_cursor("right"))
-        self.assertEqual(self.hypr.warps, [(650, 1000)])
+        self.assertEqual(self.hypr.warps, [(918, 800)])
         self.hypr.warps.clear()
         self.config.snap_bias = 8.0
         self.assertTrue(self.daemon.snap_cursor("right"))
-        self.assertEqual(self.hypr.warps, [(1148, 450)])
+        self.assertEqual(self.hypr.warps, [(1350, 500)])
 
     def test_focus_can_be_left_to_the_pointer(self):
         self.config.snap_focus = False
@@ -7820,12 +8231,41 @@ class SettingTests(DaemonTestCase):
         self.assertEqual(self.daemon.config.pointer_speed, 4000.0)
 
     def test_half_a_pull_takes_twice_as_long(self):
+        # Half of the travel that counts, which starts at `trigger_rest`: the
+        # floor is where the pull begins, so halfway in on the hardware is
+        # not half a pull and the sweep would be slower than this asks for.
+        rest = self.daemon.config.trigger_rest
         self.land("Controller", "Sticks", "Pointer")
         self.daemon.config.pointer_speed = 200.0
-        self.feed((li.EV_ABS, li.ABS_RZ, 128))
+        self.feed((li.EV_ABS, li.ABS_RZ, int(round((rest + 1.0) / 2.0 * 255))))
         self.tick(self.daemon.config.menu_sweep_ms / 2000.0, steps=15)
         moved = self.daemon.config.pointer_speed - 200.0
         self.assertAlmostEqual(moved, 3800.0 * 0.25, delta=200.0)
+
+    def test_a_trigger_resting_off_its_minimum_sweeps_nothing(self):
+        # The bug this floor exists for: a Beitong KP40A in XInput mode rests
+        # ABS_RZ at 47 of 255 and never comes back down, which the button
+        # sense misses - `trigger_release` is above it - and the sweep reads
+        # as a pull nobody is making. The volume climbed on its own, with the
+        # pad on the table.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 2000.0
+        self.feed((li.EV_ABS, li.ABS_RZ, 47))
+        self.tick(4.0, steps=80)
+        self.assertEqual(self.daemon.config.pointer_speed, 2000.0)
+        self.assertEqual(self.daemon.trigger_pull("ZR"), 0.0)
+
+    def test_a_pull_past_the_floor_starts_from_nothing(self):
+        # Rescaled over what is left rather than clipped: a sweep that began
+        # at a quarter speed the moment the floor was crossed would be a
+        # trigger that jumps.
+        rest = self.daemon.config.trigger_rest
+        self.feed((li.EV_ABS, li.ABS_RZ, int(rest * 255) + 1))
+        self.tick(0.0, steps=1)
+        self.assertLess(self.daemon.trigger_pull("ZR"), 0.02)
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(0.0, steps=1)
+        self.assertEqual(self.daemon.trigger_pull("ZR"), 1.0)
 
     def test_the_two_triggers_pull_against_each_other(self):
         self.land("Controller", "Sticks", "Pointer")

@@ -1684,6 +1684,26 @@ class MenuModel:
         return {"at": tile["at"], "size": tile["size"],
                 "id": tile["item"]["id"]}
 
+    def _band(self, mine, boxes, horizontal):
+        """The tiles a press may land on without leaving the band it walks.
+
+        `snap.beside` is the whole of it: the rows a sideways press covers,
+        the columns an up or down one does. A page is packed, so what is
+        under your thumb is under the tile you are on - and where there is
+        nothing, a press that took the nearest thing past the edge crossed
+        the page instead. `Workspace lock` ends a row with a hole under it,
+        and down found `Mute` at the other end of the row below, because
+        nothing at all was underneath.
+
+        Which is why the desktop is not handed the same list: a page is
+        packed and a desktop is not, so a window with nothing beside it is
+        one a flick still has to reach. `snap.beside` says the rest.
+        """
+        here = snap.rect(mine)
+        return [box for box in boxes
+                if box["id"] == mine["id"]
+                or snap.beside(here, snap.rect(box), horizontal)]
+
     def step(self, direction):
         """Move the selection to the tile that way, or leave it alone.
 
@@ -1691,6 +1711,10 @@ class MenuModel:
         rectangle is that way from here?" for the windows a flick lands on,
         and a tile is a rectangle in cells - so the pad walks a page the way
         it walks a desktop, by one rule rather than two that can disagree.
+
+        What the menu hands it is narrower than what the desktop does: only
+        the tiles **beside** this one, because a page is packed where a
+        desktop is not. See `_band`.
 
         Nothing at the edge means the selection stays. A grid that wrapped
         would put the cursor at the far side of a page a thumb was pushing
@@ -1706,7 +1730,9 @@ class MenuModel:
         boxes = [self._rect(tile) for tile in self.tiles]
         x = here["at"][0] + here["size"][0] / 2.0
         y = here["at"][1] + here["size"][1] / 2.0
-        landed = snap.choose(boxes, x, y, direction, self.bias)
+        beside = self._band(self._rect(here), boxes,
+                            direction in ("left", "right"))
+        landed = snap.choose(beside, x, y, direction, self.bias)
         if landed is None:
             return False
         self.selected = landed["id"]

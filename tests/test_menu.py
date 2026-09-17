@@ -2326,13 +2326,54 @@ class StepTests(unittest.TestCase):
         self.assertEqual(self.walk(model, "down"), ["t2"])
         self.assertEqual(self.walk(model, "left"), ["t0"])
 
-    def test_a_ragged_last_row_is_still_reachable(self):
+    def test_a_ragged_last_row_is_reached_from_over_it(self):
         #  [ t0 t0 t0 ][ t1 t1 t1 ]
         #  [ t2 ]
+        # t2 is under t0 and under nothing else, so that is the press that
+        # finds it. Down on t1 has nothing under it at all, and a press with
+        # nothing that way leaves the selection where it is rather than
+        # carrying it to the other end of the row.
         model = self.model((3, 1), (3, 1), (1, 1))
-        model.select_id("t1")
+        model.select_id("t0")
         self.assertEqual(self.walk(model, "down"), ["t2"])
         self.assertEqual(self.walk(model, "up"), ["t0"])
+        model.select_id("t1")
+        self.assertEqual(self.walk(model, "down"), ["t1"])
+
+    def test_a_tile_in_the_row_above_is_not_to_the_left(self):
+        #  [ t0 ][ t1 t1 t1 t1 t1 ]
+        #  [ t2 t2 t2 ][ t3 t3 t3 ]
+        # The band the pad walks is measured from the tile's own edge, not
+        # from its centre: t0's right edge is left of t2's centre, so a press
+        # of left at the start of a row used to walk up and back a column -
+        # `Button labels` on the Controller page landing on `Vibration`.
+        model = self.model((1, 1), (5, 1), (3, 2), (3, 2))
+        model.select_id("t3")
+        self.assertEqual(self.walk(model, "left", "left"), ["t2", "t2"])
+        # Up still reaches the row above, which is where it actually lies.
+        self.assertEqual(self.walk(model, "up"), ["t1"])
+
+    def test_a_press_with_nothing_that_way_stays_where_it_is(self):
+        #  [ t0 t0 t0 ][ t1 t1 t1 ]
+        #  [ t2 t2 t2 ][         ]
+        # The shape `Workspace lock` makes on the `Now` page while the pad is
+        # in game mode: a row that ends in a hole. Down used to leave the
+        # band and land on whatever was nearest in the row below, which is a
+        # thumb pushing down and a cursor crossing the page.
+        model = self.model((3, 1), (3, 1), (3, 1))
+        model.select_id("t1")
+        self.assertEqual(self.walk(model, "down", "down"), ["t1", "t1"])
+        # And the tile that is under it still answers.
+        self.assertEqual(self.walk(model, "left", "down"), ["t0", "t2"])
+
+    def test_a_tile_beside_a_tall_one_is_not_below_it(self):
+        #  [ t0 t0 t0 ][ t1 ]
+        #  [ t0 t0 t0 ][ t2 ]
+        # t2 starts inside t0's rows, so a press of down on t0 is a press
+        # with nothing under it.
+        model = self.model((3, 2), (1, 1), (1, 1))
+        model.select_id("t0")
+        self.assertEqual(self.walk(model, "down"), ["t0"])
 
     def test_straight_ahead_beats_nearer_but_crooked(self):
         #  [ t0 ][ t1 ][ t2 t2 t2 t2 ]
@@ -2347,6 +2388,82 @@ class StepTests(unittest.TestCase):
         for direction in ("up", "down", "left", "right") * 4:
             model.step(direction)
             self.assertIn(model.selected, names)
+
+
+class ShippedPageTests(unittest.TestCase):
+    """The pages the config ships, walked the way a thumb walks them.
+
+    A press stays beside the tile it starts on, which is the one rule that
+    can strand somebody: a page with a hole in it can hold a tile nothing
+    reaches, and a tile you can see and cannot select is worse than any
+    crooked jump. So the shipped tree answers for itself, in every state a
+    `when` can put it in - `Workspace lock` and `Keep the controller` appear
+    and disappear, and the page repacks around them.
+    """
+
+    def shipped(self):
+        missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
+        return config_module.load(path=missing, mapping=missing,
+                                  layout=missing, settings=missing)
+
+    def model(self, config, conditions):
+        model = MenuModel(build(config.menu_items,
+                                columns=config.menu_columns,
+                                settings=config_module.CHOSEN,
+                                countdown=config.menu_countdown),
+                          config.menu_title, config.menu_clock,
+                          columns=config.menu_columns, bias=config.menu_bias)
+        model.conditions = frozenset(conditions)
+        model.build_groups()
+        return model
+
+    def reaches(self, model):
+        """Every tile on the page in front, from every other one."""
+        names = [tile["item"]["id"] for tile in model.tiles]
+        ways = {}
+        for name in names:
+            out = set()
+            for direction in ("left", "right", "up", "down"):
+                model.selected = name
+                model.step(direction)
+                out.add(model.selected)
+            ways[name] = out
+        for start in names:
+            seen = set([start])
+            edge = [start]
+            while edge:
+                for name in ways[edge.pop()]:
+                    if name not in seen:
+                        seen.add(name)
+                        edge.append(name)
+            yield start, sorted(set(names) - seen)
+
+    def walk(self, model, where):
+        for start, missed in self.reaches(model):
+            self.assertEqual(missed, [],
+                             "%s: nothing reaches %s from %s"
+                             % (where, missed, start))
+        for tile in list(model.tiles):
+            item = tile["item"]
+            # A listing fills itself in when it is entered, so it is a page
+            # nobody can place without running the command that fills it.
+            if item["items"] and not item["control"] and not item["from"]:
+                model.selected = item["id"]
+                model.press()
+                self.walk(model, "%s > %s" % (where, item["label"]))
+                model.back()
+
+    def test_every_page_walks_end_to_end_in_every_state(self):
+        config = self.shipped()
+        for conditions in ((), ("game",), ("game", "handed_over"),
+                           ("handed_over", "kept"), ("locked",),
+                           ("first_run",),
+                           ("game", "handed_over", "kept", "locked")):
+            model = self.model(config, conditions)
+            for number, group in enumerate(model.groups):
+                model.enter_group(number)
+                self.walk(model, "%s/%s"
+                          % ("+".join(conditions) or "plain", group["label"]))
 
 
 class HeadTests(unittest.TestCase):
