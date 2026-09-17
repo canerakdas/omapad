@@ -1024,6 +1024,31 @@ class RowsTileTests(unittest.TestCase):
                 if tile["id"] == "output"][0]
         self.assertNotIn("one", card)
 
+    def test_and_a_lone_verb_is_a_list_of_one_rather_than_a_reading(self):
+        # What makes a lone row a reading is that it is an *alternative* -
+        # picking it would set what is already set, and a listing says so by
+        # marking it. A row that knows no answer is a verb, and a folder with
+        # one script in it is a list of one: A runs it.
+        item = build([{"label": "Scripts", "control": "rows",
+                       "action": "exec:%1", "from": "list-scripts"}])[0]
+        item["rows"][:] = listed(item, ["Backup\t/home/one/backup.sh"], 10)
+        model = MenuModel([dict(item)])
+        self.assertFalse(model.lone(model.current))
+        self.assertIsNotNone(model.takeable())
+        card = [tile for tile in model.view_state(True)["items"]
+                if tile["id"] == "scripts"][0]
+        self.assertNotIn("one", card)
+
+    def test_and_the_empty_words_are_a_reading_whatever_else_is_true(self):
+        # The placeholder carries no action at all, so there is nothing there
+        # to press and nothing for the card to be a list of.
+        item = build([{"label": "Scripts", "control": "rows",
+                       "empty": "Nothing there yet",
+                       "action": "exec:%1", "from": "list-scripts"}])[0]
+        model = MenuModel([dict(item)])
+        self.assertTrue(model.lone(model.current))
+        self.assertIsNone(model.takeable())
+
     def test_but_a_card_somebody_wrote_one_row_into_is_still_a_card(self):
         # A verb is a verb whether or not it has company; only a *listing*
         # with one line is a fact rather than a choice.

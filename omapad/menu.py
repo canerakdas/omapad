@@ -1336,10 +1336,25 @@ class MenuModel:
 
         Only a card that **lists**. A card somebody wrote one row into meant
         that row, and a verb is a verb whether or not it has company.
+
+        **And only where picking it would change nothing**, which is the
+        other half of the same sentence. A listing marks the one in force -
+        `*` from `pactl`, `on` here - so a lone row that is *marked* is the
+        fact the card is furniture round, and a lone row that is not is
+        something to run or to switch to. A folder with one script in it is a
+        list of one, and A runs it. The `empty` placeholder is a reading
+        whatever else is true: it carries no action, so there is nothing there
+        to press.
         """
         if not item or item.get("control") != ROWS or not item.get("from"):
             return False
-        return len(self.rows_of(item)) < 2
+        rows = self.rows_of(item)
+        if len(rows) > 1:
+            return False
+        if not rows:
+            return True
+        row = rows[0]
+        return row["action"] is None or bool(row.get("on"))
 
     def rows_of(self, item):
         """The rows a card draws inside itself, as they are offered now.

@@ -1518,6 +1518,14 @@ row makes it a list again.
 Only a card that *lists*. A card somebody wrote one row into meant that row,
 and a verb is a verb whether or not it has company.
 
+**And only where picking it would change nothing**, which is the other half of
+the same sentence and was found by the first listing that is not a set of
+devices. What says a lone row is the fact the card is furniture round is the
+**mark**: `*` from `pactl`, `on` here. A lone row without one is something to
+run or to switch to - `Scripts` lists a folder, and a folder with one script in
+it is a list of one that A runs. The `empty` placeholder is a reading whatever
+else is true, because it carries no action at all.
+
 `build()` seeds such a card with a single row carrying its own `empty` words
 rather than with nothing: a blank card on a page you are looking at reads as a
 drawing fault rather than as a question nobody has answered yet. `menu_fill`

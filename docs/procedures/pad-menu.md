@@ -399,11 +399,13 @@ command rather than four. Until the first answer the card draws its own
 `empty` words: a blank card on a page you are looking at reads as a drawing
 fault rather than as a question nobody has answered yet.
 
-**A listing that finds one thing is drawn as a reading**, not as a list: the
-heading names it, the line is the answer, and A does nothing - there is nothing
-to choose between. Plug a second device in and it is a list again. A card you
-wrote one row into is unaffected; a verb is a verb whether or not it has
-company.
+**A listing that finds one thing it has marked is drawn as a reading**, not as
+a list: the heading names it, the line is the answer, and A does nothing -
+picking it would set what is already set. Plug a second device in and it is a
+list again. A card you wrote one row into is unaffected; a verb is a verb
+whether or not it has company - and so is a **listed** one: a lone row with no
+`*` in front of it is something to run or to switch to, so a folder with one
+script in it is a list of one.
 
 Everything else about a listing is unchanged - `*` marks the one in force, the
 values are quoted on the way in, and picking one keeps the menu up and moves

@@ -2602,9 +2602,33 @@ card of inputs. A listed card is read when the **page it stands on settles**
 rather than at a press, because nobody enters a card; until the first answer
 lands it draws its own `empty` words rather than nothing.
 
-**A listing that finds one thing is drawn as a reading** — the heading names
-it, the line is the answer, and A does nothing, because there is nothing to
-choose between. Plug a second device in and it is a list again.
+**A listing that finds one thing it has marked is drawn as a reading** — the
+heading names it, the line is the answer, and A does nothing, because picking
+it would set what is already set. Plug a second device in and it is a list
+again. A lone row with no mark in front of it is something to run or to switch
+to, so a folder with one script in it is a list of one and A runs it.
+
+### A folder of your own scripts
+
+`System › Scripts` is a listed card pointed at a folder rather than at a
+command that knows something:
+
+```bash
+mkdir -p ~/.config/omapad/scripts
+install -m755 /dev/stdin ~/.config/omapad/scripts/night-mode.sh <<'EOF'
+#!/bin/sh
+omarchy-theme-set ristretto
+EOF
+```
+
+Every **executable** file in there is a row, read when the System page settles,
+named by the file without its extension. Pressing A on it runs it in a scope of
+its own, so a daemon restart does not kill what it started. Nothing else has to
+be edited — no binding, no setting, no line in `config.toml` — and a file that
+is not executable is left out rather than shown as a row that does nothing.
+
+It is an ordinary card, so `config.toml` is where it is moved, renamed or
+pointed at a different folder.
 
 **A row may carry its own `detail`**, drawn small under its name, and that is
 the thing a [choice tile](#tiles-that-hold-a-value) could never have: the
