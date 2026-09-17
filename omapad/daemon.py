@@ -123,12 +123,20 @@ MENU_TRIGGERS = (("ZL", -1), ("ZR", 1))
 # the reach, for the arrangement that is not on screen because it is the one
 # the config shipped.
 #
-# **L and R are the only controls taken from anything.** They walk the bar
-# everywhere else in this layer, and while a page is being rearranged the bar
-# is not what a thumb is aiming at. Nothing is taken from ZL or ZR: a height
-# is a control's own shape - a bar is a bar and a dial is round - so what a
-# person overrides is how much room across a tile gets, and that is two
-# buttons rather than four.
+# **The shoulders and the triggers are the only controls taken from
+# anything.** L and R walk the bar everywhere else in this layer, and while a
+# page is being rearranged the bar is not what a thumb is aiming at; ZL and ZR
+# are unbound here.
+#
+# **Both axes, which used to be one.** The argument for width alone was that a
+# height is a control's own shape - a bar is a bar and a dial is round - and
+# that is true of what a *control* draws and not of the cell it is drawn in: a
+# card of rows with a row too many, a reading you want to see from further
+# away, a keyboard tile that wants two rows rather than four, all of them are
+# a height somebody can only fix from the pad. `resize` took the second axis
+# from the day it was written; it was the two buttons that were missing. The
+# pairs follow the hand: the shoulders are the pair a thumb reads as side to
+# side, the triggers the pair under them.
 EDIT_KEYS = {
     "A": {"tap": "menu:pick", "desc": "Pick it up or put it down",
           "short": "Move"},
@@ -140,12 +148,27 @@ EDIT_KEYS = {
           "short": "Reset"},
     "L": {"tap": "menu:narrower", "desc": "Narrower", "short": "Narrower"},
     "R": {"tap": "menu:wider", "desc": "Wider", "short": "Wider"},
+    "ZL": {"tap": "menu:shorter", "desc": "Shorter", "short": "Shorter"},
+    "ZR": {"tap": "menu:taller", "desc": "Taller", "short": "Taller"},
 }
 
 # What the legend prints while rearranging: the four the contract owns, and
-# the two the arrangement borrowed. Six is more than a legend usually holds,
-# and it is what stops the two borrowed ones being a secret.
-EDIT_LEGEND = ("A", "B", "X", "Y", "L", "R")
+# the four the arrangement borrowed. Eight is more than a legend usually
+# holds, and it is what stops the borrowed ones being a secret - a size you
+# cannot find is a size nobody changes.
+EDIT_LEGEND = ("A", "B", "X", "Y", "L", "R", "ZL", "ZR")
+
+# Which way each resize command pushes the tile in the hand, as the pair
+# `MenuModel.resize` takes. A table rather than a ternary at the call site:
+# four commands that each say one thing about one axis read as four rows, and
+# `1 if command == "wider" else -1` stops being readable the moment there is a
+# second axis to ask about.
+_RESIZE = {
+    "wider": (1, 0),
+    "narrower": (-1, 0),
+    "taller": (0, 1),
+    "shorter": (0, -1),
+}
 
 # How long a control keeps counting as being pushed after the last thing that
 # pushed it. It has to outlast the gap between two repeats or the texture
@@ -3283,7 +3306,8 @@ class Daemon:
         if command == "save":
             self.menu_layout_save()
             return False
-        if command in ("pick", "hide", "restore", "wider", "narrower"):
+        if command in ("pick", "hide", "restore",
+                       "wider", "narrower", "taller", "shorter"):
             if not model.edit:
                 # Said rather than done quietly: every one of these is a
                 # gesture of a mode nobody is in.
@@ -3299,7 +3323,7 @@ class Daemon:
                 if model.restore():
                     self.menu_layout_save()
                     self.hud_rearranged()
-            elif model.resize(1 if command == "wider" else -1, 0):
+            elif model.resize(*_RESIZE[command]):
                 self.hud_rearranged()
             else:
                 self.menu_edge()
@@ -4389,7 +4413,17 @@ class Daemon:
         for name, opened in (("guide", self.guide_open),
                              ("menu", self.menu_open),
                              ("osk", self.osk_open)):
-            if opened and self.config.binding_for(name, button) is not None:
+            if not opened:
+                continue
+            if self.config.binding_for(name, button) is not None:
+                return name
+            if name == "menu" and self.menu.edit and button in EDIT_KEYS:
+                # **Rearranging spends two buttons the menu layer does not
+                # name.** ZL and ZR are a layer trigger and a modifier out
+                # here, and a mode that borrows a button has to outrank both
+                # or the press never reaches the binding `binding_for` is
+                # already willing to hand it: the window layer would open
+                # instead, silently, while the legend said `Shorter`.
                 return name
         return None
 

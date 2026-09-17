@@ -2111,10 +2111,17 @@ getting about — A and B already say the other two things.
 
 `X` and `B` are not the same button twice: `B` walks back up **one** page at a
 time - and out of a card of rows before it leaves the page - while `X` leaves
-outright. `Y` is the pad's reach for something not on screen — the menu
-has a `Controller › Shortcuts` tile that opens the same guide, and `Y` is that
-tile without walking to it. It is the button for when you opened the menu
-*because* you had forgotten which button does what.
+outright. `Y` is the pad's reach for something not on screen, and it carries
+two of them: a press [rearranges the page](#arranging-a-page-from-the-pad) —
+the tiles are yours, which is the thing no page can show you — and **holding
+it** opens the bindings guide, the same view `Controller › Buttons ›
+Shortcuts` opens, for when you opened the menu *because* you had forgotten
+which button does what.
+
+The arrangement is the tap and the guide is the hold, rather than the other
+way round, because the guide is a page you read once and an arrangement is one
+you come back to tile by tile — and the guide has a row of its own, so it is
+the one of the two with a second door.
 
 The keyboard and the mouse drive the same menu,on top of the pad:
 
@@ -2268,7 +2275,7 @@ leave the press silent.
 
 ### Arranging a page from the pad
 
-**Hold Y** on any page and its tiles become yours. Every button on the card
+**Press Y** on any page and its tiles become yours. Every button on the card
 means something else while you are there, and the legend says which:
 
 | | |
@@ -2278,6 +2285,12 @@ means something else while you are there, and the legend says which:
 | **X** | take a tile off the page, or put it back |
 | **Y** | reset the page to the one that shipped |
 | **LB / RB** | narrower / wider, while you are carrying one |
+| **LT / RT** | shorter / taller, while you are carrying one |
+
+Both axes, because a cell is a shape rather than a width: a card of rows with
+a row too many, a reading you want to see from further away, a keyboard tile
+that wants two rows rather than four. On the page the readings are drawn from,
+a tile stops at the last row that page has.
 
 A tile you take off stays on the page while you are arranging it, faded, so
 putting it back is the same press that took it away — there is no second

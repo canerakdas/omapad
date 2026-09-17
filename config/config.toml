@@ -1533,22 +1533,27 @@ B = "menu:back"                # at the top level this closes the menu
 # half of Back rather than a second one.
 X = "menu:close"
 # Y is the reach the face-button pattern asks for - see
-# `docs/conventions/bindings.md`. `Controller > Shortcuts` is this same view,
-# and this is that row without walking to it: the button for when the menu was
-# opened *because* you had forgotten which button does what. It used to be a
-# third way to close a menu that four other buttons already close.
-# `desc` because the derived words for `guide:toggle` are "This view", which is
-# only true when it is read from inside the guide - and this is read from the
-# menu.
-# Y is the reach the face-button pattern asks for, and its hold is the other
-# reach: the tiles of this page are yours to arrange, and holding the button
-# that shows you what the buttons do is where to find that out. While it is
-# on, every button on the card means something else and the legend says so.
+# `docs/conventions/bindings.md` - and it carries two reaches, one on the tap
+# and one on the hold. Both are things this page will not show you: that the
+# tiles are yours to arrange, and what every button on the pad does.
 #
-# What the hold costs is that Y now acts on the way back up rather than on the
-# way down, the way every tap/hold does - the same beat HOME already has in
-# this layer.
-Y = { tap = "guide:toggle", desc = "Bindings guide", short = "Guide", hold = "menu:edit", hold_ms = 700, hold_desc = "Rearrange this page", hold_short = "Arrange" }
+# **Arranging is the tap.** It was the hold, on the argument that the guide is
+# what somebody opening the menu in a hurry wants and rearranging is a thing
+# you sit down to do. Measured against use, that is the wrong way round: the
+# guide is a page you read once and the arrangement is a page you keep coming
+# back to, tile by tile, and a gesture you make twenty times in a sitting does
+# not belong behind a hold. The guide is also on a row of its own
+# (`Controller > Buttons > Shortcuts`), so what went to the hold is the one
+# with a second door.
+#
+# `desc` because the derived words for `guide:toggle` are "This view", which
+# is only true when it is read from inside the guide - and this is read from
+# the menu.
+#
+# What the hold costs is that Y acts on the way back up rather than on the way
+# down, the way every tap/hold does - the same beat HOME already has in this
+# layer.
+Y = { tap = "menu:edit", desc = "Rearrange this page", short = "Arrange", hold = "guide:toggle", hold_ms = 700, hold_desc = "Bindings guide", hold_short = "Guide" }
 
 PLUS = "menu:close"
 HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700 }

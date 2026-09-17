@@ -3474,7 +3474,8 @@ class PageKeyTests(DaemonTestCase):
         self.press("Y")
         self.release("Y")
         self.assertEqual(self.session.spawned, [])
-        self.assertTrue(self.daemon.guide_open)
+        # The layer's own Y is edit mode; the guide is its hold.
+        self.assertTrue(self.daemon.menu.edit)
 
     def test_taking_x_keeps_the_way_out_on_the_hold(self):
         self.press("X")
@@ -3500,7 +3501,7 @@ class PageKeyTests(DaemonTestCase):
         keys = self.menu_client.sent[-1]["keys"]
         said = dict((row["b"], row["n"]) for row in keys)
         self.assertEqual(said.get("X"), "Close")
-        self.assertEqual(said.get("Y"), "Guide")
+        self.assertEqual(said.get("Y"), "Arrange")
 
     def test_the_legend_prints_the_contract_in_its_own_order(self):
         self.daemon.push_menu_view()
@@ -4193,35 +4194,49 @@ class EditModeTests(DaemonTestCase):
         return dict((tile["item"]["id"], tile["at"])
                     for tile in self.daemon.menu.tiles)
 
+    def sizes(self):
+        return dict((tile["item"]["id"], tile["size"])
+                    for tile in self.daemon.menu.tiles)
+
     def written(self):
         if not os.path.exists(self.layout):
             return ""
         with open(self.layout) as handle:
             return handle.read()
 
-    def test_holding_y_is_what_turns_it_on(self):
-        # The reach, one press longer: holding the button that shows you what
-        # the buttons do is where you find out the tiles are yours.
+    def test_y_is_what_turns_it_on(self):
+        # The reach, on the tap: arranging a page is the thing somebody comes
+        # back to tile by tile, and the guide - which has a row of its own -
+        # is what went to the hold.
         self.assertFalse(self.daemon.menu.edit)
         self.press("Y")
-        self.daemon.check_hold_timers(time.monotonic() + 1.0)
+        self.release("Y")
         self.assertTrue(self.daemon.menu.edit)
 
+    def test_and_holding_it_is_still_the_guide(self):
+        self.press("Y")
+        self.daemon.check_hold_timers(time.monotonic() + 1.0)
+        self.assertTrue(self.daemon.guide_open)
+        self.assertFalse(self.daemon.menu.edit)
+
     def test_the_legend_says_what_every_button_means_now(self):
-        # It is the discoverability surface: six rows, because the two
-        # borrowed shoulders must not be a secret.
+        # It is the discoverability surface: eight rows, because the four
+        # borrowed shoulders and triggers must not be a secret - a size
+        # nobody can find is a size nobody changes.
         self.daemon.menu_command("edit")
         rows = self.menu_client.sent[-1]["keys"]
         self.assertEqual([row["n"] for row in rows],
                          ["Move", "Done", "Hide", "Reset",
-                          "Narrower", "Wider"])
+                          "Narrower", "Wider", "Shorter", "Taller"])
 
     def test_what_the_legend_prints_is_what_a_press_does(self):
         # One table, read by both, so they cannot drift apart.
         self.daemon.menu_command("edit")
         for button, command in (("A", "menu:pick"), ("B", "menu:edit_off"),
                                 ("X", "menu:hide"), ("Y", "menu:restore"),
-                                ("L", "menu:narrower"), ("R", "menu:wider")):
+                                ("L", "menu:narrower"), ("R", "menu:wider"),
+                                ("ZL", "menu:shorter"),
+                                ("ZR", "menu:taller")):
             self.assertEqual(
                 self.daemon.menu_key_spec(button)["tap"], command, button)
             binding = self.daemon.binding_for("menu", button)
@@ -4376,9 +4391,57 @@ class EditModeTests(DaemonTestCase):
                 break
         self.assertEqual([tile["item"]["id"] for tile in fresh.tiles], walked)
 
+    def test_the_triggers_reach_the_page_rather_than_a_layer(self):
+        # ZL is the window layer's trigger out here and the pointer's
+        # precision modifier, and neither may swallow the press: a mode that
+        # borrows a button has to outrank both, or the layer opens silently
+        # while the legend says `Shorter`.
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        picked = self.daemon.menu.picked
+        before = self.sizes()[picked]
+        self.press("ZR")
+        self.release("ZR")
+        self.assertEqual(self.sizes()[picked], (before[0], before[1] + 1))
+        self.assertEqual(self.daemon.active_layers, [])
+        self.press("ZL")
+        self.release("ZL")
+        self.assertEqual(self.sizes()[picked], before)
+        self.assertEqual(self.daemon.active_layers, [])
+
+    def test_a_tile_is_made_taller_and_shorter_too(self):
+        # Both axes, and the triggers are the pair under the shoulders: a
+        # height is as much the cell's as the width is, and it was the one a
+        # page could only be given from a text editor.
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        picked = self.daemon.menu.picked
+        tall = self.sizes()[picked]
+        self.daemon.menu_command("taller")
+        self.assertEqual(self.sizes()[picked], (tall[0], tall[1] + 1))
+        self.daemon.menu_command("shorter")
+        self.daemon.menu_command("shorter")
+        self.assertEqual(self.sizes()[picked],
+                         (tall[0], max(1, tall[1] - 1)))
+        self.daemon.menu_command("edit_off")
+        self.assertIn("span", self.written())
+
+    def test_a_tile_cannot_be_made_taller_than_a_page_with_a_bottom(self):
+        # The HUD's page is the one with a last row, and a tile taller than
+        # the screen it is drawn on is a tile with rows nobody can see.
+        self.open_readings()
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        picked = self.daemon.menu.picked
+        for _ in range(self.daemon.config.hud_rows + 4):
+            self.daemon.menu_command("taller")
+        self.assertEqual(self.sizes()[picked][1],
+                         self.daemon.config.hud_rows)
+
     def test_nothing_arranges_outside_edit_mode(self):
         before = self.order()
-        for command in ("pick", "hide", "wider", "narrower", "restore"):
+        for command in ("pick", "hide", "wider", "narrower",
+                        "taller", "shorter", "restore"):
             self.daemon.menu_command(command)
         self.assertEqual(self.order(), before)
         self.assertEqual(self.written(), "")

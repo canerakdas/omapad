@@ -517,7 +517,7 @@ class MenuAction(Action):
         # the same specs, so what it prints and what a press does cannot
         # drift apart.
         "edit", "edit_on", "edit_off", "pick", "hide", "restore",
-        "wider", "narrower", "save",
+        "wider", "narrower", "taller", "shorter", "save",
     }
     holdable = True
 

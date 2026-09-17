@@ -1834,8 +1834,11 @@ class MenuModel:
         """Make the carried tile bigger or smaller, in whole cells.
 
         Clamped to the page rather than refused: a tile pushed past the edge
-        of a six-column grid stops at six, which is what pushing it further
-        could have meant.
+        of a twelve-column grid stops at twelve, which is what pushing it
+        further could have meant - and a page with a **bottom** clamps the
+        other axis the same way. Only the HUD's page has one (`rows_limit`),
+        and a tile taller than the screen it is drawn on is a tile with rows
+        nobody can see.
         """
         if self.picked is None:
             return False
@@ -1850,6 +1853,9 @@ class MenuModel:
         width, height = effective_span(item, plan)
         width = max(1, min(self.columns, width + wider))
         height = max(1, height + taller)
+        limit = self.rows_limit()
+        if limit is not None:
+            height = min(height, limit)
         if (width, height) == effective_span(item, plan):
             return False
         plan["span"][self.picked] = (width, height)

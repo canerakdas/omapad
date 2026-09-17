@@ -21,8 +21,8 @@ page with, and the panel draws those cells over the whole screen instead of
 inside a card. So:
 
 - the tiles are written where every other tile is written;
-- they are arranged with the gesture that arranges every other page - hold Y
-  in the menu, carry one, let go - and the arrangement lands in the same
+- they are arranged with the gesture that arranges every other page - Y in
+  the menu, carry one, let go - and the arrangement lands in the same
   `layout.toml`, under the same page id;
 - where a tile sits in the grid is where it sits on the screen, because it is
   the same grid.

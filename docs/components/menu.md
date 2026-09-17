@@ -53,11 +53,11 @@ from it.
 | D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place |
 | D-pad up/down | the same | - | the same | carry it a row |
 | **Left stick** | the same as the D-pad, held rather than flicked | the same | the same | the same |
-| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | - |
+| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | shorter / taller |
 | **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** |
 | **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save |
 | **X**, Escape | close outright, from any depth - or the page's own verb | close | hide it, or put it back | hide it |
-| **Y** | the bindings guide - or what the page reaches for | the guide | reset the page | reset the page |
+| **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page |
 | **L / R**, Tab | previous / next group | - | - | narrower / wider |
 
 `bindings.md`'s word for A is **commit**, and it stays that. What the table
@@ -935,13 +935,20 @@ is left holding its place.
 
 ## Rearranging a page
 
-The tiles are the person's, not the config's. **Hold Y** on any page and every
+The tiles are the person's, not the config's. **Y** on any page and every
 button on the card means something else; the legend along the foot says which,
 which is what makes the mode findable at all.
 
+**It was Y's hold for a while**, on the argument that the guide is what
+somebody opening the menu in a hurry wants and rearranging is a thing you sit
+down to do. Against use that is the wrong way round: the guide is a page read
+once, and an arrangement is one somebody comes back to tile by tile. So the
+tap arranges, the hold opens the guide - which also has a row of its own on
+`Controller > Buttons`, and is the one of the two with a second door.
+
 ### The gesture, as a table rather than a branch
 
-`EDIT_KEYS` in `daemon.py` is six ordinary binding specs, and `binding_for`
+`EDIT_KEYS` in `daemon.py` is eight ordinary binding specs, and `binding_for`
 consults it before the page's own keys and before the layer's. **The legend is
 built from exactly those specs**, so what it prints and what a press does
 cannot drift apart - which is the whole reason the legend is worth having.
@@ -952,16 +959,30 @@ is this surface's own verb one mode along (`close` becomes `hide`), and Y is
 still the reach - for the arrangement that is not on screen because it is the
 one the config shipped.
 
-**L and R are the only controls taken from anything.** They walk the bar
-everywhere else in this layer, and while a page is being rearranged the bar is
-not what a thumb is aiming at. Nothing is taken from ZL or ZR: a height is a
-control's own shape - a bar is a bar and a dial is round - so what a person
-overrides is how much room *across* a tile gets, and that is two buttons
-rather than four.
+**The shoulders and the triggers are what a mode borrows.** L and R walk the
+bar everywhere else in this layer, and while a page is being rearranged the
+bar is not what a thumb is aiming at; ZL and ZR are unbound here. L and R are
+narrower and wider, ZL and ZR shorter and taller - the pair a thumb reads as
+side to side, and the pair under it.
 
-The cost of putting edit on Y's hold is that **Y acts on the way back up**
-rather than on the way down, the way every tap/hold does. HOME already has
-that beat in this layer.
+**Both axes, which used to be one.** The argument for width alone was that a
+height is a control's own shape - a bar is a bar and a dial is round - and
+that is true of what a control *draws*, not of the cell it is drawn in: a card
+of rows with a row too many, a reading you want from further away, a keyboard
+tile that wants two rows rather than four. `MenuModel.resize` took both axes
+from the day it was written; it was the two buttons that were missing.
+`rows_limit` clamps the new one, because a tile taller than the page the HUD
+draws is a tile with rows nobody can see.
+
+**A borrowed button has to outrank a layer trigger.** ZL opens the window
+layer out here and is the pointer's precision modifier, and neither may
+swallow the press: `surface_override` answers "menu" for any button in
+`EDIT_KEYS` while the mode is on, because the alternative is a layer opening
+silently while the legend says `Shorter`.
+
+The cost of the hold is that **Y acts on the way back up** rather than on the
+way down, the way every tap/hold does. HOME already has that beat in this
+layer.
 
 ### Moving is a cell, and it used to be a place in the order
 

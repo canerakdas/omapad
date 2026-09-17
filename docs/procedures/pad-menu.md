@@ -437,7 +437,7 @@ somewhere rather than at the edge of whatever is behind it.
 ## A page the person has rearranged
 
 Anything written here is the **shipped** arrangement, not the final one:
-holding Y on a page turns on edit mode, and what somebody does there lands in
+Y on a page turns on edit mode, and what somebody does there lands in
 `~/.config/omapad/layout.toml` and is applied over this. Three rules keep the
 two from breaking each other:
 
