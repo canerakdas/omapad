@@ -301,6 +301,18 @@ Item {
   // distance that matters and not the number, so both ends of it moved up a
   // rung together when the head gained a headline worth standing back from.
   readonly property int contentSpacing: metrics.gap.xxl
+  // And what the bar stands off the grid, over and above that. A nav card is
+  // one cell of the grid, landing on the same columns as the tiles under it -
+  // which is the whole argument for the bar being a row of cards, and is also
+  // what leaves it reading as the grid's first row at a band's distance. So
+  // that seam is `huge`, **the rung two above a band's gap** rather than two
+  // of them added up: 45 is on the ladder and 46 is not, and at a scale where
+  // the two answers differ by more than a pixel it is the rung that is right.
+  // This is only what the `Column`'s own spacing does not already cover, and
+  // the bar carries it as trailing air inside its own clip, where nothing is
+  // drawn: a `Column` spaces every band of the page the same.
+  readonly property int navGap:
+    Math.max(0, metrics.gap.huge - root.contentSpacing)
   readonly property int headerHeight: Math.max(metrics.gap.xxxl,
     metrics.type.lead + metrics.gap.sm * 2)
   // How tall the bar is, and it is **one row of the grid**. A nav card is a
@@ -503,7 +515,7 @@ Item {
         - (root.headRows > 0
            ? root.headHeight(root.headRows) + root.contentSpacing : 0)
         - root.headerSpace
-        - root.navHeight - root.contentSpacing
+        - root.navHeight - root.navGap - root.contentSpacing
         - root.legendBand
       // **The silver split of the screen**, not a decimal somebody liked: a
       // card that swallowed the screen would read as a page rather than as a
@@ -1037,7 +1049,8 @@ Item {
           + (root.headRows > 0
              ? root.headHeight(root.headRows) + root.contentSpacing : 0)
           + root.headerSpace
-          + root.navHeight + root.contentSpacing + root.gridHeight
+          + root.navHeight + root.navGap + root.contentSpacing
+          + root.gridHeight
           + root.legendBand,
         parent.height - Style.gapsOut * 2)
       // Nothing of its own when it is the screen: the scrim behind is what
@@ -1318,7 +1331,8 @@ Item {
         Flickable {
           id: bar
           width: parent.width
-          height: root.navHeight
+          // The row, and then the air it keeps under itself - see `navGap`.
+          height: root.navHeight + root.navGap
           contentWidth: navs.width
           contentHeight: height
           clip: true

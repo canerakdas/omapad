@@ -137,6 +137,14 @@ under it had already won. More cards than fit is what the `Flickable` is for,
 and always was: the bar has scrolled to follow the current card since it held
 chips.
 
+**And it stands `huge` off the grid** - the rung two above the gap the rest of
+the page's bands keep - where every other seam is one band. Being the same cell
+on the same columns is what leaves the bar reading as the grid's first row at a
+band's distance, which is the one thing it is not. `navGap` is only what the
+`Column`'s own spacing does not cover, carried as the bar's trailing air inside
+its clip; the distance that matters is the named rung, not two gaps added up,
+which is a pixel out at this scale and further out at others.
+
 **A nav card says what its place is doing.** `meta` is that line, and it
 takes the same two forms a head cell's line does: a bare word printed as it
 is, or a table with a `from` and a `ttl` whose command the daemon runs off the
