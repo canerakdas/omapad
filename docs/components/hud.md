@@ -110,12 +110,30 @@ underneath the game bar.
 
 Both are in `HudModel.view_state`, and both are the point of the surface.
 
-1. **A tile that is not a readout is not drawn.** The page holds its own
+1. **A tile with something to press is not drawn.** The page holds its own
    switch - it has to, because this surface is never pressed - and a switch
-   drawn over a game would be a control with no way to reach it.
+   drawn over a game would be a control with no way to reach it. `DRAWN` is
+   what is left: a `readout` and a `clock`, neither of which is a control.
 2. **A reading that has never answered draws nothing at all.** A fan this
    laptop publishes no number for is not a tile saying nothing, it is no tile.
    That is what makes one page of readings correct on two machines.
+
+**The first rule was about readings until a clock asked to be here**, and the
+wording is the change: what a tile needs in order to stand over a game is
+nothing to press, not a number to print. Game mode takes Omarchy's bar away,
+and the bar is where the time was - so the surface that stands in for the bar
+is where the clock belongs. A clock is also outside rule 2 without being an
+exception to it: nothing publishes the time and nothing could fail to, so
+there is no source to have gone quiet and no machine this tile is untrue on.
+It is never asked, and never dropped. See [`menu.md`](menu.md) for the tile
+itself, and `Clock.qml` for the drawing, which is the menu's own.
+
+**A chronograph is the case that shows the rule is the press.** It is the same
+face with a stopwatch in it and it is not drawn here, because A on it starts,
+stops and resets a measurement - a pusher over a game is a control with no way
+to reach it, which is the switch's own argument on a tile that looks like the
+clock. Written onto this page it is packed like any other tile and simply not
+drawn. See [`chrono.md`](chrono.md).
 
 The **whole** page is still packed, including the tiles that will not be
 drawn. That is what keeps the promise: a readout lands in the cell the menu
@@ -206,7 +224,10 @@ moves:
 {"open": true, "cols": 6, "rows": 12, "corner": 10, "margin": 16,
  "opacity": 0.9, "scale": 1.0, "badge": "stencil", "bar": true,
  "items": [{"id": "processor", "l": "Processor", "i": "a",
-            "x": 0, "y": 0, "w": 2, "h": 1, "t": "37%", "v": 0.37}]}
+            "k": "readout", "x": 0, "y": 0, "w": 2, "h": 1,
+            "t": "37%", "v": 0.37},
+           {"id": "time", "l": "Time", "k": "clock",
+            "x": 0, "y": 1, "w": 2, "h": 2, "mn": 825}]}
 ```
 
 `rows` is `[hud] rows` - how many the screen is cut into, **not** how tall
@@ -215,6 +236,13 @@ shape in both places - the base of `metrics.radius` where the compositor
 rounds nothing, not a radius; there is no `cell`, because a cell's height is
 this grid's to work out. They travel for the reason every geometry setting does:
 the shell cannot read the config. `v` is absent where there is no bar.
+
+`k` is which of the two kinds of tile this is, and it rides on every one of
+them rather than on the clock alone: the panel has two drawings to choose
+between and this is the whole of the choice. `mn` is the clock's own - both
+hands as one number, minutes since midnight, worked out here rather than
+asked of the daemon so the two surfaces that draw one page cannot be a minute
+apart. See [`menu.md`](menu.md) for why it is one number.
 
 ## Changing it
 

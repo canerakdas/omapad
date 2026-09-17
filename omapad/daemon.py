@@ -3,6 +3,7 @@
 import errno
 import json
 import logging
+import math
 import os
 import select
 import socket
@@ -25,7 +26,9 @@ from .gamebar import GameBarModel
 from .guide import GuideModel
 from .hud import HudModel
 from .mapping import MappingModel, render as render_mapping
-from .menu import (CONTROL_KINDS, ROWS, MenuError, MenuModel,
+from .chrono import Chrono, RUNNING as CHRONO_RUNNING, STOPPED as CHRONO_STOPPED
+from . import menu as menu_module
+from .menu import (CHRONO, CONTROL_KINDS, ROWS, MenuError, MenuModel,
                    build as build_menu, build_head, head_sources,
                    meta_sources, listed)
 from .osk import OskModel, badge_index
@@ -203,6 +206,32 @@ def _nothing(lines):
     """A command whose answer nobody wants. The write is the whole of it."""
 
 
+def _choice_index(spec, value):
+    """Which of a choice's places a value is on. The first, for a stranger.
+
+    A settings file edited by hand can hold a word that is no longer one of
+    the choices, and a ring has to be drawn pointing somewhere.
+    """
+    try:
+        return spec["choices"].index(value)
+    except ValueError:
+        return 0
+
+
+def _choice_share(spec, value):
+    """Where round a ring one of a list stands, 0..1.
+
+    The places are the choices themselves, so the first is the start of the
+    scale and the last is the end of it - the same claim `Travel.qml` makes
+    about a stepped value, which is that a stop is somewhere to *be* rather
+    than a segment to have covered.
+    """
+    places = len(spec["choices"]) - 1
+    if places < 1:
+        return 0.0
+    return _choice_index(spec, value) / float(places)
+
+
 def apply_curve(x, y, deadzone, exponent):
     """Radial deadzone plus a response curve, preserving direction.
 
@@ -343,6 +372,12 @@ class Daemon:
                               page_rows={config.hud_page: config.hud_rows})
         self.menu_client = ViewClient("menu.sock", config.menu_socket)
         self.menu_open = False
+        # **One chronograph, however many tiles draw one.** A stopwatch is a
+        # thing in the room rather than a property of a cell: start it on the
+        # page you were on and it is the same measurement on the next one. It
+        # is held here rather than in the model because it is not geometry and
+        # outlives no page - `chrono.py` says the rest.
+        self.chrono = Chrono()
         self._menu_next_heartbeat = 0.0
         # When the chip the bar came to rest on is worth asking about. Zero is
         # nothing pending.
@@ -359,6 +394,14 @@ class Daemon:
         self._menu_edged = False
         self._menu_before = None
         self._menu_sweep = 0.0
+        # The turn, which is the sweep's pair: how much of a value a thumb has
+        # carried round since the last whole step, and where round the stick
+        # it was when that was measured. `None` is a stick nobody is gripping
+        # - and it is cleared rather than remembered, because a knob picked up
+        # again has to turn from where the thumb came back on rather than jump
+        # to where it left.
+        self._menu_turn = 0.0
+        self._menu_angle = None
         # And where along its travel the value stood when A took it, as the
         # share the tile is drawn from. `_menu_before` is the same moment in
         # the setting's own units and exists so B can put it back; this one is
@@ -1481,6 +1524,13 @@ class Daemon:
                 # the row printing a number is no use to somebody who does
                 # not know which button takes it back.
                 word = "Cancel"
+            if button == "A" and self.menu_on_chrono():
+                # A pusher rather than a press, and which of the three it is
+                # now is the whole of what somebody standing on this tile has
+                # to know before they press it. Said here for the same reason
+                # `Hold to confirm` is: this row is the page's own line about
+                # its buttons.
+                word = self.chrono.verb()
             if button == "A" and self.menu_holds():
                 # The one tile where A is not a press. Said before it is
                 # pressed rather than found out by pressing: this row is the
@@ -2334,7 +2384,7 @@ class Daemon:
         state = self.menu.view_state(
             self.menu_open, self.action_state, self.action_value,
             self._menu_head_text, self.menu_legend(), self.menu_control,
-            self._menu_meta_text
+            self._menu_meta_text, self.chrono_fields
         )
         # Stamped here rather than in the model: whether the card fills the
         # screen is a setting, and `menu.py` holds state and geometry and
@@ -2560,9 +2610,30 @@ class Daemon:
                 return None
         except KeyError:
             return None
-        if not spec or value is None or "min" not in spec:
+        if not spec or value is None:
+            return None
+        if spec.get("kind") == "choice":
+            # A list has no travel of its own - there is no arithmetic between
+            # `Filled` and `Stencil` - so where along it a value is, is which
+            # one of how many. Only a ring asks: a `choice` tile prints the
+            # word and nothing else, and this is the drawing that gives the
+            # word a place to stand.
+            return _choice_share(spec, value)
+        if "min" not in spec:
             return None
         return setting_share(spec, value)
+
+    def chrono_fields(self):
+        """The stopwatch, as the surface carries it.
+
+        Not on the tile: `menu.view_state` says why, and the gauge's thumb is
+        the same lesson one control along. What is added here is the clock's
+        own seconds, which only a face with a running register on it has any
+        use for - the panel counts on from all three between payloads.
+        """
+        fields = self.chrono.view_state(time.monotonic())
+        fields["sc"] = round(menu_module.second_of_minute(), 2)
+        return fields
 
     def menu_control(self, item):
         """What a control tile is on, for the payload it is drawn from.
@@ -2610,6 +2681,9 @@ class Daemon:
         if item["control"] == "slider":
             return self.slider_fields(CHOSEN[name], value,
                                       self.setting_words(name, value))
+        if item["control"] == menu_module.KNOB:
+            return self.knob_fields(CHOSEN[name], value,
+                                    self.setting_words(name, value))
         return {"t": self.setting_words(name, value)}
 
     def menu_activate(self, item):
@@ -2753,7 +2827,14 @@ class Daemon:
         if control == "media":
             return self.media_control(item, value)
         spec = live_module.READINGS[name]
-        return self.slider_fields(spec, value, live_module.text(name, value))
+        words = live_module.text(name, value)
+        if control == menu_module.KNOB:
+            # One function answers for a control wherever it reads from: a
+            # knob on the machine's own volume and a knob on a setting of ours
+            # are one tile, and a page that drew them from two functions is a
+            # page where they can quietly stop matching.
+            return self.knob_fields(spec, value, words)
+        return self.slider_fields(spec, value, words)
 
     # -- what the machine underneath is doing ------------------------------
 
@@ -2964,6 +3045,27 @@ class Daemon:
             fields["at"] = nearest_stop_index(stops, value)
         return fields
 
+    def knob_fields(self, spec, value, words):
+        """A ring's payload: where round it, and out of how many places.
+
+        **A number is the slider's own answer, turned.** The same `v`, the
+        same `seg` and `at` where it has stops - worked out by the same
+        function, so the two drawings of one control cannot disagree about
+        where a value sits. What differs is entirely the panel's: a length
+        laid along a card, or the same length bent round a ring.
+
+        **A list is the half a slider has no drawing for.** Its places are its
+        choices and there is no arithmetic between them at all, so what is
+        sent is which one out of how many - and `v` beside it, because the
+        pointer needs an angle and turning a list into a fraction is this
+        side's work rather than the panel's.
+        """
+        if spec.get("kind") == "choice":
+            return {"t": words, "seg": len(spec["choices"]),
+                    "at": _choice_index(spec, value),
+                    "v": round(_choice_share(spec, value), 3)}
+        return self.slider_fields(spec, value, words)
+
     def menu_gauge(self, item, name):
         """A gauge's fields: the bar's two, plus the zone it shades.
 
@@ -3040,7 +3142,18 @@ class Daemon:
         a row, so it repeats while the stick is over. On a tile that has been
         taken it moves the value instead - which is Phase 0's table, and the
         one place the stick and the D-pad have to agree exactly.
+
+        **A held knob is the one tile where they do not**, and cannot: the
+        D-pad has four directions to spend and the stick has an angle, which
+        is the thing a ring is drawn from. So the stick stops being a repeat
+        there and becomes a turn - see `check_menu_turn`. Nowhere else does
+        the same stick mean two things, and this is the tile whose whole
+        argument is that a thumb can copy its shape.
         """
+        turning = self.menu_turning()
+        if turning is not None:
+            self.check_menu_turn(stick, turning)
+            return
         code_x, code_y = STICK_AXES[stick]
         x, y = self.axes[code_x], self.axes[code_y]
         magnitude = (x * x + y * y) ** 0.5
@@ -3109,6 +3222,10 @@ class Daemon:
                                  name in self.config.chosen)
         self._menu_edged = False
         self._menu_sweep = 0.0
+        # A ring taken is a ring nobody has gripped yet: the first frame of a
+        # turn is where the thumb lands, never where it was last time.
+        self._menu_turn = 0.0
+        self._menu_angle = None
         self._menu_was = self.menu_share(item)
         self.say("commit")
         self.push_menu_view()
@@ -3215,7 +3332,8 @@ class Daemon:
             return False
         try:
             before = self.config.setting(name)
-            value = self.config.set_setting(name, ("step", direction * steps))
+            value = self.config.set_setting(
+                name, self.menu_request(item, name, direction, steps))
         except (KeyError, ValueError) as exc:
             # A setting that went away under a config someone edited.
             log.warning("menu: %s: %s", name, exc)
@@ -3232,6 +3350,64 @@ class Daemon:
         self.menu_feel(direction)
         self.push_menu_view()
         return True
+
+    def menu_request(self, item, name, direction, steps):
+        """What one push asks the config for. A step, bar the one that ends.
+
+        A list walked with A comes back round to where it started, and that is
+        right for a press: there is one way through it, and coming out of the
+        far end is how you reach what you walked past.
+
+        **A ring does not wrap**, and it is the same argument `step_row` makes
+        about a list and `step` makes about the grid: a thumb that carries the
+        pointer clockwise past the last stop and finds it at the bottom of the
+        dial has lost the thing it was moving. What separates the two is that
+        a knob's value has a *position*, so going round is visible - and what
+        a hand feels at the end of a real one is a stop, which is what the
+        value that did not move becomes in `menu_adjust`.
+        """
+        spec = CHOSEN.get(name) or {}
+        if item["control"] != menu_module.KNOB or spec.get("kind") != "choice":
+            return ("step", direction * steps)
+        choices = spec["choices"]
+        landed = _choice_index(spec, self.config.setting(name)) \
+            + direction * steps
+        return ("set", choices[max(0, min(len(choices) - 1, landed))])
+
+    def menu_range(self, item):
+        """A control's whole travel and one step of it, in its own units.
+
+        What the sweep and the turn both need and the D-pad never does: they
+        cross a range in a time or in an angle, so they have to know how long
+        it is, where a press only ever asks for the next place along.
+
+        `None` where there is no range to cross - a tile that reads nothing,
+        or a setting that has gone away under a config someone edited.
+        """
+        if not item or not item["reads"]:
+            return None
+        source, name = item["reads"]
+        if source == "pad":
+            spec = CHOSEN.get(name)
+        elif source == "live":
+            spec = live_module.READINGS.get(name)
+        else:
+            return None
+        if not spec:
+            return None
+        if spec["kind"] == "choice":
+            # A list is crossed by its places. There is no arithmetic between
+            # two words to cross instead.
+            return (float(len(spec["choices"]) - 1), 1.0)
+        if spec.get("stops"):
+            # A ladder is crossed by its stops rather than along its numbers:
+            # they are a proportion apart, so the value's own arithmetic range
+            # would cross the bottom four of them in a sixth of the gesture
+            # and spend the rest of it on the top two.
+            return (float(len(spec["stops"]) - 1), 1.0)
+        if "min" not in spec:
+            return None
+        return (float(spec["max"]) - float(spec["min"]), float(spec["step"]))
 
     def menu_edge(self):
         """The end of a control's travel, announced once per arrival.
@@ -3258,6 +3434,13 @@ class Daemon:
         Moved in whole steps, so a value a trigger swept to is one a D-pad
         could have landed on: two ways to the same set of numbers, not two
         sets.
+
+        **On what the machine is doing as well as on a setting of ours.** It
+        read `CHOSEN` directly for as long as there was one kind of range to
+        cross, which left the trigger dead on the two tiles most likely to be
+        swept - how loud it is and how bright - with nothing on screen saying
+        why. `menu_range` is the one place that knows how long a control is,
+        and all three gestures ask it.
         """
         if self.menu.edit:
             # Nothing here is a value while a page is being rearranged.
@@ -3271,20 +3454,14 @@ class Daemon:
             self._menu_sweep = 0.0
             self._menu_way = None
             return
-        source, name = item["reads"]
-        if source != "pad":
+        found = self.menu_range(item)
+        if found is None:
+            # A card of rows is takeable and has no range at all, and a
+            # setting can go away under a config someone edited. Neither is a
+            # thing to cross.
+            self._menu_sweep = 0.0
             return
-        spec = CHOSEN[name]
-        stops = spec.get("stops")
-        if stops:
-            # A ladder is swept by its stops rather than along its numbers:
-            # they are a proportion apart, so the value's own arithmetic range
-            # would cross the bottom four of them in a sixth of the pull and
-            # spend the rest of it on the top two.
-            step, span = 1.0, float(len(stops) - 1)
-        else:
-            step = float(spec["step"])
-            span = float(spec["max"]) - float(spec["min"])
+        span, step = found
         seconds = max(0.001, self.config.menu_sweep_ms / 1000.0)
         # The push is live from the moment the trigger is pulled, not from the
         # first whole step it lands: at a gentle pull a step is several ticks
@@ -3298,6 +3475,77 @@ class Daemon:
         self._menu_sweep -= steps * step
         direction = 1 if steps > 0 else -1
         self.menu_adjust(item, direction, abs(steps))
+
+    def menu_turning(self):
+        """The knob being held, or None. What diverts the stick to an angle."""
+        held = self.menu.held
+        if held is None or held["control"] != menu_module.KNOB:
+            return None
+        return held
+
+    def check_menu_turn(self, stick, item):
+        """The stick's angle, turning the one control that has one.
+
+        **Why the stick at all.** Every other way into a value on this surface
+        translates: a direction is pushed and a number goes up, a trigger is
+        pulled and a number crosses. A knob is turned, and the one gesture
+        this pad already has is a thumb going round the edge of a stick - so
+        this is the only place where what the hand does and what the drawing
+        does are the same movement. It is the whole argument for the control.
+
+        **It is relative, and that is not a detail.** What moves the value is
+        how far round the thumb has travelled since the last frame, never
+        where it is pointing: a knob is grabbed rather than aimed, and a stick
+        pushed to two o'clock that set the volume to three quarters would be a
+        control that jumps the moment it is touched. Nothing on a pad should
+        be able to do that to a sink.
+
+        **The grip is what makes an angle measurable.** Near the middle of a
+        stick's travel a degree is noise - a thumb resting there crosses whole
+        quadrants without moving - so nothing turns until the stick is
+        `[menu] turn_grip` of the way over, and coming off it drops the angle
+        rather than remembering it. Gripping again starts from wherever the
+        thumb came back on, which is the other half of the no-jump promise.
+
+        Whole steps, like the sweep: a value a thumb turned to is one the
+        D-pad could have landed on. Three ways in, one set of numbers.
+        """
+        code_x, code_y = STICK_AXES[stick]
+        x, y = self.axes[code_x], self.axes[code_y]
+        if (x * x + y * y) ** 0.5 < self.config.menu_turn_grip:
+            self._menu_angle = None
+            self._menu_way = None
+            return
+        # Screen angle, so clockwise is positive with `y` down the screen -
+        # which is the direction the drawing turns in and the direction a
+        # right-handed hand means by "up".
+        angle = math.degrees(math.atan2(y, x))
+        last, self._menu_angle = self._menu_angle, angle
+        if last is None:
+            # The frame the thumb landed on. It has travelled nothing yet, and
+            # measuring against wherever the angle was last time the stick was
+            # gripped is exactly the jump this control refuses.
+            return
+        # Wrapped into a half turn either way: crossing the top of the dial is
+        # one degree of movement, not three hundred and fifty-nine.
+        moved = (angle - last + 180.0) % 360.0 - 180.0
+        if not moved:
+            return
+        found = self.menu_range(item)
+        if found is None:
+            return
+        span, step = found
+        degrees = max(1.0, self.config.menu_turn_degrees)
+        self._menu_turn += moved / degrees * span
+        steps = int(self._menu_turn / step)
+        if not steps:
+            # The push is live from the first degree rather than the first
+            # whole step, for the sweep's reason: a settle in between would
+            # throw away what has been turned so far, over and over.
+            self._menu_moving = MENU_SCRUB_HOLD
+            return
+        self._menu_turn -= steps * step
+        self.menu_adjust(item, 1 if steps > 0 else -1, abs(steps))
 
     def trigger_pull(self, name):
         """How far a trigger is pulled, 0..1.
@@ -3325,6 +3573,12 @@ class Daemon:
         self._menu_moving = 0.0
         self._menu_way = None
         self._menu_sweep = 0.0
+        # The part of a step a turn had not finished, dropped with the sweep's
+        # own. **Not the angle**: what a settle ends is a push, and the thumb
+        # is still on the stick. Clearing that here read as a knob that turned
+        # for one frame and then stopped dead - the grip is let go of by
+        # coming off the stick, which is the one event that means it.
+        self._menu_turn = 0.0
         self.rumble.stop("texture")
         name = self._menu_dirty
         if name is None:
@@ -3575,6 +3829,12 @@ class Daemon:
             # already inside must not answer A by entering itself again.
             self.menu_take()
             return False
+        elif command == "press" and self.menu_on_chrono():
+            # The pusher, and the one press on this surface that measures
+            # something. The menu stays where it is: a stopwatch you had to
+            # reopen the menu to stop would be a stopwatch nobody starts.
+            self.chrono_press()
+            return False
         elif command == "press" and model.current is not None \
                 and model.current["control"] in CONTROL_KINDS:
             # A control acts on what it reads: there is nothing to enter and
@@ -3650,6 +3910,38 @@ class Daemon:
         # row says rather than what the card does.
         current = self.menu.acting
         return current is not None and bool(current.get("confirm"))
+
+    def menu_on_chrono(self):
+        """Is the tile in front the chronograph?
+
+        Asked of `current` rather than of `acting`: a card of rows is what
+        `acting` exists for, and nothing inside one is a chronograph - a row
+        is a line of text and every control this surface has is a card's worth
+        of drawing.
+        """
+        if not self.menu_open or self.menu.edit:
+            return False
+        current = self.menu.current
+        return current is not None and current["control"] == CHRONO
+
+    def chrono_press(self):
+        """A on a chronograph tile: start, stop, reset, round again.
+
+        Answered in the pad's own three words rather than in one, because the
+        three presses are not the same press: starting a measurement commits
+        to it, stopping it is the moment it is worth something, and resetting
+        throws it away - which is what `back` says everywhere else on this
+        surface.
+        """
+        state = self.chrono.press(time.monotonic())
+        if state == CHRONO_RUNNING:
+            self.say("commit")
+        elif state == CHRONO_STOPPED:
+            self.say("tick")
+        else:
+            self.say("back")
+        log.info("menu: chronograph %s", state)
+        self.push_menu_view()
 
     def menu_arm(self, item):
         """Start holding a row that cannot be taken back.

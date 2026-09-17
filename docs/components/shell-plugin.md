@@ -105,6 +105,51 @@ missing optional package must cost one feature rather than the keyboard.
   line runs on past the travel at both ends, as the spine runs past the first
   row and the last. The caller hands it `ladder` (the surface's `Metrics`), the
   value, the stops and the three colours; it decides nothing.
+- **`Knob.qml`** - the same question drawn as a ring, for the one control a
+  thumb can copy rather than translate. It keeps the travel's whole argument -
+  nothing fills, the run behind the value says how far it has come, solid
+  where the value has stops and a tint where it has none - and parts company
+  with it three times, each time because a circle is not a line: **a ring
+  needs no caps**, since the quarter left open at the bottom is where the
+  scale starts and stops; **the value's mark is a pointer**, because a ring
+  has a middle and that is what a knob has always answered *where is it* with;
+  and **a stop is a notch hung just outside the scale**, the same claim the
+  travel makes with a cross. The rim is the gauge's own `dial-face.svg` - a
+  page holding a knob, a dial and a clock holds one circle drawn three times -
+  and nothing else in it is generated, because an arc between two angles, a
+  notch per stop and a rectangle turned to a value all answer to a number. The
+  caller hands it `art` (the surface's `ControlArt`), the value, the stops and
+  four colours.
+- **`Clock.qml`** - the time with hands on it, and the stopwatch that shares
+  its face, for the two surfaces that draw a clock tile. One file for `Travel.qml`'s reason: the menu is where the tile
+  is put on the page and the HUD is where it is looked at, and a face that
+  differed between them would be the arrangement saying something it does not
+  mean. The rim, the twelve marks and the hub come out of `ControlArt.qml` -
+  drawing that does not depend on the time - and the two hands are rectangles
+  hung off a point at the middle of the face and turned, because a shape
+  parameterised by a number cannot be drawn once. **A clock has no second
+  hand**:
+  the page arrives every `VIEW_HEARTBEAT` seconds, so one would be visibly
+  wrong most of the time on a surface whose whole argument is that nothing on
+  it twitches. The caller hands it `art` (the surface's `ControlArt`), the
+  minute of the day and three colours; every measurement in it is a share of
+  the face, which is why none of them is on the ladder.
+
+  **A chronograph is the same file with `elapsed` handed in**, and it is the
+  one drawing on these surfaces that animates itself: the daemon sends how
+  long it had measured and whether it is still going - **on the surface rather
+  than on the tile**, or `fresh()` would rebuild the page twice a second to
+  move one hand (qml.md 5.4) - and this stamps `Date.now()` when that lands
+  and counts on from there, re-syncing on every push. Not a
+  `Timer` polling for state - the state arrived on the socket; what turns here
+  is a hand on a measurement it already holds - and it sleeps while the
+  surface is down. The three registers are a panda dial's: running seconds at
+  nine, the stopwatch's minutes at three, its hours at six, each a disc of
+  ground with a hand on it, because what says a register is a register at this
+  size is the change of ground rather than marks nobody can see. The figures
+  beside the tile's name are spelled here too, which nothing else on these
+  surfaces does: a number that changes ten times a second cannot come off a
+  wire written twice a second.
 - **`Metrics.qml`** - the shell's measurements at omapad's own scale. Every
   surface here is read from twice the distance an Omarchy menu is, and the
   shell has one scale for the whole session, so this multiplies it per surface

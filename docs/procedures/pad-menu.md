@@ -226,6 +226,11 @@ control = "slider"          # a number; A takes it, then left and right
 reads = "pad:pointer_speed"
 
 [[menu.items.items]]
+label = "Volume"
+control = "knob"            # the same number, as a ring the stick turns
+reads = "live:volume"
+
+[[menu.items.items]]
 label = "Left stick"
 control = "gauge"           # the same number, as a dial
 reads = "pad:left_deadzone"
@@ -234,8 +239,19 @@ shows = "left"              # and where the thumb is, which is no setting
 
 The kinds have to match, and `omapad check` says so: a `toggle` reads a
 `bool`, a `choice` reads a `choice`, a `slider` and a `gauge` read a `number`,
-a `media` reads a `media`. A control needs no `action` and no `items`, cannot
-`repeat`, and always stays.
+a `media` reads a `media`, and a `knob` reads **either** a number or a choice -
+the only control with two kinds. A control needs no `action` and no `items`,
+cannot `repeat`, and always stays.
+
+**A knob rather than a slider is a question about the hand, not the page.**
+They read the same things and step the same steps; what a ring adds is that a
+held one is turned by carrying the thumb round the stick, which is the one
+gesture on this pad that is already what the drawing does. Reach for it where
+somebody arrives at the value often and does not want to step towards it - how
+loud it is - and leave a bar where the value is read more than it is set. Two
+cells square, like the dial: a page that holds one of each has a length and an
+angle answering one question, which is the honest way to find out which you
+reach for.
 
 **Two sources.** `pad:` is one of omapad's own settings, and `live:` is what
 the machine is doing - `volume`, `mute`, `brightness`, `media`. A `live:`

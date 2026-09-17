@@ -52,7 +52,7 @@ from it.
 |---|---|---|---|---|
 | D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place |
 | D-pad up/down | the same | - | the same | carry it a row |
-| **Left stick** | the same as the D-pad, held rather than flicked | the same | the same | the same |
+| **Left stick** | the same as the D-pad, held rather than flicked | the same - or, on a **knob**, its angle turns the value | the same | the same |
 | **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | shorter / taller |
 | **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** |
 | **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save |
@@ -262,12 +262,94 @@ table and `_reads` picks by source, and **all three tables are passed into
 `build()` rather than imported**, so this module stays the thing that holds
 state and geometry and nothing else.
 
-**A `readout` is the one control that is not a control.** What the machine is
+**A `knob` is the slider's twin**, and the pair is the one case on this
+surface of two drawings of one control:
+
+```toml
+[[menu.items.items]]
+label = "Volume"
+control = "knob"
+reads = "live:volume"
+```
+
+It reads what a slider reads, steps what a slider steps, is taken the way a
+slider is taken and sends the same fields. What it is for is the gesture: a
+slider is a length and a knob is an angle, and the stick this page is walked
+with is the one thing on the pad that is already a turn - so on a held ring
+the stick stops repeating a direction and carries the value round instead.
+See *A ring, and the one gesture that is already a turn* below.
+
+**It reads a list as well as a number**, which nothing else here does. A
+selector with a stop per position is the oldest drawing there is of *one of
+these*, and it is the half a slider has no figure for: a bar between `Filled`
+and `Stencil` would be a length drawn over two words with no arithmetic
+between them. `CONTROL_KINDS` is where that is written down, and it is the
+only entry with two kinds in it.
+
+**Neither of them is the better one, and the shipped page says so.** A length
+is read faster and a ring is turned better, so `Volume` is a knob and
+`Brightness` beside it is a bar - the page that holds both is where you find
+out which you reach for. It takes the dial's square for the dial's reason.
+
+**A `readout` is a control that is not a control.** What the machine is
 doing is published rather than set - a temperature is not a setting - so the
 tile commits to nothing and A on it does nothing rather than finding something
 to do. It is not in `TAKEABLE` either, because there is no range to push. The
 same tile is drawn by `Hud.qml` over whatever is playing, which is the other
 half of [`hud.md`](hud.md): one page, two surfaces.
+
+**A `clock` is the other one, and it goes further: it reads nothing at all.**
+
+```toml
+[[menu.items.items]]
+label = "Time"
+control = "clock"
+```
+
+What a clock is on is not a setting, not something the desktop is doing and
+not something the kernel publishes, so there is no table to point a `reads` at
+- one is refused by name, because "only a control reads something" is a
+baffling thing to be told about a line that says `control = "clock"`. It is
+the one tile whose value this module works out itself, and it may: `time` is
+already imported for the head, and `minute_of_day()` is the whole of it.
+
+**A face rather than a second `%H:%M`.** The head already prints the time, to
+somebody who has just opened the menu and is reading words. A tile is glanced
+at from across a room and over something else, and what a glance gets off two
+hands is roughly when it is - which is the whole question anybody asks a clock
+from a sofa. It takes the gauge's square for the gauge's reason, and the same
+square: two circles on one page drawn at two sizes read as a fault rather than
+as two tiles.
+
+It is drawn by `Hud.qml` too, and that is what widened the rule over there:
+what a tile needs in order to be allowed over a game is **nothing to press**,
+not a reading to print. Game mode takes Omarchy's bar away, and the bar is
+where the time was.
+
+**A `chrono` is that face with a stopwatch in it**, which is what a
+chronograph is:
+
+```toml
+[[menu.items.items]]
+label = "Stopwatch"
+control = "chrono"
+```
+
+It reads nothing either, and what it holds is a press somebody made - which no
+table could have been pointed at, and which is not on its tile for the reason
+the payload section below gives. The measurement itself is
+[`chrono.md`](chrono.md): one stopwatch however many tiles draw one, and one
+pusher because A is the only button a tile owns.
+
+**A is a pusher on it**, and the legend under the card says which of the three
+it is - `Start`, `Stop`, `Reset` - the way it already says `Hold to confirm`
+for a row that has to be held. That is the same mechanism and the same
+argument: this row is the page's own line about its buttons, and a button that
+means something else on the tile in front is exactly what it is for.
+
+And it is **not** drawn on the HUD, for the reason the clock beside it is: a
+chronograph has a pusher, and a pusher over a game is a control with no way to
+reach it.
 
 `build()` hands both down its own recursion. It did not, once, and since every
 control tile in the shipped tree lives a level down that meant the check above
@@ -707,7 +789,8 @@ held the two axes are the tile's.
 
 ### Moving a control with a range
 
-Two ways to the same set of numbers, for two different presses:
+Three ways to the same set of numbers, for three different hands - the third
+is a knob's alone and has its own section below:
 
 - **The D-pad**, once taken, is how you land on the number you meant. One step
   per push, growing to `[menu] ramp` after `[menu] ramp_ms` of holding a
@@ -720,12 +803,64 @@ Two ways to the same set of numbers, for two different presses:
   other, so both in is still.
 
 The sweep moves in **whole steps** of the setting's own `step`, so a value a
-trigger swept to is one the D-pad could have landed on. Two ways to one set of
-numbers, not two sets.
+trigger swept to is one the D-pad could have landed on. Three ways to one set
+of numbers, not three sets.
+
+**`menu_range` is the one place that knows how long a control is**, and all
+three gestures ask it: the whole travel and one step of it, in the value's own
+units, for a range, a ladder and a list alike. The sweep read `CHOSEN`
+directly for as long as there was one kind of range to cross, which left the
+trigger dead on the two tiles most likely to be swept - how loud it is and how
+bright, which are the machine's numbers rather than ours - and took the loop
+down outright on a card of rows, which is takeable and has no range at all.
 
 `pointer_speed` is thirty-eight steps end to end, which is what makes both of
 these load-bearing rather than a flourish: a slider stepping once per press
 would be worse than the two rows it replaced.
+
+### A ring, and the one gesture that is already a turn
+
+`check_menu_turn` is the third way into a value and the only one that is not a
+translation. A direction is pushed and a number goes up; a trigger is pulled
+and a number crosses; a **knob is turned**, and a thumb going round the edge
+of a stick is that movement rather than a stand-in for it. It is the whole
+argument for the control - a ring that could only be pushed sideways would be
+a slider drawn round a corner.
+
+Four things about it, and each is a promise rather than a tuning:
+
+- **Relative, never absolute.** What moves the value is how far round the
+  thumb has travelled since the last frame, not where it is pointing. A stick
+  pushed to two o'clock that set the volume to three quarters would be a
+  control that jumps the moment it is touched, and nothing on a pad may do
+  that to a sink.
+- **The grip is what makes an angle measurable.** Near the middle of a stick's
+  travel a degree is noise - a resting thumb crosses whole quadrants without
+  moving - so nothing turns below `[menu] turn_grip`, and coming off it drops
+  the angle rather than remembering it. Gripping again starts from wherever
+  the thumb landed, which is the other half of the no-jump promise.
+- **Whole steps**, like the sweep: a value a thumb turned to is one the D-pad
+  could have landed on. Three ways in, one set of numbers - which is also what
+  keeps the push rate the sweep's rather than the frame's, so a turning ring
+  costs what a swept bar costs and no more.
+- **`[menu] turn_degrees` is the gearing**: how far round the whole range is.
+  A quarter turn is twitchy on a volume and right on a list of four.
+
+**A ring does not wrap.** A list walked with A comes back round to where it
+started, and that is right for a press - there is one way through it, and
+coming out of the far end is how you reach what you walked past. A turn is
+continuous and the value has a *position*, so a thumb that carries the pointer
+clockwise past the last stop and finds it at the bottom of the dial has lost
+what it was moving. That is the grid's own rule about wrapping, arriving on
+the one control where going round is visible. `menu_request` is where the
+clamp lives, and the value that did not move becomes the end stop
+`menu_adjust` already announces.
+
+**The turn is the held tile's, and only the held tile's.** A tile the
+selection is passing over cannot own the stick any more than it can own left
+and right, which is what `TAKEABLE` is for. `menu_turning()` is the whole
+question, and it is the one place on this surface where the same stick means
+two things.
 
 ### When a push is over, and what that costs
 
@@ -1629,13 +1764,36 @@ a `meta` is a subprocess with a clock on it, and a command answering for a
 page nobody is looking at is the cost that refresh is written to avoid.
 
 A control tile adds what it is on: `on` for a switch, `t`
-for the words a choice or a slider is showing, `v` for how far along a slider
-is (0..1), `b` for where along it stood when A took it, and `hd` where it is
-the one being held. `b` is on the wire **only while the tile is held and only
+for the words a choice, a slider or a knob is showing, `v` for how far along a
+slider is or how far round a knob is (0..1), `b` for where it stood when A
+took it, and `hd` where it is the one being held. A knob adds no field of its
+own at all - `seg` and `at` are the slider's ladder fields doing a second job,
+so a list is drawn from which place out of how many exactly as a ladder is,
+and the two drawings of one control cannot disagree about what they were
+sent. `b` is on the wire **only while the tile is held and only
 while it differs from `v`**: a control nobody is holding has no *before*, and
 the panel draws the distance between the two rather than either of them. A media tile's `l` and `d`
 are overwritten with the title and the artist. The surface carries `hd`
 too, as the held tile's id or empty.
+
+A `chrono` tile adds **nothing at all**, and that is the design: the stopwatch
+rides on the surface as `chrono`, `{run, el, sc}`, beside `hd` and `count`. A
+value that differs on every push, carried inside `items`, makes the whole model
+differ on every push - and the panel rebuilds every delegate on the page when
+it does (qml.md 5.4). It was measured at 13% of a core for one moving hand.
+`menu_gauge` had written the warning down for the thumb dot already; this is
+that sentence one control along, and [`chrono.md`](chrono.md) has the numbers.
+
+It is asked for through a **callable**, like `control`, and only where a tile
+on the page in front would draw one: off the wire entirely everywhere else.
+
+A `clock` tile adds `mn`, **both hands as one number**: minutes since
+midnight, from `minute_of_day()`. One number rather than an hour and a minute
+because an hour hand stands between two hours by exactly how far round the
+minute hand has got, so a pair of fields could be sent disagreeing about that
+- and the panel would then have to know how to settle it, which is geometry
+this side does not owe it. It rides on the clock alone, so a page of switches
+costs nothing for having one on it.
 
 A `rows` tile adds `rs`, its own rows as `[{id, l, i, d, on?}]` - the three
 questions a tile is asked and no others, because a row has no cells, no control

@@ -15,8 +15,9 @@ cells over the whole screen instead of inside a card.
 
 Two things follow from that, and both are the point:
 
-- **A tile that is not a readout is not drawn here.** The page holds its own
-  switch, and a switch is a thing to press; this surface is never pressed.
+- **A tile with something to press is not drawn here.** The page holds its own
+  switch, and a switch is a thing to press; this surface is never pressed. What
+  is left is a reading and a clock, neither of which is a control.
 - **A reading that has never answered draws nothing at all.** A fan this
   laptop publishes no number for is not a tile saying nothing, it is no tile -
   which is what makes one page of readings correct on two machines.
@@ -27,10 +28,15 @@ through. It is something you look at while doing something else, and the
 moment it could take a press it would be in the way of the game it is over.
 """
 
-from .menu import COLUMNS, arrange, place
+from .menu import CLOCK, COLUMNS, arrange, minute_of_day, place
 
-# What this surface draws, and the only thing it draws.
+# What this surface draws, and the only things it draws. **The rule is that a
+# tile here has nothing to press**, not that it is a reading: a switch drawn
+# over a game is a control with no way to reach it, and neither of these is a
+# control. A clock is the case that made the difference worth naming - game
+# mode takes Omarchy's bar away, and the bar is where the time was.
 READOUT = "readout"
+DRAWN = (READOUT, CLOCK)
 
 
 class HudModel:
@@ -121,24 +127,42 @@ class HudModel:
         nothing for is left out entirely: there is no such thing here as a
         tile with nothing in it, because nothing is what most of these
         readings are on most machines.
+
+        **A clock is never asked, and never dropped.** It reads nothing, so
+        there is no source to have gone quiet and no machine this one is
+        untrue on - which is the other half of the rule above, not an
+        exception to it: what is dropped is a reading with no answer, and a
+        clock has no reading.
         """
         items = []
         for tile in self.tiles:
             item = tile["item"]
-            if item["control"] != READOUT:
+            if item["control"] not in DRAWN:
                 continue
-            found = value(item) if value is not None else None
-            if not found or not found.get("t"):
-                continue
+            found = None
+            if item["control"] == READOUT:
+                found = value(item) if value is not None else None
+                if not found or not found.get("t"):
+                    continue
             row = {
                 "id": item["id"],
                 "l": item["label"],
+                # Which of the two it is. Every tile that reaches this surface
+                # has a control, so it is never empty and never off the wire -
+                # the panel has two drawings to choose between and this is the
+                # whole of the choice.
+                "k": item["control"],
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
             }
             if item["icon"]:
                 row["i"] = item["icon"]
-            row.update(found)
+            if item["control"] == CLOCK:
+                # Worked out here rather than asked of the daemon, exactly as
+                # the menu's own clock tile is: the two surfaces draw one page,
+                # so a face on one of them cannot be a minute behind the other.
+                row["mn"] = minute_of_day()
+            row.update(found or {})
             items.append(row)
         return {
             "open": opened,

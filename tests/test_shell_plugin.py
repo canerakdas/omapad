@@ -17,6 +17,7 @@ PLUGIN = os.path.join(
 
 OPENS = re.compile(r"^(\s*)(?:\w+\s*:\s*)?Text \{\s*$")
 OPENS_TRAVEL = re.compile(r"^(\s*)(?:\w+\s*:\s*)?Travel \{\s*$")
+OPENS_KNOB = re.compile(r"^(\s*)(?:\w+\s*:\s*)?Knob \{\s*$")
 
 
 def text_blocks(source, opens=OPENS):
@@ -265,6 +266,45 @@ class TravelTests(unittest.TestCase):
                     self.assertIn(
                         field, body,
                         "%s:%d draws a travel with no %s"
+                        % (name, number, field))
+
+
+class KnobTests(unittest.TestCase):
+    """The ring a value turns in takes everything it draws with from the call
+    site, and says nothing when it is handed none of it.
+
+    `Knob.qml` is `Travel.qml` bent round a circle and inherits its whole
+    argument, this one included: it names no colour (qml.md 8.1) and builds no
+    `ControlArt` of its own - a copy per knob on the page is what a component
+    that cannot be a singleton costs. So a knob missing `art` draws a scale
+    with no rim round it, and one missing a colour draws nothing at all.
+    """
+
+    REQUIRED = ("art:", "value:", "ink:", "trail:", "ghost:", "mark:")
+
+    def setUp(self):
+        self.files = sorted(
+            name for name in os.listdir(PLUGIN) if name.endswith(".qml")
+        )
+
+    def test_the_plugin_still_draws_a_knob(self):
+        # A rename would otherwise turn the test below into a pass over
+        # nothing, the way it would for `Travel`.
+        found = 0
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                found += len(text_blocks(handle.read(), OPENS_KNOB))
+        self.assertGreater(found, 0)
+
+    def test_every_knob_is_handed_what_it_draws_with(self):
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                blocks = text_blocks(handle.read(), OPENS_KNOB)
+            for number, body in blocks:
+                for field in self.REQUIRED:
+                    self.assertIn(
+                        field, body,
+                        "%s:%d draws a knob with no %s"
                         % (name, number, field))
 
 

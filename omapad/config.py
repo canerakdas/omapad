@@ -1594,6 +1594,17 @@ class Config:
         self.menu_sweep_ms = int(menu.get("sweep_ms", 1500))
         if self.menu_sweep_ms <= 0:
             raise ConfigError("menu.sweep_ms must be positive")
+        # How far a thumb has to carry a knob round to cross its whole range,
+        # and how far over the stick has to be before an angle is worth
+        # reading at all. The first is the gearing of the one gesture on this
+        # pad that is a turn; the second is what stops a thumb resting near
+        # the middle - where a degree is noise - from moving anything.
+        self.menu_turn_degrees = float(menu.get("turn_degrees", 270.0))
+        if self.menu_turn_degrees <= 0:
+            raise ConfigError("menu.turn_degrees must be positive")
+        self.menu_turn_grip = float(menu.get("turn_grip", 0.5))
+        if not 0.0 < self.menu_turn_grip < 1.0:
+            raise ConfigError("menu.turn_grip is between 0 and 1")
         # What the sticks do while the menu is up. The implicit surface layers
         # keep the base roles everywhere else, so this is a documented new
         # case rather than a general mechanism: the left one walks the tiles

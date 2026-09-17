@@ -86,7 +86,8 @@ the word no matter what the door's numbers say.
 ## Drawing a control part
 
 The menu's tiles hold values, and the parts they are drawn from live in the
-same `shapes/` directory - `dial-*`, `switch-*`, `chev-*`, `media-*`, `grip`.
+same `shapes/` directory - `dial-*`, `clock-*`, `switch-*`, `chev-*`,
+`media-*`, `grip`.
 They go in `CONTROLS_TO_DRAW`, `(family, name, shape.svg)`, and come out in
 `shell-plugin/ControlArt.qml`.
 
@@ -103,6 +104,7 @@ these too" is the obvious reading of what the buttons do, and it is wrong.
 | the rim, the notches, the thumb dot | where the dot sits, and the shaded zone - a circle of variable radius, which is `radius: width / 2` rather than a drawing |
 | the switch's pill and knob | how far the knob has travelled |
 | the chevrons, the transport marks | which one is drawn or dimmed |
+| the clock's rim, its twelve marks, the hub | every hand - a rectangle hung off a point and turned to an angle the time decides - and a chronograph's three registers, which are a disc of ground each |
 
 A shape parameterised by a number cannot be drawn once. Same split `BadgeArt`
 already makes between a button and the label set into it - which is why

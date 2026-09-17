@@ -83,10 +83,11 @@ class ThePageIsAnOrdinaryMenuGroup(unittest.TestCase):
 class WhatThisSurfaceRefusesToDraw(unittest.TestCase):
     """Two rules, and both of them are the point of the surface."""
 
-    def test_a_tile_that_is_not_a_readout_is_not_drawn(self):
+    def test_a_tile_with_something_to_press_is_not_drawn(self):
         # The page holds its own switch - it has to, because this surface is
         # never pressed - and a switch drawn here would be a control over a
-        # game with no way to reach it.
+        # game with no way to reach it. The rule is the press, not the
+        # reading: a clock has nothing to press either, and is drawn.
         model = HudModel(tree(
             readout("Processor", "cpu"),
             {"label": "Keep on screen", "control": "toggle",
@@ -130,6 +131,72 @@ class WhatThisSurfaceRefusesToDraw(unittest.TestCase):
         self.assertEqual(len(drawn), 1)
         # Pushed onto the second row by a switch that is not drawn at all.
         self.assertEqual(drawn[0]["y"], 1)
+
+
+class TheClockIsTheOtherTileWithNothingToPress(unittest.TestCase):
+    """What a bar was for, on the surface that replaces one.
+
+    Game mode takes Omarchy's bar away, which is the right trade for a screen
+    watched from a sofa and leaves the time with nowhere to be. A clock reads
+    nothing, so neither of this surface's two rules is about it: there is no
+    press to keep it off, and no source that could have gone quiet.
+    """
+
+    def clock(self, **extra):
+        row = {"label": "Time", "control": "clock"}
+        row.update(extra)
+        return row
+
+    def test_a_clock_is_drawn_over_a_game(self):
+        model = HudModel(tree(readout("Processor", "cpu"), self.clock()))
+        drawn = model.view_state(True, answers(cpu="37%"))["items"]
+        self.assertEqual([row["l"] for row in drawn], ["Processor", "Time"])
+
+    def test_a_clock_is_drawn_with_no_daemon_to_ask(self):
+        # `value=None` is the heartbeat before anything has been read, which
+        # empties a page of readings and cannot empty this tile: there is
+        # nothing to have answered.
+        model = HudModel(tree(self.clock()))
+        drawn = model.view_state(True)["items"]
+        self.assertEqual([row["l"] for row in drawn], ["Time"])
+
+    def test_it_carries_both_hands_and_which_tile_it_is(self):
+        model = HudModel(tree(self.clock()))
+        row = model.view_state(True)["items"][0]
+        self.assertEqual(row["k"], "clock")
+        self.assertIn(row["mn"], (menu_module.minute_of_day(),
+                                  menu_module.minute_of_day() + 1))
+
+    def test_a_reading_still_says_which_tile_it_is(self):
+        # One field for the panel's whole choice of drawing, on every tile
+        # that reaches this surface rather than on one of the two.
+        model = HudModel(tree(readout("Processor", "cpu")))
+        row = model.view_state(True, answers(cpu="37%"))["items"][0]
+        self.assertEqual(row["k"], "readout")
+        self.assertNotIn("mn", row)
+
+    def test_nothing_is_asked_about_a_clock(self):
+        # `names()` is what the daemon polls for. A clock is not a reading and
+        # must not put a name on that list.
+        model = HudModel(tree(readout("Processor", "cpu"), self.clock()))
+        self.assertEqual(model.names(), ["cpu"])
+
+    def test_a_chronograph_is_not_drawn_here(self):
+        # The rule is the press, and a chronograph has one: A on it starts,
+        # stops and resets a measurement, and a pusher over a game is a
+        # pusher with no way to reach it. The clock beside it stays, because
+        # there is nothing on a clock to press.
+        model = HudModel(tree(
+            self.clock(), {"label": "Stopwatch", "control": "chrono"}))
+        drawn = model.view_state(True)["items"]
+        self.assertEqual([row["l"] for row in drawn], ["Time"])
+
+    def test_it_takes_the_cells_the_menu_gave_it(self):
+        # Square, because it is round - and the same square on both surfaces,
+        # because it is the same tile.
+        model = HudModel(tree(self.clock()))
+        row = model.view_state(True)["items"][0]
+        self.assertEqual((row["w"], row["h"]), (2, 2))
 
 
 class TheGridIsTheScreen(unittest.TestCase):

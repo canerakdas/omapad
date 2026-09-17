@@ -260,6 +260,30 @@ class EveryControlIsDrawn(unittest.TestCase):
         # any size is, and it keeps a one-pixel outline one pixel wide at the
         # two-percent values this setting is actually set to.
         "gauge": ("dial:face", "dial:ticks", "dial:thumb"),
+        # No hands: they are two rectangles turned to an angle the time
+        # decides, which is the dial's thumb one shape along - a drawing
+        # parameterised by a number cannot be drawn once. The hub is here
+        # because the join under them is not parameterised by anything.
+        "clock": ("clock:face", "clock:ticks", "clock:hub"),
+        # The clock's own face and nothing else. Everything a chronograph
+        # adds answers to a number - three sunk registers, three hands and a
+        # sweep hand - and a shape parameterised by a number cannot be drawn
+        # once. Listed so the other half of this test still sees the control,
+        # the way `slider` and `readout` are.
+        "chrono": ("clock:face", "clock:ticks", "clock:hub"),
+        # **The dial's own rim and nothing else of its own.** A knob is the
+        # same circle as the gauge beside it and the clock under it, so it is
+        # the same drawing - a page holding three circles at three weights
+        # reads as a fault rather than as three tiles.
+        #
+        # And its scale is not art, which is the one place it parts company
+        # with the clock. Twelve marks are the same twelve on every clock ever
+        # drawn; a knob's marks are its stops, and a knob reading a list of
+        # three has three of them where one reading a ladder of six has six.
+        # A family of marks that was drawn for its ends and computed for its
+        # middle would be two drawings of one figure, which is exactly how two
+        # drawings of one thing quietly stop matching.
+        "knob": ("dial:face",),
         "toggle": ("switch:body", "switch:knob"),
         "choice": ("chev:left", "chev:right"),
         # Nothing, and that is the entry rather than an omission: a track is
@@ -346,7 +370,7 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     both where the two subpaths are wound the opposite way round.
     """
 
-    RINGS = ("dial-face.svg",)
+    RINGS = ("dial-face.svg", "clock-face.svg")
 
     def test_a_ring_is_wound_so_the_hole_survives(self):
         for name in self.RINGS:

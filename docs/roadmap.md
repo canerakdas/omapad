@@ -4226,9 +4226,205 @@ that setting elsewhere replaces the pair. One half of it without the other is
 refused at load, because a switch that can only go one way leaves the words on
 the clipboard for good with nothing on the pad saying why.
 
+### 74. A clock you can read from the sofa · ✅ Done · S
+
+Asked for from the sofa: *analog bir saat eklemek istiyorum 2x2 olan bir kartin
+icinde kullanmak icin bir saat kadrani ciz fonta cevir, akrep ve yelkovan'i
+geometri olarak cizebiliriz.* The last clause is the design, and it is the
+split this project already draws everywhere else: the face is furniture and
+the hands are geometry.
+
+**The font half is the one thing that did not happen, and it never could.**
+`truetype.py` exists to turn *letters* into outlines so they can be punched out
+of a silhouette, and a clock face has no letters in it - so `clock-face.svg`,
+`clock-ticks.svg` and `clock-hub.svg` go through `CONTROLS_TO_DRAW` into
+`ControlArt.qml` as path data with that step skipped, which is where every
+dial, switch and chevron on this pad already comes from. "Generate a font for
+these too" is the obvious reading of what the buttons do and `assets.md` has
+said for some time that it is the wrong one; this is the first time somebody
+read it that way out loud.
+
+**`control = "clock"` rather than a second kind of head cell.** A tile is
+written where every other tile is written, arranged with the gesture that
+arranges every other page, and - because the HUD draws a menu page - it can be
+left on screen over a game. A head cell is none of those things: it is above
+the bar, in the menu, and only there.
+
+Which widened a rule the HUD had: **a tile with something to press is not
+drawn**, where it used to say *a tile that is not a readout*. The wording was
+the accident, not the rule - what a tile needs in order to stand over a game is
+nothing to press, and a clock has nothing to press. Game mode takes Omarchy's
+bar away and the bar is where the time was, so the surface standing in for the
+bar is exactly where a clock belongs. It is outside the other rule too, without
+being an exception to it: nothing publishes the time and nothing could fail to,
+so there is no source to have gone quiet and no machine the tile is untrue on.
+
+**Both hands travel as one number.** `mn` is the minute of the day, worked out
+in `menu.py` the way the head's own `%H:%M` is - a clock that waited on
+somebody else is wrong between draws. An hour and a minute sent separately
+could arrive disagreeing about where the hour hand stands at half past, and
+the panel would then have to know how to settle that; one number cannot.
+
+**And there is no second hand.** The page arrives every `VIEW_HEARTBEAT`
+seconds, so a hand that moved every second would be visibly wrong most of the
+time - on the one surface whose whole argument is that nothing on it twitches.
+Two hands answer what a glance asks; the head is where the exact minute is.
+
+The face is the gauge's own circle, 40 units and the same square - two circles
+on one page at two sizes read as a fault rather than as two tiles - with a rim
+two units thick against the dial's three, because this one has hands inside it
+and a rim as heavy as a hand draws a ring with sticks in it. Twelve marks: the
+quarters as bars, the hours between them as dots, which is also the one mark
+on this pad that could not stand on a whole unit and does not have to.
+
+### 75. The clock that could measure, and the pusher it had room for · ✅ Done · M
+
+Asked for from the sofa, one message after the clock landed: *kronograf olsun
+now ekranda gorunsun, islevsel olsun tuslar kronograf tusu gibi davransin* -
+and then, looking at the first one: *panda dial gibi yapamaz miyiz, 3 kadranli
+fiziksel kol saati gibi.*
+
+**A second control rather than an option on the clock**, and the reason is the
+HUD. A clock may be drawn over a game because there is nothing on it to reach
+for; a chronograph has a pusher, and a pusher over a game is a control with no
+way to reach it. That is one rule with two answers rather than a flag, so
+`clock` stayed exactly what it was and `chrono` is a name of its own.
+
+**One pusher, and it is A.** The face-button contract leaves a tile one
+button: B leaves the surface and X closes it in every layer, so a second
+pusher would have to be taken out of the contract and spent on a stopwatch.
+What A does is the monopusher cycle - start, stop, reset, round again - which
+is what a chronograph was before it had two pushers, and the legend under the
+card prints which of the three the next press is, exactly where it already
+prints `Hold to confirm`. What the cycle costs is resuming, on the wrist as
+here; what it buys is that nothing in the contract had to move.
+
+**The state is the daemon's and the motion is the panel's.** `chrono.py` holds
+one stopwatch - a measurement is a thing in the room rather than a property of
+a cell, so every tile that draws one draws that one - and sends how long it had
+measured and whether it is still going. A sweep hand re-sent twice a second is
+a stopwatch that jumps, so `Clock.qml` stamps its own clock when a payload
+lands and counts on from there, re-syncing on every push. It is the one drawing
+on these surfaces that animates itself and the one that spells its own figures,
+and both have the same cause: a number that changes ten times a second cannot
+come off a wire written twice a second.
+
+**The registers took three passes and the last one was the ask.** One counter
+at six o'clock, drawn as four dots, read as four more hour marks among the
+twelve already there - which is exactly what it looked like. Sinking it into a
+disc of ground fixed the legibility and the sofa named what it had been
+reaching for: a panda dial. So there are three, where a three-register
+chronograph has them - running seconds at nine, minutes measured at three,
+hours at six - and **what says a register is a register is the ground rather
+than anything drawn on it**: marks inside a disc fifteen pixels across are
+two-pixel dots. The contrast is the theme's, a step off the dial in whichever
+direction that theme runs, so it reads as a panda on a dark one and a reverse
+panda on a light one without the plugin naming a colour.
+
+**And then the sofa asked what it cost, which found the real bug.** The tile
+measured 14.4% of a core against 1.1% for the same page without it - and it
+measured the same with its animation *hard disabled*, which is what said the
+timer was innocent. What was not innocent was `sc`: a number that differs on
+every payload, carried inside `items`, makes the whole model differ on every
+payload, and `fresh()` then rebuilds every delegate on the page twice a second
+to move one hand. `menu_gauge` had written that warning down for the thumb dot
+years earlier - *carrying it with the rest of the surface would rebuild every
+tile on the page to move one dot* - and this walked into it anyway.
+
+So the stopwatch came off the tile and onto the surface, beside `hd` and
+`count`: **2.0% idle, 2.4% measuring, and 1.3% with the menu closed**, which is
+what a closed menu costs anyway. The face also redraws four times a second
+while it is idle rather than twenty, because the only thing moving then is the
+seconds hand of a register fifteen pixels across. qml.md 5.4 has the rule from
+this side now; it had only ever had it from the panel's.
+
+Which also took the last of the generated art out of it: three discs and four
+hands all answer to a number, so `chrono-counter.svg` was drawn, generated,
+looked at and deleted. `EveryControlIsDrawn` lists the kind with the clock's
+three parts and nothing of its own, the way `slider` and `readout` are listed
+with none.
+
+### 76. The value a thumb could turn rather than push · ✅ Done · M
+
+Asked from the sofa: *volume için dikey slider yerine control knob
+kullanacağımız alternatif bir tasarım çalışalım mı? saat kadranı gibi svg'den
+üretip çevirebiliriz, controller ile feeling daha iyi böyle olabilir slider'a
+göre. biliyorsun ki knob da slider gibi seçimli olabilir veya volume gibi
+analog olabilir.*
+
+**A knob added as a second drawing is decoration**, and item 67 is what
+happens to decoration on a tile: built, looked at, dropped the same evening.
+So this shipped on one argument and would not have shipped without it — **the
+stick is already a turn**. Every other way into a value on this surface
+translates: a direction is pushed and a number goes up, a trigger is pulled and
+a number crosses. A thumb carried round the edge of a stick *is* what a knob
+does, and a ring is the only figure on the surface that a hand can copy rather
+than translate. That is the control; the drawing is what makes it legible.
+
+**Relative, never absolute**, which is the decision the rest of it hangs off. A
+stick pushed to two o'clock that set the volume to three quarters would be a
+control that jumps the moment it is touched — a slider cannot do that to a
+sink and neither may this. So the value follows how far the thumb has
+travelled since the last frame, a grip threshold keeps an angle from being read
+where a degree is noise, and coming off the stick drops the angle rather than
+remembering it: picking the knob up again turns from where the thumb landed.
+
+**Whole steps, like the sweep.** Three ways into one set of numbers, not
+three sets — and it is also what keeps the cost honest: a turn pushes the
+surface at the sweep's rate rather than the frame's, so the ring costs what a
+swept bar costs. The chronograph's 13% lesson was two items ago and did not
+need repeating.
+
+**It reads a list as well as a number**, which nothing else does. A selector
+with a stop per position is the oldest drawing there is of *one of these*, and
+it is the half a slider has no figure for — a bar between `Filled` and
+`Stencil` is a length over two words with no arithmetic between them.
+`CONTROL_KINDS` has its first entry with two kinds in it, and `menu_range`
+answers for a range, a ladder and a list in one grammar.
+
+**And a ring does not wrap**, where a press on the same list still does. A
+turn is continuous and the value has a *position*: a thumb that carries the
+pointer past the last stop and finds it at the bottom of the dial has lost the
+thing it was moving, which is `step_row`'s rule about lists arriving on the one
+control where going round is visible.
+
+**The drawing keeps `Travel.qml`'s argument and parts company with it three
+times**, each time because a circle is not a line. A ring needs no caps — the
+quarter left open at the bottom is where the scale starts and stops. The
+value's mark is a **pointer** rather than a cross, because a ring has a middle
+and that is what a knob has always answered *where is it* with. A stop is a
+notch hung outside the scale. What it keeps: nothing fills, the run behind the
+value says how far it has come, solid where the value has stops and a tint
+where it has none.
+
+**Nothing new was drawn.** The rim is the gauge's own `dial-face.svg`, because
+a page holding a knob, a dial and a clock holds one circle drawn three times,
+and the scale's marks are *not* art — which is where this parts company with
+the clock, whose twelve are generated. Twelve hour marks are the same twelve
+on every clock; a knob's marks are its stops, three on a list of three and six
+on a ladder of six. A family drawn at its ends and computed in its middle is
+two drawings of one figure. The answer to *svg'den üretip çevirebiliriz* is
+therefore yes for the circle and no for everything inside it, which is
+`assets.md`'s own split and the clock's own hands one control along.
+
+**Two things came out of it that were not asked for.** `menu_range` is the one
+place that knows how long a control is, and putting all three gestures on it
+found that the trigger had never swept a `live:` reading at all — dead on how
+loud it is and how bright, which are the two tiles most likely to be swept —
+and that a trigger pulled on a card of rows unpacked a pair that was not there
+and took the loop down with it. Both are fixed, and the second has a test that
+says out loud what it is standing on.
+
+**Shipped on one tile.** `Volume` is a ring and `Brightness` beside it is a
+bar, which cost that page its six-and-three-and-three: a square cannot stack,
+so the row is six, four and two now and the music tile gained the cell a long
+title used to elide into. Neither drawing is the better one — a length is read
+faster and a ring is turned better — and a page holding one of each is the
+honest way to find out which gets reached for.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–66**, **68–73**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–66**, **68–76**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.

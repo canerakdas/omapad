@@ -2506,8 +2506,13 @@ control = "choice"            # ‹ a value ›; A walks it forward
 reads = "pad:badge_style"
 
 [[menu.items.items]]
-label = "Volume"
+label = "Brightness"
 control = "slider"            # a value on a line; A takes it, ‹ › move it
+reads = "live:brightness"
+
+[[menu.items.items]]
+label = "Volume"
+control = "knob"              # the same value as a ring, turned with the stick
 reads = "live:volume"
 
 [[menu.items.items]]
@@ -2521,13 +2526,22 @@ label = "Left stick"
 control = "gauge"             # a dial: the setting, and where the thumb is
 reads = "pad:left_deadzone"
 shows = "left"
+
+[[menu.items.items]]
+label = "Time"
+control = "clock"             # a face with two hands; it reads nothing
+
+[[menu.items.items]]
+label = "Stopwatch"
+control = "chrono"            # the same face with a stopwatch in it
 ```
 
 `reads` names either one of the settings the pad can change — the same names a
 `pad:` binding takes — or one of the things the machine is doing: `volume`,
 `mute`, `brightness`, `media`. The kinds have to match and `omapad check` says
 so: a `toggle` reads an on/off setting, a `choice` reads one with a list of
-values, a `slider` reads a number.
+values, a `slider` reads a number — and a `knob` reads either a number or a
+list.
 
 A control tile needs no `action`, never repeats, and always leaves the menu
 up. A switch and a choice are done in one press; **a slider is taken first** —
@@ -2535,14 +2549,68 @@ both directions belong to the grid until it is, so A takes it, left and right
 move it (faster the longer you hold one), either trigger sweeps its whole
 range, and then **A keeps what it is on and B puts it back**.
 
+**A `knob` is the same value as a ring**, and the difference is the hand
+rather than the drawing. A slider is a length and a knob is an angle, and the
+stick you walk the page with is already a turn — so once A has taken a knob,
+**carrying your thumb round the stick turns it**, as well as the left and
+right that move a slider and the triggers that sweep one. It follows how far
+your thumb has travelled rather than where it is pointing, so nothing jumps
+the moment you touch the stick, and it does nothing until the stick is pushed
+far enough over for the angle to mean something. `[menu] turn_degrees` is how
+far round the whole range is and `[menu] turn_grip` is how far over it has to
+be.
+
+It is two cells square, like the dial and the clock, and it is the one control
+that also reads a **list**: its stops are the values, printed round the scale,
+which is what a selector knob has always been. Turning it stops at the ends
+rather than coming round — a press on a `choice` tile still wraps, because
+that is one way through a list and this is a thing with a position.
+
+Neither of them is the better one, which is why the shipped page has one of
+each: `Volume` is a ring and `Brightness` beside it is a bar. A length is read
+faster; a ring is turned better. Swap the word in either to have two of a kind.
+
 A choice tile shows **one** value, so it has nowhere to put the line saying how
 the values differ — which is what `Button labels` and `Profile` keep their
 submenus for. Where that line is what you need, reach for a
 [card of rows](#a-card-of-verbs-drawn-as-rows) instead: it shows every value at
 once, each with its own sentence.
 
+**A `clock` reads nothing**, which makes it the one tile with no `reads` at
+all: the time is not a setting, not something the desktop is doing and not
+something the machine publishes. It is a face with an hour hand and a minute
+hand, two cells square like the dial, and A on it does nothing. The menu's own
+header prints the time in figures for somebody who has just opened the menu;
+this is for a glance from across a room, which is the other question — and it
+can be left on screen over a game, where there is no bar to glance at. It is
+the one control besides a reading that [the HUD
+draws](#the-readings-how-busy-how-full-how-hot).
+
+**A `chrono` is that face with a stopwatch in it**, which is what a chronograph
+is: the time of day on two hands, a sweep hand that measures, and three
+registers where a three-register wristwatch has them — running seconds at nine,
+the minutes measured at three, the hours at six. The figures beside its name
+say the measurement to a tenth, because no hand can say *three minutes and
+twelve*.
+
+**A is the pusher**: press to start, press to stop, press to reset, round
+again. One button because a tile owns one — B leaves the menu and X closes it
+everywhere — and it is the cycle a monopusher chronograph has worn since before
+it had two pushers. The line under the card says which of the three the next
+press is, so `Reset` is read rather than discovered. What it costs is
+resuming: a stopped measurement is thrown away by the next press, not
+restarted.
+
+There is **one stopwatch**, however many tiles draw one: start it here, walk to
+another page, and it is the same measurement still running. It ships on `Now`,
+and it is the one tile that may not be [left on
+screen](#the-readings-how-busy-how-full-how-hot) — a pusher over a game is a
+button you cannot reach.
+
 A control tile draws no icon: the control is the picture, and a glyph over a
 switch is the tile saying the same thing twice in the room it has for one.
+A clock is the clearest case — a clock glyph beside a clock face is the tile
+saying it twice.
 Give it a wider `span` when its name will not sit above the control in one
 cell; a bar is three cells and a media tile three by two, and neither needs
 one.
@@ -2949,10 +3017,13 @@ The readings never come up underneath a bar either way.
 
 Two more things are different from the menu, and both are the point:
 
-- **A tile that is not a reading is not drawn.** The switch that turns this on
-  stays in the menu, because there is nothing to press out here: the readings
-  take no clicks, no keys and no buttons, and everything goes straight through
-  them to whatever is underneath.
+- **A tile with something to press is not drawn.** The switch that turns this
+  on stays in the menu, because there is nothing to press out here: the
+  readings take no clicks, no keys and no buttons, and everything goes straight
+  through them to whatever is underneath. What that leaves is a reading and a
+  clock — the page ships with one, and a clock over a game is what the bar game
+  mode took away was for. A stopwatch has a pusher on it, so it stays in the
+  menu.
 - **A reading that has never answered draws nothing at all.** A fan this
   machine publishes no number for is not a tile saying nothing, it is no tile —
   which is what makes one page correct on two machines.

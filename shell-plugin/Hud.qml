@@ -126,6 +126,14 @@ Item {
     id: tileArt
   }
 
+  // The furniture a clock's face is drawn from. Lent to every clock on the
+  // page rather than built per tile: `ControlArt` cannot be a singleton - it
+  // does not register from a plugin directory - so one instance per surface
+  // is what there is.
+  ControlArt {
+    id: controlArt
+  }
+
   // -- the grid, which is the screen ----------------------------------------
   //
   // The same four functions Menu.qml lays a page out with, with one thing
@@ -272,6 +280,11 @@ Item {
           // daemon sends no `v` and there is no bar - rather than a bar that
           // says a different thing on every machine it is read on.
           readonly property bool hasBar: tile.modelData.v !== undefined
+          // The other tile this surface draws, and the only one that is not a
+          // reading: it has nothing to press, which is the whole of what a
+          // tile needs to be allowed over a game. Game mode takes Omarchy's
+          // bar away and the bar is where the time was - see hud.py.
+          readonly property bool clock: tile.modelData.k === "clock"
 
           x: root.cellX(tile.modelData.x)
           y: root.cellY(tile.modelData.y)
@@ -385,6 +398,37 @@ Item {
               // change of - the field is here so the drawing has all three
               // of its colours and none of them is a surprise.
               ghost: root.trailInk
+              mark: Color.accent
+            }
+
+            // And the one tile whose value is a drawing rather than a number.
+            // It hangs under the same name line every reading here has, so a
+            // page of tiles is a page of one shape - and it is `Clock.qml`,
+            // the menu's own, because the menu is where this tile was put on
+            // the page and a face that differed between the two would be the
+            // arrangement saying something it does not mean.
+            //
+            // The name stays: a reading's word says what its number is about,
+            // and what this one says is which of the corners somebody put a
+            // clock in. `t` is off the wire for it, so the value beside the
+            // name draws nothing without being told not to.
+            Clock {
+              id: readingClock
+              visible: tile.clock
+              width: Math.max(0, Math.min(
+                parent.width,
+                tile.height - readingName.height - metrics.space(12)))
+              height: readingClock.width
+              anchors.horizontalCenter: parent.horizontalCenter
+              art: controlArt
+              minutes: tile.modelData.mn !== undefined
+                ? tile.modelData.mn : 0
+              ink: Color.menu.text
+              // The menu's own strength for this drawing, mirrored rather
+              // than picked again here: the same face is drawn on both
+              // surfaces, so its furniture recedes by the same amount on
+              // both (qml.md 8.2.1 on a mirrored measurement).
+              dim: Util.alpha(Color.menu.text, 0.3)
               mark: Color.accent
             }
           }

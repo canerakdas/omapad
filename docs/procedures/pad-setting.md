@@ -134,8 +134,8 @@ Then give it a tile, and it becomes reachable from a binding as
 | `kind` | Tile | What A does |
 |---|---|---|
 | `bool` | `control = "toggle"` | flips it |
-| `choice` | `control = "choice"` | walks it forward |
-| `number` | `control = "slider"`, or `"gauge"` where it is about a stick | takes it; then left and right move it, and either trigger sweeps it |
+| `choice` | `control = "choice"`, or `"knob"` for a selector with a stop per value | walks it forward; a knob is taken first and turned |
+| `number` | `control = "slider"`, `"knob"` where turning it beats pushing it, or `"gauge"` where it is about a stick | takes it; then left and right move it, either trigger sweeps it, and on a knob the stick's own angle turns it |
 
 ```toml
 [[menu.items.items]]

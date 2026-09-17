@@ -203,7 +203,33 @@ BLANKS_TO_DRAW = (
 # geometry, and geometry is the panel's: a shape parameterised by a number is
 # not a shape that can be drawn once. It is the same split BadgeArt already
 # makes between a button and the label set into it.
+# The clock is the clearest case of that split, and it is drawn on the dial's
+# own 40-unit canvas so the two circles a page may hold are one circle: a
+# gauge and a clock side by side drawn to two rules read as two mistakes. What
+# differs is the rim's weight - two units against the dial's three - because
+# this one has two hands inside it rather than a dot, and a rim as heavy as a
+# hand makes the face read as a ring with sticks in it.
 CONTROLS_TO_DRAW = (
+    ("clock", "face", "clock-face.svg"),
+    # Twelve of them: the quarters as bars, the hours between them as dots.
+    # An hour mark drawn as a bar at 30 degrees is the one mark on this pad
+    # that could not stand on a whole unit - a dot has no flat edge to land
+    # badly, and at a tile's size the two read the same anyway.
+    ("clock", "ticks", "clock-ticks.svg"),
+    # What the hands meet under. It is here rather than in the panel for the
+    # dial's thumb's reason: a disc at the centre of the face is not
+    # parameterised by anything, and the join it covers is the one place two
+    # rotating rectangles show their corners.
+    ("clock", "hub", "clock-hub.svg"),
+    # **The chronograph's three registers are not here, and that is the
+    # entry.** A panda dial is three counters sunk into the face, and what
+    # makes one read as a counter at a tile's size is the change of ground
+    # rather than anything drawn on it: marks inside a register 15 pixels
+    # across are two-pixel dots among the twelve marks already on the dial,
+    # which is the fault this was drawn with before it was drawn without. So
+    # a register is a disc of a size the panel decides and a hand turned to
+    # an angle a measurement decides - `radius: width / 2` and a rectangle,
+    # the same two things the gauge's shaded zone and the slider's track are.
     ("dial", "face", "dial-face.svg"),
     ("dial", "ticks", "dial-ticks.svg"),
     ("dial", "thumb", "dial-thumb.svg"),

@@ -2313,6 +2313,23 @@ ramp_ms = 900                 # how long holding it takes to reach `ramp`
 # than the only speed it has. Raise it for finer aim, lower it to cross a
 # range in one pull.
 sweep_ms = 1500
+# And the third way in, which only a knob has: the stick's own angle. A slider
+# is pushed and a knob is turned, so on a knob the left stick stops walking
+# the page and carries the ring round instead - relative, so the value follows
+# how far the thumb has travelled rather than where it is pointing, and
+# nothing jumps the moment the stick is touched.
+#
+# `turn_degrees` is the gearing: how far round a thumb has to carry it to
+# cross the whole range. A quarter turn is twitchy on a volume and right on a
+# list of four; raise it for finer aim, lower it to cross a range in one
+# sweep of the thumb.
+turn_degrees = 270
+# And how far over the stick has to be before any of that bites. Near the
+# middle of a stick's travel an angle is noise - a resting thumb crosses whole
+# quadrants without moving - so below this nothing turns, and coming back over
+# it starts from wherever the thumb landed. Raise it if a resting hand still
+# moves a value, lower it to turn without pushing the stick so far.
+turn_grip = 0.5
 
 # What the sticks do while the menu is up. Every other surface keeps whatever
 # the base layer's sticks were doing - the pointer still works under the
@@ -2597,17 +2614,33 @@ meta = { from = "omarchy-shell media status | jq -r 'if .hasMedia and .title != 
   [[menu.items.items]]
   label = "Music"
   empty = "Nothing playing"
-  span = [3, 2]
+  span = [4, 2]
   control = "media"
   reads = "live:media"
 
-  # Stacked in the last three columns beside the two tall tiles, which is what
-  # fills the first two rows of the page exactly: six and three and three. No
-  # row break between any of it - a break says "these belong together", and a
-  # page whose every row was broken is a list again.
+  # **How loud, as the one control on this pad a thumb can copy.** A slider is
+  # a length and a knob is an angle, and the stick this page is walked with is
+  # already a turn - so a held ring is turned by carrying the thumb round it
+  # rather than by pushing a direction and waiting. Volume is where that is
+  # worth a square: it is the value reached for most often from a sofa, and
+  # the one nobody wants to step towards.
+  #
+  # Brightness beside it is deliberately still a bar. The two drawings answer
+  # one question and neither is the better one - a length is read faster and a
+  # ring is turned better - so the page that holds both is the honest place to
+  # find out which you reach for. Swap either word to have two of a kind.
+  #
+  # Six and four and two fills the first two rows of the page exactly, with
+  # the bar under them: the keyboard keeps half the page, the ring takes the
+  # dial's own square, and what the music tile gained is the cell a long title
+  # used to elide into. It was six and three and three while both of these
+  # were bars stacked in the last three columns - a square cannot stack, so
+  # the row is re-spent rather than left with a hole in it. No row break
+  # between any of it - a break says "these belong together", and a page whose
+  # every row was broken is a list again.
   [[menu.items.items]]
   label = "Volume"
-  control = "slider"
+  control = "knob"
   reads = "live:volume"
 
   [[menu.items.items]]
@@ -2644,6 +2677,25 @@ meta = { from = "omarchy-shell media status | jq -r 'if .hasMedia and .title != 
   label = "Mute"
   control = "toggle"
   reads = "live:mute"
+
+  # A watch with a stopwatch in it, on the page you are already on. It tells
+  # the time because game mode takes Omarchy's bar away and the pad can reach
+  # no other clock; what it adds is the one thing a clock cannot do, which is
+  # measure - a turn on the sofa, a pot on the stove, how long that install has
+  # been going.
+  #
+  # **One pusher, and A is it**: start, stop, reset, round again. B leaves this
+  # surface and X closes it in every layer, so the second pusher a wrist-worn
+  # chronograph has would have to come out of the face-button contract; a
+  # monopusher is what a chronograph was before it had two, and the legend
+  # under the card says which of the three the next press is. What it costs is
+  # resuming, which the monopusher on a wrist cannot do either.
+  #
+  # No icon, and no `reads`: the control is the picture, and what it holds is
+  # a press somebody made rather than anything a table could be pointed at.
+  [[menu.items.items]]
+  label = "Stopwatch"
+  control = "chrono"
 
   # The two tiles that used to sit at the top level, and why they are not
   # there any more. Item 48 put them there because a row you have to go and
@@ -3303,6 +3355,17 @@ detail = "How busy, how full, how hot"
   label = "Disk"
   control = "readout"
   reads = "sys:disk"
+
+  # The time, with hands on it. Not a reading - nothing publishes it and
+  # nothing could fail to - and it is on this page because this is the page
+  # that is left on screen: game mode takes Omarchy's bar away, and the bar is
+  # where the time was.
+  #
+  # No icon. A control tile's picture is the control, and a clock face with a
+  # clock glyph beside it is the tile saying the same thing twice.
+  [[menu.items.items]]
+  label = "Time"
+  control = "clock"
 
   # The four that are not here, and how to add one. Each needs a source in
   # [sysinfo] first - a tile pointed at a reading this machine publishes

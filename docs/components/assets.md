@@ -23,7 +23,9 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/sys-guide.svg` | The Xbox button, drawn 36 of 40 against the 24 the rest get - it is larger than every other button on that pad, face buttons included. Nothing else earns it. |
 | `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
 | `shapes/stick.svg` | The stick, seen from above: one pill, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. It had a rim once, and lost it: every other badge on the pad is a solid silhouette with its label punched out, and one that was a ring read as a different colour in a row of them. |
-| `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
+| `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a clock's face, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
+| *(the knob has no row here)* | **And that is the entry.** A knob is drawn from `dial-face.svg`, because it is the same circle as the dial beside it and the clock under it. Its scale's marks are not art and that is where it parts company with the clock: twelve hour marks are the same twelve on every clock ever drawn, where a knob's marks are its *stops* - three on a ring reading a list of three, six on one reading a ladder of six. A family of marks drawn at its ends and computed in its middle is two drawings of one figure. |
+| `shapes/clock-*.svg` | The clock's furniture, and the chronograph's: the rim, its twelve marks and the hub the hands meet under. A chronograph adds nothing here - its three registers are a disc of ground apiece and its hands are rectangles, all of them answering to a number. Drawn on the dial's own 40-unit canvas so the two circles a page may hold are one circle, with a rim two units thick against the dial's three - this one has two hands inside it rather than a dot. The hands are the panel's. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
 | `sounds/` | Generated: the four WAVs a press is answered with. Nothing hand-made stands behind them - the source is the table in `sounds.py`. See [`sound.md`](sound.md). |
@@ -61,9 +63,9 @@ is described - "generate a font for the elements too" is the obvious reading of
 what the buttons do, and it is the wrong one.
 
 **Only the furniture is generated**, meaning what does not depend on the value.
-Where the thumb dot sits and how far a switch's knob has travelled are
-geometry, and geometry is the panel's: a shape parameterised by a number
-cannot be drawn once. It is the same split
+Where the thumb dot sits, how far a switch's knob has travelled and which way
+a clock's hands point are geometry, and geometry is the panel's: a shape
+parameterised by a number cannot be drawn once. It is the same split
 `BadgeArt.qml` already makes between a button and the label set into it, which
 is also why `BadgeArt` paints both files without knowing there are two.
 

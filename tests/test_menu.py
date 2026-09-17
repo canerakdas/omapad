@@ -9,9 +9,9 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import actions, config as config_module
-from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, arrange, build,
-                         build_head, effective_span, head_sources, listed,
-                         place, slug)
+from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, TAKEABLE, arrange,
+                         build, build_head, effective_span, head_sources,
+                         listed, minute_of_day, place, second_of_minute, slug)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -912,6 +912,232 @@ class ControlTileTests(unittest.TestCase):
         self.assertEqual(rows[0]["l"], "Vibration")
         self.assertEqual((rows[1]["x"], rows[1]["w"]), (1, 2))
 
+
+
+class KnobTileTests(unittest.TestCase):
+    """The same value, turned rather than pushed.
+
+    The slider's twin, and the two places it is not: it reads a list as
+    readily as a number, and it takes the dial's square rather than a length
+    of card.
+    """
+
+    SETTINGS = {
+        "rumble": {"kind": "bool"},
+        "badge_style": {"kind": "choice", "choices": ("filled", "stencil")},
+        "pointer_speed": {"kind": "number"},
+    }
+
+    def tile(self, **keys):
+        entry = {"label": "Speed", "control": "knob",
+                 "reads": "pad:pointer_speed"}
+        entry.update(keys)
+        return build([entry], settings=self.SETTINGS)[0]
+
+    def test_it_is_square_because_it_is_round(self):
+        # The dial's own square, and the same one: a page holding a knob, a
+        # gauge and a clock holds three circles, and three circles drawn at
+        # three sizes read as a fault rather than as three tiles.
+        self.assertEqual(self.tile()["span"], (2, 2))
+
+    def test_a_ring_is_taken_before_it_is_turned(self):
+        # A grid spends both axes on getting about, so a tile the selection is
+        # only passing over cannot own the stick either.
+        self.assertIn("knob", TAKEABLE)
+
+    def test_it_reads_a_number_and_a_list_and_nothing_else(self):
+        self.assertEqual(self.tile()["reads"], ("pad", "pointer_speed"))
+        self.assertEqual(self.tile(reads="pad:badge_style")["reads"],
+                         ("pad", "badge_style"))
+        # A switch has two states and A is the whole of it: a ring drawn round
+        # one would be a scale with two places on it and a mode to enter
+        # first.
+        with self.assertRaises(MenuError) as caught:
+            self.tile(reads="pad:rumble")
+        self.assertIn("knob", str(caught.exception))
+
+    def test_a_knob_has_to_say_what_it_reads(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Speed", "control": "knob"}],
+                  settings=self.SETTINGS)
+        self.assertIn("knob", str(caught.exception))
+
+    def test_a_knob_does_not_repeat_and_always_stays(self):
+        with self.assertRaises(MenuError):
+            self.tile(repeat=True)
+        self.assertTrue(self.tile()["stay"])
+
+
+class ClockTileTests(unittest.TestCase):
+    """The time, drawn as a face rather than printed as a figure.
+
+    The one control that reads nothing at all: what a clock is on is not a
+    setting, not something the desktop is doing and not something the kernel
+    publishes, so there is no table to point it at and the model works it out
+    itself.
+    """
+
+    def tile(self, **keys):
+        entry = {"label": "Time", "control": "clock"}
+        entry.update(keys)
+        return build([entry])[0]
+
+    def test_a_clock_needs_no_action_no_page_and_no_reads(self):
+        # The branch it lands in is the control one, which is the whole of
+        # what stops `needs an action or items` from refusing it.
+        item = self.tile()
+        self.assertEqual(item["control"], "clock")
+        self.assertEqual(item["reads"], ())
+        self.assertIsNone(item["action"])
+        self.assertIsNone(item["items"])
+
+    def test_a_clock_reads_nothing_and_is_told_so_by_name(self):
+        # "only a control reads something" is a baffling thing to be told
+        # about a line that says `control = "clock"`.
+        with self.assertRaises(MenuError) as caught:
+            self.tile(reads="pad:rumble")
+        self.assertIn("clock", str(caught.exception))
+
+    def test_it_is_square_because_it_is_round(self):
+        # The gauge's own square: two circles on one page drawn at two sizes
+        # read as a fault rather than as two tiles.
+        self.assertEqual(self.tile()["span"], (2, 2))
+
+    def test_there_is_nothing_to_take(self):
+        # A control with a range is entered before it is changed. A clock has
+        # no range, no press and nothing to keep or put back.
+        self.assertNotIn("clock", TAKEABLE)
+
+    def test_a_clock_does_not_repeat_and_always_stays(self):
+        with self.assertRaises(MenuError):
+            self.tile(repeat=True)
+        self.assertTrue(self.tile()["stay"])
+
+    def test_the_payload_carries_both_hands_as_one_number(self):
+        # And carries it without a `control` callback: this is the one tile
+        # the daemon is not asked about.
+        model = MenuModel(build([{"label": "Page", "items": [
+            {"label": "Time", "control": "clock"}]}]))
+        before = minute_of_day()
+        row = model.view_state(True)["items"][0]
+        after = minute_of_day()
+        self.assertEqual(row["k"], "clock")
+        self.assertIn(row["mn"], (before, after))
+
+    def test_the_number_is_the_minute_of_the_day(self):
+        # Half past one in the afternoon, in whatever zone this machine keeps:
+        # a clock in a room is the room's.
+        stamp = time.mktime((2026, 9, 17, 13, 30, 0, 0, 0, -1))
+        self.assertEqual(minute_of_day(stamp), 13 * 60 + 30)
+        midnight = time.mktime((2026, 9, 17, 0, 0, 0, 0, 0, -1))
+        self.assertEqual(minute_of_day(midnight), 0)
+
+    def test_no_other_tile_carries_a_time(self):
+        # It rides on the clock alone, so a page of switches costs nothing for
+        # having one on it.
+        model = MenuModel(build([{"label": "Page", "items": [
+            {"label": "Time", "control": "clock"},
+            {"label": "Terminal", "action": "exec:true"},
+        ]}]))
+        rows = model.view_state(True)["items"]
+        self.assertNotIn("mn", rows[1])
+
+
+class ChronoTileTests(unittest.TestCase):
+    """The same face with a stopwatch in it, which is what a chronograph is.
+
+    It reads nothing, like the clock, and is asked about anyway: what it holds
+    is a press somebody made, which no table could have been pointed at.
+    """
+
+    def tile(self, **keys):
+        entry = {"label": "Stopwatch", "control": "chrono"}
+        entry.update(keys)
+        return build([entry])[0]
+
+    def page(self):
+        return MenuModel(build([{"label": "Page", "items": [
+            {"label": "Stopwatch", "control": "chrono"}]}]))
+
+    def test_it_needs_no_action_no_page_and_no_reads(self):
+        item = self.tile()
+        self.assertEqual(item["control"], "chrono")
+        self.assertEqual(item["reads"], ())
+        self.assertIsNone(item["action"])
+
+    def test_it_reads_nothing_and_is_told_so_by_name(self):
+        with self.assertRaises(MenuError) as caught:
+            self.tile(reads="pad:rumble")
+        self.assertIn("chrono", str(caught.exception))
+
+    def test_it_takes_the_clock_s_own_square(self):
+        self.assertEqual(self.tile()["span"], (2, 2))
+
+    def test_there_is_nothing_to_take(self):
+        # A is a pusher on this tile, not a way in: there is no range to
+        # push and nothing to keep or put back.
+        self.assertNotIn("chrono", TAKEABLE)
+
+    def test_the_stopwatch_does_not_ride_on_the_tile(self):
+        # **The whole performance argument, as a test.** The panel decides
+        # whether to rebuild the page by comparing the tiles it was sent with
+        # the tiles it has, so a number that differs on every push is every
+        # delegate on the page rebuilt twice a second to move one hand. The
+        # gauge's thumb is the same lesson one control along.
+        state = self.page().view_state(True, chrono=lambda: {"run": True,
+                                                             "el": 12.5,
+                                                             "sc": 4.0})
+        row = state["items"][0]
+        for field in ("run", "el", "sc"):
+            self.assertNotIn(field, row)
+        self.assertEqual(state["chrono"], {"run": True, "el": 12.5,
+                                           "sc": 4.0})
+
+    def test_the_tiles_are_the_same_twice_running(self):
+        # The other half of it, and the thing that actually costs CPU: two
+        # payloads a heartbeat apart have to carry the *same* tiles, or the
+        # page is rebuilt for a hand that moved.
+        model = self.page()
+        first = model.view_state(True, chrono=lambda: {"run": True,
+                                                       "el": 1.0, "sc": 1.0})
+        second = model.view_state(True, chrono=lambda: {"run": True,
+                                                        "el": 9.0, "sc": 9.0})
+        self.assertEqual(first["items"], second["items"])
+        self.assertNotEqual(first["chrono"], second["chrono"])
+
+    def test_it_still_tells_the_time(self):
+        # A chronograph is a watch first, and the time of day is the one part
+        # of it that does ride on the tile: it changes once a minute, which is
+        # a page worth rebuilding.
+        row = self.page().view_state(True)["items"][0]
+        self.assertEqual(row["k"], "chrono")
+        self.assertIn(row["mn"], (minute_of_day(), minute_of_day() + 1))
+
+    def test_a_page_with_no_chronograph_is_asked_for_none(self):
+        # Nothing is asked for a thing no tile on this page can draw, and the
+        # field is off the wire entirely - so every other page costs nothing
+        # for this one existing.
+        asked = []
+        model = MenuModel(build([{"label": "Page", "items": [
+            {"label": "Time", "control": "clock"}]}]))
+        state = model.view_state(True, chrono=lambda: asked.append(1) or {})
+        self.assertEqual(asked, [])
+        self.assertNotIn("chrono", state)
+
+
+class SecondOfMinuteTests(unittest.TestCase):
+    def test_it_is_where_a_running_seconds_hand_stands(self):
+        seconds = second_of_minute()
+        self.assertGreaterEqual(seconds, 0)
+        self.assertLess(seconds, 60)
+
+    def test_it_keeps_the_fraction_a_hand_sweeps_through(self):
+        # `localtime` throws it away, and a hand that only ever stood on whole
+        # seconds would tick like a quartz watch rather than sweep.
+        found = set()
+        for stamp in (1000.0, 1000.25, 1000.5, 1000.75):
+            found.add(round(second_of_minute(stamp), 2))
+        self.assertEqual(len(found), 4)
 
 
 class RowsTileTests(unittest.TestCase):

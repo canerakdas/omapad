@@ -40,6 +40,14 @@ Item {
   id: root
 
   property bool opened: false
+  // **The stopwatch, and it is the surface's rather than the tile's.** What
+  // it holds changes between one payload and the next, and `fresh` decides
+  // whether to rebuild the page by comparing the tiles it was sent with the
+  // tiles it has - so a measurement carried on its own tile is every delegate
+  // on this page rebuilt twice a second to move one hand (qml.md 5.4, and
+  // `menu_gauge`'s own warning one control along). Off the wire entirely for
+  // a page with no chronograph on it.
+  property var chronoState: ({})
   property var items: []
   property var groups: []
   property var head: []
@@ -578,6 +586,11 @@ Item {
         root.keys = s.keys
       if (s.items !== undefined && root.fresh("items", s.items))
         root.items = s.items
+      // Not through `fresh`: this one is *meant* to differ every time, and
+      // what it costs is three properties on one tile rather than a page of
+      // delegates. Cleared where the payload has none, so a page without a
+      // chronograph draws none.
+      root.chronoState = s.chrono !== undefined ? s.chrono : ({})
       if (s.groups !== undefined && root.fresh("groups", s.groups))
         root.groups = s.groups
       if (s.head !== undefined && root.fresh("head", s.head))
@@ -2225,6 +2238,13 @@ Item {
                 // belong to it, which is the one state of this surface a press
                 // means something else in, so it is drawn as one.
                 readonly property bool slider: tile.modelData.k === "slider"
+                // The same value, turned. A slider is a length and a knob is
+                // an angle, and the stick this surface walks with is the one
+                // gesture on the pad that is already a turn - so a held knob
+                // is the one tile where the stick stops walking the page.
+                // What it draws is `Knob.qml`, which is `Travel.qml`'s
+                // question asked round a ring.
+                readonly property bool knob: tile.modelData.k === "knob"
                 readonly property bool media: tile.modelData.k === "media"
                 readonly property bool gauge: tile.modelData.k === "gauge"
                 // The one tile with no control on it. It is drawn here as well
@@ -2233,6 +2253,18 @@ Item {
                 // and a page that looked different once it was on screen would
                 // be a page you had to learn twice.
                 readonly property bool readout: tile.modelData.k === "readout"
+                // The other tile with nothing to press, and the only one that
+                // reads nothing at all. It is drawn here as well as on the
+                // HUD for the readout's reason: this is the page a clock is
+                // put on, and a page that looked different once it was on
+                // screen would be a page you had to learn twice.
+                readonly property bool clock: tile.modelData.k === "clock"
+                // The same face with a stopwatch in it, which is what a
+                // chronograph is - and the one tile with nothing to press
+                // that has something to press. A is a pusher on it: start,
+                // stop, reset, and the legend under the card says which of
+                // the three the next press is.
+                readonly property bool chrono: tile.modelData.k === "chrono"
                 // **A card of verbs, drawn as rows.** It is the one control
                 // that holds no value at all: what it holds is the page that
                 // would otherwise be a level down, and the argument for it is
@@ -2366,8 +2398,9 @@ Item {
                 // it. The design puts both in corners for the same reason it
                 // puts the value at the top of a slider: a card is read from
                 // its edges in.
-                readonly property bool named: !tile.slider && !tile.gauge
-                  && !tile.readout && !tile.column
+                readonly property bool named: !tile.slider && !tile.knob
+                  && !tile.gauge && !tile.readout && !tile.column
+                  && !tile.clock && !tile.chrono
 
                 // **A figure sits at the top of the card and its travel
                 // along the bottom.** Slider, reading and dead zone all
@@ -2380,7 +2413,8 @@ Item {
                 // block of content floating in a module-tall cell.
                 Item {
                   id: figureHead
-                  visible: tile.slider || tile.readout || tile.gauge
+                  visible: tile.slider || tile.knob || tile.readout
+                    || tile.gauge || tile.clock || tile.chrono
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.top: parent.top
@@ -2421,8 +2455,13 @@ Item {
                     // tile is not drawn at all; here it stays, because this
                     // is the page you come to in order to find out that a
                     // reading has no source on this machine.
-                    text: tile.modelData.t !== undefined
-                      ? tile.modelData.t : ""
+                    // The one value on this surface the panel spells
+                    // rather than receives, and `Clock.qml`'s header says
+                    // why: a number that changes ten times a second cannot
+                    // come off a wire written twice a second.
+                    text: tile.chrono ? clockFace.words
+                      : (tile.modelData.t !== undefined
+                         ? tile.modelData.t : "")
                     textFormat: Text.PlainText
                     // Ink, not the accent. The accent on this cell is the
                     // travel along the bottom - that is the thing that is
@@ -3394,6 +3433,95 @@ Item {
                           ? Util.alpha(Color.menu.text, 0.45) : Color.accent
                       }
                     }
+                  }
+
+                  // The same number the travel draws, turned. Sized off the
+                  // dial and the clock to the pixel, for their own reason:
+                  // three circles on one page drawn to three sizes read as a
+                  // fault rather than as three tiles.
+                  Knob {
+                    id: knobFace
+                    visible: tile.knob
+                    width: Math.min(parent.width,
+                                    tile.height - metrics.gap.huge)
+                    height: knobFace.width
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    art: controlArt
+                    // Bindings rather than anything a signal starts, so a
+                    // delegate rebuilt mid-turn is born where the value
+                    // already is - qml.md 5.5.
+                    value: tile.modelData.v !== undefined
+                      ? tile.modelData.v : 0
+                    stops: tile.modelData.seg !== undefined
+                      ? Number(tile.modelData.seg) : 0
+                    at: tile.modelData.at !== undefined
+                      ? Number(tile.modelData.at) : 0
+                    // Where it stood when A took it. Only while it is held:
+                    // the daemon leaves the field off a control nobody is
+                    // holding, and a negative here is that absence.
+                    was: tile.modelData.b !== undefined
+                      ? Number(tile.modelData.b) : -1
+                    // The rim and the scale are the card's structure, the
+                    // trail is how far round the value has got, the ghost is
+                    // what this press changed, and the mark is where it is.
+                    // The first of them is the dial's own number rather than
+                    // one of the three inks (qml.md 8.1.2): a ring beside a
+                    // dial at a different strength is two circles rather than
+                    // two tiles.
+                    ink: Util.alpha(Color.menu.text, 0.3)
+                    trail: root.trailInk
+                    ghost: root.ghostInk
+                    mark: tile.mark
+                  }
+
+                  // The time, with hands on it. `Clock.qml` rather than a
+                  // drawing of this surface's own, because the HUD holds the
+                  // same tile over a game and a page has to read the same in
+                  // both places it appears - `Travel.qml`'s argument, one
+                  // control along.
+                  //
+                  // Sized off the dial above it, to the pixel: two circles on
+                  // one page drawn to two sizes read as a fault rather than
+                  // as two tiles.
+                  Clock {
+                    id: clockFace
+                    visible: tile.clock || tile.chrono
+                    width: Math.min(parent.width,
+                                    tile.height - metrics.gap.huge)
+                    height: clockFace.width
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    art: controlArt
+                    minutes: tile.modelData.mn !== undefined
+                      ? tile.modelData.mn : 0
+                    seconds: root.chronoState.sc !== undefined
+                      ? root.chronoState.sc : 0
+                    // Nothing turns while the card is down: the delegates
+                    // outlive the window being closed, and a hand animating
+                    // behind one nobody can see is twenty wake-ups a second
+                    // spent on a drawing that is not on screen.
+                    awake: root.opened
+                    // Negative is a clock and nothing else, so a plain face
+                    // draws no complication - and a chronograph that has
+                    // never been started still draws one, standing at zero,
+                    // which is what says the tile has a stopwatch in it
+                    // before anybody presses anything.
+                    elapsed: (tile.chrono
+                              && root.chronoState.el !== undefined)
+                      ? root.chronoState.el : -1
+                    ticking: root.chronoState.run === true
+                    ink: tile.ink
+                    // The dial's own number rather than one of the three inks
+                    // (qml.md 8.1.2): what recedes here is furniture under a
+                    // drawing, not a line of type, and the gauge's face is
+                    // the thing it has to match - a clock beside a dial at a
+                    // different strength is two circles rather than two
+                    // tiles.
+                    dim: Util.alpha(Color.menu.text, 0.3)
+                    // A ground rather than an ink, and the same kind of
+                    // number the tile's own ground is: one step off what it
+                    // is drawn on, which is all a recess has to be.
+                    wash: Util.alpha(Color.menu.text, 0.13)
+                    mark: tile.mark
                   }
                 }
 

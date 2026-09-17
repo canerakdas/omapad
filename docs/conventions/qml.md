@@ -156,6 +156,21 @@ function applyState(text) {
 }
 ```
 
+**And the daemon can defeat `fresh()` without touching this file.** A value
+that differs on every push, carried inside a model, makes the whole model
+differ on every push - so `fresh()` answers true twice a second, the Repeater
+rebuilds every delegate, and the panel pays the full price of a page to move
+one hand. Measured on the menu: **13% of a core**, for a chronograph tile
+whose seconds rode along with its own cells. The fix is where the value lives
+rather than anything here - it went to the surface level, beside `hd` and
+`count`, and the tiles went back to being identical between two payloads. The
+gauge's thumb had the same answer years earlier and `menu_gauge` says so in a
+comment: *carrying it with the rest of the surface would rebuild every tile on
+the page to move one dot*.
+
+So a field that changes continuously does not go on a tile. `menu.md` names
+the three that are allowed to change at all, and why each is worth a rebuild.
+
 Only the models need `fresh()`. A `string`, `int` or `bool` property compares
 its own value and emits nothing when it is unchanged, so guarding one buys
 nothing — which is why `PadStatus.qml`, whose payload is four scalars, has

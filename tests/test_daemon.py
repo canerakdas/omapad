@@ -5,6 +5,7 @@ triggers, tap/hold, pointer integration and game mode. The uinput layer itself
 is replaced by recorders, so these run without /dev/uinput.
 """
 
+import math
 import os
 import select
 import sys
@@ -24,6 +25,7 @@ from omapad import linux_input as li
 from omapad import uinput
 from omapad import actions
 from omapad import menu as menu_module
+from omapad import chrono as chrono_module
 from omapad import guide as guide_module
 from omapad import sysinfo as sysinfo_module
 from omapad import osk as osk_module
@@ -3676,6 +3678,242 @@ class ControlTileTests(DaemonTestCase):
         self.assertIsNone(self.daemon.menu_control(item))
 
 
+class KnobTests(DaemonTestCase):
+    """The same value, turned: the payload it is drawn from and the gesture.
+
+    A knob is the slider's twin everywhere but two places - it reads a list as
+    readily as a number, and the stick that walks the page turns it instead -
+    so what is tested here is those two and the promises they make.
+    """
+
+    TREE = [{"label": "Dials", "items": [
+        # A range, a ladder and a list: the three shapes a ring can be on.
+        {"label": "Speed", "control": "knob", "reads": "pad:pointer_speed"},
+        {"label": "Corner", "control": "knob", "reads": "pad:radius"},
+        {"label": "Style", "control": "knob", "reads": "pad:badge_style"},
+    ]}]
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(self.TREE, columns=self.config.menu_columns,
+                              settings=config_module.CHOSEN),
+            columns=self.config.menu_columns,
+        )
+        self.daemon.set_menu(True)
+        self.menu_client.sent.clear()
+
+    def land(self, label):
+        """Stop on a tile without pressing anything."""
+        for tile in self.daemon.menu.tiles:
+            if tile["item"]["label"] == label:
+                self.daemon.menu.select_id(tile["item"]["id"])
+                return tile["item"]
+        raise AssertionError("no tile labelled %r" % label)
+
+    def take(self, label):
+        self.land(label)
+        self.daemon.menu_command("press")
+
+    def drawn(self, label):
+        self.daemon.push_menu_view()
+        for row in self.menu_client.sent[-1]["items"]:
+            if row["l"] == label:
+                return row
+        raise AssertionError("no tile labelled %r" % label)
+
+    def grip(self, degrees, reach=0.9, seconds=0.02):
+        """Put the thumb somewhere round the stick and let the loop see it.
+
+        Screen angles, so 0 is three o'clock and they run clockwise - the way
+        the drawing turns and the way `check_menu_turn` reads them.
+        """
+        radians = math.radians(degrees)
+        self.feed(
+            (li.EV_ABS, li.ABS_X, int(32767 * reach * math.cos(radians))),
+            (li.EV_ABS, li.ABS_Y, int(32767 * reach * math.sin(radians))),
+        )
+        self.daemon.tick(seconds)
+
+    def letgo(self):
+        self.feed((li.EV_ABS, li.ABS_X, 0), (li.EV_ABS, li.ABS_Y, 0))
+        self.daemon.tick(0.02)
+
+    def test_a_knob_draws_where_along_its_range_the_value_is(self):
+        row = self.drawn("Speed")
+        self.assertEqual(row["k"], "knob")
+        self.assertEqual(
+            row["v"],
+            round(config_module.setting_share(
+                config_module.CHOSEN["pointer_speed"],
+                self.config.pointer_speed), 3))
+        # And the number in words, which is the slider's own field: one
+        # control, two drawings.
+        self.assertTrue(row["t"])
+
+    def test_a_knob_on_a_ladder_says_which_stop_out_of_how_many(self):
+        row = self.drawn("Corner")
+        stops = config_module.CHOSEN["radius"]["stops"]
+        self.assertEqual(row["seg"], len(stops))
+        self.assertIn(row["at"], range(len(stops)))
+
+    def test_a_knob_on_a_list_is_drawn_from_its_places(self):
+        # The half a slider has no drawing for: there is no arithmetic between
+        # two words, so where round the ring one of them stands is which one
+        # out of how many.
+        self.config.set_setting("badge_style", ("set", "stencil"))
+        row = self.drawn("Style")
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.assertEqual(row["seg"], len(choices))
+        self.assertEqual(row["at"], choices.index("stencil"))
+        self.assertEqual(row["v"], 1.0)
+        # Still the word it is called rather than the word it is stored as.
+        self.assertEqual(row["t"], "Stencil")
+
+    def test_a_list_can_only_be_read_by_the_one_control_that_draws_places(
+            self):
+        # A slider pointed at a list would have to draw a length between two
+        # words, and `omapad check` is a better place to find that out than
+        # the sofa.
+        with self.assertRaises(menu_module.MenuError):
+            menu_module.build(
+                [{"label": "Dials", "items": [
+                    {"label": "Style", "control": "slider",
+                     "reads": "pad:badge_style"},
+                ]}], settings=config_module.CHOSEN)
+
+    def test_the_first_frame_of_a_grip_moves_nothing(self):
+        # A knob is grabbed rather than aimed: a stick pushed to two o'clock
+        # that set the value to three quarters is a control that jumps the
+        # moment it is touched.
+        self.take("Speed")
+        before = self.config.pointer_speed
+        self.grip(0)
+        self.assertEqual(self.config.pointer_speed, before)
+
+    def test_carrying_it_half_way_round_moves_half_the_range(self):
+        self.take("Speed")
+        spec = config_module.CHOSEN["pointer_speed"]
+        self.config.set_setting("pointer_speed", ("set", spec["min"]))
+        self.grip(0)
+        # `turn_degrees` crosses the whole range, so half of it is half.
+        self.grip(self.config.menu_turn_degrees / 2)
+        span = spec["max"] - spec["min"]
+        self.assertAlmostEqual(self.config.pointer_speed - spec["min"],
+                               span / 2, delta=spec["step"] * 2)
+
+    def test_and_the_other_way_round_takes_it_back(self):
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", 2000.0))
+        self.grip(0)
+        self.grip(90)
+        raised = self.config.pointer_speed
+        self.assertGreater(raised, 2000.0)
+        self.grip(0)
+        self.assertAlmostEqual(self.config.pointer_speed, 2000.0,
+                               delta=config_module.CHOSEN[
+                                   "pointer_speed"]["step"] * 2)
+
+    def test_crossing_the_top_of_the_dial_is_one_degree_not_most_of_a_turn(
+            self):
+        # The wrap, which is the one piece of arithmetic here that can be
+        # silently wrong: a thumb going from 179 to -179 has moved two
+        # degrees, and a knob that read it as 358 would leap most of its range
+        # on the frame a hand crossed twelve o'clock.
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", 2000.0))
+        self.grip(179)
+        self.grip(-179)
+        spec = config_module.CHOSEN["pointer_speed"]
+        moved = abs(self.config.pointer_speed - 2000.0)
+        self.assertLess(moved, (spec["max"] - spec["min"]) / 10)
+
+    def test_a_thumb_that_lets_go_and_comes_back_does_not_jump(self):
+        self.take("Speed")
+        self.grip(0)
+        self.grip(45)
+        rested = self.config.pointer_speed
+        self.letgo()
+        # All the way round the other side, and back on the stick: what it
+        # turns from is where the thumb landed, not where it left.
+        self.grip(200)
+        self.assertEqual(self.config.pointer_speed, rested)
+
+    def test_a_thumb_resting_near_the_middle_turns_nothing(self):
+        # An angle read near the middle of a stick's travel is noise: a hand
+        # at rest crosses whole quadrants without moving.
+        self.take("Speed")
+        before = self.config.pointer_speed
+        self.grip(0, reach=self.config.menu_turn_grip / 2)
+        self.grip(90, reach=self.config.menu_turn_grip / 2)
+        self.assertEqual(self.config.pointer_speed, before)
+
+    def test_the_stick_still_walks_the_page_while_nothing_is_held(self):
+        # The turn is the *held* knob's. A tile the selection is only passing
+        # over cannot own the stick, which is the whole reason A takes it.
+        self.land("Speed")
+        before = self.config.pointer_speed
+        self.grip(0)
+        self.grip(45)
+        self.assertEqual(self.config.pointer_speed, before)
+
+    def test_the_dpad_still_steps_a_taken_knob(self):
+        # Three ways in, one set of numbers.
+        self.take("Speed")
+        before = self.config.pointer_speed
+        self.daemon.menu_command("right")
+        self.assertGreater(self.config.pointer_speed, before)
+
+    def test_a_turn_lands_where_a_step_could_have(self):
+        self.take("Speed")
+        self.config.set_setting("pointer_speed", ("set", 2000.0))
+        step = config_module.CHOSEN["pointer_speed"]["step"]
+        self.grip(0)
+        self.grip(70)
+        self.assertEqual(self.config.pointer_speed % step, 0.0)
+
+    def test_a_ring_does_not_come_round_at_the_end_of_a_list(self):
+        # A press walks a list and wraps, because there is one way through it.
+        # A turn does not: a thumb that carries the pointer past the last stop
+        # and finds it at the bottom of the dial has lost what it was moving.
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.config.set_setting("badge_style", ("set", choices[-1]))
+        self.take("Style")
+        self.grip(0)
+        self.grip(180)
+        self.assertEqual(self.config.ui_badge_style, choices[-1])
+        # And the other way still walks it, one place at a time.
+        self.grip(0)
+        self.assertEqual(self.config.ui_badge_style, choices[0])
+
+    def test_the_end_of_a_ring_is_felt_as_an_end(self):
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.config.set_setting("badge_style", ("set", choices[-1]))
+        self.take("Style")
+        self.daemon.menu_command("right")
+        self.assertTrue(self.daemon._menu_edged)
+
+    def test_b_puts_a_turned_list_back_where_it_was(self):
+        # The `b` half of a held control, on the kind of value that had no
+        # share to remember before there was a ring to draw it on.
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.config.set_setting("badge_style", ("set", choices[0]))
+        self.take("Style")
+        self.daemon.menu_command("right")
+        self.assertEqual(self.config.ui_badge_style, choices[1])
+        self.daemon.menu_command("back")
+        self.assertEqual(self.config.ui_badge_style, choices[0])
+
+    def test_a_held_ring_says_where_the_turn_began(self):
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.config.set_setting("badge_style", ("set", choices[0]))
+        self.take("Style")
+        self.daemon.menu_command("right")
+        row = self.drawn("Style")
+        self.assertTrue(row["hd"])
+        self.assertEqual(row["b"], 0.0)
+
+
 class PageKeyTests(DaemonTestCase):
     """A page of the menu spending X and Y on a job of its own."""
 
@@ -4025,7 +4263,9 @@ class LiveTests(DaemonTestCase):
         self.open_on("Volume")
         self.answer(*self.VOLUME)
         volume = self.tile("Volume")
-        self.assertEqual(volume["k"], "slider")
+        # The one tile in the shipped tree that is a ring: how loud it is, on
+        # the page a sofa opens most.
+        self.assertEqual(volume["k"], "knob")
         self.assertAlmostEqual(volume["v"], 0.6, places=2)
         self.assertEqual(volume["t"], "60%")
 
@@ -4070,6 +4310,35 @@ class LiveTests(DaemonTestCase):
         self.assertEqual([one for one in self.asked()
                           if "get-sink-volume" in one], self.asked())
         self.assertEqual(len(self.asked()), 1)
+
+    def test_a_trigger_sweeps_what_the_machine_is_doing_too(self):
+        # The sweep asked `CHOSEN` directly for as long as there was one kind
+        # of range to cross, which left the trigger dead on the two tiles most
+        # likely to be swept - how loud it is and how bright - with nothing on
+        # screen saying why. One place knows how long a control is now, and
+        # all three gestures ask it.
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        self.commands.submitted = []
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(0.3, steps=6)
+        self.assertTrue([one for one in self.asked()
+                         if "set-sink-volume" in one])
+        self.assertGreater(self.tile("Volume")["v"], 0.6)
+
+    def test_a_knob_reads_the_machine_the_way_a_slider_would(self):
+        # Two drawings of one control: the same number through the same
+        # function, so the page that draws a ring and a bar side by side
+        # cannot have them disagree about where a value is.
+        self.open_on("Volume")
+        self.answer(*self.VOLUME)
+        item = dict(self.daemon.menu.current)
+        self.assertEqual(item["label"], "Volume")
+        self.assertEqual(item["control"], "knob")
+        drawn = self.daemon.menu_control(item)
+        item["control"] = "slider"
+        self.assertEqual(self.daemon.menu_control(item)["v"], drawn["v"])
+        self.assertEqual(self.daemon.menu_control(item)["t"], drawn["t"])
 
     def test_a_live_push_writes_no_settings_file(self):
         # The value is the machine's, not ours: there is nothing to keep.
@@ -6957,6 +7226,111 @@ class MotionTests(DaemonTestCase):
         self.assertEqual(self.menu_client.sent[-1]["motion"], 0.25)
 
 
+class ChronographTests(DaemonTestCase):
+    """The one press on this surface that measures something.
+
+    A is a pusher on this tile: start, stop, reset, round again - and the
+    legend under the card says which of the three the next press is, so
+    `Reset` is read before it is pressed rather than discovered by pressing.
+    """
+
+    def stand_on_it(self):
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.menu.group, 0)
+        self.assertTrue(self.daemon.menu.select_id("stopwatch"))
+
+    def press(self):
+        self.daemon.menu_command("press")
+
+    def test_the_shipped_tree_has_one(self):
+        # It is on the chip the menu opens on, which is the whole of what
+        # "on the page you are already on" means here.
+        self.daemon.set_menu(True)
+        found = [tile["item"] for tile in self.daemon.menu.tiles
+                 if tile["item"]["control"] == "chrono"]
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["id"], "stopwatch")
+
+    def test_the_pusher_runs_the_cycle(self):
+        self.stand_on_it()
+        self.press()
+        self.assertEqual(self.daemon.chrono.state, chrono_module.RUNNING)
+        self.press()
+        self.assertEqual(self.daemon.chrono.state, chrono_module.STOPPED)
+        self.press()
+        self.assertEqual(self.daemon.chrono.state, chrono_module.IDLE)
+
+    def test_the_menu_stays_where_it_is(self):
+        # A stopwatch you had to reopen the menu to stop would be a stopwatch
+        # nobody starts.
+        self.stand_on_it()
+        self.press()
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_the_legend_says_which_press_is_coming(self):
+        self.stand_on_it()
+        self.assertEqual(self.legend_word("A"), "Start")
+        self.press()
+        self.assertEqual(self.legend_word("A"), "Stop")
+        self.press()
+        self.assertEqual(self.legend_word("A"), "Reset")
+
+    def test_the_legend_is_the_page_s_again_off_the_tile(self):
+        # The word belongs to the tile in front rather than to the surface:
+        # step off the chronograph and A is what A is everywhere else here.
+        self.stand_on_it()
+        self.press()
+        self.assertEqual(self.legend_word("A"), "Stop")
+        self.assertTrue(self.daemon.menu.select_id("keyboard"))
+        self.assertNotEqual(self.legend_word("A"), "Stop")
+
+    def test_the_surface_carries_the_measurement(self):
+        self.stand_on_it()
+        self.press()
+        state = self.menu_client.sent[-1]
+        self.assertTrue(state["chrono"]["run"])
+        self.assertIn("el", state["chrono"])
+        self.assertIn("sc", state["chrono"])
+        # And the tile is a watch first: the time of day rides on it, because
+        # that changes once a minute and a page is worth rebuilding for it.
+        self.assertIn("mn", self.chrono_row())
+
+    def test_two_payloads_carry_the_same_tiles(self):
+        # **The performance rule, at the surface that pays for it.** The panel
+        # rebuilds the page when the tiles it is sent differ from the tiles it
+        # has, so a stopwatch riding on its own tile is every delegate on the
+        # page rebuilt twice a second - measured at about an eighth of a core
+        # on this machine, for one hand.
+        self.stand_on_it()
+        self.press()
+        self.daemon.push_menu_view()
+        first = self.menu_client.sent[-1]
+        self.daemon.push_menu_view()
+        second = self.menu_client.sent[-1]
+        self.assertEqual(first["items"], second["items"])
+
+    def test_it_is_one_stopwatch_wherever_it_is_drawn(self):
+        # A measurement is a thing in the room rather than a property of a
+        # cell: walk away from the page and it is still going.
+        self.stand_on_it()
+        self.press()
+        self.daemon.set_menu(False)
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.chrono.state, chrono_module.RUNNING)
+
+    def legend_word(self, button):
+        for row in self.daemon.menu_legend():
+            if row["b"] == button:
+                return row["n"]
+        return None
+
+    def chrono_row(self):
+        for row in self.menu_client.sent[-1]["items"]:
+            if row.get("k") == "chrono":
+                return row
+        self.fail("no chronograph tile in the payload")
+
+
 class SoundTests(DaemonTestCase):
     """The third way a press is answered, and what it costs when it is off."""
 
@@ -7500,6 +7874,20 @@ class SettingTests(DaemonTestCase):
         self.feed((li.EV_ABS, li.ABS_RZ, 255))
         self.tick(1.0, steps=20)
         self.assertEqual(self.daemon.config.rumble_enabled, before)
+
+    def test_a_trigger_over_a_card_of_rows_is_a_pull_with_nothing_to_cross(
+            self):
+        # A card of rows is takeable and has no range at all: it is a page you
+        # go into, not a number. The sweep read the pair a control reads from
+        # before it asked whether there was one, so a trigger pulled on this
+        # tile took the loop down with it.
+        item = self.land("Controller", "Button labels")
+        # The tile really is one a trigger reaches: a card of rows is in
+        # `TAKEABLE`, and this is a pass over nothing the day it is not.
+        self.assertIs(self.daemon.menu.takeable(), item)
+        self.assertEqual(item["reads"], ())
+        self.feed((li.EV_ABS, li.ABS_RZ, 255))
+        self.tick(1.0, steps=20)
 
     def test_a_pad_whose_triggers_are_buttons_sweeps_all_the_way_in(self):
         # No fraction to give, so down is all the way: blunter, and it works.

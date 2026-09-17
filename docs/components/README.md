@@ -15,6 +15,7 @@ socket between them.
 | [Control socket](control.md) | `omapad/control.py` | Driving the daemon without the pad. |
 | [View socket](viewsock.md) | `omapad/viewsock.py` | Line-delimited JSON to the plugin, best-effort. |
 | [Socket directory](paths.md) | `omapad/paths.py` | Where the sockets live, and refusing one that is not private. |
+| [Chronograph](chrono.md) | `omapad/chrono.py` | The one stopwatch: three states, one pusher, and the only clock here that measures rather than tells. |
 
 ## Talking to the hardware
 

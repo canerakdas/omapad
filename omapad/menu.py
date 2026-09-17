@@ -71,8 +71,8 @@ BIAS = 2.0
 # owes generated art where it needs art, a QML delegate, a documented payload,
 # validation that fails `omapad check`, and a test. A control that can be
 # added by touching one file is one that can ship half-drawn.
-CONTROLS = ("toggle", "choice", "slider", "gauge", "media", "readout",
-            "rows", "row_break")
+CONTROLS = ("toggle", "choice", "slider", "knob", "gauge", "media",
+            "readout", "clock", "chrono", "rows", "row_break")
 
 # Which control a setting may be drawn as, by the kind of thing it holds. A
 # switch pointed at a number is a tile that could never draw itself, and the
@@ -81,6 +81,14 @@ CONTROL_KINDS = {
     "toggle": ("bool",),
     "choice": ("choice",),
     "slider": ("number",),
+    # **The one control that reads two kinds**, and the two are what a knob
+    # has always been: a quantity turned, and a selector with a stop per
+    # position. Nothing else on this surface can take both - a slider pointed
+    # at a list would have to draw a length between two words, and a `choice`
+    # tile pointed at a number would print it with no scale behind it. A ring
+    # has a place for each, which is the whole of why this is one control and
+    # not two.
+    "knob": ("number", "choice"),
     "gauge": ("number",),
     "media": ("media",),
     # The one tile that is not a control: it prints what something is and has
@@ -94,6 +102,19 @@ CONTROL_KINDS = {
 # name rather than an index so a config says which thumb it means.
 STICKS = ("left", "right")
 
+# The same value, turned rather than pushed. A slider is a length and a knob
+# is an angle, and this pad has one of each: a D-pad pushes a direction, and a
+# stick *is* an angle - so it is the one control on this surface whose shape a
+# thumb can copy rather than translate. Everything else about it is the
+# slider's: the same `reads`, the same steps, the same words, the same
+# `TAKEABLE` press. A second drawing of one control, not a second control.
+#
+# It is not offered as the better one either. A length is read faster than an
+# angle and a card is a rectangle, so the slider stays what a row of numbers
+# is drawn as; what the ring buys is the gesture, and the two live side by
+# side because which of them a page wants is the page's to say.
+KNOB = "knob"
+
 # The tile that holds a page rather than opening one: its `items` are drawn as
 # rows inside it, and A goes in before up and down walk them. A verb has no
 # value to show, so a cell spent on one says a single word - and
@@ -106,6 +127,32 @@ STICKS = ("left", "right")
 # that are already in front of you, and what buys them their length is that
 # they are stacked rather than laid side by side.
 ROWS = "rows"
+
+# The time, drawn as a face rather than printed as a figure. It is the second
+# tile with nothing to press - `readout` is the first - and the only one that
+# reads nothing at all: what a clock is on is not a setting, not something the
+# desktop is doing and not something the kernel publishes, so it takes no
+# `reads` and the model renders the time itself.
+#
+# A face rather than a second `%H:%M` because of where this is looked at. The
+# head's clock is read by somebody who has just opened the menu and is already
+# reading words; a tile is glanced at from across a room, over a game, and
+# what a glance gets off two hands is *roughly when it is*, which is the whole
+# question anybody asks a clock from a sofa.
+CLOCK = "clock"
+
+# The same face with a stopwatch in it, which is what a chronograph is. It is
+# the clock plus the one thing a clock cannot do - measure - and that is
+# exactly where the two part company: the time of day is rendered at the draw
+# and cannot be wrong, and a measurement is state somebody started. So this
+# one *is* asked of the daemon, where `chrono.py` holds it.
+#
+# **And it is the one tile with nothing to press that gained a press**, which
+# is why it is not simply an option on the clock: a clock may be drawn over a
+# game because there is nothing on it to reach for, and a chronograph may not
+# (see `hud.py`). One name each, and the two are told apart by what a payload
+# carries rather than by a flag somebody has to look up.
+CHRONO = "chrono"
 
 # How long a row that counts down counts for, where it does not say. Seconds,
 # and a whole number of them because the row prints it: a count that went
@@ -126,7 +173,7 @@ COUNTDOWN = 10
 # direction means two things depending on what it is pointing at - and no
 # thumb can be asked to know which. So A goes in, and up and down belong to
 # the page until it does.
-TAKEABLE = ("slider", "gauge", ROWS)
+TAKEABLE = ("slider", KNOB, "gauge", ROWS)
 
 # Where a control reads its value. `pad:` is omapad's own settings, `live:` is
 # what the desktop is doing - how loud it is, how bright, what is playing -
@@ -148,6 +195,13 @@ SPANS = {
     # slider says is where along its travel it is, and at one cell that is a
     # dozen pixels of difference between a setting and the one either side.
     "slider": (3, 1),
+    # Square, and the dial's own square: it is the same circle, and a page
+    # that held a knob, a gauge and a clock drawn to three sizes would read as
+    # a fault rather than as three tiles. Where the slider's three cells buy
+    # length, these four buy a diameter - and a ring smaller than this is one
+    # whose stops are a few pixels apart, which is a scale nobody can count
+    # from a sofa.
+    KNOB: (2, 2),
     # Two lines of somebody else's words, which are as long as they are. A
     # title elided at one cell says nothing at all.
     "media": (3, 2),
@@ -155,6 +209,17 @@ SPANS = {
     # either side of it, and the thumb inside has to move the same distance
     # both ways or the reading is a lie about where the stick is.
     "gauge": (2, 2),
+    # Square for the same reason, and the same square: a page that holds both
+    # holds two circles, and two circles drawn at two sizes read as a fault
+    # rather than as two tiles. Smaller than this is a face whose hands are a
+    # few pixels apart at ten past two, which is a clock that can only be
+    # read by somebody who already knows the time.
+    "clock": (2, 2),
+    # The same square again, and it has more in it: a sweep hand, a counter
+    # dial and the figures the counter cannot say. Bigger is the obvious
+    # answer and the wrong one - a page where the stopwatch is the largest
+    # thing on it is a page about the stopwatch.
+    "chrono": (2, 2),
     # Tall, because it is a stack: a heading, the rows under it and the line
     # along the foot. Two wide rather than one because the whole reason a verb
     # is a row here is that a cell could not hold its name.
@@ -191,6 +256,41 @@ SLUG = re.compile(r"[^a-z0-9]+")
 
 class MenuError(ValueError):
     pass
+
+
+def minute_of_day(now=None):
+    """Where both hands of a clock stand, as minutes since midnight.
+
+    **One number rather than an hour and a minute.** An hour hand stands
+    between two hours by exactly how far round the minute hand has got, so a
+    payload carrying the two separately is one that can be sent disagreeing
+    with itself - and the panel would have to know that to draw it, which is
+    geometry this side does not owe it.
+
+    Local time, because a clock in a room is the room's, and rendered here
+    rather than asked of the daemon for the head clock's reason: what costs
+    nothing to work out at the draw is wrong between draws if anything else
+    has to be waited for.
+    """
+    stamp = time.localtime() if now is None else time.localtime(now)
+    return stamp.tm_hour * 60 + stamp.tm_min
+
+
+def second_of_minute(now=None):
+    """Where a running-seconds hand stands, as seconds into the minute.
+
+    The chronograph's own face carries one and the clock does not, which is
+    the whole difference between a tile left over a game and a tile you open
+    the menu to look at. It rides beside `mn` rather than inside it: minutes
+    are what the two big hands are drawn from and are whole, and this is a
+    fraction that the panel counts on from between payloads.
+    """
+    stamp = time.localtime() if now is None else time.localtime(now)
+    # The fractional part is the machine's, not the calendar's: `localtime`
+    # throws it away and a hand that only ever stood on whole seconds would
+    # tick like a quartz watch rather than sweep like the thing this draws.
+    whole = time.time() if now is None else now
+    return stamp.tm_sec + (whole - int(whole))
 
 
 def slug(label):
@@ -438,9 +538,14 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             if item["confirm"] and item["repeat"]:
                 raise MenuError(
                     "%s: a row cannot both repeat and be confirmed" % path)
-        elif item["control"] in CONTROL_KINDS:
+        elif (item["control"] in CONTROL_KINDS
+                or item["control"] in (CLOCK, CHRONO)):
             # A control acts on what it reads. The press is the whole of it,
-            # so there is nothing to repeat and nowhere to be thrown out to.
+            # so there is nothing to repeat and nowhere to be thrown out to -
+            # and a clock is here rather than below because it is a tile with
+            # neither an action nor items on purpose. It has less to do than
+            # any of them: A on a clock does nothing, for the readout's reason
+            # with the reading taken out as well.
             if item["repeat"]:
                 raise MenuError("%s: a control does not repeat" % path)
             if item["confirm"]:
@@ -552,9 +657,10 @@ def _holds(spec, wanted):
 def _reads(entry, item, path, settings, readings=None, machine=None):
     """Where a control tile takes its value from, as (source, name).
 
-    Empty for a tile that is not a control - and a `reads` on one of those is
-    a tile that would read something and then draw none of it, so it is said
-    rather than ignored.
+    Empty for a tile that is not a control, and for the two controls that hold
+    no value anybody could name - a card of rows and a clock. A `reads` on any
+    of them is a tile that would read something and then draw none of it, so
+    it is said rather than ignored.
 
     The three tables are passed in rather than imported, so this module stays
     the thing that holds state and geometry: `settings` is what omapad holds,
@@ -571,6 +677,12 @@ def _reads(entry, item, path, settings, readings=None, machine=None):
             )
         return ()
     if not wants:
+        if control:
+            # A clock or a card of rows: a control, and still not one with a
+            # value anybody could point a `reads` at. Named rather than
+            # described, because "only a control reads something" is a baffling
+            # thing to be told about a line that says `control = "clock"`.
+            raise MenuError("%s: a %s reads nothing" % (path, control))
         raise MenuError("%s: only a control reads something" % path)
     source, _, name = str(spec).partition(":")
     source, name = source.strip(), name.strip()
@@ -2192,7 +2304,7 @@ class MenuModel:
         }
 
     def view_state(self, opened, state=None, value=None, head=None,
-                   keys=None, control=None, metas=None):
+                   keys=None, control=None, metas=None, chrono=None):
         """The payload the shell plugin draws.
 
         `state` answers "is this already the case?" for one action - the
@@ -2213,6 +2325,18 @@ class MenuModel:
         `control` answers for a tile that holds a value - what it is on, and
         in what words. Same reason again: what a setting holds is the
         config's, and this module has no config.
+
+        `chrono` is the stopwatch, and it is **the one value that does not
+        ride on its own tile**. What it holds changes between one payload and
+        the next, and the panel decides whether to rebuild the page by
+        comparing the tiles it was sent with the tiles it has - so a number
+        that always differs is every delegate on the page rebuilt twice a
+        second to move one hand. It is the gauge's thumb one control along,
+        and `menu_gauge` had already written the warning down.
+
+        Asked only where a tile would draw it, and called rather than passed
+        for the same reason `control` is: nothing here asks the daemon for a
+        thing no tile on this page can show.
         """
         items = []
         for tile in self.tiles:
@@ -2250,6 +2374,14 @@ class MenuModel:
                 row["p"] = True
             if item["control"]:
                 row["k"] = item["control"]
+                if item["control"] in (CLOCK, CHRONO):
+                    # The time of day, on both faces that have hands. This
+                    # module works it out itself - it can, because a clock
+                    # reads nothing and there is no table to be handed;
+                    # `minute_of_day` says why it is one number and why it is
+                    # rendered on this side. A chronograph still tells the
+                    # time: what it adds is the thing a clock cannot do.
+                    row["mn"] = minute_of_day()
                 if item["shows"]:
                     row["s"] = item["shows"]
                 if item["id"] == self.taken:
@@ -2266,6 +2398,11 @@ class MenuModel:
                     # of any control at all: a card of rows is a control with
                     # no value in it, and the daemon's answer to "what is this
                     # on?" begins by unpacking the pair it reads from.
+                    #
+                    # A chronograph reads nothing and is not asked here either,
+                    # for a second reason that is the whole of `chrono` below:
+                    # what it holds changes between one payload and the next,
+                    # and a tile that changes is a page that is rebuilt.
                     row.update(control(item) or {})
             if item.get("rows") is not None:
                 # The card's own rows, drawn in it rather than behind it. They
@@ -2294,7 +2431,11 @@ class MenuModel:
                         row["d"] = text
             items.append(row)
         head_tiles, head_rows = self.head_state(head)
-        return {
+        measured = None
+        if chrono is not None and any(
+                tile["item"]["control"] == CHRONO for tile in self.tiles):
+            measured = chrono()
+        state_out = {
             "open": opened,
             "title": self.title,
             "clock": self.clock(),
@@ -2339,3 +2480,10 @@ class MenuModel:
             "rows": self.rows,
             "items": items,
         }
+        if measured is not None:
+            # Off the wire entirely for a page with no chronograph on it, so
+            # every other page costs nothing for this one existing - and there
+            # is one field rather than one per tile because there is one
+            # stopwatch, however many faces are drawn of it.
+            state_out["chrono"] = measured
+        return state_out
