@@ -3922,6 +3922,16 @@ first time the vertical instrument is felt at all, on the same
 `MENU_SCRUB_HOLD` a scrubbed slider uses. `_menu_from` and `menu_share()` went
 with the scale.
 
+**And the vertical went back out**, from the same chair again: *yatay ve dikey
+seçilebilir sliderlar için fazla titreşim ekledik gibi.* It was: a list walked
+up and down has one motor for both ways, so what it says is that something
+moved without saying which - which is the scheme `texture` was kept switched
+off for, arriving by the back door. It was doubled feedback too, the only
+place on the surface that was both heard and felt, and long: 200 ms against a
+press's 60. So a row step is heard and not felt like every other step of a
+selection, `menu_feel` answers a range and nothing else, and the sentence in
+`rumble.md` about a plain move has the row in it now.
+
 ### 67. The instrument, read off a Braun meter · 🗑 Removed · M
 
 Five passes had gone into the line at the foot of a slider, and the sixth ask

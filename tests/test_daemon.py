@@ -6780,18 +6780,18 @@ class SettingTests(DaemonTestCase):
             self.nudge("right")
         self.assertEqual(self.daemon.rumble._aimed["texture"], one)
 
-    def test_a_list_walked_inside_a_card_is_felt_on_the_left(self):
-        # The vertical instrument's own push. Up and down have no left and
-        # right to answer with, and the D-pad is under the left thumb.
+    def test_a_list_walked_inside_a_card_is_heard_and_not_felt(self):
+        # A step of a selection, which is the one thing on this surface the
+        # motor stays out of: up and down have only the left motor to answer
+        # with, and a buzz that cannot say which way went is the scheme
+        # `texture` was kept off for.
         self.land("Controller", "Button labels")
         self.press("A")
         self.release("A")
         self.assertTrue(self.daemon.menu.entered)
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
-        strong, weak = self.daemon.rumble._aimed.get("texture", (0, 0))
-        self.assertGreater(strong, 0)
-        self.assertEqual(weak, 0)
+        self.assertEqual(self.daemon.rumble._aimed.get("texture"), None)
 
     def test_a_layout_row_reaches_every_surface_at_once(self):
         # A pad printed one way in the guide and another on the bar is worse

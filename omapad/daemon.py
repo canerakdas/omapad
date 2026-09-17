@@ -2986,7 +2986,7 @@ class Daemon:
         share = 1.0 if span <= 0 else min(1.0, (now - self._menu_since) / span)
         return max(1, int(round(1.0 + (ramp - 1.0) * share)))
 
-    def menu_feel(self, direction, sideways=True):
+    def menu_feel(self, direction):
         """The motor, answering a push on the side the push was made.
 
         **The hand that moved it is the hand that feels it.** A pad wires its
@@ -3000,15 +3000,13 @@ class Daemon:
         already printing, and a control being pushed wants *the push landed*
         rather than a measurement.
 
-        **Up and down are the left motor**, both of them: a list is walked
-        with the D-pad, the D-pad is under the left thumb, and a vertical
-        movement has no left and right to answer with. `sideways` is False
-        there, and the direction is then only about which way the list went -
-        which the sound already says.
+        **A range is the only thing it answers**, which is why there is a
+        direction to take at all. A list walked up and down had this too for a
+        while, on the left motor because that is the thumb the D-pad is under
+        - but one motor for both ways is a buzz that says something moved
+        without saying which, and that is the scheme this effect shipped off
+        for. What a step of a selection gets is the sound.
         """
-        if not sideways:
-            self.rumble.aim("texture", "left")
-            return
         self.rumble.aim("texture", "right" if direction > 0 else "left")
 
     def menu_adjust(self, item, direction, steps=None):
@@ -3329,13 +3327,15 @@ class Daemon:
                 # rather than doing a slider's job on a thing with no range.
                 if command in ("up", "down"):
                     if model.step_row(command):
+                        # **Heard and not felt**, like every other step of a
+                        # selection on this surface. It was felt for a while,
+                        # on the reading that a list inside a card is the
+                        # vertical instrument - but what the motor answers a
+                        # push with is *which way it went*, and up and down
+                        # have only the left motor to say it with. A buzz that
+                        # says a thing moved and not which way is the scheme
+                        # `texture` was kept switched off for.
                         self.say("move", rumble=False)
-                        # The vertical instrument's own push, and it is felt
-                        # the way the horizontal one is: held while the list
-                        # is moving, let go of when it stops (`menu_settle`).
-                        # On the left, because that is the thumb on the D-pad.
-                        self._menu_moving = MENU_SCRUB_HOLD
-                        self.menu_feel(0, sideways=False)
                     else:
                         self.menu_edge()
                     self.push_menu_view()

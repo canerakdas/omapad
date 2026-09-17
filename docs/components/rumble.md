@@ -47,10 +47,13 @@ whether the push landed. So `aim(name, side)` takes "left", "right" or "both"
 and plays the effect's own strength there: `[rumble] texture_strength`, an
 absolute level like `edge_strength` and `commit_strength`.
 
-**Up and down are the left motor**, both of them. A list inside a card is
-walked with the D-pad, the D-pad is under the left thumb, and a vertical push
-has no left and right to answer with. `daemon.menu_feel(direction, sideways)`
-is the one place that decides it.
+**A range is the only thing it answers.** A list inside a card had it too for
+a while, on the left motor both ways - the D-pad is under that thumb, and a
+vertical push has no left and right to answer with. That is the trouble with
+it: one motor for both directions is a buzz saying a thing moved without
+saying which, which is the scheme this effect was kept switched off for. A
+step of a selection is heard and not felt, wherever it is walked.
+`daemon.menu_feel(direction)` is the one place that decides the side.
 
 **It is re-uploaded in place while it runs.** `EVIOCSFF` with an effect's own
 id replaces what that slot holds, so the level follows the value without a gap
@@ -68,7 +71,7 @@ is what kept the old hum switched off, and it still would: a buzz that says
 the pad that answers a direction.
 
 **Nothing buzzes on a plain move.** Not a tile to the next tile, not a chip to
-the next chip. `[snap] rumble`'s comment is the older half of the same rule -
+the next chip, not a row to the next row inside a card. `[snap] rumble`'s comment is the older half of the same rule -
 *a step that repeats while it is held would buzz all the way down a list* -
 which is also why a scrubbing control does not tick per step: it holds one
 continuous `texture`, aims it at how far the value has come, and stops it when

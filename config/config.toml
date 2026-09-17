@@ -415,9 +415,10 @@ commit_duration_ms = 90
 # **The texture is the one word with two motors to say something with.** A pad
 # wires its low-frequency motor on the left and its high-frequency one on the
 # right, so the hand that made the move is the hand that feels it: a value
-# pushed right buzzes on the right, pushed left on the left, and a list walked
-# up or down buzzes on the left - the D-pad is under that thumb, and a
-# vertical push has no left and right to answer with.
+# pushed right buzzes on the right and pushed left on the left. A range is the
+# only thing it answers - walking a list up and down has one motor for both
+# ways, which is a buzz saying something moved without saying which, and that
+# is the scheme this effect was kept switched off for.
 #
 # **One level, not a scale.** It rose with the distance from where a push
 # started for a pass, which is a second reading of the number the tile is
