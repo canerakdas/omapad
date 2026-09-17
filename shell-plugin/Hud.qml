@@ -381,6 +381,10 @@ Item {
               value: tile.modelData.v !== undefined ? tile.modelData.v : 0
               ink: root.spineInk
               trail: root.trailInk
+              // A reading is never taken, so there is no press to draw the
+              // change of - the field is here so the drawing has all three
+              // of its colours and none of them is a surprise.
+              ghost: root.trailInk
               mark: Color.accent
             }
           }

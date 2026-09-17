@@ -419,6 +419,13 @@ Item {
   // accent, so the loudest thing on the line is still where the value is.
   readonly property color trailInk: Util.alpha(Color.accent, 0.5)
 
+  // What a press that has not settled is drawn in: the accent at the share a
+  // line behind the value takes, which is the same tint - what tells the two
+  // apart is that this one is dashed and sits between where the value was
+  // taken from and where it is now. Loud enough to find, quiet enough that
+  // what the value has *settled* on stays the thing being read.
+  readonly property color ghostInk: Util.alpha(Color.accent, 0.5)
+
   // **Which font a glyph is set in.** The surface's own, unless the row that
   // carries it named another: a glyph only exists in the font that drew it,
   // and Omarchy's own mark is at U+E900 in `omarchy.ttf` and nowhere in a
@@ -2459,10 +2466,18 @@ Item {
                     ? Number(tile.modelData.seg) : 0
                   at: tile.modelData.at !== undefined
                     ? Number(tile.modelData.at) : 0
+                  // Where the value stood when A took it, so the line can
+                  // show what this press has done to it. Only while it is
+                  // held: the daemon leaves the field off a control nobody
+                  // is holding, and a negative here is that absence.
+                  was: tile.modelData.b !== undefined
+                    ? Number(tile.modelData.b) : -1
                   // The line is the card's structure, the trail is how far
-                  // along the value has got, and the mark is where it is.
+                  // along the value has got, the ghost is what this press
+                  // changed, and the mark is where it is.
                   ink: root.spineInk
                   trail: root.trailInk
+                  ghost: root.ghostInk
                   mark: Color.accent
                 }
 

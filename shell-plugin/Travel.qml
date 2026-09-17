@@ -69,6 +69,13 @@ Item {
   property int stops: 0
   property int at: 0
 
+  // **Where the value stood when it was taken**, 0 to 1, or negative for a
+  // control nobody is holding. A press moves a slider by a step and a step is
+  // a few pixels, so the one question a hand asks while it pushes - *what
+  // have I done to this* - is answered by a mark that has barely moved. What
+  // answers it is a second mark, faint, left where the value was found.
+  property real was: -1
+
   // The line, the part of it the value has already covered, and the mark. All
   // three are the caller's: this file names no colour, for qml.md 8.1's
   // reason. All three are also required - a travel drawn with any of them
@@ -77,6 +84,8 @@ Item {
   property color ink: "transparent"
   property color trail: "transparent"
   property color mark: "transparent"
+  // And what the length a press has just changed is drawn in - see `was`.
+  property color ghost: "transparent"
 
   // The motif's measurements, all of them the ladder's `spine` - one
   // definition for the line drawn down a card of rows and the line drawn
@@ -149,13 +158,31 @@ Item {
     ? travel.edge(travel.here)
     : travel.from
       + Math.round((travel.to - travel.from) * travel.share)
-  // How far the value's own mark reaches: **the reach of the mark it is
-  // standing on**. At either end of the travel that is the long one, so the
-  // accent covers the end mark exactly rather than sitting inside it with its
-  // tips showing; anywhere else it is a stop's own.
-  readonly property int markReach:
-    (travel.markAt === travel.from || travel.markAt === travel.to)
+  // How far a mark at `x` reaches: **the reach of the mark it is standing
+  // on**. At either end of the travel that is the long one, so the accent
+  // covers the end mark exactly rather than sitting inside it with its tips
+  // showing; anywhere else it is a stop's own.
+  function reachAt(x) {
+    return (x === travel.from || x === travel.to)
       ? travel.crossEnd : travel.cross
+  }
+  readonly property int markReach: travel.reachAt(travel.markAt)
+
+  // **Where the value was taken from**, if it has been taken at all and has
+  // moved since. One mark, faint, and nothing between it and the value: the
+  // length between the two was drawn for three passes - dashed, then as
+  // chevrons, then as a leaning hatch - and every one of them put a second
+  // texture on a drawing whose whole argument is that it has one figure. What
+  // a hand is asking is *where was it*, and a mark answers that; the distance
+  // is then read the way every other distance on this line is, by looking.
+  readonly property bool changed: travel.was >= 0
+    && travel.wasAt !== travel.markAt
+  readonly property int wasAt: travel.was >= 0
+    ? travel.from + Math.round(
+        (travel.to - travel.from) * Math.max(0, Math.min(1, travel.was)))
+    : travel.markAt
+  // The solid run stops at the value, whichever way the press went: a press
+  // that raised it has raised it, and one that lowered it has lowered it.
   // What that run is drawn in, and with it every mark the value has already
   // passed: a line with stops fills in the accent and a line without them
   // tints at half - see the run below.
@@ -219,6 +246,19 @@ Item {
     height: travel.weight
     color: travel.covering
     visible: travel.markAt > travel.from + travel.weight
+  }
+
+  // **Where the value was taken from**, in the ghost's own ink: the mark a
+  // press is measured against, so *what was it before* is a thing on screen
+  // rather than a thing to remember. It is the only thing a held control
+  // draws that a loose one does not.
+  Rectangle {
+    visible: travel.changed
+    x: travel.wasAt
+    y: travel.lineY - travel.reachAt(travel.wasAt)
+    width: travel.weight
+    height: travel.reachAt(travel.wasAt) * 2 + travel.weight
+    color: travel.ghost
   }
 
   // **The strokes, and every one of them is the same stroke**: the cap at

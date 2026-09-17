@@ -240,7 +240,7 @@ class TravelTests(unittest.TestCase):
     slider that looks like an empty card, with nothing in any log about it.
     """
 
-    REQUIRED = ("ladder:", "value:", "ink:", "trail:", "mark:")
+    REQUIRED = ("ladder:", "value:", "ink:", "trail:", "ghost:", "mark:")
 
     def setUp(self):
         self.files = sorted(

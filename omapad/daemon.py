@@ -359,6 +359,11 @@ class Daemon:
         self._menu_edged = False
         self._menu_before = None
         self._menu_sweep = 0.0
+        # And where along its travel the value stood when A took it, as the
+        # share the tile is drawn from. `_menu_before` is the same moment in
+        # the setting's own units and exists so B can put it back; this one is
+        # for the line, which has no idea what a setting's units are.
+        self._menu_was = None
         # The readings, left on screen. One of the menu's own pages, packed
         # the same way and drawn somewhere else - so it is built from the same
         # tree and reads the same arrangement, and a tile carried in edit mode
@@ -2535,12 +2540,55 @@ class Daemon:
         self.menu.select_row(name)
         self.push_menu_view()
 
+    def menu_share(self, item):
+        """Where a control sits along its own travel, 0..1, or None.
+
+        The number the tile is already drawn from - `slider_fields` normalises
+        the same way - because *how far along* has to mean one thing whether
+        it is being read off a line or remembered as where a push began.
+        """
+        if not item or not item["reads"]:
+            return None
+        source, name = item["reads"]
+        try:
+            if source == "pad":
+                spec, value = CHOSEN.get(name), self.config.setting(name)
+            elif source == "live":
+                spec = live_module.READINGS.get(name)
+                value = self.live.value(name)
+            else:
+                return None
+        except KeyError:
+            return None
+        if not spec or value is None or "min" not in spec:
+            return None
+        return setting_share(spec, value)
+
     def menu_control(self, item):
         """What a control tile is on, for the payload it is drawn from.
 
         `menu.py` holds state and geometry; what a setting holds is the
         config's, so this is the half that knows.
+
+        **A taken control also says where it was taken from.** `b` is that
+        share, and it is on the wire only while the tile is held and only
+        while it differs from where the value is now: what it draws is the
+        distance between the two, which is the whole of what a press just did.
+        A control nobody is holding has no *before* - the value is simply the
+        value - so the field is absent and the panel has nothing to draw.
         """
+        fields = self.menu_reading(item)
+        if fields is None or self.menu.taken != item["id"]:
+            return fields
+        if self._menu_was is None or fields.get("v") is None:
+            return fields
+        was = round(max(0.0, min(1.0, self._menu_was)), 3)
+        if abs(was - fields["v"]) > 0.0005:
+            fields["b"] = was
+        return fields
+
+    def menu_reading(self, item):
+        """What the control is on, before the holding half is added."""
         source, name = item["reads"]
         if source == "live":
             return self.live_control(item, name)
@@ -3061,6 +3109,7 @@ class Daemon:
                                  name in self.config.chosen)
         self._menu_edged = False
         self._menu_sweep = 0.0
+        self._menu_was = self.menu_share(item)
         self.say("commit")
         self.push_menu_view()
         return True
@@ -3072,6 +3121,7 @@ class Daemon:
         self.menu.release()
         before = self._menu_before
         self._menu_before = None
+        self._menu_was = None
         if not keep and before is not None:
             name, value, chosen = before
             if self.config.setting(name) != value:

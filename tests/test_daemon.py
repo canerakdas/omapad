@@ -7213,6 +7213,40 @@ class SettingTests(DaemonTestCase):
         self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
         self.assertEqual(self.daemon.rumble._aimed.get("texture"), None)
 
+    def test_a_held_control_says_where_it_was_taken_from(self):
+        # A step moves the mark a few pixels, so the line draws the distance
+        # from where A found the value - and only while it is being held.
+        def tile():
+            tiles = self.menu_client.sent[-1]["items"]
+            return [one for one in tiles if one["l"] == "Pointer"][0]
+
+        self.land("Controller", "Sticks", "Pointer")
+        self.press("A")
+        self.release("A")
+        self.assertNotIn("b", tile())
+        self.nudge("right")
+        held = tile()
+        self.assertIn("b", held)
+        self.assertLess(held["b"], held["v"])
+        # Let go and there is no press to draw the change of.
+        self.press("A")
+        self.release("A")
+        self.assertNotIn("b", tile())
+
+    def test_the_mark_a_press_is_measured_against_is_where_B_puts_it_back(self):
+        self.land("Controller", "Sticks", "Pointer")
+        before = self.daemon.config.pointer_speed
+        self.press("A")
+        self.release("A")
+        was = self.daemon._menu_was
+        for _ in range(3):
+            self.nudge("right")
+        self.assertEqual(self.daemon._menu_was, was)
+        self.press("B")
+        self.release("B")
+        self.assertEqual(self.daemon.config.pointer_speed, before)
+        self.assertIsNone(self.daemon._menu_was)
+
     def test_a_layout_row_reaches_every_surface_at_once(self):
         # A pad printed one way in the guide and another on the bar is worse
         # than one printed wrongly in both.

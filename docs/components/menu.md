@@ -578,6 +578,26 @@ carry a tint that faint, and at a fifth it is not there at all. Nor the ink at
 its dim level, which was tried and made the run the brightest thing on the card
 - the eye then lands behind the value rather than on it.
 
+**What a press is measured against is drawn too.** A step moves the mark a few
+pixels, so the one question a hand asks while it pushes - *what have I done to
+this* - was answered by a mark that had barely moved. So while a control is
+**held**, the line carries one more thing: a **faint mark where A took the
+value from**. The solid run still ends at the value, whichever way the press
+went; what the ghost adds is the other end of the comparison.
+
+`b` on the payload is that place, and it is on the wire only while the tile is
+held and only while it differs from `v`. Let go with A and it goes; let go with
+B and the value goes back to exactly where it stands.
+
+**The length between the two was drawn for three passes and none of them
+lived.** A dashed run on the line read as the line itself gone faint. A row of
+chevrons was a second alphabet on a drawing that has one figure. A leaning
+hatch fixed the direction and then wanted its own spacing, its own clearance
+from the line, its own rule for standing aside from a stop - four decisions to
+say a thing the two marks already say by standing where they stand. What a hand
+is asking is *where was it*; a mark answers that, and the distance is read the
+way every other distance on this line is, by looking.
+
 **The run starts where the mark that ends the travel stops**, with nothing
 between the two. It began an arm later while the line still had a tail, and
 read as a second line starting somewhere of its own; what the eye wants at that
