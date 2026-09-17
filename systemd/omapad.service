@@ -1,5 +1,8 @@
 [Unit]
 Description=omapad - drive the desktop with a game controller
+# What `systemctl help omapad` opens. A URL rather than a `man:` page
+# because the manual is the README and there is no second copy of it.
+Documentation=https://github.com/canerakdas/omapad#readme
 PartOf=graphical-session.target
 After=graphical-session.target
 

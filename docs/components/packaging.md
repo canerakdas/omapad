@@ -33,6 +33,10 @@ substituted by `omapad unit` - see below. It sets
 that one variable is what lets `actions.Session` rediscover the rest - a
 systemd user service does not reliably inherit the compositor's.
 
+`Documentation=` points at the README rather than a `man:` page: `systemctl
+help omapad` answers with nothing at all when the key is missing, and the
+manual only stays right while there is one of it.
+
 ```bash
 systemctl --user restart omapad     # required after ANY code or config change
 journalctl --user -u omapad -f

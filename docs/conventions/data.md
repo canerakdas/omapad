@@ -113,7 +113,9 @@ line before anybody summons them.
   replacement `&` is the whole match. It is a user unit,
   `PartOf=graphical-session.target`, and it carries
   `Environment=XDG_RUNTIME_DIR=%t` because that one variable is what makes
-  rediscovering the rest possible. `%` in the checkout path would be read the
+  rediscovering the rest possible. `Documentation=` is the README's URL:
+  `systemctl help omapad` has nothing to open without it, and a `man:` page
+  would be a second copy of the manual to keep in step. `%` in the checkout path would be read the
   same way, which is why `unit.py` refuses one rather than escaping it.
 - `udev/99-omapad-uinput.rules` exists so the daemon never runs as root. It
   gives the `input` group `/dev/uinput`, with `static_node=uinput` so the mode
