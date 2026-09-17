@@ -294,6 +294,19 @@ labels with a detail line under each; a cell whose value is the thing it
 exists to say wants that value two √2 rungs above the word naming it, and the
 finer ladder cannot reach that without stopping on rungs nobody can name.
 
+**8.2.6** **Concentric is a radius, not only a centre.** A rounded rectangle
+drawn `d` pixels outside another one takes `d` more corner than it, and one
+drawn inside takes that much less; give two of them the same radius and they
+run parallel down the edges and part at the corners - which is exactly where
+an eye checks whether two lines belong to one drawing. So a surface that draws
+a figure around another one names **one** radius and every other figure asks
+what its own is by how far it stands from that path: `Menu.qml` has
+`tile.concentric(out)` over `metrics.radius.tile`, and the halo, the press
+ring, the sheen and a hold's sweep all go through it. The bug it ends is
+silent at a hairline and obvious the moment a stroke is four pixels wide,
+which is how it survived a long time: the corner of a ring that changed weight
+moved and nothing else did.
+
 **8.2.5** **A margin against the edge of the *screen* goes through
 `metrics.edge(span, own)`**, which answers the surface's own margin or the
 share `[ui] safe_area` keeps clear, whichever stands further in. The span is

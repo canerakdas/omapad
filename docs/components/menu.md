@@ -334,20 +334,44 @@ a tile in the hand, a slider being pushed - and a card being read is neither.
 It was filled once, and it was the loudest thing on the page with the least
 readable rows on it.
 
-**What an entered card does take is the heavier ring**, four pixels instead of
-one, and getting there found a real fault in the halo. The halo sat
-`ground.weight + its own half` outside the tile, which reads right and is not:
-the ring is drawn *inward*, straddling a path inset by half its weight, so it
-occupies the first `weight` pixels **inside** the tile and the halo has only
-the box itself to clear. The sum was a one-pixel error while every ring was a
-hairline and a four-pixel one the moment a ring was not - the halo went past
-the gap between cells, the grid clipped it on the leftmost tile of a page, and
-the border came out as two broken lines with a hole between them.
+**What an entered card takes is the press ring**, and getting there took two
+wrong answers first.
 
-`halo.out` is a hairline clear of the tile now, and the ring may be any weight
-without moving it. So the card says *which card* and the rail says *which row*
-- a two-pixel mark on one row is not something found from the other side of a
-room.
+It was a **heavier ring** for a while - four pixels instead of one - and that
+is the same figure drawn at two sizes, which is two focus marks rather than
+one: a reader has to know the difference between a thin ring and a thick one
+before either says anything. What the thick one was saying is not *where the
+cursor is* but *what A is doing to this*, and the design has a mark for that
+already and it is not a heavier border. A press is a **two-pixel ring inside
+the edge**, so `hit` - which was drawn for `press_ms` after a press - is drawn
+for as long as the press *lasts*: a control taken with both axes, a card gone
+into, a tile in the hand. The vocabulary is two figures and no exceptions: a
+hairline ring outside says **here**, a two-pixel ring inside says **and A has
+hold of it**. Taking the ring away instead was the other wrong answer, and it
+said so at once - the rail says which *row*, and a two-pixel mark on one row
+is no answer at all to which *card*.
+
+**One weight also holds the page's geometry still**, and that was the fault
+under a corner that did not fit its ring. Every figure on a tile is concentric
+with the ring - the halo outside it, the press ring inside it, the sheen on
+its face, the sweep of a hold - and **concentric is a radius as much as a
+centre**: a rounded rectangle drawn `d` pixels outside another one has to take
+`d` more corner, or the two run parallel down the edges and part at the
+corners, which is exactly where an eye checks whether two lines belong to one
+drawing. `tile.concentric(d)` is that sum in one place, `d` measured from the
+path the tile's own radius is measured on, and every figure asks it rather
+than reaching for `metrics.radius.tile` and hoping. The ring changing weight
+used to move all four corners at once.
+
+Two more things the pair needs. `halo.out` is a hairline clear of the tile's
+own **box** rather than of the ring: the ring is drawn *inward*, straddling a
+path inset by half its weight, so it occupies the first `weight` pixels inside
+the tile - a sum that was a one-pixel error while every ring was a hairline
+and a four-pixel one the moment a ring was not, and the grid clipped the halo
+on the leftmost tile of a page. And `hit.inset` keeps a hairline of the card's
+own face between the two rings: touching, they are a three-pixel edge, which
+is the thick ring this pair replaced rather than the two marks it is meant to
+be.
 
 ### The spine and the ground
 

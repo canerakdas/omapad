@@ -1622,6 +1622,25 @@ Item {
 
                 readonly property bool selected: tile.modelData.id === root.sel
                 readonly property bool ticked: tile.modelData.on === true
+
+                // **Concentric is a radius, not only a centre.** A rounded
+                // rectangle drawn `out` pixels outside another one has to
+                // take `out` more corner than it, or the two run parallel
+                // down the edges and part at the corners - which is exactly
+                // where an eye checks whether two lines belong to one
+                // drawing. `metrics.radius.tile` is measured on the ground's
+                // own path, so every other figure on this tile - the halo
+                // outside it, the press ring inside it, the sheen on its
+                // face, the sweep of a hold - asks for its radius by how far
+                // it stands from that path, out positive and in negative.
+                //
+                // It is geometry rather than a ladder rung, for the reason
+                // the travel's marks are: the numbers in it are the ring's,
+                // so a corner follows the ring at any scale, at any
+                // `[ui] radius`, and on a desktop that rounds nothing.
+                function concentric(out) {
+                  return Math.max(0, metrics.radius.tile + out)
+                }
                 // **A toggle that is on is a lit card, not a filled one.**
                 // It drew a pill with a knob in it once, which is how a switch
                 // looks in a *row* of settings; a cell has a whole card's worth
@@ -1751,21 +1770,32 @@ Item {
                   // one, and six tiles that cannot be found read as a scatter
                   // of labels rather than as a grid.
                   //
-                  // **One pixel when it is the accent, too.** It was two, which
-                  // is the weight of a thing that has to be seen on its own -
-                  // and a focused cell is not outlined on its own here, it is
-                  // ringed, haloed and lit. Four is kept for a tile in the
-                  // hand, which is the one state that has nothing else.
+                  // **One pixel when it is the accent, too.** It was two,
+                  // which is the weight of a thing that has to be seen on its
+                  // own - and a focused cell is not outlined on its own here,
+                  // it is ringed, haloed and lit.
                   //
-                  // **And four for a card you are standing inside**, which is
-                  // the second state with nothing else: a rail two pixels wide
-                  // on one of its rows is the right mark for *which row*, and
-                  // no mark at all for *which card*. A ring three times its
-                  // own weight is - and it costs the page nothing, because
-                  // the ring is drawn inward and the halo outside it no longer
-                  // moves when it thickens (see `halo.out`).
-                  readonly property real weight: (tile.taken || tile.carried)
-                    ? metrics.gap.xs : metrics.gap.hairline
+                  // **And one weight everywhere, which is the whole of what a
+                  // focus ring is.** It went to four for a tile in the hand
+                  // and for a card you are standing inside: the same figure
+                  // drawn at two sizes, which is two focus marks rather than
+                  // one, and the reader has to know the difference between a
+                  // thin ring and a thick one to read either. What the thick
+                  // one was saying is not *where the cursor is* but *what A is
+                  // doing to this* - and the design has a mark for that
+                  // already, and it is not a heavier border: a press is a
+                  // two-pixel ring drawn **inside** the edge. So `hit` below
+                  // is drawn for as long as the press lasts, the ring says
+                  // which tile and nothing else, and neither has to be
+                  // measured against the other to be read.
+                  //
+                  // It holds the page's geometry still as well. Every other
+                  // figure on a tile is concentric with this ring
+                  // (`tile.concentric`), so a ring that changed weight moved
+                  // the halo's corner, the sheen's and the press ring's with
+                  // it - which is what a corner that did not fit its ring
+                  // was.
+                  readonly property real weight: metrics.gap.hairline
 
                   // **Nor does its ink.** `Color.menu.selectedText` was on every
                 // string a tile draws, and Omarchy defaults that key to the
@@ -1878,13 +1908,16 @@ Item {
                     strokeWidth: halo.weight
 
                     PathSvg {
-                      // Concentric with the tile, so the corner of the halo is
-                      // the corner of the tile pushed outwards rather than a
-                      // rounder corner round a squarer one.
+                      // Concentric with the ring, which is a radius as much as
+                      // a centre: `tile.concentric` takes the distance from
+                      // the path the tile's own radius is measured on, so the
+                      // hairline between the two is a hairline at the corners
+                      // as well as down the edges.
                       path: tileArt.ground(tile.outline,
                                            tile.width + halo.out * 2,
                                            tile.height + halo.out * 2,
-                                           metrics.radius.tile + halo.out)
+                                           tile.concentric(ground.weight / 2
+                                                           + halo.out))
                     }
                   }
 
@@ -1961,7 +1994,9 @@ Item {
                       path: tileArt.ground(tile.outline,
                                            tile.width - sheen.weight,
                                            tile.height - sheen.weight,
-                                           metrics.radius.tile)
+                                           tile.concentric(
+                                             (ground.weight - sheen.weight)
+                                             / 2))
                     }
                   }
 
@@ -1984,6 +2019,18 @@ Item {
                 readonly property bool flashing:
                   tile.modelData.id === root.flashed
 
+                // **And it is this surface's one mark for *A is on this*.**
+                // A flash is a press that is over. A control taken with both
+                // axes, a card you have gone into and a tile in the hand are
+                // presses that have not been let go of - the same gesture,
+                // still happening - so they draw the same ring for as long as
+                // they last rather than each inventing a focus of its own. It
+                // is the design's own pair and the whole vocabulary of this
+                // grid: a hairline ring outside says *here*, a two-pixel ring
+                // inside says *and A has hold of it*.
+                readonly property bool acting:
+                  tile.flashing || tile.taken || tile.carried
+
                 Shape {
                   id: hit
                   anchors.fill: parent
@@ -1991,8 +2038,9 @@ Item {
                   visible: hit.opacity > 0
                   // A binding, not something the timer starts: a delegate
                   // rebuilt mid-flash is born where the state already is -
-                  // qml.md 5.5.
-                  opacity: tile.flashing ? 1 : 0
+                  // qml.md 5.5. It is `acting` rather than `flashing`, so a
+                  // press that is still being made keeps the ring up.
+                  opacity: tile.acting ? 1 : 0
                   Behavior on opacity { NumberAnimation { duration: metrics.time.brisk } }
 
                   // Two pixels, and **off the ladder on purpose** - qml.md
@@ -2002,10 +2050,14 @@ Item {
                   // are one and three, and a press held for a sixth of a
                   // second at either reads as a different gesture.
                   readonly property real weight: Math.max(1, metrics.space(2))
-                  // Clear of whatever outline the tile already carries, so the
-                  // two never share a pixel and a selected tile being pressed
-                  // reads as two rings rather than as one thick one.
-                  readonly property real inset: ground.weight + hit.weight / 2
+                  // Clear of whatever outline the tile already carries, **and
+                  // a hairline clear of it** - the two touching is a three
+                  // pixel edge, which is the thick ring this pair replaced
+                  // rather than the two marks it is meant to be. A line of
+                  // the card's own face between them is what makes a press
+                  // read as a second figure inside the first.
+                  readonly property real inset:
+                    ground.weight + metrics.gap.hairline + hit.weight / 2
 
                   ShapePath {
                     fillColor: "transparent"
@@ -2016,7 +2068,8 @@ Item {
                       path: tileArt.ground(tile.outline,
                                            tile.width - hit.inset * 2,
                                            tile.height - hit.inset * 2,
-                                           metrics.radius.tile)
+                                           tile.concentric(ground.weight / 2
+                                                           - hit.inset))
                     }
                   }
 
@@ -2110,7 +2163,8 @@ Item {
 
                       PathSvg {
                         path: tileArt.ground(tile.outline, tile.width,
-                                             tile.height, metrics.radius.tile)
+                                             tile.height,
+                                             tile.concentric(ground.weight / 2))
                       }
                     }
                   }
@@ -2236,8 +2290,9 @@ Item {
                 // loudest thing on the page and the rows on it the hardest to
                 // read, which is the opposite of what going in is for.
                 //
-                // What it does take is the **heavier ring** - see
-                // `ground.weight`. The rail says which row; the ring says
+                // What it does take is the **press ring** - see `hit`, and
+                // `ground.weight` for why it is not a heavier border. The
+                // rail says which row; the ring inside the card's edge says
                 // which card, and a card needs one: a two-pixel mark on one
                 // of its rows is not something you find from the other side
                 // of a room.
