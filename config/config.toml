@@ -897,6 +897,34 @@ talk_stop = "voxtype record stop"
 # Empty means nothing is read and the key never lights; it still works.
 dictate_state = "$XDG_RUNTIME_DIR/voxtype/state"
 
+# Where dictation puts what was said: at the cursor, or on the clipboard. A
+# switch on `Audio` rather than a line in this file, because the answer is
+# about the window in front of you rather than about this machine - a text
+# field takes typing, and a game, a terminal running something, or a window
+# that is not yours at all takes nothing, so the sentence is gone.
+dictate_clipboard = false
+
+# And what says so, because omapad never sees the words: voxtype types them
+# itself and leaves no transcript behind, so the only thing there is to switch
+# is voxtype's own `[output] mode`. These two are what the switch runs, and
+# they are a default rather than a mechanism - they fit the voxtype Omarchy
+# installs, whose shipped config has that key under that heading. A machine
+# that keeps it somewhere else replaces them rather than going without the
+# switch. The daemon is restarted because it reads that file when it starts.
+#
+# Both or neither: a switch that can only go one way is not a switch, and
+# `omapad check` says so.
+dictate_clipboard_on = '''
+  sed -i '/^\[output\]/,/^\[[a-z]/ s/^mode *=.*/mode = "clipboard"/' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/voxtype/config.toml" &&
+  systemctl --user try-restart voxtype.service
+'''
+dictate_clipboard_off = '''
+  sed -i '/^\[output\]/,/^\[[a-z]/ s/^mode *=.*/mode = "type"/' \
+    "${XDG_CONFIG_HOME:-$HOME/.config}/voxtype/config.toml" &&
+  systemctl --user try-restart voxtype.service
+'''
+
 # Per-key overrides for the on-screen keyboard, keyed by what the key does by
 # default. Either half is optional, and a bare string is taken as the label:
 #   BACKSPACE = ""              # relabel it
@@ -2868,6 +2896,23 @@ meta.from = '''
             | (if .name == $cur then "* " else "" end) + (.description // .name)
               + "\t" + (.index | tostring) + "\t" + .name'
   '''
+
+  # The third card on this page, and the one that is not a device. The two
+  # above it say where the sound comes from and goes to; this one says where
+  # the *words* go, which is the same question asked of the microphone's other
+  # end - so it is here rather than under `Controller`, where the button that
+  # opens the microphone lives.
+  #
+  # A switch, because there are two places and the tile draws which one it is
+  # in. What it runs is `[osk] dictate_clipboard_on` and its pair: omapad does
+  # not see the words, so switching where they land is something it asks
+  # voxtype to do.
+  [[menu.items.items]]
+  icon = "󰅍"
+  label = "Dictate to clipboard"
+  detail = "Instead of typing at the cursor"
+  control = "toggle"
+  reads = "pad:dictate_clipboard"
 
 [[menu.items]]
 icon = "󰍹"

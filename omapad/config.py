@@ -353,6 +353,17 @@ CHOSEN = {
         "attr": "hide_pointer", "table": "pointer", "key": "hide_on_press",
         "kind": "bool",
     },
+    # Where dictation puts what was said. On the pad because the answer is
+    # about the window in front of you rather than about this machine: the
+    # same sentence wants typing where there is a text field to type into, and
+    # copying where there is not - a game, a terminal running something, a
+    # window that is not yours at all. That is a question you have while
+    # looking at the window, which is the other side of a room from the file
+    # the tool keeps the answer in.
+    "dictate_clipboard": {
+        "attr": "osk_dictate_clipboard", "table": "osk",
+        "key": "dictate_clipboard", "kind": "bool",
+    },
     # Which mode the *next* start comes up in - the one setting here that
     # changes nothing about the daemon it was set from. It is on the pad
     # because of what it decides: a machine that is used from a sofa has to be
@@ -1462,6 +1473,27 @@ class Config:
         self.osk_dictate_state = os.path.expanduser(os.path.expandvars(
             str(osk.get("dictate_state", "$XDG_RUNTIME_DIR/voxtype/state"))
         )).strip()
+        # Where dictation puts what was said, and what says so to the tool
+        # that puts it there. omapad never sees the words - voxtype types them
+        # itself and leaves no transcript behind - so this setting is a switch
+        # thrown at somebody else's program rather than a thing the daemon
+        # does, and the two commands are how it is thrown.
+        self.osk_dictate_clipboard = bool(osk.get("dictate_clipboard", False))
+        self.osk_dictate_clipboard_on = str(
+            osk.get("dictate_clipboard_on", "")
+        ).strip()
+        self.osk_dictate_clipboard_off = str(
+            osk.get("dictate_clipboard_off", "")
+        ).strip()
+        if bool(self.osk_dictate_clipboard_on) != bool(
+                self.osk_dictate_clipboard_off):
+            # A switch that can only go one way leaves whoever flipped it back
+            # worse off than never having offered it: the words are on the
+            # clipboard for good and nothing on the pad says why.
+            raise ConfigError(
+                "osk.dictate_clipboard_on and osk.dictate_clipboard_off are "
+                "both needed, or neither"
+            )
         self.osk_repeat_delay = float(osk.get("repeat_delay_ms", 350)) / 1000.0
         self.osk_repeat_rate = float(osk.get("repeat_rate_ms", 70)) / 1000.0
         (self.osk_repeat_ramp,

@@ -94,6 +94,28 @@ is the one `osk:` command answered **before** `osk_command`'s "the keyboard is
 down" guard: the rest of them navigate a surface and this one does not need
 one, so it is a binding worth having on the base layer as well.
 
+## Where the words land is a switch thrown at somebody else's program
+
+`dictate_clipboard` is the one `pad:` setting that configures something
+outside omapad. What it decides is whether dictation types at the cursor or
+copies - a question about the window in front rather than about the machine,
+which is why it is on the pad at all: a text field takes typing, and a game or
+a terminal running something takes nothing, so the sentence is gone.
+
+**omapad never sees the words**, so there is nothing here to redirect. voxtype
+types them itself and leaves no transcript behind, and the only thing there is
+to switch is its own `[output] mode`. So the setting holds no behaviour:
+`apply_setting` spawns `[osk] dictate_clipboard_on` or `dictate_clipboard_off`
+and that is the whole of it. Spawned rather than run on the loop, because the
+shipped pair edits a file and restarts a unit.
+
+The commands are a **default rather than a mechanism** - they fit the voxtype
+Omarchy installs - and `config.py` refuses a config with one half of the pair:
+a switch that can only go one way leaves the words on the clipboard for good
+with nothing on the pad saying why. Emptying **both** is how a machine points
+the switch somewhere else; the tile still draws which way it is, because the
+setting is omapad's even where the command is not.
+
 ## The page an app lends
 
 An application profile can lend a page of its own for as long as its window is
@@ -146,4 +168,5 @@ into.
 
 Settings: `[osk] layout`, `badges`, `badge_align`, `repeat_delay_ms`,
 `repeat_rate_ms`, `labels_follow_layout`, `dictate`, `dictate_state`,
-`talk_start`, `talk_stop`, `socket`, plus `[osk.keys]` and `[bindings.osk]`.
+`talk_start`, `talk_stop`, `dictate_clipboard`, `dictate_clipboard_on`,
+`dictate_clipboard_off`, `socket`, plus `[osk.keys]` and `[bindings.osk]`.

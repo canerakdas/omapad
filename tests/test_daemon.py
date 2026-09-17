@@ -2435,6 +2435,58 @@ class PushToTalkTests(DaemonTestCase):
                              "confirm": True})
 
 
+class DictateClipboardTests(DaemonTestCase):
+    """The switch that says where the words land.
+
+    It is the one setting the pad can change that is true of somebody else's
+    program, so what these hold is that flipping it runs the command and that
+    nothing is run for a flip that did not happen.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.osk_dictate_clipboard = False
+        self.config.osk_dictate_clipboard_on = "say clipboard"
+        self.config.osk_dictate_clipboard_off = "say type"
+        self.session.spawned.clear()
+
+    def test_turning_it_on_and_off_runs_a_command_each_way(self):
+        self.daemon.set_setting("dictate_clipboard", ("toggle", None))
+        self.assertTrue(self.config.osk_dictate_clipboard)
+        self.assertEqual(self.session.spawned, ["say clipboard"])
+        self.daemon.set_setting("dictate_clipboard", ("toggle", None))
+        self.assertFalse(self.config.osk_dictate_clipboard)
+        self.assertEqual(self.session.spawned, ["say clipboard", "say type"])
+
+    def test_setting_it_to_what_it_already_is_runs_nothing(self):
+        # `apply_setting` is reached only on a change, and this one edits a
+        # file and restarts a unit: a menu that re-picked the row it is
+        # already on would bounce the tool for nothing.
+        self.daemon.set_setting("dictate_clipboard", ("set", False))
+        self.assertEqual(self.session.spawned, [])
+
+    def test_with_no_commands_the_switch_still_flips(self):
+        # The setting is omapad's and the commands are the machine's. One
+        # emptied pair is somebody pointing it somewhere else, not a broken
+        # switch, and the tile has to keep drawing which way it is.
+        self.config.osk_dictate_clipboard_on = ""
+        self.config.osk_dictate_clipboard_off = ""
+        self.daemon.set_setting("dictate_clipboard", ("toggle", None))
+        self.assertTrue(self.config.osk_dictate_clipboard)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_the_audio_page_offers_it(self):
+        # The shipped tree's own row, because a setting nothing reaches is a
+        # setting nobody has.
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ("Audio",),
+                  lambda: self.daemon.menu_command("press"))
+        item = next(tile["item"] for tile in self.daemon.menu.tiles
+                    if tile["item"]["label"] == "Dictate to clipboard")
+        self.assertEqual(item["control"], "toggle")
+        self.assertEqual(item["reads"], ("pad", "dictate_clipboard"))
+
+
 class OskTests(DaemonTestCase):
     def open_osk(self):
         self.daemon.set_osk(True)

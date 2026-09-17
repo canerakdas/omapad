@@ -1252,6 +1252,7 @@ restart — so every config change would close your Steam.
 | `pad:scroll_speed=up\|down\|<1..40>` | how fast the wheel turns |
 | `pad:left_deadzone=up\|down\|<0..0.5>` | how much of the left stick does nothing |
 | `pad:right_deadzone=up\|down\|<0..0.5>` | the same, for the right one |
+| `pad:dictate_clipboard=on\|off\|toggle` | whether dictation lands on the clipboard instead of at the cursor |
 | `live:volume=up\|down\|<0..1>` | how loud the machine is — the twin of `pad:`, for what the machine holds rather than what omapad does |
 | `live:mute=on\|off\|toggle` | the speakers |
 | `live:brightness=up\|down\|<0..1>` | how bright the screen in front is |
@@ -2816,7 +2817,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 | **Now** | the keyboard, volume, brightness, what is playing — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Workspaces** | fullscreen, next window, float / tile, close |
-| **Audio** | which speakers, which microphone |
+| **Audio** | which speakers, which microphone, and where dictation puts the words |
 | **Display** | scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
 | **Controller** | everything about the pad — see below |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
@@ -3464,6 +3465,33 @@ fires its press and release together and leaves no interval to speak in.
 ```bash
 omapad ctl osk dictate      # the same thing without a pad
 ```
+
+### Where the words land
+
+Dictation types at the cursor, which is right when there is somewhere to type.
+A game, a terminal running something, a window that is not yours at all: the
+sentence goes nowhere and there is nothing to paste. **Audio › Dictate to
+clipboard** is the switch for that — a tile on the same page as the outputs
+and the microphones, because it is the same question asked of the other end of
+the microphone.
+
+**omapad never sees the words.** voxtype types them itself and leaves no
+transcript behind, so switching where they land is something omapad asks
+voxtype to do: the tile runs a command, and the shipped pair edits voxtype's
+own `[output] mode` and restarts its daemon.
+
+```toml
+[osk]
+dictate_clipboard = false           # the switch, and what the tile reads
+dictate_clipboard_on  = "…"         # what turning it on runs
+dictate_clipboard_off = "…"         # and off
+```
+
+Both or neither: `omapad check` names the pair if only one is set, because a
+switch that can only go one way leaves the words on the clipboard for good
+with nothing on the pad saying why. The shipped commands fit the voxtype
+Omarchy installs; a machine that keeps that setting somewhere else replaces
+them rather than going without the tile.
 
 ### Changing the keys to suit yourself
 

@@ -6,6 +6,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from omapad import config as config_module
 from omapad import keymap
 from omapad import xkb
 from omapad.osk import (
@@ -846,6 +847,31 @@ class TextTests(unittest.TestCase):
         self.assertEqual(len(chords), 1)
         # On a Turkish layout 'ş' is where a US layout keeps the semicolon.
         self.assertEqual(chords[0], ([], keymap.resolve("SEMICOLON")))
+
+
+class DictateClipboardConfigTests(unittest.TestCase):
+    """The pair that says where the words land, and what a half of it costs."""
+
+    def test_one_command_without_the_other_is_named(self):
+        # A switch that can only go one way leaves the words on the clipboard
+        # for good, with nothing on the pad saying why. `omapad check` has to
+        # name the table and the key rather than the daemon finding out under
+        # a thumb.
+        for half in ("dictate_clipboard_on", "dictate_clipboard_off"):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                config_module.Config({"osk": {half: "true"}})
+            self.assertIn("osk.dictate_clipboard_on", str(caught.exception))
+
+    def test_both_or_neither_loads(self):
+        for osk in ({}, {"dictate_clipboard_on": "a",
+                         "dictate_clipboard_off": "b"}):
+            config = config_module.Config({"osk": osk})
+            self.assertFalse(config.osk_dictate_clipboard)
+
+    def test_the_shipped_pair_is_both_halves(self):
+        config = config_module.load()
+        self.assertTrue(config.osk_dictate_clipboard_on)
+        self.assertTrue(config.osk_dictate_clipboard_off)
 
 
 class ClientTests(unittest.TestCase):

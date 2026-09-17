@@ -3996,6 +3996,18 @@ class Daemon:
             # cache of them is what a new scale invalidates.
             self.bindings.clear()
             self.page_keys.clear()
+        elif name == "dictate_clipboard":
+            # The one setting here that is true of somebody else's program.
+            # What it decides is where the words land, omapad never sees them,
+            # and the tool that types them reads its own file to find out - so
+            # applying this is running a command rather than telling a model.
+            # Spawned, because it edits a file and restarts a unit and a press
+            # must not wait on systemd.
+            command = (self.config.osk_dictate_clipboard_on
+                       if self.config.osk_dictate_clipboard
+                       else self.config.osk_dictate_clipboard_off)
+            if command:
+                self.session.spawn(command)
         elif name in ("rumble", "rumble_strength"):
             # The effect is uploaded once per connection, so a strength that
             # changed only reaches the motor by replacing it.
