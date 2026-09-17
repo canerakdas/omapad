@@ -3,6 +3,7 @@
 import logging
 import math
 import os
+import shutil
 import tomllib
 
 from . import actions as actions_module
@@ -1429,6 +1430,38 @@ class Config:
                 spec = {"label": spec}
             if isinstance(spec, dict):
                 self.osk_key_overrides[action] = spec
+        # What the keyboard's microphone key runs. Empty is a keyboard with no
+        # such key at all, and so is a command whose program this machine has
+        # not got: a key that cannot work is one you press from across a room
+        # while the screen does not change. Only the first word is looked for,
+        # so a command that needs an environment in front of it wants a script
+        # of its own to be the first word instead.
+        self.osk_dictate = str(
+            osk.get("dictate", "voxtype record toggle")
+        ).strip()
+        first = self.osk_dictate.split()
+        if first and not shutil.which(first[0]):
+            self.osk_dictate = ""
+        # And the two halves of the same thing, for the button that holds the
+        # microphone open rather than switching it on. Not derived from the
+        # one above: a command is a command, and guessing that `toggle` can be
+        # turned into `start` is guessing about somebody else's program.
+        self.osk_talk_start = str(
+            osk.get("talk_start", "voxtype record start")
+        ).strip()
+        self.osk_talk_stop = str(
+            osk.get("talk_stop", "voxtype record stop")
+        ).strip()
+        for attr in ("osk_talk_start", "osk_talk_stop"):
+            first = getattr(self, attr).split()
+            if first and not shutil.which(first[0]):
+                setattr(self, attr, "")
+        # Where whatever that command started says what it is doing, so the key
+        # can be lit while the microphone is open. A file rather than a
+        # command, because the answer is wanted several times a second.
+        self.osk_dictate_state = os.path.expanduser(os.path.expandvars(
+            str(osk.get("dictate_state", "$XDG_RUNTIME_DIR/voxtype/state"))
+        )).strip()
         self.osk_repeat_delay = float(osk.get("repeat_delay_ms", 350)) / 1000.0
         self.osk_repeat_rate = float(osk.get("repeat_rate_ms", 70)) / 1000.0
         (self.osk_repeat_ramp,

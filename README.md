@@ -1015,7 +1015,7 @@ hold in every layer and every application —
 | L / R | previous / next workspace (the pad ticks) | move the window to the previous / next workspace |
 | D-pad | arrow keys | window focus (by direction) |
 | PLUS | tap: **the controller menu**, hold: the Omarchy menu | toggle split |
-| MINUS | **the on-screen keyboard** | – |
+| MINUS | tap: **the on-screen keyboard**, hold: **push to talk** | – |
 | MINUS + PLUS | **the controller menu** (a chord, everywhere, and the only way in over a game) | – |
 | ZL + B, ZR + B | **the workspace lock** — a chord, and only over an app that already has the pad | – |
 | HOME | tap: switch window, hold: **switch mode** | centre the window |
@@ -1235,6 +1235,8 @@ restart — so every config change would close your Steam.
 | `osk:caps` | toggle Caps Lock (the labels grow too) |
 | `osk:hold:shift\|ctrl\|alt` | hold a modifier for as long as the button is down |
 | `osk:submit` | press Enter, then put the keyboard away |
+| `osk:dictate` | start dictation, or stop it — what the microphone key does |
+| `osk:talk` | push to talk: the microphone is open while the button is held |
 | `menu:toggle\|open\|close\|up\|down\|press\|back` | the controller menu |
 | `guide:toggle\|open\|close` | the bindings guide |
 | `guide:next\|prev` | turn the guide's page |
@@ -3238,7 +3240,7 @@ surface's own binding outranks a layer trigger.
 | HOME | Tap: close the keyboard · Hold: switch mode |
 | Left stick click | Caps Lock (as two Shifts — [why](#changing-the-keys-to-suit-yourself)) |
 | Right stick click | Left click — for clicking into a field |
-| MINUS | Close the keyboard (the same button that opened it) |
+| MINUS | Tap: close the keyboard (the same button that opened it) · Hold: **push to talk** |
 
 The **▼** key at the bottom right of the keyboard closes it too — from inside
 the keyboard, without reaching for the pad. In the same place on every layer.
@@ -3322,8 +3324,8 @@ that window is in front, and it leaves with the window. Below, [the keyboard
 page an application lends it](#the-keyboard-page-an-application-lends-it).
 
 The bottom row is **the same on every page** — Ctrl, Alt, space, the arrows,
-Paste and ▼ do not move; only the first cell changes, carrying the name of the
-page it goes to (`&123` → `Fn` → `abc`, and in a terminal `&123` → `Fn` →
+the microphone, Paste and ▼ do not move; only the first cell changes, carrying
+the name of the page it goes to (`&123` → `Fn` → `abc`, and in a terminal `&123` → `Fn` →
 `Term` → `abc`, in a browser `Web` in the same place). L/R walk the pages in
 the same order.
 
@@ -3331,6 +3333,113 @@ the same order.
 The `Ctrl+Shift+V` a terminal wants lives on the application's own page (below),
 because that is the place for a key that is something else in exactly one
 application.
+
+The cell beside it is [the microphone](#saying-it-instead-of-typing-it), which
+is the one key on the keyboard that types nothing itself.
+
+### Saying it instead of typing it
+
+The **microphone** on the bottom row is the one key on the keyboard that types
+nothing. A: dictation starts, you say the sentence, A again: it stops, and a
+moment later the words arrive at the cursor — typed by whatever is doing the
+dictating, into the window the keyboard is open over.
+
+It is there because a sentence walked letter by letter with a thumb is the
+slowest thing this program asks anybody to do, and it is the thing a keyboard
+is for. Thirty keys of travel become one press, one sentence and one press.
+
+The key **lights while the microphone is open**, and lights more quietly while
+what was said is still being turned into text. That second half is the reason
+there are two looks: nothing appears on screen until it is over, and a key that
+went dark the moment it stopped listening would read as a press that did
+nothing.
+
+**omapad does not transcribe anything itself.** The key runs a command, and
+that command is [voxtype](https://voxtype.io), which
+Omarchy installs from its own menu → *Install* → *AI* → *Dictation*. The model,
+the language and the microphone are voxtype's own settings (`voxtype
+configure`) and omapad deliberately does not reach into them — which also means
+**the English model it installs by default will not transcribe another
+language**; change that in voxtype, not here.
+
+**The key is only on the keyboard when there is something to dictate with.**
+If the first word of the command is not a program this machine has, the
+keyboard is built without the key and the space bar keeps the cell: a key that
+cannot work is one you press from across a room while the screen does not
+change.
+
+```toml
+[osk]
+dictate = "voxtype record toggle"                 # "" takes the key away
+dictate_state = "$XDG_RUNTIME_DIR/voxtype/state"  # where it says what it is doing
+```
+
+`dictate_state` is the file the tool writes `idle` / `recording` /
+`transcribing` into, and it is the whole of how the key knows to be lit. A file
+rather than a command, because it is read several times a second while the
+keyboard is up. Point `dictate` at something else and the key runs that
+instead; leave `dictate_state` empty and the key still works, it just cannot
+say so.
+
+### Push to talk, on the button that opens the keyboard
+
+The key above is a switch: press, speak, press again. **MINUS held is the
+other gesture** — the microphone is open for exactly as long as the button is
+down, and the words arrive when your thumb comes off. Tap the same button and
+the keyboard opens, which is what it always did.
+
+It is the gesture the dictation tools are actually built for (`record start`
+and `record stop` exist for precisely this, and Omarchy binds F9 that way),
+and it is the better one from a sofa: there is nothing to remember and nothing
+to leave switched on. The switch stays because a key you walk to with a D-pad
+cannot be held — A is already doing the pressing.
+
+```toml
+[osk]
+talk_start = "voxtype record start"
+talk_stop  = "voxtype record stop"
+```
+
+Two commands rather than one, because a gesture that ends when a finger lifts
+cannot ask the tool which way it is currently pointing: a toggle that fell out
+of step once would stay out of step, and the next press would close a
+microphone somebody had just opened.
+
+**This is the one hold on the pad that lasts rather than fires.** Every other
+`hold =` runs once when the hold lands — `hold = "key:ENTER"` means one Enter,
+not a column of them — so an action only spans the hold when it says it does.
+Two things follow. `confirm = true` is refused beside one (the announced hold
+counts down and *then* runs, which leaves nothing to last for), and clicking
+the badge on the game bar does nothing rather than opening and closing the
+microphone in the same breath.
+
+The cost is the wait: recording starts after the hold lands (`hold_ms`, 500 ms
+by default), so the first half-second of a sentence started on the press is
+not there. Give it its own button to lose that — a plain binding has no tap to
+wait for:
+
+```toml
+[bindings.base]
+CAPTURE = "osk:talk"
+```
+
+```bash
+omapad ctl osk talk       # open it, with no button to hold
+omapad ctl osk talk off   # and close it
+```
+
+A **button** can reach the switch too, with `osk:dictate` — in `[bindings.osk]`, where
+the key then prints that button the way every other key on the keyboard does,
+or on any other layer, because this is the one `osk:` action that does not wait
+for the keyboard to be up: a microphone types into the window in front whether
+or not there is a keyboard drawn over it. Nothing is bound to it by default:
+the face buttons are spoken for, and this is a key you can see. The gesture is
+a press either way rather than a hold, because the hold half of a tap/hold pair
+fires its press and release together and leaves no interval to speak in.
+
+```bash
+omapad ctl osk dictate      # the same thing without a pad
+```
 
 ### Changing the keys to suit yourself
 

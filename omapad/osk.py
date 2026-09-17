@@ -29,6 +29,12 @@ terminal wants in front of it - for as long as its window is focused. That page
 is built here from what the profile handed over rather than written into a
 layout, so how many pages the keyboard has is a property of the model, and the
 page-turn cell has to read its name back out of it.
+
+One cell of the bottom row is not a key at all. A sentence spoken is a sentence
+nobody had to walk letter by letter with a thumb, so the row carries a
+microphone: it runs a command and types nothing itself. What that command is,
+and where whatever it started publishes what it is doing, are the daemon's to
+know - here it is an action with no chord and a light.
 """
 
 import copy
@@ -38,7 +44,8 @@ from . import keymap
 # A key is a label, its shifted label, and what it does.
 #   action  "KEYNAME" or "SHIFT+KEYNAME" types it, "mod:<name>" latches,
 #           "layer:<name>" switches layer ("next"/"prev" turn the page),
-#           "text:<string>" types the string, "close" puts the keyboard away
+#           "text:<string>" types the string, "close" puts the keyboard away,
+#           "dictate" hands the typing to a microphone
 #   weight  share of the row's width
 #   special non-character key: drawn dimmer and smaller
 #   alt     what the key types instead while Shift is latched. Only a typed
@@ -70,6 +77,25 @@ def _sym(label, name):
 # The key that puts the keyboard away, bottom-right of every layer.
 def _hide():
     return _k("▼", "▼", "close", 1, True)
+
+
+# The key that hands the typing over to a microphone. It runs a command rather
+# than typing anything, so it carries no chord, and the daemon holds both the
+# command and the file it watches for an answer.
+DICTATE = "dictate"
+
+# What the daemon has made of that answer, and the whole of what the key knows:
+# nothing while there is nothing to say, `on` while the microphone is
+# listening, `busy` while what was said is still becoming text. Two rather than
+# one because no text appears until the second is over, and a key that went
+# dark the moment it stopped listening would read as a press that did nothing.
+DICTATE_STATES = ("on", "busy")
+
+
+# A glyph rather than a word: it is the one cell on the row that types nothing,
+# and Omarchy's own bar already says dictation with this mark.
+def _mic():
+    return _k("󰍬", "󰍬", DICTATE, 1, True)
 
 # ------------------------------------------------------------- classic layout
 
@@ -110,11 +136,12 @@ MAIN = [
         _k("Ctrl", "Ctrl", "mod:ctrl", 1.5, True),
         _k("Alt", "Alt", "mod:alt", 1.5, True),
         _k("Super", "Super", "LEFTMETA", 1.5, True),
-        _k("␣", "␣", "SPACE", 5, True),
+        _k("␣", "␣", "SPACE", 4, True),
         _k("Fn", "Fn", "layer:fn", 1.5, True),
         _k("←", "←", "LEFT", 1, True),
         _k("↓", "↓", "DOWN", 1, True),
         _k("→", "→", "RIGHT", 1, True),
+        _mic(),
         _hide(),
     ],
 ]
@@ -145,12 +172,17 @@ def _bottom():
         _k("", "", "layer:next", 1.5, True),
         _k("Ctrl", "Ctrl", "mod:ctrl", 1.5, True),
         _k("Alt", "Alt", "mod:alt", 1.5, True),
-        _k("Space", "Space", "SPACE", 5, True),
+        # A unit narrower than a keyboard makes it, because the cell it gave
+        # up is the microphone's: four units is still the widest key on the
+        # row by three, and the space bar is the one key nobody has to aim at.
+        _k("Space", "Space", "SPACE", 4, True),
         # Shift swaps the whole key, so four arrows cost two cells.
         _k("←", "↑", "LEFT", 1, True, alt="UP"),
         _k("→", "↓", "RIGHT", 1, True, alt="DOWN"),
-        # Right nearly everywhere and wrong in a terminal, which wants
-        # Ctrl+Shift+V. Per-application profiles are what fixes that.
+        # The two cells that put text in without anybody typing it, side by
+        # side. Paste is right nearly everywhere and wrong in a terminal,
+        # which wants Ctrl+Shift+V; per-application profiles fix that.
+        _mic(),
         _k("Paste", "Paste", "CTRL+V", 1.5, True),
         _hide(),
     ]
@@ -300,7 +332,9 @@ APP_LAYER = "app"
 
 def chord_for(action):
     """The chord a key types, or None for a key that does something else."""
-    if action.startswith(("mod:", "layer:", "text:")) or action == "close":
+    if action.startswith(("mod:", "layer:", "text:")):
+        return None
+    if action in ("close", DICTATE):
         return None
     return keymap.parse_chord(action)
 
@@ -356,6 +390,30 @@ def apply_overrides(layers, overrides):
                             "osk.keys.%s: %s" % (key["action"], exc)
                         ) from exc
                     key["action"] = action
+    return layers
+
+
+def without_dictation(layers):
+    """A copy of the layer set with no microphone key, its cell given to Space.
+
+    A key that cannot work is worse from across a room than no key at all: you
+    press it and the screen does not change. The width goes back to the space
+    bar rather than being dropped, because every row of a page spends the same
+    budget and that is the whole of what keeps the columns lining up.
+    """
+    layers = copy.deepcopy(layers)
+    for rows in layers.values():
+        for row in rows:
+            spare = sum(key["w"] for key in row if key["id"] == DICTATE)
+            if not spare:
+                continue
+            row[:] = [key for key in row if key["id"] != DICTATE]
+            taker = max(row, key=lambda key: key["w"])
+            for key in row:
+                if key["id"] == "SPACE":
+                    taker = key
+                    break
+            taker["w"] += spare
     return layers
 
 
@@ -529,6 +587,8 @@ def binding_target(action):
         return "CAPSLOCK"
     if command == "close":
         return "close"
+    if command == DICTATE:
+        return DICTATE
     if command == "submit":
         # Enter and away. Badged on Enter rather than nowhere: what it presses
         # is that key, and what it does after is the guide's to say.
@@ -575,7 +635,7 @@ class OskModel:
     """Layout state: which layer is up, what is selected, which mods latch."""
 
     def __init__(self, layout=DEFAULT_LAYOUT, layer="main", overrides=None,
-                 badge_align=DEFAULT_BADGE_ALIGN):
+                 badge_align=DEFAULT_BADGE_ALIGN, dictate=True):
         if layout not in LAYOUTS:
             layout = DEFAULT_LAYOUT
         self.layout = layout
@@ -583,6 +643,8 @@ class OskModel:
             badge_align if badge_align in BADGE_ALIGNS else DEFAULT_BADGE_ALIGN
         )
         self.layers = LAYOUTS[layout]
+        if not dictate:
+            self.layers = without_dictation(self.layers)
         if overrides:
             self.layers = apply_overrides(self.layers, overrides)
         # The pages actually on the keyboard, and the order L/R walk them. Not
@@ -609,6 +671,10 @@ class OskModel:
         # and the same table inverted for typing a whole string.
         self.labels = {}
         self._chords = BUILTIN_CHORDS
+        # What the daemon last read of the dictation the microphone key
+        # started. Told rather than asked, the way the labels and the badges
+        # are: reading a file is not something a model does.
+        self.dictating = ""
         # {key identity: badge} for the buttons that reach a key by themselves.
         # Handed in rather than worked out here: which buttons exist and what
         # they print is the connected pad's answer, and this model outlives
@@ -618,6 +684,10 @@ class OskModel:
     def set_badges(self, badges):
         """Which pad button reaches each key, keyed as `badge_index` keys it."""
         self.badges = badges or {}
+
+    def set_dictating(self, state):
+        """What the microphone key is lit for: a DICTATE_STATE, or none."""
+        self.dictating = state if state in DICTATE_STATES else ""
 
     def badge_for(self, key):
         """The badge to print on one key, or None.
@@ -813,6 +883,11 @@ class OskModel:
             # the next key instead.
             self.clear_latches()
             return ("text", action[5:])
+        if action == DICTATE:
+            # No latch is spent and nothing is typed: what types next is the
+            # microphone, and a Shift held for it would land on whatever the
+            # first word of the transcript turns out to be.
+            return ("dictate", None)
         if action == "close":
             return ("close", None)
 
@@ -887,6 +962,12 @@ class OskModel:
                 else "caps" if key["id"] == "CAPSLOCK" else None
             ),
         }
+        # Lit for as long as the microphone is listening, and again, quieter,
+        # while what was said is still becoming text - the words do not arrive
+        # until that second is over. Absent the rest of the time, which is
+        # every other key on the keyboard.
+        if key["id"] == DICTATE and self.dictating:
+            state["d"] = self.dictating
         # Only where there is one: an absent field is a key no button reaches,
         # and the plugin draws nothing for it.
         if badge is not None:

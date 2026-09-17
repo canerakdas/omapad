@@ -344,6 +344,15 @@ class Context:
 
 class Action:
     holdable = False
+    # And whether it may *be* the hold half of a tap/hold pair and last as
+    # long as the button does, rather than firing once when the hold lands.
+    # Separate from `holdable` because nearly every holdable action would be
+    # wrong there: `hold = "key:ENTER"` means one Enter, and one that lasted
+    # would reach the compositor's key repeat and send a column of them. What
+    # needs this is a gesture with an interval in the middle - push to talk is
+    # the whole of it: the microphone is open for exactly as long as the
+    # button is down, and the release is the half that has the words.
+    spans_hold = False
 
     def press(self, ctx):
         pass
@@ -466,20 +475,29 @@ class OskAction(Action):
     REPEATABLE = {"up", "down", "left", "right"}
     SIMPLE = {
         "up", "down", "left", "right", "press", "open", "close", "toggle",
-        "shift", "ctrl", "alt", "submit", "caps",
+        "shift", "ctrl", "alt", "submit", "caps", "dictate",
     }
     # A modifier that follows the finger instead of latching for one key.
     HOLD = {"hold:shift", "hold:ctrl", "hold:alt"}
+    # Push to talk. Kept out of SIMPLE because SIMPLE is the set that means
+    # the same thing fired once, and this one means nothing at all without a
+    # release to end it: the microphone is open until the button comes up.
+    TALK = "talk"
     holdable = True
 
     def __init__(self, command):
         command = command.strip()
         if (command not in self.SIMPLE and command not in self.HOLD
+                and command != self.TALK
                 and not command.startswith("layer:")):
             raise ActionError("unknown osk command: %r" % command)
         self.command = command
+        self.spans_hold = command == self.TALK
 
     def press(self, ctx):
+        if self.command == self.TALK:
+            ctx.daemon.talk(True)
+            return
         if self.command in self.HOLD:
             ctx.daemon.osk_hold(self.command[5:], True)
             return
@@ -494,6 +512,9 @@ class OskAction(Action):
             )
 
     def release(self, ctx):
+        if self.command == self.TALK:
+            ctx.daemon.talk(False)
+            return
         if self.command in self.HOLD:
             ctx.daemon.osk_hold(self.command[5:], False)
             return
@@ -1030,6 +1051,13 @@ class Binding:
                     "confirm_ms", announced[1] if wants else 0))
                 if self.confirm_ms < 0:
                     raise ActionError("confirm_ms cannot be negative")
+                if self.confirm_ms and self.hold.spans_hold:
+                    # The announced hold is a one-shot by construction: it
+                    # counts down and then runs. An action that lasts as long
+                    # as the button has nothing left to last for by the time
+                    # the countdown is over.
+                    raise ActionError(
+                        "confirm cannot be used with a hold that lasts")
                 # And then what the hand holding it asked for. Applied
                 # here rather than where the timers are read so that
                 # `hold_ms` and `confirm_ms` are the waits everywhere - the

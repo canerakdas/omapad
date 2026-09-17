@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from omapad import keymap
 from omapad import xkb
 from omapad.osk import (
-    DEFAULT_BADGE_ALIGN, DEFAULT_LAYOUT, FN, LAYOUTS, MAIN, OskModel,
-    badge_index, binding_target, row_centers,
+    DEFAULT_BADGE_ALIGN, DEFAULT_LAYOUT, DICTATE, FN, LAYOUTS, MAIN, OskModel,
+    badge_index, binding_target, row_centers, without_dictation,
 )
 from omapad.viewsock import ViewClient
 
@@ -77,8 +77,10 @@ class LayoutTests(unittest.TestCase):
     def test_every_key_action_resolves(self):
         for layout_name, layer_name, key in every_key():
             action = key["action"]
-            if action.startswith(("mod:", "layer:")) or action == "close":
+            if action.startswith(("mod:", "layer:")):
                 continue
+            if action in ("close", DICTATE):
+                continue  # runs a command; there is no chord to resolve
             with self.subTest(layout=layout_name, key=key["label"]):
                 keymap.parse_chord(action)
 
@@ -101,6 +103,33 @@ class LayoutTests(unittest.TestCase):
             for layer_name, rows in layers.items():
                 with self.subTest(layout=layout_name, layer=layer_name):
                     self.assertEqual(rows[-1][-1]["action"], "close")
+
+    def test_every_layout_can_hand_the_typing_to_a_microphone(self):
+        for layout_name, layers in LAYOUTS.items():
+            for layer_name, rows in layers.items():
+                actions = [key["action"] for key in rows[-1]]
+                with self.subTest(layout=layout_name, layer=layer_name):
+                    self.assertIn(DICTATE, actions)
+
+    def test_a_layout_without_dictation_keeps_the_width_budget(self):
+        # The cell goes back to the space bar rather than being dropped: the
+        # rows of a page share one budget, and that is what lines the columns
+        # up across them.
+        for layout_name, layers in LAYOUTS.items():
+            pruned = without_dictation(layers)
+            for layer_name, rows in pruned.items():
+                with self.subTest(layout=layout_name, layer=layer_name):
+                    budget = sum(k["w"] for k in layers[layer_name][0])
+                    for row in rows:
+                        self.assertAlmostEqual(sum(k["w"] for k in row),
+                                               budget)
+                        self.assertNotIn(
+                            DICTATE, [key["action"] for key in row])
+
+    def test_the_space_bar_takes_the_cell_dictation_gave_up(self):
+        rows = without_dictation(LAYOUTS["grid"])["main"]
+        space = [key for key in rows[-1] if key["id"] == "SPACE"][0]
+        self.assertEqual(space["w"], 5)
 
     def test_default_layout_exists(self):
         self.assertIn(DEFAULT_LAYOUT, LAYOUTS)
@@ -293,6 +322,70 @@ class PressTests(unittest.TestCase):
                 if key["action"] == "close":
                     self.model.row, self.model.col = r, c
         self.assertEqual(self.model.press(), ("close", None))
+
+
+class DictationTests(unittest.TestCase):
+    """The key that types nothing and starts something instead."""
+
+    def setUp(self):
+        self.model = OskModel()
+
+    def select_dictate(self):
+        for r, row in enumerate(self.model.rows):
+            for c, key in enumerate(row):
+                if key["action"] == DICTATE:
+                    self.model.row, self.model.col = r, c
+                    return key
+        raise AssertionError("no microphone key")
+
+    def key_state(self):
+        self.select_dictate()
+        rows = self.model.view_state(True)["rows"]
+        return rows[self.model.row][self.model.col]
+
+    def test_pressing_it_types_nothing_and_asks_for_dictation(self):
+        self.select_dictate()
+        self.assertEqual(self.model.press(), ("dictate", None))
+
+    def test_a_latch_survives_it(self):
+        # What types next is the microphone, so the Shift being held is for
+        # the key after it rather than for the transcript.
+        self.model.latch("shift")
+        self.select_dictate()
+        self.model.press()
+        self.assertTrue(self.model.mods["shift"])
+
+    def test_the_key_is_dark_until_something_is_happening(self):
+        self.assertNotIn("d", self.key_state())
+
+    def test_the_key_says_which_of_the_two_states_it_is_in(self):
+        self.model.set_dictating("on")
+        self.assertEqual(self.key_state()["d"], "on")
+        self.model.set_dictating("busy")
+        self.assertEqual(self.key_state()["d"], "busy")
+
+    def test_a_state_nobody_draws_is_the_same_as_none(self):
+        self.model.set_dictating("listening")
+        self.assertEqual(self.model.dictating, "")
+
+    def test_no_other_key_is_ever_lit_by_it(self):
+        self.model.set_dictating("on")
+        lit = [
+            key for row in self.model.view_state(True)["rows"]
+            for key in row if "d" in key
+        ]
+        self.assertEqual(len(lit), 1)
+
+    def test_a_keyboard_built_without_it_has_no_such_key(self):
+        model = OskModel(dictate=False)
+        actions = [
+            key["action"] for rows in model.layers.values()
+            for row in rows for key in row
+        ]
+        self.assertNotIn(DICTATE, actions)
+
+    def test_a_button_can_reach_it(self):
+        self.assertEqual(binding_target("osk:dictate"), DICTATE)
 
 
 class SymbolLayerTests(unittest.TestCase):

@@ -26,6 +26,7 @@ from omapad import actions
 from omapad import menu as menu_module
 from omapad import guide as guide_module
 from omapad import sysinfo as sysinfo_module
+from omapad import osk as osk_module
 from omapad.linux_input import AbsInfo
 
 XBOX = ("Beitong KP20A/KP40A Controller", "20BC:5127")
@@ -2256,6 +2257,182 @@ class VirtualKeyboardTests(unittest.TestCase):
         for start, end in uinput.VirtualKeyboard.KEY_RANGES:
             declared |= set(range(start, end))
         self.assertTrue(set(keymap.KEYS.values()) <= declared)
+
+
+class DictationTests(DaemonTestCase):
+    """The microphone key: what it starts, and how it knows to stay lit."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-dictate-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.state = os.path.join(directory, "state")
+        self.config.osk_dictate = "voxtype record toggle"
+        self.config.osk_dictate_state = self.state
+        # Built again rather than taken from setUp: whether the shipped
+        # keyboard has the key at all depends on what is installed on the
+        # machine running the suite, and that is not what these are about.
+        self.daemon.osk = osk_module.OskModel(
+            self.config.osk_layout,
+            overrides=self.config.osk_key_overrides,
+            badge_align=self.config.osk_badge_align,
+            dictate=True,
+        )
+        self.daemon.set_osk(True)
+        for r, row in enumerate(self.daemon.osk.rows):
+            for c, key in enumerate(row):
+                if key["action"] == osk_module.DICTATE:
+                    self.daemon.osk.row, self.daemon.osk.col = r, c
+        self.osk_client.sent.clear()
+
+    def publish(self, word):
+        with open(self.state, "w") as handle:
+            handle.write(word + "\n")
+        self.daemon.dictate_refresh()
+
+    def test_pressing_it_runs_the_command_and_types_nothing(self):
+        self.press("A")
+        self.release("A")
+        self.assertEqual(self.session.spawned, ["voxtype record toggle"])
+        self.assertEqual(self.keyboard.chords, [])
+
+    def test_it_looks_at_the_state_again_at_once(self):
+        # The whole point of the key is knowing it is listening, so the next
+        # turn of the loop asks rather than the next poll.
+        self.daemon._dictate_due = 99.0
+        self.press("A")
+        self.release("A")
+        self.assertEqual(self.daemon._dictate_due, 0.0)
+
+    def test_the_key_lights_while_the_microphone_is_open(self):
+        self.publish("recording")
+        self.assertEqual(self.daemon.osk.dictating, "on")
+        self.publish("transcribing")
+        self.assertEqual(self.daemon.osk.dictating, "busy")
+        self.publish("idle")
+        self.assertEqual(self.daemon.osk.dictating, "")
+
+    def test_a_word_nobody_knows_is_taken_as_work_going_on(self):
+        self.publish("listening")
+        self.assertEqual(self.daemon.osk.dictating, "busy")
+
+    def test_a_state_file_that_is_not_there_leaves_the_key_dark(self):
+        self.config.osk_dictate_state = os.path.join(self.state, "nope")
+        self.daemon.dictate_refresh()
+        self.assertEqual(self.daemon.osk.dictating, "")
+
+    def test_the_change_reaches_the_panel(self):
+        self.publish("recording")
+        lit = [
+            key for row in self.osk_client.sent[-1]["rows"]
+            for key in row if key.get("d")
+        ]
+        self.assertEqual([key["d"] for key in lit], ["on"])
+
+    def test_the_same_reading_twice_is_not_pushed_twice(self):
+        self.publish("recording")
+        sent = len(self.osk_client.sent)
+        self.publish("recording")
+        self.assertEqual(len(self.osk_client.sent), sent)
+
+    def test_a_keyboard_opened_over_it_opens_saying_so(self):
+        # Dictation outlives the keyboard: it is also started from the
+        # compositor's own hotkey, and the keyboard opened afterwards has to
+        # come up already lit rather than a poll later.
+        self.daemon.set_osk(False)
+        with open(self.state, "w") as handle:
+            handle.write("recording\n")
+        self.daemon.set_osk(True)
+        self.assertEqual(self.daemon.osk.dictating, "on")
+
+    def test_with_no_command_the_press_starts_nothing(self):
+        self.config.osk_dictate = ""
+        self.press("A")
+        self.release("A")
+        self.assertEqual(self.session.spawned, [])
+
+    def test_a_binding_and_the_control_socket_reach_it_too(self):
+        self.assertIn("dictate", actions.OskAction.SIMPLE)
+        self.daemon.handle_control("osk dictate")
+        self.assertEqual(self.session.spawned, ["voxtype record toggle"])
+
+    def test_it_does_not_wait_for_the_keyboard_to_be_up(self):
+        # The one osk: command that means something with the keyboard down:
+        # a microphone types into the window in front either way.
+        self.daemon.set_osk(False)
+        self.daemon.osk_command("dictate")
+        self.assertEqual(self.session.spawned, ["voxtype record toggle"])
+
+
+class PushToTalkTests(DaemonTestCase):
+    """A hold that lasts as long as the button, rather than firing once."""
+
+    def setUp(self):
+        super().setUp()
+        self.config.osk_talk_start = "voxtype record start"
+        self.config.osk_talk_stop = "voxtype record stop"
+
+    def hold(self, button):
+        self.press(button)
+        held = self.daemon.held[button]
+        self.daemon.check_hold_timers(held.pressed_at + 2.0)
+
+    def test_the_microphone_opens_on_the_hold_and_closes_on_the_release(self):
+        self.hold("MINUS")
+        self.assertEqual(self.session.spawned, ["voxtype record start"])
+        self.release("MINUS")
+        self.assertEqual(self.session.spawned,
+                         ["voxtype record start", "voxtype record stop"])
+
+    def test_the_hold_does_not_also_open_the_keyboard(self):
+        self.hold("MINUS")
+        self.release("MINUS")
+        self.assertFalse(self.daemon.osk_open)
+
+    def test_a_tap_still_opens_the_keyboard_and_says_nothing(self):
+        self.press("MINUS")
+        self.release("MINUS")
+        self.assertTrue(self.daemon.osk_open)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_it_is_there_while_the_keyboard_is_up_too(self):
+        # The layer the whole pair is for: the keyboard is open because there
+        # is something to type, which is exactly when saying it is worth more.
+        self.daemon.set_osk(True)
+        self.hold("MINUS")
+        self.release("MINUS")
+        self.assertEqual(self.session.spawned,
+                         ["voxtype record start", "voxtype record stop"])
+        self.assertTrue(self.daemon.osk_open, "the hold is not the tap")
+
+    def test_with_no_commands_the_hold_does_nothing(self):
+        self.config.osk_talk_start = ""
+        self.config.osk_talk_stop = ""
+        self.hold("MINUS")
+        self.release("MINUS")
+        self.assertEqual(self.session.spawned, [])
+
+    def test_the_control_socket_says_which_way_it_goes(self):
+        self.daemon.handle_control("osk talk")
+        self.daemon.handle_control("osk talk off")
+        self.assertEqual(self.session.spawned,
+                         ["voxtype record start", "voxtype record stop"])
+
+    def test_a_click_on_the_badge_refuses_rather_than_recording_nothing(self):
+        # A pointer click has no interval, and the interval is the gesture.
+        self.assertFalse(self.daemon.click_button("MINUS", half="hold"))
+        self.assertEqual(self.session.spawned, [])
+
+    def test_an_ordinary_hold_still_fires_once(self):
+        # The guard on the change: `hold = "key:ENTER"` means one Enter, and
+        # one that lasted would reach the compositor's key repeat.
+        binding = actions.Binding({"tap": "key:A", "hold": "key:ENTER"})
+        self.assertFalse(binding.hold.spans_hold)
+
+    def test_an_announced_hold_cannot_be_one_that_lasts(self):
+        with self.assertRaises(actions.ActionError):
+            actions.Binding({"tap": "osk:toggle", "hold": "osk:talk",
+                             "confirm": True})
 
 
 class OskTests(DaemonTestCase):

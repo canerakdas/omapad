@@ -84,7 +84,7 @@ column, and must say what it cost.
 | Right stick | the wheel; `focus` in game mode | yes, by naming a `right_stick` role - `[profile.browser]` and `[profile.shell]` both do |
 | **L3** (left stick click) | middle click, which X also carries | **the spare.** It is deliberately a duplicate, which makes it the cheapest button on the pad to spend - three shipped profiles spend it |
 | **R3** (right stick click) | back (mouse 4) | yes |
-| MINUS | the on-screen keyboard | no: `reaches_past = false` is what keeps it off a game's Back button |
+| MINUS | tap: the on-screen keyboard, hold: push to talk | no: `reaches_past = false` is what keeps it off a game's Back button |
 | PLUS | the controller menu | no, same reason |
 | HOME | tap: next window, hold: switch mode | no: the hold is the way back to the desktop |
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |

@@ -355,16 +355,29 @@ Item {
                     (modelData.m === "ctrl" && root.ctrl) ||
                     (modelData.m === "alt" && root.alt) ||
                     (modelData.m === "caps" && root.caps)
+                  // The microphone key, and only while dictation is doing
+                  // something: "on" is listening, "busy" is the words still
+                  // being worked out. Absent on every other key.
+                  readonly property string dictating:
+                    modelData.d === undefined ? "" : String(modelData.d)
+                  // A key that is on, whichever way it got there: a latched
+                  // modifier and an open microphone are the same promise.
+                  readonly property bool lit: latched || dictating === "on"
+                  // Still working. Quieter than lit, because what it is doing
+                  // is not a thing to press again - the words are coming.
+                  readonly property bool working: dictating === "busy"
 
                   width: rowItem.unit * (modelData.w === undefined ? 1 : modelData.w)
                   height: root.keyHeight
                   radius: Math.max(metrics.space(4), Style.cornerRadius)
                   color: selected ? Color.accent
-                    : latched ? Util.alpha(Color.accent, 0.30)
+                    : lit ? Util.alpha(Color.accent, 0.30)
+                    : working ? Util.alpha(Color.accent, 0.14)
                     : Util.alpha(Color.menu.text, modelData.s ? 0.04 : 0.13)
                   border.width: selected ? 0 : Math.max(1, metrics.space(1))
                   border.color: selected ? "transparent"
-                    : latched ? Util.alpha(Color.accent, 0.55)
+                    : lit ? Util.alpha(Color.accent, 0.55)
+                    : working ? Util.alpha(Color.accent, 0.28)
                     : Util.alpha(Color.menu.text, 0.10)
 
                   // What the key becomes on the other side of Shift. omapad
@@ -412,7 +425,7 @@ Item {
                       ? metrics.font.bodySmall : metrics.font.title
                     font.bold: selected
                     color: selected ? Color.menu.background
-                      : latched ? Color.accent
+                      : (lit || working) ? Color.accent
                       : parent.swapped
                         ? Util.alpha(Color.menu.text, 0.70)
                         : (modelData.s && !modelData.g)

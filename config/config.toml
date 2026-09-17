@@ -861,6 +861,42 @@ repeat_ramp = 2.5
 repeat_ramp_ms = 1000
 # socket = "/run/user/1000/omapad/osk.sock"   # defaults to $XDG_RUNTIME_DIR
 
+# What the microphone key on the bottom row runs. It types nothing itself: it
+# starts dictation, and whatever it started types at the cursor, so a sentence
+# is said instead of walked letter by letter with a thumb. Pressing it again
+# stops and the words arrive a moment later.
+#
+# The key is only on the keyboard when the first word of this is a program the
+# machine has - no dictation installed, no key, and the space bar keeps the
+# cell. Set it to "" to take the key away on a machine that does have one.
+# A command that needs an environment set in front of it wants a small script
+# to be the first word instead, since only the first word is looked for.
+#
+# voxtype ships with Omarchy: menu > Install > AI > Dictation. Its model, its
+# language and its microphone are its own settings (`voxtype configure`), and
+# omapad deliberately does not reach into them - the English model it installs
+# by default will not transcribe another language.
+dictate = "voxtype record toggle"
+
+# Push to talk, which is the same microphone held open rather than switched
+# on: `osk:talk` runs the first when the button goes down and the second when
+# it comes up. The shipped scheme puts it on a hold of MINUS, the button that
+# opens the keyboard - tap for the keyboard, hold to say it instead.
+#
+# Two commands rather than one, because a gesture that ends when a finger
+# lifts cannot ask the tool which way it is currently pointing. A toggle that
+# fell out of step once would stay out of step.
+talk_start = "voxtype record start"
+talk_stop = "voxtype record stop"
+
+# Where that program says what it is doing, so the key can be lit while the
+# microphone is open and lit more quietly while what was said is still being
+# turned into text. One word per line - `idle`, `recording`, `transcribing`.
+# A file rather than a command, because it is read several times a second and
+# a helper spawned that often to answer one word is a helper too many.
+# Empty means nothing is read and the key never lights; it still works.
+dictate_state = "$XDG_RUNTIME_DIR/voxtype/state"
+
 # Per-key overrides for the on-screen keyboard, keyed by what the key does by
 # default. Either half is optional, and a bare string is taken as the label:
 #   BACKSPACE = ""              # relabel it
@@ -1363,7 +1399,17 @@ ZR = "click:left"
 # reached for the game's own pause screen. Over a game the way in is the
 # MINUS+PLUS chord, and the keyboard is a row inside the menu. Take these two
 # keys out to have Back and Start summon over a game again.
-MINUS = { tap = "osk:toggle", reaches_past = false }
+#
+# **The hold is push to talk**, and it is the one gesture on this pad that
+# lasts rather than fires: the microphone is open for exactly as long as the
+# button is down, and the words arrive when the thumb comes off. It costs
+# nothing - a long press on MINUS did nothing before - and it is on this
+# button because typing is what MINUS is already about: tap for the keyboard,
+# hold to say it instead. `[osk] talk_start` / `talk_stop` are the commands,
+# and with neither installed the hold does nothing rather than something
+# wrong. `reaches_past = false` covers it too, so a game still gets its own
+# Back button held.
+MINUS = { tap = "osk:toggle", hold = "osk:talk", hold_desc = "Speak instead of typing", hold_short = "Speak", reaches_past = false }
 
 # L and R walk the previous / next workspace.
 # `on_release = true`: the shoulders fire when they come back up, not on the
@@ -1493,8 +1539,10 @@ HOME = { tap = "osk:close", hold = "mode:toggle", hold_ms = 700 }
 # rather than a key: chord, so the printed letters follow the state and the
 # Caps key stays the one place that decides what gets sent.
 LSTICK = "osk:caps"
-# The same button that summoned the keyboard puts it away again.
-MINUS = "osk:toggle"
+# The same button that summoned the keyboard puts it away again - and the
+# same hold says it instead of typing it, which is the half of the pair this
+# layer is the whole reason for.
+MINUS = { tap = "osk:toggle", hold = "osk:talk", hold_desc = "Speak instead of typing", hold_short = "Speak" }
 # Left click, displaced from ZR by Shift. Clicking into another field is worth
 # keeping while the keyboard is up, and the right stick is already the thing
 # aiming the cursor. Not CAPTURE: that button only exists on the NS-mode

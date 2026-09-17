@@ -99,6 +99,18 @@ IDLE_POLL_MS = 250.0
 # panel comes up empty with no way to know what it should be drawing.
 VIEW_HEARTBEAT = 2.0
 
+# How often the keyboard's microphone key looks up what dictation is doing.
+# Not a setting: it is the trade-off between a key that lights late and a file
+# the loop opens for nothing, over one word on tmpfs that changes three times
+# a sentence. A fifth of a second is inside what a press feels like.
+DICTATE_POLL = 0.2
+
+# What that file can say, against what the key is lit for. These three are
+# voxtype's; a word neither it nor this table knows is taken as work still
+# going on rather than as nothing happening, so a tool with its own vocabulary
+# lights the key instead of leaving it dark through the whole sentence.
+DICTATE_WORDS = {"idle": "", "recording": "on", "transcribing": "busy"}
+
 # The order the menu's legend prints its face buttons in. A commits, B leaves,
 # X is this thing's own verb and Y is the reach - the order the contract reads
 # in, so the strip teaches it every time it is glanced at.
@@ -284,7 +296,8 @@ class Daemon:
 
         self.osk = OskModel(config.osk_layout,
                             overrides=config.osk_key_overrides,
-                            badge_align=config.osk_badge_align)
+                            badge_align=config.osk_badge_align,
+                            dictate=bool(config.osk_dictate))
         self.osk_client = ViewClient("osk.sock", config.osk_socket)
         self.osk_open = False
         self._osk_label_key = None
@@ -296,6 +309,9 @@ class Daemon:
         # Which profile's page has a command in flight, so opening the
         # keyboard twice while a slow history file is read asks once.
         self._osk_page_job = None
+        # What dictation was last seen doing, and when to look again.
+        self._dictate = ""
+        self._dictate_due = 0.0
 
         try:
             items = build_menu(config.menu_items,
@@ -1876,6 +1892,11 @@ class Daemon:
             self.refresh_osk_labels()
             self.refresh_osk_badges()
             self.refresh_osk_app_page()
+            # Before the first push rather than a poll after it: dictation
+            # outlives the keyboard being shut, so a keyboard opened over a
+            # microphone that is already listening has to open saying so.
+            if self.config.osk_dictate:
+                self.dictate_refresh()
         else:
             # Including whatever a trigger was holding: the button's release
             # will not be routed here once the keyboard is down.
@@ -2041,6 +2062,69 @@ class Daemon:
         state["dir"] = self.config.sound_pack
         return state
 
+    def dictate_refresh(self, now=None):
+        """What dictation is doing, off the file the tool publishes it in.
+
+        A file read on the loop rather than a command in the worker: it is one
+        word on tmpfs, and a helper spawned five times a second to be asked
+        the same question is the thing this avoids. Best-effort like every
+        other piece of plumbing - a tool that is not running, or publishes
+        nowhere, only means the key cannot say what it started.
+        """
+        self._dictate_due = (time.monotonic() if now is None else now) + \
+            DICTATE_POLL
+        path = self.config.osk_dictate_state
+        if not path:
+            return
+        try:
+            with open(path) as handle:
+                word = handle.read(32).strip().lower()
+        except OSError:
+            word = ""
+        state = DICTATE_WORDS.get(word, "busy" if word else "")
+        if state == self._dictate:
+            return
+        self._dictate = state
+        self.osk.set_dictating(state)
+        if self.osk_open:
+            self.push_osk_view()
+
+    def talk(self, down):
+        """Push to talk: the microphone is open while the button is held.
+
+        Two commands rather than the toggle the keyboard's own key presses.
+        A gesture that ends when a finger lifts cannot ask the tool which way
+        it is currently pointing, and a toggle that fell out of step once
+        would stay out of step - the next press would close the microphone
+        somebody had just opened.
+        """
+        command = (self.config.osk_talk_start if down
+                   else self.config.osk_talk_stop)
+        if not command:
+            return
+        # Both ends said out loud, because both are moments nothing on screen
+        # marks: the microphone opening, and the words being on their way.
+        self.say("commit" if down else "tick")
+        self.session.spawn(command)
+        self._dictate_due = 0.0
+
+    def start_dictation(self):
+        """Hand the typing over to the microphone, or take it back.
+
+        The same press both ways, because that is the gesture the tools
+        offer: a hold cannot be used for it - the hold half of a tap/hold
+        pair fires its press and release together, leaving no interval to
+        speak in.
+        """
+        if not self.config.osk_dictate:
+            return
+        # Said out loud, because nothing appears on screen for as long as it
+        # takes to listen and then to work the words out. The key lighting is
+        # the other half of that, a poll later.
+        self.say("commit")
+        self.session.spawn(self.config.osk_dictate)
+        self._dictate_due = 0.0
+
     def push_osk_view(self):
         self._osk_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
         self.osk_client.send(self.scaled(self.osk.view_state(self.osk_open)))
@@ -2078,6 +2162,15 @@ class Daemon:
             if self.osk_open:
                 self.say("back")
             self.set_osk(False)
+            return
+        if command == "dictate":
+            # A microphone types into the window in front whether or not a
+            # keyboard is drawn over it, so this one does not wait for the
+            # surface the rest of these navigate - `osk:dictate` is a binding
+            # worth having on the desktop layer too.
+            self.start_dictation()
+            if self.osk_open:
+                self.push_osk_view()
             return
         if not self.osk_open:
             return  # navigation means nothing while the keyboard is down
@@ -2132,6 +2225,8 @@ class Daemon:
                 self.keyboard.chord(mods, code, False)
             elif result[0] == "text":
                 self.type_text(result[1])
+            elif result[0] == "dictate":
+                self.start_dictation()
             elif result[0] == "close":
                 self.set_osk(False)
                 return
@@ -4098,7 +4193,11 @@ class Daemon:
             from .actions import OskAction
 
             command = args[0]
-            if command in OskAction.HOLD:
+            if command == OskAction.TALK:
+                # No button to come off, so which way it goes is said out
+                # loud: "talk" opens the microphone, "talk off" closes it.
+                self.talk(args[1:2] != ["off"])
+            elif command in OskAction.HOLD:
                 # There is no button to let go of here, so which way the
                 # modifier goes has to be said out loud: "hold:shift off".
                 self.osk_hold(command[5:], args[1:2] != ["off"])
@@ -4663,6 +4762,13 @@ class Daemon:
             binding = self.binding_for(self.current_layer, button)
             if binding is None or binding.hold is None:
                 return False
+            if binding.hold.spans_hold:
+                # A click has no interval in it, and an interval is the whole
+                # of what this kind of hold is: firing it here would open the
+                # microphone and close it in the same breath, which records
+                # nothing and looks exactly like it worked. Refused instead,
+                # and the badge stays a badge.
+                return False
             return self.fire_once(binding.hold, binding.layer, confirmed=True,
                                   reaches=binding.reaches_past)
         # A press and a release with nothing in between, which is a tap: what
@@ -4734,6 +4840,22 @@ class Daemon:
             if not binding.confirm_ms:
                 if elapsed >= binding.hold_ms:
                     held.hold_fired = True
+                    if binding.hold.spans_hold:
+                        # The press goes out now and the release waits for the
+                        # finger, which is the only way this gesture can have
+                        # an interval in the middle of it. `release_binding`
+                        # is the other end: it releases `held.action`, and
+                        # setting it here is what points it at the hold half
+                        # rather than the tap.
+                        if self.allowed(binding.hold, binding.layer,
+                                        reaches=binding.reaches_past):
+                            self.pointer_away(binding.hold)
+                            held.action = binding.hold
+                            binding.hold.press(self.ctx)
+                        # No tick: an action that lasts says its own beginning
+                        # and its own end, and a tick on top of the first of
+                        # those is the pad saying one thing twice.
+                        continue
                     if self.fire_once(binding.hold, binding.layer,
                                       reaches=binding.reaches_past) and binding.rumble:
                         self.say("tick")
@@ -5538,8 +5660,11 @@ class Daemon:
                 # stop the kernel owes it does not always arrive - see
                 # rumble.SETTLE_MARGIN.
                 self.rumble.settle(now)
-                if self.osk_open and now >= self._osk_next_heartbeat:
-                    self.push_osk_view()
+                if self.osk_open:
+                    if self.config.osk_dictate and now >= self._dictate_due:
+                        self.dictate_refresh(now)
+                    if now >= self._osk_next_heartbeat:
+                        self.push_osk_view()
                 if self.menu_open:
                     self.menu_group_settled(now)
                     self.menu_cards_settled(now)
