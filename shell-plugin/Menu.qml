@@ -2249,15 +2249,18 @@ Item {
                 // leaves it beside the row in force.
                 readonly property int spineWeight: metrics.spine.weight
                 readonly property int spineArm: metrics.spine.arm
-                // The stroke that crosses the line, which is the cap here and
-                // is a stop and the value's own mark on a travel: the same
-                // figure at the same size, whichever way the line runs.
-                readonly property int spineCross: metrics.spine.cross
-                // The mark's reach out of the line, and how tall it is where
-                // it leaves - which for a line drawn down a card is a height,
-                // and for the same line drawn along one is a width.
-                readonly property int markReach: metrics.spine.markOut
-                readonly property int markRise: metrics.spine.markBase
+                // The stroke that crosses the line at each end of it. **The
+                // same size as the marks that end a travel** - `crossEnd`,
+                // not the `cross` a stop takes - because the ends of the two
+                // drawings are the same claim: *this is as far as it goes*.
+                // A card's ends were a stop's size for a pass, which made the
+                // list end more quietly than a slider does at exactly the
+                // moment the two sit on one page.
+                readonly property int spineCap: metrics.spine.crossEnd
+                // How far the two marks on the row in force reach out of
+                // the line: a stop's own reach, so a card's marks and a
+                // travel's are one size.
+                readonly property int markReach: metrics.spine.cross
 
                 // Whether **any** row in this card carries a glyph, which is
                 // what decides the slot for all of them. A name that started
@@ -2686,9 +2689,9 @@ Item {
                     // and the same reach each - the stroke a travel's stops
                     // and its mark are drawn with, stood on end.
                     Rectangle {
-                      x: rowStack.x - tile.spineCross
+                      x: rowStack.x - tile.spineCap
                       y: cap.edge
-                      width: tile.spineCross
+                      width: tile.spineCap
                       height: tile.spineWeight
                       color: root.spineInk
                     }
@@ -2696,7 +2699,7 @@ Item {
                     Rectangle {
                       x: rowStack.x + tile.spineWeight
                       y: cap.edge
-                      width: tile.spineCross
+                      width: tile.spineCap
                       height: tile.spineWeight
                       color: root.spineInk
                     }
@@ -3035,55 +3038,36 @@ Item {
                         color: line.ticked ? Color.accent : root.spineInk
                       }
 
-                      // **The mark on the line: a wedge, reaching right.** It
-                      // was a drawn triangle, then no mark at all with the
-                      // lit length simply heavier - and heavier was the wrong
-                      // silhouette, because a line that changes weight for
-                      // one row reads as the line rather than as the row.
-                      // Something leaving the line reads as the row.
+                      // **The mark on the line: two strokes, at the row's
+                      // own ends.** They bracket the lit length rather than
+                      // pointing at the middle of it, which is the truer
+                      // thing to say - what is in force on a card is a
+                      // *length* of line, and these are where it starts and
+                      // stops. The line's own weight and a stop's own reach,
+                      // to the right of the line and never across it, so the
+                      // card has one figure on it and no exceptions.
                       //
-                      // It reaches as far sideways as the caps reach along,
-                      // measured from the line rather than from the mark: one
-                      // reach for both marks, so a card has one distance in
-                      // it and not two that are nearly the same.
+                      // It was a wedge in the middle for four passes, and
+                      // before that a tick at the far end of the row, a radio
+                      // ring at its head, and a pointer. A wedge points, and
+                      // pointing is right when the thing pointed at is beside
+                      // the mark - but the row is not beside it, it is the
+                      // length behind it.
                       //
-                      // **It leaves the line as a wedge and arrives as the
-                      // line's own thickness.** A taper says the mark comes
-                      // *out of* the line rather than across it, which is
-                      // what the caps already do. The tip stays flat at the
-                      // line's weight, so what it reaches is still a
-                      // measurement rather than a point.
-                      //
-                      // It is the row card's alone: a wedge points at
-                      // something, and what it points at is the row beside
-                      // it. Along the foot of a slider there is nothing
-                      // beside the line to point at, so a travel marks its
-                      // value with the same stroke it marks a stop with.
-                      //
-                      // Centred on the row, so it marks the row rather than a
-                      // place in it, and opaque over whatever the row is
-                      // filled with.
-                      Shape {
-                        visible: line.ticked
-                        anchors.left: parent.left
-                        anchors.leftMargin: tile.spineWeight
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: tile.markReach
-                        height: tile.markRise
-                        preferredRendererType: Shape.CurveRenderer
+                      // Drawn whether or not the card has been entered: what
+                      // they mark is a *state*, and opaque over whatever the
+                      // row is filled with.
+                      Repeater {
+                        model: line.ticked ? 2 : 0
 
-                        ShapePath {
-                          fillColor: Color.accent
-                          strokeColor: "transparent"
-                          strokeWidth: -1
-
-                          PathSvg {
-                            path: "M0 0L%1 %2L%1 %3L0 %4Z"
-                              .arg(tile.markReach)
-                              .arg((tile.markRise - tile.spineWeight) / 2)
-                              .arg((tile.markRise + tile.spineWeight) / 2)
-                              .arg(tile.markRise)
-                          }
+                        delegate: Rectangle {
+                          required property int index
+                          x: tile.spineWeight
+                          y: index === 0
+                            ? 0 : line.height - tile.spineWeight
+                          width: tile.markReach
+                          height: tile.spineWeight
+                          color: Color.accent
                         }
                       }
 

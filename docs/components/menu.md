@@ -381,7 +381,7 @@ gets one mark, and which mark got which job took five passes to settle:
 
 | | Says | Drawn as | When |
 |---|---|---|---|
-| `on` | this is the one in force | the row's length of the **spine**, lit, and a **wedge** leaving it to the right | always |
+| `on` | this is the one in force | the row's length of the **spine**, lit, and a **stroke at each end of it**, to the right | always |
 | `sel` + `row` | this is the row A would run | a faint **ground**, square down its left so it meets the spine | only while the card is entered |
 
 **The spine** is one line down the side of the list, and it is structure rather
@@ -399,11 +399,14 @@ thing of its own. A travel takes the same run of bare line at each end, which
 is why a slider's range starts an arm inside the mark that ends its line.
 
 **One stroke, and both drawings have only it.** The cap here, a stop on a
-slider's travel and the place a value has got to are one figure at one size: a
-bar of the line's own weight crossing it, reaching the same distance either
-side. `Metrics.spine.cross` is that distance, and it is the arm stepped a rung
-of the space ladder and halved - a little longer than the run of line it caps,
-because a mark on a scale has to be found from a sofa and a corner does not.
+slider's travel and the place a value has got to are one figure: a bar of the
+line's own weight crossing it, reaching the same distance either side.
+`Metrics.spine.cross` is that distance for a stop - the arm stepped a rung of
+the space ladder and halved - and `crossEnd` is a rung above it, for the marks
+that **end** a line. The card's caps take `crossEnd` too: the end of a list and
+the end of a travel are the same claim, *this is as far as it goes*, and a card
+whose ends were a stop's size ended more quietly than the slider sitting beside
+it on the same page.
 
 It was a `T` with its own quantity for a while, and the quantity was wrong
 twice over: a silver step *per arm* made the cap two and a half times as wide
@@ -431,41 +434,39 @@ it. A travel's stops are drawn the same way for the same reason - and the one
 stroke that *is* one piece is the value's own, which is the accent and opaque,
 so it covers the line rather than tinting it twice.
 
-**The row in force is a length of the line in the accent, with a wedge reaching
-right off it.** What it marks is a *state*, so both are drawn always - on a
-card nobody has selected, let alone entered - and a card of verbs shows
-neither, because nothing on one is in force.
+**The row in force is a length of the line in the accent, with a stroke at
+each end of it.** What it marks is a *state*, so all three are drawn always -
+on a card nobody has selected, let alone entered - and a card of verbs shows
+none, because nothing on one is in force.
 
-The wedge is the silhouette the colour needs beside it (qml.md 8.1.1): a theme
-whose accent sits close to its ink exists, and a state said once in colour is a
-state that theme cannot say at all.
+The strokes are the silhouette the colour needs beside it (qml.md 8.1.1): a
+theme whose accent sits close to its ink exists, and a state said once in
+colour is a state that theme cannot say at all.
 
-**It reaches as far sideways as the caps reach along**, measured from the line
-rather than from the mark, so its own reach is that quantity less the line it
-grows out of. One reach for both marks, so a card carries one distance rather
-than two that are nearly the same: it was the whole quantity for a pass, which
-put it two pixels further out than anything else on the card and read long.
+**They bracket the length rather than pointing at the middle of it**, which is
+the truer thing to say: what is in force on a card is a *length* of line, and
+these are where it starts and where it stops. They are the line's own weight
+and a stop's own reach, to the right of the line and never across it, so the
+card carries one figure and no exceptions - and the same reach a travel's stops
+take, so the two drawings mark with one mark.
 
-**It leaves the line as a wedge and arrives as the line's own thickness.** It
-was a flat stub for a pass, which is a line crossing a line - two strokes of
-the same weight meeting at a right angle, which the caps at the ends of the
-spine already are. A taper is not a second cap: it says the mark comes *out of*
-the line rather than across it. The tip stays flat at the line's weight, so
-what it reaches is still a measurement rather than a point, and the rise where
-it leaves is the reach at `Metrics.silver` - the proportion a mark whose flat
-edge is the line it stands on wants, with the edge on the line the long one.
+It was a **wedge in the middle** for four passes. A wedge points, and pointing
+is right when the thing pointed at is beside the mark - the row is not beside
+it, the row is the length behind it. It was also the one drawing on either
+surface that was not a plain stroke, which is a thing to notice when the
+argument for everything else is that there is one figure.
 
-**The wedge is the row card's alone**, and that is the one place the two
-drawings part: a wedge points at something, and what it points at is the row
-beside it. Along the foot of a slider there is nothing beside the line to point
-at - a wedge lying there is an arrow with nowhere to aim - so a travel marks
-its value with the same stroke it marks a stop with, in the accent.
-
-It is **geometry**, for the reason the slider's travel and the dial's zone are:
-every number in it is the spine's, so the mark follows the line at any scale.
-It is centred on the row, so it marks the row rather than a place in it; it
-starts where the line ends rather than under it - the rule the ground and the
-caps keep - and it is opaque over whatever the row is filled with.
+Before the wedge: a **tick at the far end of the row**, which says nothing - a
+mark with no second state, at the opposite end of the card from the words it is
+about. A **radio ring at the head of each row**, which says more (an empty ring
+beside every row says *these are alternatives* before it says which one) and is
+a second drawing for something the row can simply **be**, in the slot a row's
+own glyph wants. And a **pointer**, which marked the *cursor* for a pass, drawn
+dim outside the card and accent in - which reads well until you notice the
+ground was saying *in force* two pixels away from it: one line, one mark, and
+two different answers to which row matters. Giving the persistent mark the
+persistent state and the transient mark the transient one is what made the card
+readable at a glance.
 
 **A card with no state draws no spine at all.** `Lock`, `Suspend`, `Logout`
 are things that happen, and none of them is a thing the machine is currently
@@ -534,7 +535,7 @@ The line above is drawn a second time, along the foot of a card, and it is the
 same line: `Travel.qml` draws it for a slider, for a slider with stops, and for
 a reading, in this surface and on the HUD. What noticed it was reading the row
 card back and saying out loud that it is a vertical slider: a stack of rows
-with one row's length of line lit and a wedge leaving it is exactly that, and
+with one row's length of line lit and marked at both ends is exactly that, and
 the thing at the foot of the card beside it was a rounded eight-pixel trough. Two drawings of one idea, and the line is the one that
 survived: a card that draws one kind of line is a card read once.
 
@@ -546,7 +547,7 @@ surface's, and the marks are the same marks:
 | the spine, down the left | the travel, along the foot |
 | a cross capping each end | the same cross at each end, out where the line ends |
 | the row in force lights its length of it | the line behind the value is lit up to it |
-| a wedge leaving the line to the right, at the row | the same cross again, in the accent, at the value |
+| a stroke at each end of the row in force | the same cross again, in the accent, at the value |
 | - | that run is solid where the value has stops, a tint where it has none |
 | - | the same cross at each place a stepped value may stand |
 
@@ -617,8 +618,9 @@ where that stop's own stroke stands, so the accent covers the stroke instead of
 landing half a weight beside it and reading as one stroke drawn twice.
 
 **The value is marked with the same stroke as everything else on the line**,
-in the accent. It was a wedge first - the spine's own mark at a quarter turn -
-and a wedge lying on a horizontal line is an arrow: an arrow points somewhere,
+in the accent. It was a wedge first - the mark the row card carried then, at a
+quarter turn - and a wedge lying on a horizontal line is an arrow: an arrow
+points somewhere,
 and beside a horizontal line there is nothing to point at. Then it was the line
 thickened, which came out as a block sitting on a stroke. What it is now is the
 stop's own figure, drawn where the value is and filled with the accent, so the

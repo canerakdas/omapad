@@ -157,9 +157,9 @@ QtObject {
   // -- the line ------------------------------------------------------------
   //
   // **One line, drawn at two rotations.** Down the side of a card of rows,
-  // where the row in force lights its own length of it and a mark stands on
-  // it; and along the foot of a slider, a stepped slider and a reading, where
-  // the value does the same (`Travel.qml`). They are one drawing, so the
+  // where the row in force lights its own length of it and two marks bracket
+  // that length; and along the foot of a slider, a stepped slider and a
+  // reading, where the value stands on one mark of its own (`Travel.qml`). They are one drawing, so the
   // measurements in it are named once here rather than twice in two surfaces
   // - two copies of a stroke weight is how two drawings of one thing quietly
   // stop matching, and this one is drawn on two surfaces at once.
@@ -201,22 +201,13 @@ QtObject {
     // different sizes rather than one scale.
     readonly property int crossEnd: Math.round(
       metrics.rung(spine.cross, 1))
-    // The mark that leaves the line where the value is, on a card of rows:
-    // how far out of the line it reaches, and how long its flat edge **on**
-    // the line is. A wedge is the right figure there because it points at
-    // something - the row beside it - and the wrong one along the foot of a
-    // slider, where there is nothing beside the line to point at. So a travel
-    // marks the value with the same stroke it marks a stop with, in the
-    // accent, and these two are the row card's alone.
-    readonly property int markOut: spine.arm - spine.weight
-    readonly property int markBase: Math.round(spine.markOut * metrics.silver)
   }
 
   // -- the durations --------------------------------------------------------
   //
   // Everything these surfaces animate is one of three things, and each is a
-  // length of attention rather than a size - so this is a list of four named
-  // jobs and **not** a ladder. A gap twice another gap is a proportion; a
+  // length of attention rather than a size - so this is a list of named jobs
+  // and **not** a ladder. A gap twice another gap is a proportion; a
   // fade twice another fade is just a slower fade, and the numbers here were
   // arrived at by watching a screen rather than by multiplying.
   //
