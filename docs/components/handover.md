@@ -36,13 +36,48 @@ and `/proc` shows who has.
 | Function | Answers |
 |---|---|
 | `device_nodes(path)` | the event node and its `hidraw` siblings |
-| `holders(nodes, skip_pid, proc)` | which pids have any of them open |
+| `holders(nodes, skip_pid, proc, among)` | which pids have any of them open - `among` narrows the scan to a set of them |
 | `parent_of`, `children_of`, `cgroup_of` | the walk's steps, straight out of `/proc` |
 | `related(pid, depth, siblings)` | the process tree around the focused window - the cgroup bounds the climb, `depth` the descent |
 | `wants_pad(focus_pid, nodes, ...)` | the whole question, in one call |
 
 Settings: `[mode] handover_depth`, `handover_siblings`, `handover_poll`,
 `grab_settle`, and `handover` on any `[profile.<name>]`.
+
+## When the question is asked
+
+This runs on a timer for as long as the daemon is up, so what it costs is
+what the desktop pays for doing nothing.
+
+**The tree first, the descriptors second.** `wants_pad` used to ask `holders()`
+for every opener on the machine and then intersect that with the focused
+window's tree - a few hundred processes and a few thousand `readlink` calls,
+to keep the four that were the question. It works out `related()` first
+instead and reads descriptors only inside it: the same answer, measured at
+4.67 ms against 0.40 ms with a terminal in front. `holders()` still scans the
+whole of `/proc` by default, because that is what its name says and because a
+full scan is what the other question - *who has the pad* rather than *does
+this window have it* - would want.
+
+**A renamed window is not a new window.** Hyprland does not distinguish them:
+`activewindow>>class,title` is sent for a focus change *and* every time the
+window in front retitles, which a terminal does once a second while a command
+runs and a browser does on every tab. Asking on that line put a full scan a
+second on an idle desktop - ~1.5% of a core, spent entirely on re-answering a
+question nothing had changed.
+
+So the two lines are read for the two different things they know:
+
+| Line | What the daemon does with it |
+|---|---|
+| `activewindow>>class,title` | `set_focus` - the class picks the profile, the title is remembered |
+| `activewindowv2>>address` | the window's identity; `seed_active_window()` only where the address differs from the last one |
+
+`daemon._hypr_window` holds that address, and is cleared when the stream is
+(re)connected: focus can have moved while it was down. A compositor that sends
+no `activewindowv2` at all still hands the pad over - `[mode] handover_poll`
+asks the same question every two seconds - so what such a compositor loses is
+the promptness, not the answer.
 
 ## Rules
 

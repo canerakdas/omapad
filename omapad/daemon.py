@@ -509,11 +509,18 @@ class Daemon:
         # most games match no profile at all.
         self.focus_class = ""
         self.focus_title = ""
-        # The Hyprland focus event socket. It streams `activewindow>>class,title`
-        # lines; subscribing once swaps the active profile as focus moves.
+        # The Hyprland focus event socket. It streams `activewindow>>class,
+        # title` and `activewindowv2>>address` lines; subscribing once swaps
+        # the active profile as focus moves.
         self.hypr_ev = None
         self._hypr_ev_buf = b""
         self._next_hypr_reconnect = 0.0
+        # Which window the stream last named, as the address `activewindowv2`
+        # carries. What it is for is the difference between *a new window is
+        # in front* and *the window in front renamed itself*: only the first
+        # is worth asking /proc about, and a terminal running a command sends
+        # the second about once a second.
+        self._hypr_window = None
 
         self._cursor_remainder = [0.0, 0.0]
         self._scroll_remainder = [0.0, 0.0]
@@ -1501,6 +1508,10 @@ class Daemon:
         # Connecting streams nothing on its own: socket2 only pushes events as
         # they happen, so a fresh or reconnected stream needs the current
         # window queried once before it can trust the live `activewindow` lines.
+        # And the address is forgotten first: focus can have moved while the
+        # stream was down, so the next one to arrive has to count as new even
+        # if it names the window that was in front before the drop.
+        self._hypr_window = None
         self.seed_active_window()
         return True
 
@@ -1547,9 +1558,27 @@ class Daemon:
                 payload = text[len("activewindow>>"):]
                 cls, _, title = payload.partition(",")
                 self.set_focus(cls.strip(), title.strip())
-                # The event carries no pid, and who owns the pad is a question
-                # about the process rather than the class.
-                self.seed_active_window()
+            elif text.startswith("activewindowv2>>"):
+                # **The same moment, told twice, and this is the half with the
+                # window's identity in it.** Hyprland sends both lines for a
+                # focus change - and both again every time the window in front
+                # renames itself, which a terminal does while a command runs
+                # and a browser does on every tab. `activewindow` cannot tell
+                # those apart: its class and title are all a renamed window
+                # has changed. So the class and the title are taken from it as
+                # they arrive, and the question that costs something - a walk
+                # of every open file descriptor in /proc, ~5 ms - is asked
+                # here, only when the address differs from the last one.
+                #
+                # A compositor that sends no `activewindowv2` still hands the
+                # pad over: `[mode] handover_poll` asks the same question on a
+                # timer, so what is lost is the promptness, not the answer.
+                window = text[len("activewindowv2>>"):].strip()
+                if window != self._hypr_window:
+                    self._hypr_window = window
+                    # The event carries no pid, and who owns the pad is a
+                    # question about the process rather than the class.
+                    self.seed_active_window()
             elif self.gamebar_open:
                 self.handle_workspace_event(text)
         return True

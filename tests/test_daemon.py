@@ -1078,6 +1078,76 @@ class HandoverTests(DaemonTestCase):
         self.assertTrue(self.device.grabbed)
         self.assertTrue(self.daemon.sticks_live())
 
+    def stream(self, *lines):
+        """Feed the Hyprland event socket, and count the /proc walks.
+
+        `wants_pad` stands in for the walk because the walk is what costs:
+        every open file descriptor on the machine, read one at a time.
+        """
+        self.hypr.answers["activewindow"] = {
+            "class": "foot", "title": "", "pid": 77,
+        }
+        payload = ("\n".join(lines) + "\n").encode("utf-8")
+
+        class Stream(object):
+            def __init__(self):
+                self.sent = False
+
+            def recv(self, _size):
+                if self.sent:
+                    return b""
+                self.sent = True
+                return payload
+
+            def fileno(self):
+                return -1
+
+            def close(self):
+                pass
+
+        self.daemon.hypr_ev = Stream()
+        asked = []
+        with unittest.mock.patch.object(
+            daemon_module.handover, "wants_pad",
+            side_effect=lambda *a, **k: asked.append(None) or False,
+        ):
+            self.daemon._drain_hypr_events()
+        return asked
+
+    def test_a_window_renaming_itself_is_not_a_focus_change(self):
+        # Hyprland sends `activewindow` for both, and a renamed window has
+        # changed nothing but the two fields that line carries. A terminal
+        # retitles itself about once a second while a command runs, and the
+        # question this saves walks every open file descriptor in /proc - so
+        # believing that line would spend ~5 ms a second on an idle desktop.
+        asked = self.stream(
+            "activewindow>>foot,one",
+            "activewindowv2>>555a",
+            "activewindow>>foot,two",
+            "activewindowv2>>555a",
+            "activewindow>>foot,three",
+            "activewindowv2>>555a",
+        )
+        self.assertEqual(len(asked), 1)
+        # The title still follows: what is refused is the walk, not the line.
+        self.assertEqual(self.daemon.focus_title, "three")
+
+    def test_but_another_window_is(self):
+        asked = self.stream(
+            "activewindowv2>>555a",
+            "activewindowv2>>555b",
+            "activewindowv2>>555a",
+        )
+        self.assertEqual(len(asked), 3)
+
+    def test_and_a_reconnected_stream_asks_again(self):
+        # Focus can have moved while the socket was down, so the first
+        # address after it comes back counts as new even where it names the
+        # window that was in front before the drop.
+        self.stream("activewindowv2>>555a")
+        self.daemon._hypr_window = None
+        self.assertEqual(len(self.stream("activewindowv2>>555a")), 1)
+
     def test_the_profile_is_swapped_before_the_pad_is_asked_about(self):
         # The other way round, every focus change answered for the window
         # that had just left - and the refusal would land a window late.

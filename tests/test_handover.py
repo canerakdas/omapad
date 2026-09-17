@@ -36,6 +36,14 @@ class HoldersTests(unittest.TestCase):
     def test_a_node_nobody_has_open_finds_nobody(self):
         self.assertEqual(handover.holders({"/dev/input/by-id/no-such-pad"}), set())
 
+    def test_the_scan_can_be_narrowed_to_a_handful_of_pids(self):
+        # The whole of /proc is a few hundred processes and a few thousand
+        # descriptors; the question is only ever about the window in front.
+        self.assertIn(os.getpid(),
+                      handover.holders(self.nodes, among={os.getpid()}))
+        self.assertEqual(
+            handover.holders(self.nodes, among={os.getpid() + 1 << 20}), set())
+
 
 class NodeTests(unittest.TestCase):
     def test_the_hidraw_node_counts_as_the_same_pad(self):
@@ -249,6 +257,26 @@ class WantsPadTests(unittest.TestCase):
         self.assertFalse(
             handover.wants_pad(os.getpid(), {"/dev/input/by-id/no-such-pad"})
         )
+
+    def test_only_the_focused_tree_is_read(self):
+        # The other order - every opener on the machine, then keep the ones
+        # in the tree - answers the same and reads ten times as much, on a
+        # timer, for as long as the daemon runs.
+        seen = []
+        real = handover.holders
+
+        def record(nodes, skip_pid=None, proc=handover.PROC, among=None):
+            seen.append(among)
+            return real(nodes, skip_pid=skip_pid, proc=proc, among=among)
+
+        handover.holders = record
+        try:
+            handover.wants_pad(os.getpid(), self.nodes)
+        finally:
+            handover.holders = real
+        self.assertEqual(len(seen), 1)
+        self.assertIsNotNone(seen[0])
+        self.assertIn(os.getpid(), seen[0])
 
     def test_our_own_hold_does_not_count_as_the_app_wanting_it(self):
         # The daemon has the pad open at all times; if that counted, it would

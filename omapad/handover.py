@@ -106,18 +106,30 @@ def _hidraw_nodes(device):
     return found
 
 
-def holders(nodes, skip_pid=None, proc=PROC):
+def holders(nodes, skip_pid=None, proc=PROC, among=None):
     """The pids with any of these nodes open, ours excluded.
 
-    A scan of /proc, which is cheap enough at the rate focus changes and far
-    cheaper than being wrong about which app owns the pad.
+    A scan of /proc: every process, every open file descriptor, one
+    `readlink` each - about 4 ms on an ordinary desktop, and far cheaper than
+    being wrong about which app owns the pad.
+
+    `among` narrows it to a set of pids, which is what the question is
+    actually about: `wants_pad` wants the openers *inside* the focused
+    window's process tree, and reading the other 270 processes' descriptors
+    to throw them away afterwards costs ten times what the answer does. The
+    whole of /proc stays the default because that is what the name says, and
+    because a scan of it is the thing to reach for when the question is who
+    has the pad rather than whether this window does.
     """
     found = set()
     skip = str(skip_pid) if skip_pid is not None else None
-    try:
-        entries = os.listdir(proc)
-    except OSError:
-        return found
+    if among is not None:
+        entries = [str(pid) for pid in among]
+    else:
+        try:
+            entries = os.listdir(proc)
+        except OSError:
+            return found
     for entry in entries:
         if not entry.isdigit() or entry == skip:
             continue
@@ -290,10 +302,17 @@ def related(pid, proc=PROC, depth=3, siblings=True):
 
 def wants_pad(focus_pid, nodes, skip_pid=None, proc=PROC, depth=3,
               siblings=True):
-    """Has the window in front - or its process tree - opened the pad?"""
+    """Has the window in front - or its process tree - opened the pad?
+
+    The tree is worked out first and the descriptors are read only inside it.
+    The other order - every opener on the machine, then the intersection -
+    gives the same answer and reads a few hundred processes to discard them:
+    measured at 4.67 ms against 0.40 ms with a terminal in front, and this
+    runs on a timer for as long as the daemon is up.
+    """
     if not focus_pid:
         return False
-    open_by = holders(nodes, skip_pid=skip_pid, proc=proc)
-    if not open_by:
+    kin = related(focus_pid, proc, depth, siblings)
+    if not kin:
         return False
-    return bool(open_by & related(focus_pid, proc, depth, siblings))
+    return bool(holders(nodes, skip_pid=skip_pid, proc=proc, among=kin))
