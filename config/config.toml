@@ -2809,21 +2809,43 @@ label = "Display"
 detail = "Size, motion and the screensaver"
 meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refreshRate|floor) Hz\"'", ttl = 30 }
 
+  # **One card, not three cells.** Every one of these is a verb with nothing
+  # to show but its name, and at a cell each the name was the half of it that
+  # fitted - `Scale u…`, `Screensa…` - with the line saying what it does drawn
+  # nowhere at all, because a tile one row tall has no room for one. Stacked,
+  # each row has the width of the card and the sentence back.
+  #
   # Two stepping rows rather than a bar, unlike the brightness on Now: a step
   # here reconfigures the monitor and rewrites monitors.lua, which is not
   # something to sweep a trigger through. Scale is also a thing you set once
   # for where you are sitting, not one you push about.
   [[menu.items.items]]
-  icon = "󰁌"
-  label = "Scale up"
-  detail = "Bigger text and windows"
-  action = "exec:omarchy-hyprland-monitor-scaling up"
+  label = "Screen"
+  control = "rows"
+  span = [3, 3]
+  detail = "Scale moves every window at once"
 
+    [[menu.items.items.items]]
+    label = "Scale up"
+    detail = "Bigger text and windows"
+    action = "exec:omarchy-hyprland-monitor-scaling up"
+
+    [[menu.items.items.items]]
+    label = "Scale down"
+    detail = "Smaller text, more on screen"
+    action = "exec:omarchy-hyprland-monitor-scaling down"
+
+    [[menu.items.items.items]]
+    label = "Screensaver"
+    detail = "Blank the screen now"
+    action = "exec:omarchy-launch-screensaver force"
+
+  # And the page's other half, under that card rather than beside it. The
+  # card is what the **desktop** is drawn at; these two are what **omapad**
+  # draws over it, and a break is how a page says which of its tiles belong
+  # together at twelve columns and at six alike.
   [[menu.items.items]]
-  icon = "󰘕"
-  label = "Scale down"
-  detail = "Smaller text, more on screen"
-  action = "exec:omarchy-hyprland-monitor-scaling down"
+  control = "row_break"
 
   # How fast omapad's own surfaces move, and at 0 whether they move at all.
   # A slider rather than a switch because less is a real answer between the
@@ -2850,15 +2872,18 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
   control = "slider"
   reads = "pad:radius"
 
-  [[menu.items.items]]
-  icon = "󱄄"
-  label = "Screensaver"
-  action = "exec:omarchy-launch-screensaver force"
-
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and
-# reads as one row. Inside, the order is what you look up, then what you feel,
-# then what you set once and forget.
+# reads as one row.
+#
+# **Inside, the page is two bands rather than twelve tiles.** A switch, a bar,
+# a card and a door used to stand in the order they were written in, at four
+# heights, none of them lining up with the next - which is a page you read
+# through rather than glance at. The first row is what a press answers with,
+# each switch beside the bar that says how much of it; under it stand the
+# three cards that say what this pad is, what it prints and what its buttons
+# do, with the page's two loose switches and its one door in a column beside
+# them.
 
 [[menu.items]]
 icon = "󰊴"
@@ -2866,11 +2891,161 @@ label = "Controller"
 detail = "Speed, vibration, labels, mapping"
 meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk '{print ($1 == 1) ? \"1 paired\" : $1 \" paired\"}'", ttl = 5, empty = "None paired" }
 
+  # A switch, because there are two states and the tile draws which one it is
+  # in.
   [[menu.items.items]]
-  icon = ""
-  label = "Shortcuts"
-  detail = "What every button does"
-  action = "guide:open"
+  icon = "󰕦"
+  label = "Vibration"
+  control = "toggle"
+  reads = "pad:rumble"
+
+  # And how hard, which is a number and so a bar. The motor ticks once at the
+  # level you let go on rather than at every step on the way: the number says
+  # nothing and the buzz says everything, but a buzz per step of a sweep says
+  # nothing either.
+  [[menu.items.items]]
+  label = "Strength"
+  control = "slider"
+  reads = "pad:rumble_strength"
+
+  # The other half of what a press says back, and the pair reads as a pair on
+  # purpose: the motor answers the hands and this answers the room, so
+  # whoever turns one off is choosing between them rather than losing both.
+  # It ships off - see `[sound]` - so this switch is how most people will
+  # ever hear it.
+  [[menu.items.items]]
+  icon = "󰕾"
+  label = "Sounds"
+  control = "toggle"
+  reads = "pad:sound"
+
+  # And how loud, which is the same question `Strength` asks about the motor
+  # and gets the same shape of answer. A tenth per step rather than the
+  # motor's twentieth: a cue is 90 ms at the longest, and a difference you
+  # cannot hear between two presses is not a step worth stopping on.
+  [[menu.items.items]]
+  label = "Loudness"
+  control = "slider"
+  reads = "pad:sound_volume"
+
+  # How long every hold on this pad takes, against the lengths they were
+  # written at. It is on the pad because it is about the hand: a hold is two
+  # seconds of keeping a shoulder down, which is a gesture some hands cannot
+  # make at all and others make by accident. `[confirm]` is where the same
+  # number is set at a keyboard, along with the slip a counting hold survives.
+  #
+  # It ends the band because it is the one thing on it a press answers with
+  # that is not a noise: the four before it are the motor and the speaker,
+  # and this is the wait in front of them.
+  [[menu.items.items]]
+  label = "Hold time"
+  control = "slider"
+  reads = "pad:hold_scale"
+
+  [[menu.items.items]]
+  control = "row_break"
+
+  # What the badges print, which is a second question from the profile below:
+  # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
+  # profile and prints shapes. `auto` follows the profile.
+  #
+  # **A card, not a page.** It was a submenu, and it was one for the reason
+  # a card now answers: a `choice` tile shows one value, so the line under
+  # each choice saying *how* they differ had nowhere to go - and getting
+  # this wrong scrambles the face buttons. A row is as wide as the card, so
+  # it keeps that line, and all four are in front of you rather than a
+  # level down.
+  [[menu.items.items]]
+  label = "Button labels"
+  control = "rows"
+  span = [3, 3]
+  detail = "What the badges print"
+
+    [[menu.items.items.items]]
+    label = "Follow the pad"
+    detail = "What the pad reports it is"
+    action = "pad:layout=auto"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Nintendo"
+    detail = "A B X Y, ZL and ZR, − and +"
+    action = "pad:layout=nintendo"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Xbox"
+    detail = "LB and LT, View and Menu"
+    action = "pad:layout=xbox"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "PlayStation"
+    detail = "Shapes, L1 and L2, Create and Options"
+    action = "pad:layout=playstation"
+    stay = true
+
+  # Which codes the pad is read with. `auto` is what the driver says it is,
+  # which is right until it is not: a pad with a hardware mode switch reports
+  # one thing and prints another, and that is the whole reason this is a
+  # choice. Getting it wrong scrambles the face buttons, and `Remap the
+  # buttons` in the card beside it is what answers a pad neither profile fits.
+  #
+  # A card for `Button labels`' reason, and a stronger one: getting this
+  # wrong scrambles the face buttons, and the sentence under each row is
+  # exactly what stops you.
+  [[menu.items.items]]
+  label = "Profile"
+  control = "rows"
+  # Three rows tall rather than two, which is a measurement about the band
+  # rather than about the card: three cards standing at two heights is what
+  # made this page read as a heap, and the rows have the air to spare.
+  span = [3, 3]
+  detail = "Which codes this pad sends"
+
+    [[menu.items.items.items]]
+    label = "Detect it"
+    detail = "Follow what the driver reports"
+    action = "pad:profile=auto"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Nintendo Pro"
+    detail = "A Switch pad, or one in NS mode"
+    action = "pad:profile=nintendo_pro"
+    stay = true
+
+    [[menu.items.items.items]]
+    label = "Xbox"
+    detail = "An XInput pad - most of them"
+    action = "pad:profile=xbox"
+    stay = true
+
+  # The two doors that are about the buttons themselves - one asks what they
+  # do, the other teaches it which is which - and they are a card for the
+  # reason `Windows` is: both are verbs with a sentence under them, and a
+  # cell one row tall has room for neither the whole name nor the line. They
+  # were `Shortcut…` and `Remap th…` at a cell each, with the sentences that
+  # tell the two apart drawn nowhere.
+  #
+  # A press further in than they used to be, which is what a card costs: A
+  # goes into it, then the row. The guide is on Y from anywhere, so the one
+  # that is opened in a hurry is not the one that got longer.
+  [[menu.items.items]]
+  label = "Buttons"
+  control = "rows"
+  span = [3, 3]
+  detail = "Look them up, or teach it a new pad"
+
+    [[menu.items.items.items]]
+    label = "Shortcuts"
+    detail = "What every button does"
+    action = "guide:open"
+
+    [[menu.items.items.items]]
+    label = "Remap the buttons"
+    detail = "Teach it which button is which"
+    action = "map:open"
 
   # How the two thumbs feel. Nobody can pick these at a keyboard: they depend
   # on the pad, the screen and how far away the sofa is, and the answer is
@@ -2890,10 +3065,15 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   # slop is - and because from the sofa the complaint is always about a thumb
   # you are holding, not about a role you would have to look up. A stick that
   # wanders on its own wants a wider zone; aim that starts late a narrower one.
+  #
+  # It heads the column beside the cards, three cells wide like everything
+  # under it: the page's one door in, over the two switches that are the rest
+  # of what it holds.
   [[menu.items.items]]
   icon = "󰍽"
   label = "Sticks"
   detail = "Speed, and travel that does nothing"
+  span = [3, 1]
 
     [[menu.items.items.items]]
     label = "Pointer"
@@ -2944,160 +3124,39 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
 
   # The pointer is the one thing on screen a press cannot push out of the way,
   # so the press puts it away instead. Under Controller rather than Display:
-  # what it answers to is the pad, and the two rows above are the pointer's
-  # other two questions.
+  # what it answers to is the pad, and the tile above it is where the
+  # pointer's other two questions are kept.
   #
   # Both rows stay and both tick, the way the vibration pair does - which of
   # the two is in force is what somebody opened this page to find out.
   [[menu.items.items]]
   icon = "󰍽"
+  # Three cells, which is the width of the column it stands in: three words
+  # over a switch do not fit in fewer, and a tile narrower than the one above
+  # it would be a column with a step in it.
+  span = [3, 1]
   label = "Hide the pointer"
-  # Two cells: three words over a switch do not fit in one, and the name is
-  # the half of a tile you cannot shorten without losing what it is.
-  span = [2, 1]
   control = "toggle"
   reads = "pad:hide_pointer"
 
-  # A switch, because there are two states and the tile draws which one it is
-  # in.
-  [[menu.items.items]]
-  icon = "󰕦"
-  label = "Vibration"
-  control = "toggle"
-  reads = "pad:rumble"
-
-  # And how hard, which is a number and so a bar. The motor ticks once at the
-  # level you let go on rather than at every step on the way: the number says
-  # nothing and the buzz says everything, but a buzz per step of a sweep says
-  # nothing either.
-  [[menu.items.items]]
-  label = "Strength"
-  control = "slider"
-  reads = "pad:rumble_strength"
-
-  # The other half of what a press says back, and the pair reads as a pair on
-  # purpose: the motor answers the hands and this answers the room, so
-  # whoever turns one off is choosing between them rather than losing both.
-  # It ships off - see `[sound]` - so this switch is how most people will
-  # ever hear it.
-  [[menu.items.items]]
-  icon = "󰕾"
-  label = "Sounds"
-  control = "toggle"
-  reads = "pad:sound"
-
-  # And how loud, which is the same question `Strength` asks about the motor
-  # and gets the same shape of answer. A tenth per step rather than the
-  # motor's twentieth: a cue is 90 ms at the longest, and a difference you
-  # cannot hear between two presses is not a step worth stopping on.
-  [[menu.items.items]]
-  label = "Loudness"
-  control = "slider"
-  reads = "pad:sound_volume"
-
-  # What the badges print, which is a second question from the profile below:
-  # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
-  # **A card, not a page.** It was a submenu, and it was one for the reason
-  # a card now answers: a `choice` tile shows one value, so the line under
-  # each choice saying *how* they differ had nowhere to go - and getting
-  # this wrong scrambles the face buttons. A row is as wide as the card, so
-  # it keeps that line, and all four are in front of you rather than a
-  # level down.
-  # profile and prints shapes. `auto` follows the profile.
-  [[menu.items.items]]
-  label = "Button labels"
-  control = "rows"
-  span = [3, 3]
-  detail = "What the badges print"
-
-    [[menu.items.items.items]]
-    label = "Follow the pad"
-    detail = "What the pad reports it is"
-    action = "pad:layout=auto"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Nintendo"
-    detail = "A B X Y, ZL and ZR, − and +"
-    action = "pad:layout=nintendo"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Xbox"
-    detail = "LB and LT, View and Menu"
-    action = "pad:layout=xbox"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "PlayStation"
-    detail = "Shapes, L1 and L2, Create and Options"
-    action = "pad:layout=playstation"
-    stay = true
-
-  # And how they are drawn, which is the same question asked about the shape
-  # instead of the letter. A stencil badge is the one to reach for when the
-  # screen is across a room; a filled one is quieter beside a keyboard.
+  # And how they are drawn, which is the same question `Button labels` asks
+  # about the shape instead of the letter. A stencil badge is the one to reach
+  # for when the screen is across a room; a filled one is quieter beside a
+  # keyboard.
   #
   # Two values, so it is walked in place: a submenu of two rows was never a
   # place, and comparing two looks meant opening the menu twice. What it costs
   # is the line each row carried saying how the two differ - a tile that shows
   # one value has nowhere to put it - and with two values whose names say it,
-  # that is a good trade. `Button labels` and `Profile` keep their submenus
-  # for exactly that reason: getting either wrong scrambles the face buttons,
-  # and the sentence under each choice is what stops you.
+  # that is a good trade. `Button labels` and `Profile` are cards for exactly
+  # that reason: getting either wrong scrambles the face buttons, and the
+  # sentence under each choice is what stops you.
   [[menu.items.items]]
   icon = "󰏘"
   label = "Button style"
   control = "choice"
+  span = [3, 1]
   reads = "pad:badge_style"
-
-  # Which codes the pad is read with. `auto` is what the driver says it is,
-  # which is right until it is not: a pad with a hardware mode switch reports
-  # one thing and prints another, and that is the whole reason this is a
-  # choice. Getting it wrong scrambles the face buttons, and the row below is
-  # A card for `Button labels`' reason, and a stronger one: getting this
-  # wrong scrambles the face buttons, and the sentence under each row is
-  # exactly what stops you.
-  # what answers a pad neither profile fits.
-  [[menu.items.items]]
-  label = "Profile"
-  control = "rows"
-  span = [3, 2]
-  detail = "Which codes this pad sends"
-
-    [[menu.items.items.items]]
-    label = "Detect it"
-    detail = "Follow what the driver reports"
-    action = "pad:profile=auto"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Nintendo Pro"
-    detail = "A Switch pad, or one in NS mode"
-    action = "pad:profile=nintendo_pro"
-    stay = true
-
-    [[menu.items.items.items]]
-    label = "Xbox"
-    detail = "An XInput pad - most of them"
-    action = "pad:profile=xbox"
-    stay = true
-
-  [[menu.items.items]]
-  icon = "󰘮"
-  label = "Remap the buttons"
-  detail = "Teach it which button is which"
-  action = "map:open"
-
-  # How long every hold on this pad takes, against the lengths they were
-  # written at. It is on the pad because it is about the hand: a hold is two
-  # seconds of keeping a shoulder down, which is a gesture some hands cannot
-  # make at all and others make by accident. `[confirm]` is where the same
-  # number is set at a keyboard, along with the slip a counting hold survives.
-  [[menu.items.items]]
-  label = "Hold time"
-  control = "slider"
-  reads = "pad:hold_scale"
 
 # The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
 #
@@ -3186,8 +3245,10 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   control = "rows"
   # Three wide rather than the default two: a row with a line under it is a
   # row that has to hold a sentence, and forty characters do not fit in two
-  # cells beside a tick.
-  span = [3, 2]
+  # cells beside a tick. And three tall, which is the `Power` card beside it:
+  # two cards of one page standing at two heights is a step in a band that
+  # holds nothing.
+  span = [3, 3]
 
     [[menu.items.items.items]]
     label = "Game mode"
@@ -3249,41 +3310,69 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
     action = "exec:omarchy-system-shutdown"
     countdown = true
 
-  # **Reboot and Shutdown twice, and that is the point.** They are rows in
-  # the card above like the other three, and they are also the two anybody
-  # actually walks to this page for - so they are a cell each as well, where
-  # a thumb reaches them without going into a card first. Item 48's argument
-  # about a row you have to go and find, spent on the two rows it is true of.
+  # **The things this machine can do that nobody wrote down here.** A card of
+  # rows like `Power`, except that what is in it is a folder: every
+  # executable file in `~/.config/omapad/scripts` is a row, read when this
+  # page settles, so adding one is dropping a file in a folder rather than
+  # editing this file. It is the answer to "I want the pad to do this one
+  # thing" that does not cost a binding, a setting or a line in the shipped
+  # tree.
   #
-  # They count down exactly as the rows do: the same press cannot be guarded
-  # in one place and cheap in the other.
-  #
-  # Their own ids, because a tile and a row that shared one would share the
-  # press that lands on either - the flash, the countdown and the fill all
-  # name a tile by id, and two things answering to one name is two things
-  # lighting up for one press.
+  # `%1` is the path, quoted as it goes in - a script whose name has a space
+  # in it stays one argument. The label is the file's name without its
+  # extension, because `.sh` is not something anybody is choosing between,
+  # and only files that are executable are listed: a row that cannot run is
+  # worse from a sofa than no row at all.
   [[menu.items.items]]
-  id = "reboot-tile"
-  icon = "󰜉"
-  label = "Reboot"
-  action = "exec:omarchy-system-reboot"
-  countdown = true
+  label = "Scripts"
+  control = "rows"
+  span = [3, 3]
+  detail = "~/.config/omapad/scripts"
+  empty = "Nothing there yet"
+  action = "exec:%1"
+  from = """
+    for file in "$HOME"/.config/omapad/scripts/*; do
+      [ -f "$file" ] && [ -x "$file" ] || continue
+      name=${file##*/}
+      printf '%s\t%s\n' "${name%.*}" "$file"
+    done
+  """
 
+  # **Reboot and Shutdown were a cell each as well, and are not any more.**
+  # They were rows in the card above *and* tiles beside it, on item 48's
+  # argument about a row you have to go and find, spent on the two rows
+  # anybody actually walks to this page for. What that bought was one press;
+  # what it cost was a page that says the same two words twice, a cell away
+  # from the card that says them - and a copy that has to be kept in step,
+  # since a press guarded in one place and cheap in the other is worse than
+  # not guarding it at all. The card is the page's answer to power: A goes
+  # in, and all five are in front of you.
+  #
+  # If you put either back, give each copy its own `id`: the flash, the
+  # countdown and the fill all name a tile by id, and two things answering to
+  # one name is two things lighting up for one press.
   [[menu.items.items]]
-  id = "shutdown-tile"
-  icon = "󰐥"
-  label = "Shutdown"
-  action = "exec:omarchy-system-shutdown"
-  countdown = true
+  control = "row_break"
 
   # Last on this page, and the way out of this menu into the one that has
   # everything else. It wants a keyboard, which is why it is not the menu the
   # pad opens - and it is here rather than a chip of its own because the bar
   # holds places you go to, and this is a door you leave by.
   [[menu.items.items]]
+  # A hamburger rather than Omarchy's own mark. The mark was the better
+  # label - the thing on the other side of a door is what a door should be
+  # labelled with - and it is at U+E900 in `omarchy.ttf`, a private-use
+  # codepoint that did not survive being written into this file: what shipped
+  # was an empty string, so the row drew no mark at all. `icon_font` is still
+  # how a row names the family its glyph came from, for whoever puts it back
+  # with the character intact.
   icon = "󰍜"
   label = "Omarchy menu"
   detail = "Everything else"
+  # Three cells, under the cards rather than beside them: `Omarchy m…` is
+  # what one cell had room for, and a door standing on its own row is the
+  # last thing read on the page rather than the odd one out in a band.
+  span = [3, 1]
   action = "exec:omarchy-menu toggle"
 
 # ---------------------------------------------------------------------------

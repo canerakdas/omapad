@@ -2215,10 +2215,11 @@ Item {
                 readonly property bool taken: tile.modelData.hd === true
                 // Counting down to running, where the press landed on the
                 // tile itself rather than on a row inside one. `Reboot` and
-                // `Shutdown` are written both ways on the System page, so the
-                // number has to be drawable both ways too - a press guarded
-                // in one place and silent in the other is worse than not
-                // guarding it at all.
+                // `Shutdown` were written both ways on the System page for a
+                // while, and a countdown may still land on either, so the
+                // number is drawable both ways - a press guarded in one place
+                // and silent in the other is worse than not guarding it at
+                // all.
                 readonly property bool counting: root.counting !== null
                   && root.counting !== undefined
                   && root.counting.id === tile.modelData.id

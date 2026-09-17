@@ -128,11 +128,14 @@ enough to want to look at something else on the page.
 
 `countdown = 5` sets the length for one row; `true` takes `[menu] countdown`.
 A row is held or counted, never both, and neither goes beside `repeat`. It
-works on a plain **tile** as well as on a row in a card - `Reboot` and
-`Shutdown` are written both ways, a row in `Power` and a cell of their own,
-because they are the two anybody walks to that page for. **Give each copy its
-own `id`**: the flash and the countdown both name a tile by id, and two things
-answering to one name is two things lighting up for one press.
+works on a plain **tile** as well as on a row in a card. `Reboot` and
+`Shutdown` were written both ways for a while - a row in `Power` and a cell of
+their own, because they are the two anybody walks to that page for - and are
+one each now: a copy is the same word twice a cell apart, and a guard that has
+to be kept in step in two places. **Write one of anything, and if you do write
+two, give each its own `id`**: the flash and the countdown both name a tile by
+id, and two things answering to one name is two things lighting up for one
+press.
 
 Spend either sparingly. A page where three rows in four have to be held is a
 page where holding means nothing, and the one row that needed it is hidden
@@ -270,12 +273,6 @@ up to the one you are on, and the line above it prints that stop's word rather
 than a percentage. `Corners` is the one that ships. See
 [`pad-setting.md`](pad-setting.md).
 
-**A slider whose setting has `stops` draws itself differently**, and the
-setting decides rather than the row: the bar becomes one segment per stop, lit
-up to the one you are on, and the line above it prints that stop's word rather
-than a percentage. `Corners` is the one that ships. See
-[`pad-setting.md`](pad-setting.md).
-
 **A slider is how a number gets a tile.** `pad:<name>=up|down` rows are the
 shape a number had before there was one: two rows saying "faster" and
 "slower", neither of which could say what the number was or that it had
@@ -313,9 +310,11 @@ span = [2, 3]                     # the default, and usually right
 **Reach for one when the tiles you are about to write are verbs.** A verb has
 nothing to show but its name, so a cell spent on one says a single word - and
 four side by side say four words in the room one sentence needs. `Screensaver`
-drawn as `Screensa…` is what that costs, and it is the test: if the labels on a
-run of tiles do not fit a cell and none of them has a value to show, they are a
-card of rows.
+drawn as `Screensa…` is what that costs - it is a row on `Display ▸ Screen`
+now - and it is the test: if the labels on a run of tiles do not fit a cell and
+none of them has a value to show, they are a card of rows. The line under a
+name is the other half of the test: a tile one row tall draws no `detail` at
+all, so a verb that needs a sentence needs a card.
 
 **Do not reach for one where a tile has something to show.** A value, what is
 playing, where a stick is - those are cards because the drawing needs the room,

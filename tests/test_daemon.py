@@ -3105,10 +3105,12 @@ class ConfirmedRowTests(DaemonTestCase):
         walk(shipped_config().menu_items)   # not this class's own row
         self.assertEqual(held, {"Close window"})
         self.assertEqual(counted, {"Logout", "Reboot", "Shutdown"})
-        # Reboot and Shutdown are each written twice - a row in the Power card
-        # and a cell of their own, because they are the two anybody walks to
-        # that page for. The same press cannot be guarded in one place and
-        # cheap in the other, so both copies count.
+        # Reboot and Shutdown are written once each, as rows in the Power
+        # card. They were a cell of their own beside it as well - the two
+        # anybody walks to that page for - and a second copy is a page saying
+        # the same two words twice and a guard that has to be kept in step in
+        # two places. If one comes back it counts down too: the same press
+        # cannot be guarded in one place and cheap in the other.
         every = []
         def count(items):
             for item in items:
@@ -3117,7 +3119,7 @@ class ConfirmedRowTests(DaemonTestCase):
                 if item.get("items"):
                     count(item["items"])
         count(shipped_config().menu_items)
-        self.assertEqual(every, [True] * 4)
+        self.assertEqual(every, [True] * 2)
 
 
 class CornerTests(DaemonTestCase):
@@ -4232,11 +4234,15 @@ class EditModeTests(DaemonTestCase):
         self.assertEqual(self.daemon.menu.picked, before[0])
         where = self.cells()[before[0]]
         self.daemon.menu_command("right")
-        # A cell, not a place in the order: the tile is where it was put and
-        # the one it stepped over has flowed into the space behind it.
+        # A cell, not a place in the order: the tile is where it was put, and
+        # the one it stepped over has flowed. Not into the cell left behind -
+        # the switch carried here is one cell and the bar beside it is three,
+        # so the bar takes the first hole that holds it, which is the cell
+        # after the carried one.
         self.assertEqual(self.cells()[before[0]],
                          (where[0] + 1, where[1]))
-        self.assertEqual(self.cells()[before[1]], where)
+        self.assertEqual(self.cells()[before[1]],
+                         (where[0] + 2, where[1]))
         self.daemon.menu_command("pick")
         self.assertIsNone(self.daemon.menu.picked)
 
@@ -4572,7 +4578,9 @@ class GuideTests(DaemonTestCase):
             self.press("A")
             self.release("A")
 
-        walk_menu(self.daemon, ("Controller", "Shortcuts"), press)
+        # A row in the `Buttons` card now, rather than a cell of its own: A
+        # goes into the card, then the row.
+        walk_menu(self.daemon, ("Controller", "Buttons", "Shortcuts"), press)
         self.assertTrue(self.daemon.guide_open)
         self.assertFalse(self.daemon.menu_open)
 

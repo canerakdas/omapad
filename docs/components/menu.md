@@ -282,7 +282,9 @@ The argument for it is width. A verb has nothing to show but its name, so a
 cell spent on one says a single word, and a page of them is four words where a
 sentence was meant: `Screensaver` drawn as `Screensa…` is the evidence, and
 `Lock`, `Suspend`, `Logout` and `Reboot` as four identical squares is what a
-scatter reads like. Stacked, each row has the card's whole width.
+scatter reads like. Stacked, each row has the card's whole width - and the
+line under its name, which a tile one row tall draws nowhere at all, so the
+sentence a scattered verb had to do without comes back with the card.
 
 It is **not a submenu with the drilling taken out**. A submenu is a page you go
 to and come back from and its rows get a card each; these are already in front
@@ -1294,16 +1296,18 @@ thing to be given long enough to change your mind about, and holding A for ten
 seconds is not a gesture anybody makes.
 
 `countdown` on a **row or a tile** is seconds - `true` takes `[menu]
-countdown`. Both, because `Reboot` and `Shutdown` are written both ways on the
-System page: a row in the `Power` card like the other three, and a cell of
-their own, because they are the two anybody walks to that page for. A press
-guarded in one place and silent in the other is worse than not guarding it, so
-the number is drawn on a tile as well - in the corner the tick and the chevron
-share, neither of which can be true of a tile that is about to run.
+countdown`. Both, because a tile may carry one: `Reboot` and `Shutdown` were
+written both ways on the System page for a while - rows in the `Power` card
+like the other three, and a cell of their own, because they are the two
+anybody walks to that page for. The copies are gone (a page saying the same
+two words twice, and a guard to keep in step in two places), the drawing is
+not: the number is drawn on a tile as well as in a row, in the corner the tick
+and the chevron share, neither of which can be true of a tile that is about to
+run.
 
-Each copy needs its own `id`. The flash, the countdown and the fill all name a
-tile by id, and two things answering to one name is two things lighting up for
-one press.
+Two copies of one action need **two `id`s**. The flash, the countdown and the
+fill all name a tile by id, and two things answering to one name is two things
+lighting up for one press.
 
  `menu_count`
 starts one, `check_menu_countdown` runs it on the loop, `menu_uncount` stops

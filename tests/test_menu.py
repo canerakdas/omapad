@@ -201,8 +201,9 @@ class BuildTests(unittest.TestCase):
         self.assertIsNone(card["items"])
 
     def test_the_pointer_row_sits_with_the_pointer_s_other_questions(self):
-        # Under Controller, after the two rows about the sticks: all three are
-        # asked while holding the pad and looking at the pointer.
+        # Under Controller, directly under the tile that opens the sticks:
+        # both are asked while holding the pad and looking at the pointer,
+        # and they are the column standing beside that page's three cards.
         missing = os.path.join(tempfile.gettempdir(),
                                "omapad-no-such-config")
         config = config_module.load(path=missing, mapping=missing,
@@ -211,15 +212,17 @@ class BuildTests(unittest.TestCase):
                       if row.get("label") == "Controller"]
         self.assertEqual(len(controller), 1)
         rows = controller[0]["items"]
-        self.assertEqual([row["label"] for row in rows[:3]],
-                         ["Shortcuts", "Sticks", "Hide the pointer"])
+        labels = [row.get("label") for row in rows]
+        self.assertEqual(labels[labels.index("Sticks"):],
+                         ["Sticks", "Hide the pointer", "Button style"])
+        pointer = rows[labels.index("Hide the pointer")]
         # A switch rather than two rows that both ticked: it has two states,
         # and the tile draws which one it is in.
-        self.assertEqual(rows[2]["control"], "toggle")
-        self.assertEqual(rows[2]["reads"], "pad:hide_pointer")
+        self.assertEqual(pointer["control"], "toggle")
+        self.assertEqual(pointer["reads"], "pad:hide_pointer")
         # And the four numbers behind the sticks are bars, on one page: two
         # pages of four stepping rows was the shape eight rows forced.
-        sticks = [row for row in rows[1]["items"]
+        sticks = [row for row in rows[labels.index("Sticks")]["items"]
                   if row["control"] != "row_break"]
         bars = [row for row in sticks if row["control"] == "slider"]
         self.assertEqual([row["reads"] for row in bars],

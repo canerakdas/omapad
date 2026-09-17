@@ -2422,10 +2422,11 @@ something else on the page, and a count that died because a thumb brushed a
 stick would be worse than no count at all. `countdown = 5` sets the length for
 one row. `System › Power` spends it on Logout, Reboot and Shutdown: being sure
 you meant to log out is not a thing to do with a thumb, and holding A for ten
-seconds is not a gesture anybody makes. `Reboot` and `Shutdown` are also a cell
-each beside that card, because they are the two anybody walks to the page for -
-and both copies count down, since a press guarded in one place and cheap in the
-other is worse than not guarding it.
+seconds is not a gesture anybody makes. `Reboot` and `Shutdown` were a cell
+each beside that card as well — the two anybody walks to the page for — and
+are not any more: a second copy is the same two words twice a cell apart, and
+a guard that has to be kept in step in two places. They are rows in the card
+like the other three.
 
 `confirm` is for a row a second press does not undo, where the answer is
 wanted now. A stops being the press that runs it and becomes the press that
@@ -2542,8 +2543,9 @@ span = [2, 3]
 Reach for one when the tiles you are writing are **verbs**. A verb has nothing
 to show but its name, so a cell spent on one says a single word — and four of
 them side by side say four words in the room one sentence needs, which is how
-`Screensaver` ends up drawn as `Screensa…`. Stacked, each row has the whole
-card to be as long as it is.
+`Screensaver` ended up drawn as `Screensa…` — it is a row on `Display ›
+Screen` for exactly that reason. Stacked, each row has the whole card to be as
+long as it is, and the line under it that a one-row tile draws nowhere.
 
 Do **not** reach for one where a tile has something to show. A card that holds
 a value, what is playing, or where a stick is, is a card because the drawing
@@ -2749,7 +2751,7 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The bar that ships is seven cards, in the order a thumb reaches for them:
+The bar that ships is eight cards, in the order a thumb reaches for them:
 
 | Group | Holds |
 |---|---|
@@ -2757,9 +2759,10 @@ The bar that ships is seven cards, in the order a thumb reaches for them:
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Workspaces** | fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone |
-| **Display** | scale, screensaver |
+| **Display** | scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
 | **Controller** | everything about the pad — see below |
-| **System** | start in, lock, suspend, log out, restart, power off, and the way out into the Omarchy menu |
+| **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
+| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, and the way out into the Omarchy menu |
 
 What you change now, then what you open, then what is on screen, then the room,
 then the pad, then the machine. `Now` is where the menu opens, which is why the
@@ -2917,17 +2920,25 @@ Everything about the pad itself is one row, because a controller is one thing:
 
 | Tile | What it is |
 |---|---|
-| Shortcuts | the [bindings guide](#the-bindings-guide) — what every button does |
-| Sticks | **four bars and two dials** — pointer speed, scroll speed, how much of each stick does nothing, and where each thumb is right now |
-| Hide the pointer | **a switch** — whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again |
 | Vibration | **a switch** — the motor on or off |
 | Strength | **a bar** — how hard it buzzes |
-| Button labels | [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
+| Sounds | **a switch** — whether a press answers the room as well as the hands |
+| Loudness | **a bar** — how loud that answer is |
+| Hold time | **a bar** — [how long every hold on this pad takes](#holding-for-a-hand-that-cannot) |
+| Button labels | **a card** — [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
+| Profile | **a card** — which codes this pad is read with: detect it, Nintendo Pro, Xbox |
+| Buttons | **a card** — the [bindings guide](#the-bindings-guide), and the [mapping screen](#controller-mapping) |
+| Sticks | **four bars and two dials** — pointer speed, scroll speed, how much of each stick does nothing, and where each thumb is right now |
+| Hide the pointer | **a switch** — whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again |
 | Button style | **walked in place** — [how they are drawn](#how-the-badges-are-drawn): Filled or Stencil |
-| Profile | which codes this pad is read with: detect it, Nintendo Pro, Xbox |
-| Remap the buttons | the [mapping screen](#controller-mapping) |
 
-What you look up is first, then what you feel, then what you set once and forget.
+**The page is two bands, not twelve tiles.** Along the top is what a press
+answers with, each switch beside the bar saying how much of it. Under it stand
+the three cards — what the pad prints, what it is, and what its buttons do —
+with the sticks, the pointer switch and the badge style in a column beside
+them. It was a switch, a bar, a card and a door in the order they happened to
+be written in, at four heights that lined up with nothing, which is a page you
+read through rather than glance at.
 
 **A switch is a switch, not two rows that both tick.** `On` and `Off` as
 separate rows was always a switch written out longhand, and a tile that draws
@@ -2940,10 +2951,11 @@ what the number was or that it had stopped at the end of its range. They are
 five bars now, and `Sticks` is one page instead of two because four bars is
 not the list eight stepping rows was.
 
-`Button labels` and `Profile` keep their submenus on purpose. A tile that walks
-a choice shows one value, so it has nowhere to put the line under each choice
-saying how they differ — and those are the two where getting it wrong scrambles
-the face buttons, so that line is exactly what stops you.
+`Button labels` and `Profile` are **cards of rows** on purpose. A tile that
+walks a choice shows one value, so it has nowhere to put the line under each
+choice saying how they differ — and those are the two where getting it wrong
+scrambles the face buttons, so that line is exactly what stops you. A card is
+as wide as its rows, so all four are in front of you with their sentences on.
 
 Everything but the guide is a setting rather than a command, and they
 are the ones that belong on the pad rather than in a file: which profile a pad
@@ -2995,8 +3007,8 @@ omapad ctl menu toggle
 
 ## The bindings guide
 
-**Controller › Shortcuts** in the menu opens a map of the bindings in force right
-now: one page per layer, and on every row the button itself and what it does.
+**Controller › Buttons › Shortcuts** in the menu opens a map of the bindings in
+force right now: one page per layer, and on every row the button itself and what it does.
 Read-only — this is the map, not the editor; the config is where you change
 things.
 
@@ -3087,7 +3099,8 @@ off the bar — the icon of a service that is not running is worse than a gap.
 
 ## Controller mapping
 
-**Controller › Remap the buttons** in the menu (or `omapad ctl map open`)
+**Controller › Buttons › Remap the buttons** in the menu (or
+`omapad ctl map open`)
 opens the mapping screen: it asks for each button in turn, you press it, and it
 writes the evdev code that arrived next to that name. The result is saved to
 `~/.config/omapad/mapping.toml` **per device identity** — since the identity
