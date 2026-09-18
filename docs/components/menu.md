@@ -29,6 +29,7 @@ selected  a tile id, never an index
 taken     None | id     the control being adjusted
 edit      False | True  the page is being rearranged
 picked    None | id     the tile being carried
+removed_at -1 = the page; >=0 = which tile in the strip has the focus
 ```
 
 `taken` is an id like `selected`, and it is only ever the tile `selected`
@@ -48,17 +49,17 @@ from it.
 
 **The transition table.** A blank cell is a press that does nothing.
 
-| | browse | taken | edit | edit + picked |
-|---|---|---|---|---|
-| D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place |
-| D-pad up/down | the same | - | the same | carry it a row |
-| **Left stick** | the same as the D-pad, held rather than flicked | the same - or, on a **knob**, its angle turns the value | the same | the same |
-| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | shorter / taller |
-| **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** |
-| **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save |
-| **X**, Escape | close outright, from any depth - or the page's own verb | close | hide it, or put it back | hide it |
-| **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page |
-| **L / R**, Tab | previous / next group | - | - | narrower / wider |
+| | browse | taken | edit | edit + picked | edit + in the strip |
+|---|---|---|---|---|---|
+| D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place | walk the strip |
+| D-pad up/down | the same | - | the same, and **down at the bottom enters the strip** | carry it a row | up leaves the strip |
+| **Left stick** | the same as the D-pad, held rather than flicked | the same - or, on a **knob**, its angle turns the value | the same | the same | the same |
+| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | shorter / taller | - |
+| **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** | **put it on this page**, in the hand |
+| **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save | leave edit, and save |
+| **X**, Escape | close outright, from any depth - or the page's own verb | close | **remove it** - off the page and into the strip | remove it | put it back on the page it came from |
+| **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page | reset the page |
+| **L / R**, Tab | previous / next group | - | previous / next page | narrower / wider | previous / next page |
 
 `bindings.md`'s word for A is **commit**, and it stays that. What the table
 adds is which sentence commit is speaking in each state: fire it, drill in,
@@ -104,7 +105,7 @@ anything a button can.
 | `repeat`, `stay` | what happens when it runs |
 | `confirm` | it is **held**, not pressed - see below |
 | `when` | the states it is offered in - `game`, `handed_over`, `locked`, `kept`, `first_run` |
-| `id` | what a layout calls it - a slug of the label by default |
+| `id` | what a layout calls it - a slug of the label by default, and never with a `/` in it: that is what names a tile a page was **given** |
 | `span` | `[width, height]` in cells; `[1, 1]` unless said |
 | `control` | what kind of tile it is; empty is a plain one |
 | `reads` | where a control takes its value from, `pad:<setting>` |
@@ -397,8 +398,8 @@ capitals and read as a bullet. Marks belong to the rows.
 
 **The row cursor is a second cursor, not a second kind of `selected`.**
 `self.row` is an id inside `self.selected`'s tile, and everything the page does
-to a tile - carry it, hide it, resize it, scroll to it, ring it - is still done
-to the tile. Only a press reaches further in, and `acting` is where that is
+to a tile - carry it, remove it, resize it, scroll to it, ring it - is still
+done to the tile. Only a press reaches further in, and `acting` is where that is
 asked: it is the row where there is one and `current` everywhere else, which is
 what makes `confirm`, `stay` and `repeat` the row's answers rather than the
 card's. The legend asks the same property, so `A` says `Hold to confirm` over a
@@ -1220,8 +1221,8 @@ page. Only one of them rebuilds anything:
 |---|---|
 | three seconds of streaming, forty lines | **none** |
 | the selection moving to another tile | **none** |
-| entering edit mode with nothing hidden | **none** |
-| hiding a tile | the page |
+| entering edit mode with nothing removed | **none** |
+| removing a tile | the page |
 | walking to another card | the page |
 
 The last two are right: the page is a different list of tiles, so the model is
@@ -1383,22 +1384,35 @@ tap arranges, the hold opens the guide - which also has a row of its own on
 
 ### The gesture, as a table rather than a branch
 
-`EDIT_KEYS` in `daemon.py` is eight ordinary binding specs, and `binding_for`
-consults it before the page's own keys and before the layer's. **The legend is
-built from exactly those specs**, so what it prints and what a press does
-cannot drift apart - which is the whole reason the legend is worth having.
+`EDIT_KEYS`, `EDIT_CARRY_KEYS` and `EDIT_REMOVED_KEYS` in `daemon.py` are
+ordinary binding specs, and `binding_for` consults whichever is in force
+before the page's own keys and before the layer's. **The legend is built from
+exactly those specs**, in `EDIT_ORDER`, so what it prints and what a press
+does cannot drift apart - which is the whole reason the legend is worth
+having.
 
-The contract holds: A still commits (picking a tile up and putting it down is
-what commit is saying here), B still leaves (leaving edit mode is leaving), X
-is this surface's own verb one mode along (`close` becomes `hide`), and Y is
-still the reach - for the arrangement that is not on screen because it is the
-one the config shipped.
+The contract holds: A still commits (picking a tile up, putting it down, and
+putting one from the strip onto this page are all what commit is saying
+here), B still leaves (leaving edit mode is leaving), X is this surface's own
+verb one mode along (`close` becomes `remove`), and Y is still the reach -
+for the arrangement that is not on screen because it is the one the config
+shipped.
 
-**The shoulders and the triggers are what a mode borrows.** L and R walk the
-bar everywhere else in this layer, and while a page is being rearranged the
-bar is not what a thumb is aiming at; ZL and ZR are unbound here. L and R are
-narrower and wider, ZL and ZR shorter and taller - the pair a thumb reads as
-side to side, and the pair under it.
+**Three tables rather than one, and the state is what the hand is holding**:
+nothing, a tile, or a tile out of the strip. `edit_keys()` is the whole of
+that branch. Two of the eight buttons say nothing at all in two of the three
+states - a page is not walked away from with a tile in the hand, and a tile
+that is on no page has no cell to be made wider - so a single table would
+print a legend of eight rows, half of which answer a press with nothing.
+
+**The shoulders walk the bar, exactly as they do everywhere else in this
+layer.** That is what a page being *reachable* while rearranging costs, and
+it is the press that carries a tile to another page. It was once the argument
+for the opposite - while a page is being rearranged the bar is not what a
+thumb is aiming at - and that stopped being true the day a tile could go
+somewhere else. With a tile in the hand the bar is not what a thumb is aiming
+at, and there the shoulders are narrower and wider, the triggers shorter and
+taller: the pair a thumb reads as side to side, and the pair under it.
 
 **Both axes, which used to be one.** The argument for width alone was that a
 height is a control's own shape - a bar is a bar and a dial is round - and
@@ -1409,11 +1423,22 @@ from the day it was written; it was the two buttons that were missing.
 `rows_limit` clamps the new one, because a tile taller than the page the HUD
 draws is a tile with rows nobody can see.
 
+**A binding is cached per page, and now per state.** `page_key_binding`
+holds one `Binding` under `(page_name, edit_state, button)`. The state was
+not in that key while there was one table, and the day there were three it
+handed back the binding built with an empty hand: the bar walked while the
+legend said `Narrower`. `edit_state()` is the one function that says which
+table this is, and `EDIT_TABLES` maps its answer - two answers to "which
+table" is exactly how a legend and a press come apart.
+
 **A borrowed button has to outrank a layer trigger.** ZL opens the window
 layer out here and is the pointer's precision modifier, and neither may
 swallow the press: `surface_override` answers "menu" for any button in
-`EDIT_KEYS` while the mode is on, because the alternative is a layer opening
-silently while the legend says `Shorter`.
+`EDIT_ANY` while the mode is on, because the alternative is a layer opening
+silently while the legend says `Shorter`. `EDIT_ANY` is the **union** of the
+three tables and not the one in force: a trigger that says nothing with an
+empty hand still has to say nothing rather than open a layer under the
+card.
 
 The cost of the hold is that **Y acts on the way back up** rather than on the
 way down, the way every tap/hold does. HOME already has that beat in this
@@ -1492,12 +1517,48 @@ being pressed. The key is the id **and the cell** now. A guard on identity
 where the question was position - the same shape of mistake as an index for a
 tile id, one surface along, and `tests/test_shell_plugin.py` is what says so.
 
-### Hiding, and why there is no add page
+### Removing, and the strip a removed tile stands in
 
-While editing, a hidden tile is **still drawn where it sits**, faded. So
-removing and restoring are the same press on the same tile: there is no page
-it has gone to, nothing to go and find, and no second surface to build. It
-disappears when editing stops.
+X takes the tile in front **off the page**, and it lands in the strip along
+the foot of the card: its name, the page it came from, and everything taken
+off every other page beside it. A is what puts one back - on the page in
+front, whichever page that is.
+
+**It was faded in its own cell for a long time, and the argument for that was
+good.** Removing and restoring were the same press on the same tile, there
+was no page it had gone to and no second surface to build. What that cannot
+express is a tile on **another** page: a tile has to be somewhere while the
+shoulders walk the bar, and "faded where it used to be" is somewhere it can
+only come back to. Roadmap 82 is the reversal and why.
+
+So there are three states rather than two, and one gesture each:
+
+| | Where it is | What X does |
+|---|---|---|
+| on the page | a cell | takes it off, into the strip |
+| in the strip | a chip along the foot | puts it back on the page it came from |
+| on another page | a cell there | takes it off, into the strip - and **home**: a tile is off its own page, never off somebody else's |
+
+**The strip is not a page.** It is one row of names, because the ask it
+answers is "where did that go" and a name answers it - a second grid of the
+same cells would be a second page to arrange on a surface whose whole
+argument is that there is one page in front of you.
+
+**It costs no button.** Down at the bottom of the page reaches it and up
+comes back, which is what those two presses did before: nothing. The mode
+already spends six buttons, and a seventh for a direction that is already
+pointing at it would be the legend growing to say so.
+
+**On the wire it is `rm` and `rmat`** - the chips as `{id, l, p}` and which
+one the focus is on, -1 for the page. Both are sent only while the mode is
+on, so an absent `rm` on a whole payload is what empties the strip in the
+panel, the same contract `chrono`, `confirm` and `count` are read under.
+
+**What it holds outlives the mode.** Leaving edit mode leaves the strip's
+focus, not its contents: a tile taken off is a tile off that page, which is
+the whole of what hiding one ever was. That is also what makes a *submenu*
+reachable - A picks up rather than drills in while editing, so a tile bound
+for a page two levels down is taken off, B, walked to, Y, and placed.
 
 ### The arrangement, and the tree
 
@@ -1507,16 +1568,32 @@ mutated**: `_show` keeps the page as the config holds it in `source` and
 just rearranged or just walked back into, and the config's own order is still
 there for Y to reset to.
 
-`arrange(items, plan, editing)` is the merge, as three deterministic rules -
-this is where a saved arrangement and a changed config meet, and it is not
+`arrange(items, plan, extra, gone)` is the merge, as four deterministic rules
+- this is where a saved arrangement and a changed config meet, and it is not
 allowed to be something anybody has to interpret:
 
-1. `hidden` suppresses **only ids the config still has**, so it can never hide
-   something that did not exist when it was written.
-2. Every tile in neither list is **appended**, in config order, so a newly
-   shipped tile always appears.
-3. An id in `order` that no longer resolves is **dropped**, so editing
+1. `removed` suppresses **only ids the config still has**, so it can never
+   take away something that did not exist when it was written.
+2. A tile another page is holding is **dropped** here (`gone`), and the tiles
+   this page was given are **added** to it (`extra`). Neither is the page's
+   own doing: both are read off the arrangement as a whole, so a tile is on
+   exactly one page however the file was edited.
+3. Every tile in neither list is **appended**, in config order, with the ones
+   this page was given after the ones it owns. So a newly shipped tile always
+   appears.
+4. An id in `order` that no longer resolves is **dropped**, so editing
    `config.toml` can never break a saved layout.
+
+**A tile a page was given answers to `page/id`**, not to its own id: an id is
+unique on the page that wrote it and two pages are each allowed a `steam`.
+`adopted_items` makes the copy that carries the reference - a shallow one, so
+the action it parses to and the rows it draws are the same objects - and
+everything that keys off `item["id"]` (the packing, the selection, the saved
+cells, the payload) is addressing the same tile by the one name this page
+knows it under. `pages_of` is the map those references resolve against, and
+`MenuModel.page` strips the reference back off: what is *inside* a tile
+belongs to the tile, so a page that renamed itself by being moved would walk
+away from the arrangement of its own tiles.
 
 A `row_break` is authored rather than arranged and keeps the slot it was
 written in: it is the page's paragraph mark, and a tile moved past it crosses
@@ -1534,13 +1611,14 @@ structure: a layout that will not parse must not take the settings down with
 it. See [`../conventions/data.md`](../conventions/data.md) for how it is read,
 and `omapad check --layout` for what a saved one still resolves to.
 
-Four parts per page, and `read_layout` reads each one on its own so a mistake
+Five parts per page, and `read_layout` reads each one on its own so a mistake
 in one costs only that one:
 
 ```toml
 [layout.hud]
 order = ["processor", "memory", "disk"]   # the flow, in names
-hidden = ["fan"]
+removed = ["fan"]                         # off the page, in the strip
+adopted = ["now/clock"]                   # given to this page by another
 
 [layout.hud.span]
 processor = [3, 1]                        # cells across, cells down
@@ -1553,6 +1631,19 @@ memory = [3, 3]                           # the cell somebody put it in
 it is the only part `read_layout` does not fully validate: a negative cell is
 dropped and a far-right one is kept, because `place` is what knows the column
 count and clamps.
+
+`adopted` is validated for its **shape** and nothing else - `page/id`, both
+halves present - because whether the page still has the tile is the tree's
+answer and is asked where the tree is, the way an unknown id in `order` is.
+**Only the page holding a tile writes anything down.** What a page has lost
+is derived from every `adopted` list there is (`adoptions`), so resetting the
+page holding a tile hands it straight home and a hand-edited file cannot say
+two contradictory things about where one tile is. Two pages claiming one is
+the pin collision rule: the first by name keeps it.
+
+`removed` was `hidden` until the strip gave a tile somewhere to be. The old
+name is still read, so a file written before it keeps everything somebody put
+away.
 
 Written when edit mode is left, which is what B means there: the arrangement
 you walked away from is the one kept. Inline rather than on the worker thread,

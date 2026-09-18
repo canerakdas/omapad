@@ -511,23 +511,31 @@ somewhere rather than at the edge of whatever is behind it.
 
 Anything written here is the **shipped** arrangement, not the final one:
 Y on a page turns on edit mode, and what somebody does there lands in
-`~/.config/omapad/layout.toml` and is applied over this. Three rules keep the
+`~/.config/omapad/layout.toml` and is applied over this. Four rules keep the
 two from breaking each other:
 
-1. A tile hidden from the pad is hidden **only while the config still has it**.
-2. A tile you add here **always appears**, at the end of the page, even for
+1. A tile taken off the pad is off **only while the config still has it**.
+2. A tile another page was given is **on that page and off this one**, and
+   only the page holding it says so - so the two can never disagree.
+3. A tile you add here **always appears**, at the end of the page, even for
    somebody who rearranged it a year ago.
-3. A tile you remove here is **dropped from their saved order**, silently.
+4. A tile you remove here is **dropped from their saved order**, silently.
 
 So changing this file is safe, and the only thing to keep in mind is that a
 tile you add lands at the end of an arranged page rather than where you wrote
-it. `omapad check --layout` says what a saved arrangement still resolves to.
+it. `omapad check --layout` says what a saved arrangement still resolves to,
+which page is holding what, and which references no longer name anything.
 
-A fourth thing a person can do is **put a tile in a cell**, which is stronger
-than the three above: a pinned tile is out of the flow entirely, so the order
+Two more things a person can do. **Put a tile in a cell**, which is stronger
+than the rules above: a pinned tile is out of the flow entirely, so the order
 you write here decides only where the tiles *around* it go. That is the one
 case where the page somebody sees can have gaps the page you wrote does not -
-and it is their gap, so leave it alone.
+and it is their gap, so leave it alone. And **move a tile to another page
+entirely**: X takes it off into the strip along the foot of the card, the
+shoulders walk to another page, and A puts it there. So the page a row is
+written on is where it *ships*, not where it will be found - which is one
+more reason to place a row by how often a thumb reaches for it rather than
+by category, and no reason at all to write the same row on two pages.
 
 **Never edit `layout.toml` by hand to change what ships.** It is one person's
 arrangement of the page; the page is here.

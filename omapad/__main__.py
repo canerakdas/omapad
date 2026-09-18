@@ -47,7 +47,7 @@ def build_parser():
         nargs="*",
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
-        "|group_prev|group_next|select N|group N|row ID>, "
+        "|group_prev|group_next|select N|group N|row ID|removed N>, "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
@@ -168,48 +168,93 @@ def cmd_check_layout(config):
         return 0
     pages = {}
 
-    def walk(items, owner=""):
+    def name_of(entry):
+        """The id `menu.build` will give this entry - what a layout names it.
+
+        The same rule and in the same order: what the config said, or the
+        label made into a slug. Asking the slug of an id would rename any id
+        that is not already one.
+        """
+        said = str(entry.get("id", "")).strip()
+        return said or menu_module.slug(str(entry.get("label", "")))
+
+    def walk(items):
         for item in items:
             if item.get("items"):
-                pages.setdefault(
-                    menu_module.slug(str(item.get("id")
-                                         or item.get("label", ""))),
-                    [child for child in item["items"]])
+                pages.setdefault(name_of(item),
+                                 [child for child in item["items"]])
                 walk(item["items"])
 
     walk(config.menu_items)
+    names_of = {}
+    for page, tiles in pages.items():
+        # A break is authored rather than arranged and no layout ever names
+        # one, so it is not a tile this page can be said to have lost.
+        names_of[page] = set(
+            name_of(item) for item in tiles
+            if item.get("control") != menu_module.ROW_BREAK)
+
+    def resolves(ref):
+        """Whether a `page/id` reference still names a tile in the config."""
+        home, _, tile = ref.partition(menu_module.REF)
+        return bool(tile) and tile in names_of.get(home, ())
+
+    # Which page holds each tile that was moved off its own. Read the way the
+    # daemon reads it, so what this prints is what the menu will draw.
+    held_by = menu_module.adoptions(config.layout)
     print("arrangement: %s" % path)
     for page in sorted(config.layout):
         plan = config.layout[page]
-        tiles = pages.get(page)
-        if tiles is None:
+        names = names_of.get(page)
+        if names is None:
             print("  %s: no such page any more - it is ignored" % page)
             continue
-        names = set()
-        for item in tiles:
-            names.add(menu_module.slug(str(item.get("id")
-                                           or item.get("label", ""))))
-        lost = [name for name in plan["order"] if name not in names]
-        hidden = [name for name in plan["hidden"] if name in names]
+        given = {}
+        for ref, where in sorted(held_by.items()):
+            home, _, tile = ref.partition(menu_module.REF)
+            if home == page and where != page:
+                given[tile] = where
+        # A tile this page was given answers to its reference here, so it is
+        # as much one of this page's names as the ones written on it.
+        known = set(names)
+        adopted = []
+        unresolved = []
+        for ref in plan.get("adopted", ()):
+            if held_by.get(ref) != page:
+                # Another page got there first, which is the pin collision
+                # rule: one tile is on one page however the file reads.
+                unresolved.append("%s (held by %s)"
+                                  % (ref, held_by.get(ref, "nothing")))
+            elif resolves(ref):
+                adopted.append(ref)
+                known.add(ref)
+            else:
+                unresolved.append(ref)
+        lost = [name for name in plan["order"] if name not in known]
+        removed = [name for name in plan["removed"] if name in names]
         added = [name for name in names
-                 if name and name not in plan["order"]]
-        kept = len(plan["order"]) - len(lost)
+                 if name and name not in plan["order"] and name not in given]
+        kept = len([name for name in plan["order"] if name in known])
         print("  %s: %d tile%s" % (page, kept, "" if kept == 1 else "s"))
         if lost:
             print("    gone from the config, ignored: %s" % ", ".join(lost))
         if added:
             print("    new since it was saved, added at the end: %s"
                   % ", ".join(sorted(added)))
-        if hidden:
-            print("    hidden: %s" % ", ".join(hidden))
-        # The cells somebody put a tile in, and the column they would be
-        # clamped to. A pin is the one part of an arrangement whose meaning
-        # depends on how wide the page is drawn, so this is where the two are
-        # printed together - `menu.place` clamps silently by design, and a
-        # tile that has been quietly pulled back onto the page is exactly the
-        # kind of thing this command exists to say out loud.
-        placed = [(name, cell) for name, cell in sorted(plan.get("at", {}).items())
-                  if name in names]
+        if removed:
+            print("    off the page, in the strip: %s" % ", ".join(removed))
+        if given:
+            print("    on another page now: %s"
+                  % ", ".join("%s (on %s)" % (name, given[name])
+                              for name in sorted(given)))
+        if adopted:
+            print("    given by another page: %s" % ", ".join(adopted))
+        if unresolved:
+            print("    named a tile that is not there, ignored: %s"
+                  % ", ".join(unresolved))
+        placed = [(name, cell)
+                  for name, cell in sorted(plan.get("at", {}).items())
+                  if name in known]
         if placed:
             # The page drawn over the whole screen has a last row; a menu page
             # does not, so only that one can be clamped downwards.

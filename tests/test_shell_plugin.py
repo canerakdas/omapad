@@ -597,7 +597,8 @@ class ShortPushTests(unittest.TestCase):
     noticing, so it is held here.
     """
 
-    ENDED = ("root.chronoState =", "root.holding =", "root.counting =")
+    ENDED = ("root.chronoState =", "root.holding =", "root.counting =",
+             "root.removedAt =")
 
     def test_only_the_whole_surface_may_end_something(self):
         source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
@@ -610,6 +611,17 @@ class ShortPushTests(unittest.TestCase):
             self.assertEqual(guard, "if (whole)",
                              "%s is not guarded by the whole-surface test"
                              % needle)
+
+    def test_the_strip_is_emptied_by_a_payload_that_does_not_mention_it(self):
+        # The list is the other half of `removedAt`, and it goes the same
+        # way: the daemon sends it only while somebody is rearranging, so a
+        # whole payload without it is what ends it. Through `fresh`, because
+        # it is a model - hence not in ENDED above, which tests a plain
+        # guard on the line before.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        self.assertIn("var off = (s.rm !== undefined) ? s.rm : []", source)
+        self.assertIn('if (whole && root.fresh("rm", off)) root.removed = off',
+                      source)
 
     def test_a_streamed_value_is_matched_to_its_own_tile(self):
         # Never `taken`: the stream falls silent when nothing is turned, and

@@ -137,6 +137,12 @@ Item {
   property int pressMs: 160
   property bool editing: false
   property string picked: ""
+  // The tiles that are off every page, as `{ id, l, p }` - what it is
+  // called and the page it came from - and which of them the focus is on,
+  // -1 for the page itself. Off the wire entirely while nobody is
+  // rearranging, so an empty list is what the rest of the time looks like.
+  property var removed: []
+  property int removedAt: -1
   // Which way a badge is drawn, from the daemon: the same question the guide
   // and the bar answer, and it has to be answered the same way here or one
   // surface prints its buttons unlike the other two.
@@ -362,6 +368,20 @@ Item {
     root.lede.length > 0 || root.clock.length > 0
   readonly property int headerSpace: root.titled
     ? root.headerHeight + root.contentSpacing : 0
+  // **The strip of removed tiles, along the foot of the page.** One row of
+  // chips: a tile taken off a page is not drawn where it stood any more, so
+  // this is where it is - by name, with the page it came from beside it, and
+  // with everything taken off every other page.
+  //
+  // Only while rearranging, and only while it holds something: a band saying
+  // "nothing here" is a band a page is shorter for, every time the menu is
+  // opened.
+  readonly property int chipHeight:
+    metrics.font.bodySmall + metrics.space(10)
+  readonly property int removedHeight:
+    (root.editing && root.removed.length > 0) ? root.chipHeight : 0
+  readonly property int removedBand: root.removedHeight <= 0 ? 0
+    : root.removedHeight + root.contentSpacing
   readonly property int legendHeight: root.keys.length > 0
     ? Math.max(root.badgeUnit, metrics.font.bodySmall) + metrics.space(6) : 0
   // What the legend takes off the bottom. On a card it is its own height and
@@ -563,6 +583,7 @@ Item {
            ? root.headHeight(root.headRows) + root.contentSpacing : 0)
         - root.headerSpace
         - root.navHeight - root.navGap - root.contentSpacing
+        - root.removedBand
         - root.legendBand
       // **The silver split of the screen**, not a decimal somebody liked: a
       // card that swallowed the screen would read as a page rather than as a
@@ -682,6 +703,16 @@ Item {
       if (s.cell !== undefined) root.cellUnit = Number(s.cell) || 34
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
+      // The strip, which is absent from every payload sent while nobody is
+      // rearranging - so absent means empty, and only the whole surface may
+      // say so.
+      if (whole)
+        root.removedAt = (s.rmat !== undefined) ? Number(s.rmat) : -1
+      // Through `fresh` like the tiles, because it is a model too: a `var`
+      // assigned again never compares equal to itself and rebuilds every
+      // delegate under it.
+      var off = (s.rm !== undefined) ? s.rm : []
+      if (whole && root.fresh("rm", off)) root.removed = off
       if (s.open !== undefined) root.opened = !!s.open
       // Last of all: it is what lights a tile, and the tile it names has to
       // be on the page before it does.
@@ -1136,6 +1167,7 @@ Item {
           + root.headerSpace
           + root.navHeight + root.navGap + root.contentSpacing
           + root.gridHeight
+          + root.removedBand
           + root.legendBand,
         parent.height - Style.gapsOut * 2)
       // Nothing of its own when it is the screen: the scrim behind is what
@@ -3936,6 +3968,130 @@ Item {
                   }
                   onClicked: root.pointerActivate(tile.index)
                 }
+              }
+            }
+          }
+        }
+
+
+        // **The tiles that are off every page**, drawn along the foot while
+        // the page is being rearranged. A tile taken off is not faded in the
+        // cell it stood in any more - it is here, by name, with the page it
+        // came from beside it and with everything taken off every other
+        // page. That is what makes moving one to another page possible at
+        // all: it has to be somewhere while the shoulders walk the bar.
+        //
+        // A row of chips rather than a page of tiles, and the ask is the
+        // measure of it: the name is enough. A second grid of the same cells
+        // would be a second page to arrange, on a surface whose whole
+        // argument is that there is one page in front of you.
+        Item {
+          id: removedStrip
+          width: parent.width
+          height: root.removedHeight
+          visible: root.removedHeight > 0
+
+          Text {
+            id: removedName
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Removed"
+            textFormat: Text.PlainText
+            color: Color.menu.text
+            // The caption's register, the same one a card's heading and a
+            // tile's name-over-a-value are set in: this band names what is
+            // in it and the chips are the things being read.
+            opacity: root.inkMuted
+            font.family: metrics.font.family
+            font.pixelSize: metrics.type.fine
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: metrics.type.fine / 8
+          }
+
+          ListView {
+            id: removedList
+            anchors.left: removedName.right
+            anchors.leftMargin: metrics.space(12)
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            height: root.chipHeight
+            orientation: ListView.Horizontal
+            spacing: metrics.space(6)
+            clip: true
+            // The focus lives in the daemon, here as everywhere on this
+            // surface: a drag would be a second answer to where it is.
+            interactive: false
+            boundsBehavior: Flickable.StopAtBounds
+            model: root.removed
+            currentIndex: root.removedAt
+            // Follow the focus, for the reason `reveal` does on the grid: a
+            // chip walked to off the right-hand end of the strip is a chip
+            // nobody can see they are standing on.
+            onCurrentIndexChanged: if (removedList.currentIndex >= 0)
+              removedList.positionViewAtIndex(removedList.currentIndex,
+                                              ListView.Contain)
+
+            delegate: Rectangle {
+              id: chip
+              required property var modelData
+              required property int index
+              readonly property bool here: chip.index === root.removedAt
+
+              height: root.chipHeight
+              width: chipRow.width + metrics.space(12) * 2
+              radius: metrics.radius.tile
+              // The grid's own two grounds, one level along: a chip is a
+              // cell that is not on the page, and the one the focus is on is
+              // lit the way a tile with something to say is.
+              color: chip.here ? root.cellLit : root.cellGround
+              border.width: Math.max(1, metrics.space(2))
+              border.color: chip.here ? Color.accent : root.cellEdge
+              Behavior on color {
+                ColorAnimation { duration: metrics.time.follow }
+              }
+
+              Row {
+                id: chipRow
+                anchors.centerIn: parent
+                spacing: metrics.space(8)
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: chip.modelData.l
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  opacity: chip.here ? 1 : root.inkMuted
+                  font.family: metrics.font.family
+                  font.pixelSize: metrics.font.bodySmall
+                }
+
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  // Where it came from, which is the half of a chip that
+                  // says what putting it back would mean - and on a strip
+                  // holding tiles off four pages it is the only thing
+                  // telling two `Volume`s apart.
+                  text: chip.modelData.p
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  opacity: root.inkDim
+                  font.family: metrics.font.family
+                  font.pixelSize: metrics.type.fine
+                  font.capitalization: Font.AllUppercase
+                  font.letterSpacing: metrics.type.fine / 8
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                // Two presses, the way A is two presses here: the first puts
+                // the focus on the chip and the second puts the tile on the
+                // page in front. A click that placed a tile the pointer had
+                // not stopped on first would be a page rearranged by a
+                // misclick.
+                onClicked: root.send(
+                  chip.here ? "menu place" : "menu removed " + chip.index)
               }
             }
           }

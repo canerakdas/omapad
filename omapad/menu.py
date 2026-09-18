@@ -267,6 +267,14 @@ ROW_BREAK = "row_break"
 # overridable because a label is allowed to change without orphaning a layout.
 SLUG = re.compile(r"[^a-z0-9]+")
 
+# What separates a page from a tile in the name a page calls a tile it was
+# **given**. An id is unique on the page that wrote it and nowhere else - two
+# pages are each allowed a `steam` - so a tile that has been moved has to say
+# which page it came from to be named at all. `build` refuses the character
+# in an id for the same reason: a reference nobody can split in two is a
+# reference to whatever the file happened to mean.
+REF = "/"
+
 
 class MenuError(ValueError):
     pass
@@ -508,6 +516,14 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         item["open_on"] = bool(entry.get("open_on", False))
         if item["open_on"] and not item["when"]:
             raise MenuError("%s: 'open_on' needs a 'when'" % path)
+        if REF in item["id"]:
+            # Said here rather than found later: this is the character that
+            # names a tile on another page, and an id holding one would make
+            # a reference that means two things.
+            raise MenuError(
+                "%s: an id cannot hold %r - it is what names a tile a page "
+                "was given" % (path, REF)
+            )
         if item["id"] in seen:
             raise MenuError(
                 "%s: two tiles here are called %r - give one an 'id'"
@@ -1204,40 +1220,165 @@ def pinned_cell(item, plan):
     return (int(found[0]), int(found[1]))
 
 
-def arrange(items, plan, editing=False):
+def pages_of(root):
+    """Every page in the tree: what it is called, and the tiles on it.
+
+    A page is a group on the bar or a tile that opens one, and the id of
+    whatever opens it is the page's name - the same answer `MenuModel.page`
+    gives for the page in front, so one vocabulary names a page in the file,
+    in the model and here.
+
+    Built from the tree rather than from the file, which is what makes a
+    reference to a tile somewhere else safe: a page the config no longer has
+    resolves to nothing at all, the way an id that no longer resolves is
+    dropped one level up.
+    """
+    out = {}
+
+    def add(item, items):
+        out.setdefault(item["id"], {"label": item["label"], "items": items})
+
+    def walk(items):
+        for item in items:
+            if item["items"]:
+                add(item, item["items"])
+                walk(item["items"])
+
+    for item in root:
+        if not item["items"]:
+            # A verb on the bar is a page of one, which is how `group_page`
+            # already draws it.
+            add(item, [item])
+    walk(root)
+    return out
+
+
+def ref_of(page, name):
+    """What a tile is called by a page that is not the one holding it."""
+    return "%s%s%s" % (page, REF, name)
+
+
+def split_ref(ref):
+    """(the page it was written on, its id there). (None, id) for a plain one."""
+    if REF not in ref:
+        return (None, ref)
+    page, name = ref.split(REF, 1)
+    return (page, name)
+
+
+def adoptions(layout):
+    """Which page holds each tile that was moved off its own, as {ref: page}.
+
+    **One fact in one place.** The page that was given the tile says so, and
+    the page it came from says nothing: a tile leaves its own page because
+    somebody else is holding it, and that is derived here rather than written
+    down twice. So resetting the page holding it hands the tile straight
+    back, and a file edited by hand cannot say two contradictory things about
+    where one tile is.
+
+    Two pages claiming one tile is the pin collision rule again: the first by
+    name keeps it and the rest are dropped, so the answer does not depend on
+    the order a dict happened to be built in.
+    """
+    out = {}
+    for page in sorted(layout):
+        for ref in (layout[page] or {}).get("adopted", ()):
+            home, name = split_ref(ref)
+            if not home or not name or home == page:
+                # A page holding what it already holds. Nothing to do, and
+                # nothing to say: it is what putting a tile back on its own
+                # page leaves behind if anybody writes it by hand.
+                continue
+            out.setdefault(ref, page)
+    return out
+
+
+def adopted_items(pages, layout, page, conditions=None):
+    """The tiles other pages gave this one, each named by its reference.
+
+    A shallow copy carrying the reference as its id, because that is what
+    makes it addressable here: `place`, the selection, the payload and the
+    saved cells all key off `item["id"]`, and the page may well already have
+    a tile of that name. Everything else is shared - the action it parses to,
+    the rows it draws, the `meta` it files answers under - so the tile is the
+    same tile, standing somewhere else.
+
+    `conditions` is what `visible` filters by, and None means no filter: a
+    tile whose `when` is unmet is not offered on a page it was moved to any
+    more than on the page it came from.
+    """
+    out = []
+    for ref, where in sorted(adoptions(layout).items()):
+        if where != page:
+            continue
+        home, name = split_ref(ref)
+        found = pages.get(home)
+        if not found:
+            continue
+        for item in found["items"]:
+            if item["id"] != name or item["control"] == ROW_BREAK:
+                continue
+            if (conditions is not None and item["when"]
+                    and not conditions.intersection(item["when"])):
+                break
+            out.append(dict(item, id=ref))
+            break
+    return out
+
+
+def given_away(layout, page):
+    """The ids of this page's own tiles that another page is holding now."""
+    out = set()
+    for ref, where in adoptions(layout).items():
+        home, name = split_ref(ref)
+        if home == page and where != page:
+            out.add(name)
+    return out
+
+
+def arrange(items, plan, extra=(), gone=()):
     """One page's tiles, in the order and at the sizes somebody chose.
 
-    Three rules, and they are deterministic on purpose - this is where a saved
+    Four rules, and they are deterministic on purpose - this is where a saved
     arrangement and a changed config meet, and that must not be something
     anybody has to interpret:
 
-    1. `hidden` suppresses **only ids the config still has**. It has no effect
-       on an unknown id, so it can never hide something that did not exist
-       when it was written.
-    2. Every tile the config has that is in neither list is **appended**, in
-       config order. So a newly shipped tile always appears.
-    3. An id in `order` that no longer resolves is **dropped**. So editing
+    1. `removed` suppresses **only ids the config still has**. It has no
+       effect on an unknown id, so it can never take away something that did
+       not exist when it was written.
+    2. A tile another page is holding is **dropped here** (`gone`), and the
+       tiles this page was given are added to it (`extra`). Neither is the
+       page's own doing: both are read off the arrangement as a whole, so a
+       tile is on exactly one page however the file was edited.
+    3. Every tile in neither list is **appended**, in config order, with the
+       ones this page was given after the ones it owns. So a newly shipped
+       tile always appears.
+    4. An id in `order` that no longer resolves is **dropped**. So editing
        config.toml can never break a saved layout.
 
     A `row_break` is authored rather than arranged, and keeps the slot it was
     written in: it is the author's paragraph mark, and a tile moved past it
     crosses into the next paragraph, which is what moving past one should do.
 
-    While `editing`, a hidden tile is drawn rather than dropped - dimmed, and
-    in its place - so putting one back is the same gesture as taking it away
-    and there is nowhere for it to go and be lost.
+    A tile that has been removed is **not drawn faded in its place** while a
+    page is being rearranged, which it was until there was somewhere for it
+    to go: it is in the strip along the foot of the card, by name, with the
+    tiles removed from every other page. One tile in two places at once is
+    what a page it could be put back onto from anywhere would have made.
     """
-    if not plan:
+    if not plan and not extra and not gone:
         return items
     breaks = [(number, item) for number, item in enumerate(items)
               if item["control"] == ROW_BREAK]
-    tiles = [item for item in items if item["control"] != ROW_BREAK]
+    tiles = [item for item in items
+             if item["control"] != ROW_BREAK and item["id"] not in gone]
+    tiles.extend(extra)
     by_id = {}
     for item in tiles:
         by_id.setdefault(item["id"], item)
-    hidden = set(plan.get("hidden", ()))
+    removed = set((plan or {}).get("removed", ()))
     out = []
-    for name in plan.get("order", ()):
+    for name in (plan or {}).get("order", ()):
         item = by_id.pop(name, None)
         if item is not None:
             out.append(item)
@@ -1245,8 +1386,7 @@ def arrange(items, plan, editing=False):
         if item["id"] in by_id:
             by_id.pop(item["id"])
             out.append(item)
-    if not editing:
-        out = [item for item in out if item["id"] not in hidden]
+    out = [item for item in out if item["id"] not in removed]
     for number, item in breaks:
         out.insert(min(number, len(out)), item)
     return out
@@ -1458,6 +1598,19 @@ class MenuModel:
         self.picked = None
         # The arrangement, page by page, as it came off layout.toml.
         self.layout = dict(layout or {})
+        # Which tile in the strip of removed ones the focus is on, and -1 for
+        # the grid. A second cursor rather than a second kind of `selected`,
+        # for `row`'s reason: everything the page does is still being done to
+        # a tile on the page, and this is a place in a list that is not one.
+        self.removed_at = -1
+        # The last tile taken off, so walking down into the strip lands on
+        # the one somebody just put there rather than at the far end of a
+        # list they have not looked at.
+        self._removed_last = ""
+        # Every page in the tree, by the name a saved arrangement calls it.
+        # Worked out once: a reloaded config is a new model, so there is
+        # nothing here to go stale.
+        self._pages = None
         # The tile being adjusted, as an id, or None. A control with a range
         # has to be held before both axes belong to it - see TAKEABLE. Never
         # set at the same time as a page change: taking is a thing done to the
@@ -1662,8 +1815,20 @@ class MenuModel:
 
         A group's own id, or the id of the tile that opened the page. Empty
         where a page has no owner, which nothing arrangeable has.
+
+        **The bare id, even for a tile this page was given.** A tile that
+        opens a page carries that page with it: what is inside belongs to the
+        tile and not to wherever the tile is standing, so a page that changed
+        its name by being moved would walk away from the arrangement of its
+        own tiles.
         """
-        return (self.page_item or {}).get("id", "")
+        return split_ref((self.page_item or {}).get("id", ""))[1]
+
+    def pages(self):
+        """Every page in the tree, by the name an arrangement calls it."""
+        if self._pages is None:
+            self._pages = pages_of(self.root)
+        return self._pages
 
     def plan(self):
         """The saved arrangement for the page in front, or None."""
@@ -1704,7 +1869,12 @@ class MenuModel:
         self.source = items
         self.title = title
         plan = self.plan()
-        self.items = arrange(items, plan, self.edit)
+        page = self.page()
+        self.items = arrange(
+            items, plan,
+            adopted_items(self.pages(), self.layout, page, self.conditions),
+            given_away(self.layout, page),
+        )
         self.tiles, self.rows = place(self.items, self.columns, plan,
                                       self.rows_limit())
         names = [tile["item"]["id"] for tile in self.tiles]
@@ -1914,15 +2084,30 @@ class MenuModel:
 
     # -- rearranging --------------------------------------------------------
 
-    def _plan(self):
-        """The page's arrangement, made if it had none. Never None."""
-        page = self.page()
+    def _plan_for(self, page):
+        """Any page's arrangement, made if it had none. Never None.
+
+        Taking a tile off writes to the page it belongs to, which is not
+        always the page in front: a tile standing here because somebody moved
+        it goes home when it is removed, so the file says one thing about it
+        rather than two.
+        """
         plan = self.layout.get(page)
         if plan is None:
-            plan = {"order": [], "hidden": [], "span": {}, "at": {}}
+            plan = {"order": [], "removed": [], "span": {}, "at": {},
+                    "adopted": []}
             self.layout[page] = plan
-        # A plan read off an older file, or built by hand, has no cells in it.
+        # A plan read off an older file, or built by hand, has neither the
+        # cells nor the tiles it was given.
         plan.setdefault("at", {})
+        plan.setdefault("adopted", [])
+        plan.setdefault("removed", [])
+        return plan
+
+    def _plan(self):
+        """The page in front's arrangement, made if it had none. Never None."""
+        page = self.page()
+        plan = self._plan_for(page)
         # The order is written whole the first time anything is moved, so the
         # file records the page as it was seen rather than as a diff against a
         # config that may since have changed.
@@ -1942,8 +2127,9 @@ class MenuModel:
         # you are in the middle of neither.
         self.taken = None
         self.picked = None
-        # Hidden tiles come back while editing and go away again after, so the
-        # page has to be arranged again either way.
+        # The strip is a place inside the mode, so leaving the mode leaves
+        # it: what it holds is still held, and the focus is back on the page.
+        self.removed_at = -1
         self.repack()
         return True
 
@@ -2045,29 +2231,199 @@ class MenuModel:
                 return False
         return True
 
-    def hide(self):
-        """Take the tile in front off the page, or put it back on it.
+    def remove(self):
+        """Take the tile in front off the page. It goes into the strip.
 
-        One gesture rather than two, because while editing a hidden tile is
-        still drawn where it sits: there is no page it has gone to and nothing
-        to go and find, so removing and restoring are the same press.
+        **Off the page, not out of the tree.** What a removed tile *is*, is
+        an id in the `removed` list of the page that wrote it; the strip
+        along the foot of the card is that list read across every page. So
+        there is one place to find what has been taken off, whichever page it
+        came off, and one place to pick it up from to put it somewhere else.
+
+        A tile standing here because somebody moved it goes **home**: the
+        page holding it stops holding it and it is removed from the page that
+        wrote it, because a tile is off exactly one page and that is its own.
         """
         if not self.edit or self.current is None:
             return False
-        plan = self._plan()
         name = self.selected
-        if name in plan["hidden"]:
-            plan["hidden"].remove(name)
+        home, bare = split_ref(name)
+        if home is None:
+            home, bare = self.page(), name
         else:
-            plan["hidden"].append(name)
-            self.picked = None
+            # It was standing here on loan. Hand it back before taking it
+            # off, or the file would say it is both away from its own page
+            # and on this one.
+            here = self._plan_for(self.page())
+            if name in here["adopted"]:
+                here["adopted"].remove(name)
+        plan = self._plan_for(home)
+        if bare not in plan["removed"]:
+            plan["removed"].append(bare)
+        self._removed_last = ref_of(home, bare)
+        self.picked = None
+        # Where it was, so the selection lands on what has closed up into its
+        # cell rather than at the top of the page. A removed tile is not
+        # drawn where it stood any more - it is in the strip - so something
+        # has to say where the thumb is left.
+        where = self.index
         self.repack()
+        self.select(where)
         return True
 
-    def hidden(self, name):
-        """Is that tile one edit mode is showing only so it can be put back?"""
-        plan = self.plan()
-        return bool(plan) and name in plan.get("hidden", ())
+    def removed(self):
+        """Every tile that is off a page: what it is called, and from where.
+
+        Read across the whole arrangement rather than held as a list of its
+        own, for the reason the pages themselves are: a tile off a page is an
+        id in that page's `removed` list, and a second list saying the same
+        thing is a second list to keep in step with the first.
+
+        Only what still resolves. An id the config no longer has is not drawn
+        in the strip, exactly as it no longer takes anything off a page.
+        """
+        out = []
+        pages = self.pages()
+        for page in sorted(self.layout):
+            found = pages.get(page)
+            if not found:
+                continue
+            by_id = {}
+            for item in found["items"]:
+                by_id.setdefault(item["id"], item)
+            for name in (self.layout[page] or {}).get("removed", ()):
+                item = by_id.get(name)
+                if item is None or item["control"] == ROW_BREAK:
+                    continue
+                out.append({"ref": ref_of(page, name),
+                            "label": item["label"],
+                            "page": found["label"]})
+        return out
+
+    @property
+    def in_removed(self):
+        """Whether the focus is in the strip rather than on the page."""
+        return self.removed_at >= 0
+
+    def removed_enter(self):
+        """Step down off the page into the strip. False where it is empty.
+
+        No button of its own: the strip is drawn under the page, so down at
+        the bottom of the page is what reaches it and up is what comes back.
+        Down there did nothing at all before, and a mode that already spends
+        eight buttons is not one to spend a ninth on a direction.
+        """
+        chips = self.removed()
+        if not self.edit or self.in_removed or not chips:
+            return False
+        names = [chip["ref"] for chip in chips]
+        self.removed_at = (names.index(self._removed_last)
+                           if self._removed_last in names else 0)
+        return True
+
+    def removed_leave(self):
+        """Back up onto the page. False where the focus was there already."""
+        if not self.in_removed:
+            return False
+        self.removed_at = -1
+        return True
+
+    def removed_step(self, direction):
+        """Walk the strip. No wrapping, for the reason the grid does not."""
+        if not self.in_removed or direction not in ("left", "right"):
+            return False
+        landed = self.removed_at + (1 if direction == "right" else -1)
+        chips = self.removed()
+        if landed < 0 or landed >= len(chips):
+            return False
+        self.removed_at = landed
+        self._removed_last = chips[landed]["ref"]
+        return True
+
+    def select_removed(self, index):
+        """Put the strip's focus on one tile - what a pointer names.
+
+        Clamped to the nearest rather than refused, for `select`'s reason: a
+        pointer is aiming at something, and an index that landed nowhere
+        would read as a mistake.
+        """
+        chips = self.removed()
+        if not self.edit or not chips:
+            return False
+        index = max(0, min(int(index), len(chips) - 1))
+        self.removed_at = index
+        self._removed_last = chips[index]["ref"]
+        return True
+
+    def removed_chip(self):
+        """The tile the strip's focus is on, or None."""
+        chips = self.removed()
+        if not self.in_removed or self.removed_at >= len(chips):
+            return None
+        return chips[self.removed_at]
+
+    def _removed_settle(self):
+        """Keep the strip's focus somewhere real, or hand it back to the page."""
+        chips = self.removed()
+        if not chips:
+            self.removed_at = -1
+        elif self.in_removed:
+            self.removed_at = min(self.removed_at, len(chips) - 1)
+
+    def removed_place(self):
+        """Put the tile the strip is on onto the page in front, in the hand.
+
+        **This is what moving a tile to another page is made of**: it is
+        taken off `Apps`, the shoulders walk the bar to `System`, and this
+        lands it there. The page holding it says so and the page that wrote
+        it says nothing, which is `adoptions`' one fact in one place.
+
+        It arrives **picked up**. Somebody who has carried a tile across the
+        bar has already said where they want it, and the press after this one
+        is a direction.
+        """
+        chip = self.removed_chip()
+        page = self.page()
+        if chip is None or not page:
+            return False
+        home, name = split_ref(chip["ref"])
+        plan = self._plan_for(home)
+        if name in plan["removed"]:
+            plan["removed"].remove(name)
+        here = ref_of(home, name)
+        if home == page:
+            # Put back where it was written, which is no loan at all: a page
+            # holding its own tile is the one thing `adoptions` will not
+            # record, so the tile is simply on its page again.
+            here = name
+        else:
+            mine = self._plan_for(page)
+            if here not in mine["adopted"]:
+                mine["adopted"].append(here)
+        # The tile is on the page now, so the focus is too.
+        self.removed_at = -1
+        self.repack()
+        if self.select_id(here):
+            self.picked = here
+        return True
+
+    def removed_return(self):
+        """Put the tile the strip is on back on the page that wrote it.
+
+        The strip's own version of what X has always meant here, and the
+        answer to a tile taken off a page you are nowhere near: it goes back
+        where it came from without anybody having to walk there.
+        """
+        chip = self.removed_chip()
+        if chip is None:
+            return False
+        home, name = split_ref(chip["ref"])
+        plan = self._plan_for(home)
+        if name in plan["removed"]:
+            plan["removed"].remove(name)
+        self._removed_settle()
+        self.repack()
+        return True
 
     def resize(self, wider, taller):
         """Make the carried tile bigger or smaller, in whole cells.
@@ -2102,11 +2458,18 @@ class MenuModel:
         return True
 
     def restore(self):
-        """Give the page back to the config. False where it had it already."""
+        """Give the page back to the config. False where it had it already.
+
+        Which hands back what this page was **given** as well: the page
+        holding a tile is the only one that says so, so dropping its
+        arrangement is the tile going home. The strip settles afterwards for
+        the same reason - what it holds may have just changed under it.
+        """
         page = self.page()
         if page not in self.layout:
             return False
         del self.layout[page]
+        self._removed_settle()
         self.repack()
         return True
 
@@ -2445,9 +2808,6 @@ class MenuModel:
                 # page draws what the config called it until there is
                 # something truer to draw.
                 row["m"] = said
-            if self.edit and self.hidden(item["id"]):
-                # Drawn only so it can be put back, and drawn as what it is.
-                row["off"] = True
             if item["id"] == self.picked:
                 row["p"] = True
             if item["control"]:
@@ -2566,6 +2926,15 @@ class MenuModel:
             "rows": self.rows,
             "items": items,
         }
+        if self.edit:
+            # The strip along the foot, and which of it the focus is on. Off
+            # the wire entirely while nobody is rearranging: it is a part of
+            # that mode, and every other payload this surface sends is one
+            # somebody is looking at a page through.
+            state_out["rm"] = [{"id": chip["ref"], "l": chip["label"],
+                                "p": chip["page"]}
+                               for chip in self.removed()]
+            state_out["rmat"] = self.removed_at
         if measured is not None:
             # Off the wire entirely for a page with no chronograph on it, so
             # every other page costs nothing for this one existing - and there

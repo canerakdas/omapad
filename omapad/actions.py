@@ -537,8 +537,16 @@ class MenuAction(Action):
         # handler, because the legend along the foot of the card is built from
         # the same specs, so what it prints and what a press does cannot
         # drift apart.
-        "edit", "edit_on", "edit_off", "pick", "hide", "restore",
+        "edit", "edit_on", "edit_off", "pick", "remove", "restore",
         "wider", "narrower", "taller", "shorter", "save",
+        # And what the strip of removed tiles along the foot of the card
+        # spends its two on: putting one back on the page in front, and
+        # putting it back on the page it came from.
+        "place", "put_back",
+        # What `remove` was called while a tile taken off a page had nowhere
+        # to go but the page it came off. Kept because a config that says it
+        # still means it.
+        "hide",
     }
     holdable = True
 

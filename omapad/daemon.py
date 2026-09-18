@@ -180,12 +180,28 @@ MENU_TRIGGERS = (("ZL", -1), ("ZR", 1))
 # pairs follow the hand: the shoulders are the pair a thumb reads as side to
 # side, the triggers the pair under them.
 EDIT_KEYS = {
-    "A": {"tap": "menu:pick", "desc": "Pick it up or put it down",
-          "short": "Move"},
+    "A": {"tap": "menu:pick", "desc": "Pick it up", "short": "Move"},
     "B": {"tap": "menu:edit_off", "desc": "Done rearranging",
           "short": "Done"},
-    "X": {"tap": "menu:hide", "desc": "Take it off, or put it back",
-          "short": "Hide"},
+    "X": {"tap": "menu:remove", "desc": "Take it off the page",
+          "short": "Remove"},
+    "Y": {"tap": "menu:restore", "desc": "Back to the shipped page",
+          "short": "Reset"},
+    "L": {"tap": "menu:group_prev", "desc": "Previous page",
+          "short": "Previous"},
+    "R": {"tap": "menu:group_next", "desc": "Next page", "short": "Next"},
+}
+
+# And what they mean with a tile in the hand. The sizes are here and nowhere
+# else: a page is not walked away from while something is being carried, so
+# the two shoulders say what a cell is instead - and the triggers, which have
+# nothing to say in either of the other two states, say the other axis.
+EDIT_CARRY_KEYS = {
+    "A": {"tap": "menu:pick", "desc": "Put it down", "short": "Drop"},
+    "B": {"tap": "menu:edit_off", "desc": "Done rearranging",
+          "short": "Done"},
+    "X": {"tap": "menu:remove", "desc": "Take it off the page",
+          "short": "Remove"},
     "Y": {"tap": "menu:restore", "desc": "Back to the shipped page",
           "short": "Reset"},
     "L": {"tap": "menu:narrower", "desc": "Narrower", "short": "Narrower"},
@@ -194,11 +210,47 @@ EDIT_KEYS = {
     "ZR": {"tap": "menu:taller", "desc": "Taller", "short": "Taller"},
 }
 
-# What the legend prints while rearranging: the four the contract owns, and
-# the four the arrangement borrowed. Eight is more than a legend usually
-# holds, and it is what stops the borrowed ones being a secret - a size you
-# cannot find is a size nobody changes.
-EDIT_LEGEND = ("A", "B", "X", "Y", "L", "R", "ZL", "ZR")
+# And in the strip along the foot, where what a press acts on is a tile that
+# is on no page at all. A still commits - putting one down on the page in
+# front is what commit is saying here - and X is still the verb that takes a
+# tile off a page and puts it back on one, one place along.
+EDIT_REMOVED_KEYS = {
+    "A": {"tap": "menu:place", "desc": "Put it on this page",
+          "short": "Place"},
+    "B": {"tap": "menu:edit_off", "desc": "Done rearranging",
+          "short": "Done"},
+    "X": {"tap": "menu:put_back", "desc": "Put it back where it was",
+          "short": "Return"},
+    "Y": {"tap": "menu:restore", "desc": "Back to the shipped page",
+          "short": "Reset"},
+    "L": {"tap": "menu:group_prev", "desc": "Previous page",
+          "short": "Previous"},
+    "R": {"tap": "menu:group_next", "desc": "Next page", "short": "Next"},
+}
+
+# Every button the mode borrows, whichever state it is in. `surface_override`
+# asks this rather than the table in force: ZL says nothing with an empty
+# hand, and a press that fell through to the window layer while the menu was
+# being rearranged would be a layer opening silently underneath a card.
+EDIT_ANY = frozenset(EDIT_KEYS) | frozenset(EDIT_CARRY_KEYS) \
+    | frozenset(EDIT_REMOVED_KEYS)
+
+# Which table is which, by the name `edit_state` answers with. A mapping
+# rather than a branch for `EDIT_KEYS`' own reason: the name is also the
+# cache key a binding is held under, so the two must be one thing.
+EDIT_TABLES = {
+    "edit": EDIT_KEYS,
+    "edit-carry": EDIT_CARRY_KEYS,
+    "edit-removed": EDIT_REMOVED_KEYS,
+}
+
+# The order the legend prints them in, which is the order the contract names
+# them: the four faces, then the pair a thumb reads as side to side, then the
+# pair under it. The legend is `[button for button in this if it is in the
+# table]`, so a state that spends six buttons prints six rows and one that
+# spends eight prints eight - and neither can drift from what a press does,
+# which is the whole reason the tables are tables.
+EDIT_ORDER = ("A", "B", "X", "Y", "L", "R", "ZL", "ZR")
 
 # Which way each resize command pushes the tile in the hand, as the pair
 # `MenuModel.resize` takes. A table rather than a ternary at the call site:
@@ -1508,6 +1560,38 @@ class Daemon:
             self._snap_armed[stick] = True
         self._focus_held.clear()
 
+    def edit_state(self):
+        """Which of the three rearranging tables is in force, by name.
+
+        A name rather than the table itself, because it is also a **cache
+        key**: `page_key_binding` holds one binding per page and button, and
+        while a page is being rearranged one button is three specs.
+        """
+        if not self.menu_open or not self.menu.edit:
+            return ""
+        if self.menu.in_removed:
+            return "edit-removed"
+        if self.menu.picked is not None:
+            return "edit-carry"
+        return "edit"
+
+    def edit_keys(self):
+        """What the buttons mean while rearranging, for the state it is in.
+
+        **Three tables rather than one**, and the state is what the hand is
+        holding: nothing, a tile, or a tile out of the strip. Two of the
+        eight buttons say nothing at all in two of those states - a page is
+        not walked away from with a tile in the hand, and a tile that is on
+        no page has no cell to be made wider - so a single table would print
+        a legend of eight rows, half of which answer a press with nothing.
+
+        None where the mode is off, which is what the callers ask about.
+        One function decides which state this is (`edit_state`) and this maps
+        it: two answers to "which table" is how a legend and a press come
+        apart.
+        """
+        return EDIT_TABLES.get(self.edit_state())
+
     def binding_for(self, layer, button):
         # A page of the menu may spend X and Y on a job of its own, and while
         # it is the page in front that is what those buttons do. Asked first,
@@ -1516,11 +1600,14 @@ class Daemon:
         if layer == "menu" and self.menu_open:
             # Rearranging first: it is a mode inside this surface, and while
             # it is on it outranks both the page's own keys and the layer's.
-            spec = EDIT_KEYS.get(button) if self.menu.edit else None
+            spec = (self.edit_keys() or {}).get(button)
+            # Which table it came from, for the cache below. A page's own
+            # keys are cached under the page alone, the way they always were.
+            where = self.edit_state() if spec is not None else ""
             if spec is None:
                 spec = self.menu.page_keys().get(button)
             if spec is not None:
-                return self.page_key_binding(button, spec)
+                return self.page_key_binding(button, spec, where)
         # The cache is keyed on layer+button and cleared out when the active
         # profile changes (which is also why it cannot hold a stale profile).
         key = (layer, button)
@@ -1560,8 +1647,14 @@ class Daemon:
                 self.bindings[key] = None
         return self.bindings[key]
 
-    def page_key_binding(self, button, spec):
-        key = (self.menu.page_name(), button)
+    def page_key_binding(self, button, spec, where=""):
+        # **Keyed on which table the spec came from as well as on the page.**
+        # While a page is being rearranged one button is three specs - L is
+        # the previous page with an empty hand and narrower with a tile in
+        # it - and a cache that could not tell them apart handed back the
+        # first one built: the bar walked while the legend said `Narrower`.
+        # It is the same shape of fault `surface_override` had one mode up.
+        key = (self.menu.page_name(), where, button)
         if key not in self.page_keys:
             try:
                 binding = actions.Binding(spec, self.config.announced_hold,
@@ -1583,8 +1676,9 @@ class Daemon:
         legend prints and what a press does have to come from the same place,
         or the legend is a second answer.
         """
-        if self.menu.edit and button in EDIT_KEYS:
-            return EDIT_KEYS[button]
+        table = self.edit_keys()
+        if table is not None and button in table:
+            return table[button]
         spec = self.menu.page_keys().get(button)
         if spec is not None:
             return spec
@@ -1610,7 +1704,10 @@ class Daemon:
         available = self.available_buttons()
         rows = []
         leave = ""
-        for button in (EDIT_LEGEND if self.menu.edit else MENU_LEGEND):
+        table = self.edit_keys()
+        order = ([button for button in EDIT_ORDER if button in table]
+                 if table is not None else MENU_LEGEND)
+        for button in order:
             if available is not None and button not in available:
                 continue
             row = guide_module.button_row(
@@ -4234,8 +4331,9 @@ class Daemon:
         # Pages the person has put back are dropped rather than written as an
         # empty table, so the file only ever holds arrangements that exist.
         layout = {page: plan for page, plan in self.menu.layout.items()
-                  if page and (plan.get("order") or plan.get("hidden")
-                               or plan.get("span") or plan.get("at"))}
+                  if page and (plan.get("order") or plan.get("removed")
+                               or plan.get("span") or plan.get("at")
+                               or plan.get("adopted"))}
         path = layout_path()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -4304,6 +4402,14 @@ class Daemon:
         self.menu_group_enter()
         self.push_menu_view()
 
+    def menu_select_removed(self, index):
+        """Name a tile in the strip - what a pointer clicking one asks for."""
+        if not self.menu_open:
+            return
+        if self.menu.select_removed(index):
+            self.say("move", rumble=False)
+        self.push_menu_view()
+
     def menu_command(self, command):
         """Drive the menu. True when holding the button should keep firing."""
         if command == "toggle":
@@ -4344,8 +4450,8 @@ class Daemon:
         if command == "save":
             self.menu_layout_save()
             return False
-        if command in ("pick", "hide", "restore",
-                       "wider", "narrower", "taller", "shorter"):
+        if command in ("pick", "remove", "hide", "place", "put_back",
+                       "restore", "wider", "narrower", "taller", "shorter"):
             if not model.edit:
                 # Said rather than done quietly: every one of these is a
                 # gesture of a mode nobody is in.
@@ -4353,10 +4459,27 @@ class Daemon:
             if command == "pick":
                 model.pick()
                 self.say("commit")
-            elif command == "hide":
-                model.hide()
-                self.say("commit")
-                self.hud_rearranged()
+            elif command in ("remove", "hide"):
+                # `hide` is what this was called while a tile taken off a
+                # page had nowhere to go but the page it came off. A config
+                # or a script that still says it still means this.
+                if model.remove():
+                    self.say("commit")
+                    self.hud_rearranged()
+                else:
+                    self.menu_edge()
+            elif command == "place":
+                if model.removed_place():
+                    self.say("commit")
+                    self.hud_rearranged()
+                else:
+                    self.menu_edge()
+            elif command == "put_back":
+                if model.removed_return():
+                    self.say("commit")
+                    self.hud_rearranged()
+                else:
+                    self.menu_edge()
             elif command == "restore":
                 if model.restore():
                     self.menu_layout_save()
@@ -4371,8 +4494,40 @@ class Daemon:
             # What A and B are bound to while editing - but a press can also
             # arrive from the control socket, which has no bindings at all,
             # and `omapad ctl menu press` has to mean what the pad means.
-            return self.menu_command("pick" if command == "press"
-                                     else "edit_off")
+            # Which includes what it means in the strip, where the tile A
+            # commits is the one that is on no page yet.
+            if command == "back":
+                return self.menu_command("edit_off")
+            return self.menu_command("place" if model.in_removed else "pick")
+        if model.edit and command in ("up", "down", "left", "right"):
+            if model.in_removed:
+                # The strip runs along the foot of the card, so the page is
+                # above it: left and right walk it, up is the way back onto
+                # the page, and down is the bottom of the surface.
+                if command in ("left", "right"):
+                    if model.removed_step(command):
+                        self.say("move", rumble=False)
+                    else:
+                        self.menu_edge()
+                elif command == "up" and model.removed_leave():
+                    self.say("move", rumble=False)
+                else:
+                    self.menu_edge()
+                self.push_menu_view()
+                return True
+            if command == "down" and model.picked is None:
+                # **Down at the bottom of the page reaches the strip**, and
+                # only there: a press that left the page while there was
+                # still a row under it would be a page nobody could get to
+                # the end of. It costs no button, which is the whole
+                # argument - the mode already spends six, and a direction
+                # that did nothing at all is what was there before.
+                if model.step("down") or model.removed_enter():
+                    self.say("move", rumble=False)
+                else:
+                    self.menu_edge()
+                self.push_menu_view()
+                return True
         if command in ("up", "down", "left", "right") and model.picked:
             # A tile being carried takes the directions the selection would
             # have had: it is the thing the thumb is moving.
@@ -5247,6 +5402,14 @@ class Daemon:
                 except ValueError:
                     return "unknown menu command: group %s" % args[1]
                 self.menu_select_group(index)
+            elif command == "removed" and len(args) > 1:
+                # The tile a pointer clicked in the strip along the foot, the
+                # same way `select` names one on the page.
+                try:
+                    index = int(args[1])
+                except ValueError:
+                    return "unknown menu command: removed %s" % args[1]
+                self.menu_select_removed(index)
             elif command in MenuAction.SIMPLE:
                 self.menu_command(command)
             else:
@@ -5535,7 +5698,7 @@ class Daemon:
                 continue
             if self.config.binding_for(name, button) is not None:
                 return name
-            if name == "menu" and self.menu.edit and button in EDIT_KEYS:
+            if name == "menu" and self.menu.edit and button in EDIT_ANY:
                 # **Rearranging spends two buttons the menu layer does not
                 # name.** ZL and ZR are a layer trigger and a modifier out
                 # here, and a mode that borrows a button has to outrank both

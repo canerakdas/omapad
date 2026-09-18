@@ -28,7 +28,8 @@ through. It is something you look at while doing something else, and the
 moment it could take a press it would be in the way of the game it is over.
 """
 
-from .menu import CLOCK, COLUMNS, arrange, minute_of_day, place
+from .menu import (CLOCK, COLUMNS, adopted_items, arrange, given_away,
+                   minute_of_day, pages_of, place)
 
 # What this surface draws, and the only things it draws. **The rule is that a
 # tile here has nothing to press**, not that it is a reading: a switch drawn
@@ -102,7 +103,14 @@ class HudModel:
         group = self.group()
         self.source = (group or {}).get("items") or []
         plan = self.layout.get(self.page)
-        self.items = arrange(self.source, plan)
+        # The tiles this page was given and the ones it has lost to another
+        # page, read off the same arrangement the menu reads. This surface
+        # draws a page somebody arranges in the menu, so a reading carried
+        # onto it there has to land here - and one carried off it has to go.
+        pages = pages_of(self.root)
+        self.items = arrange(self.source, plan,
+                             adopted_items(pages, self.layout, self.page),
+                             given_away(self.layout, self.page))
         # The row count is the page's, not the packing's - so `place` clamps a
         # pin onto the last row rather than reporting a taller page, and what
         # comes back is thrown away.

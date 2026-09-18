@@ -10,6 +10,7 @@ from . import actions as actions_module
 from . import gamebar as gamebar_module
 from . import guide as guide_module
 from . import live as live_module
+from . import menu as menu_module
 from . import snap as snap_module
 from . import sysinfo as sysinfo_module
 from . import keymap
@@ -573,6 +574,7 @@ def read_layout(path):
     | an unknown id | ignore that id |
     | an invalid span | ignore that one override, keep the rest |
     | a duplicate id | keep the first, drop the rest |
+    | a reference to no page | ignore that one; `menu.adoptions` resolves it |
 
     What it cannot do is raise. Nothing here is the user's typing - it is a
     file omapad wrote - so a mistake in it is omapad's to survive.
@@ -593,11 +595,24 @@ def read_layout(path):
     for page, plan in pages.items():
         if not isinstance(plan, dict):
             continue
+        removed = plan.get("removed")
+        if removed is None:
+            # What the list was called while a tile taken off a page had
+            # nowhere to go but the page it came off. Read under the old
+            # name and written under the new one, so a file from before the
+            # strip keeps every tile somebody put away.
+            removed = plan.get("hidden")
         out[str(page)] = {
             "order": _layout_ids(plan.get("order")),
-            "hidden": _layout_ids(plan.get("hidden")),
+            "removed": _layout_ids(removed),
             "span": _layout_spans(plan.get("span")),
             "at": _layout_cells(plan.get("at")),
+            # The tiles this page was given, each named `page/id` because an
+            # id is unique on the page that wrote it and nowhere else.
+            # Whether the page it names still exists is `menu.adoptions`'
+            # question, not this one: the same rule as an id in `order` that
+            # no longer resolves, one level along.
+            "adopted": _layout_refs(plan.get("adopted")),
         }
     return out
 
@@ -612,6 +627,22 @@ def _layout_ids(value):
             continue
         name = entry.strip()
         if name and name not in out:
+            out.append(name)
+    return out
+
+
+def _layout_refs(value):
+    """The `page/id` references that are shaped like one, first one winning.
+
+    Only the shape is checked here. Whether the page still has the tile is
+    the tree's answer and is asked where the tree is - a reference that
+    resolves to nothing is dropped there, the way an unknown id in `order`
+    is dropped in `arrange`.
+    """
+    out = []
+    for name in _layout_ids(value):
+        page, _, tile = name.partition(menu_module.REF)
+        if page and tile and menu_module.REF not in tile:
             out.append(name)
     return out
 
@@ -670,6 +701,12 @@ def render_layout(layout):
         "# editing config.toml can never break this file, and this file can",
         "# never hide a tile that did not exist when it was written.",
         "#",
+        "# A tile under `removed` is off its page and stands in the strip",
+        "# along the foot of the card, where it can be put back or put on",
+        "# another page. A page's `adopted` names the tiles it was given",
+        "# that way, as `page/id`; the page they came from says nothing, so",
+        "# there is one place saying where a tile is.",
+        "#",
         "# A tile under `at` was put in that cell and stays in it; everything",
         "# else flows around those, in the order above. A cell off the edge of",
         "# a narrower screen is pulled back onto it rather than lost.",
@@ -680,16 +717,20 @@ def render_layout(layout):
     ]
     for page in sorted(layout):
         plan = layout[page]
-        if not plan.get("order") and not plan.get("hidden") \
-                and not plan.get("span") and not plan.get("at"):
+        if not plan.get("order") and not plan.get("removed") \
+                and not plan.get("span") and not plan.get("at") \
+                and not plan.get("adopted"):
             continue
         lines.append("[layout.%s]" % page)
         if plan.get("order"):
             lines.append("order = [%s]" % ", ".join(
                 toml_string(name) for name in plan["order"]))
-        if plan.get("hidden"):
-            lines.append("hidden = [%s]" % ", ".join(
-                toml_string(name) for name in plan["hidden"]))
+        if plan.get("removed"):
+            lines.append("removed = [%s]" % ", ".join(
+                toml_string(name) for name in plan["removed"]))
+        if plan.get("adopted"):
+            lines.append("adopted = [%s]" % ", ".join(
+                toml_string(name) for name in plan["adopted"]))
         if plan.get("span"):
             lines.append("")
             lines.append("[layout.%s.span]" % page)

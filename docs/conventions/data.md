@@ -49,10 +49,25 @@ failing.
 | an unknown id | ignore that id |
 | an invalid span (`[999, -3]`) | ignore that one override, keep the rest |
 | a duplicate id | keep the first, drop the rest, deterministically |
+| a reference to a page that is not there | ignore that one tile |
 
-And the merge itself is three rules, so that a saved arrangement and a changed
+And the merge itself is four rules, so that a saved arrangement and a changed
 config can never break each other - see
 [`../components/menu.md`](../components/menu.md).
+
+**A page's table has five parts**, and `read_layout` reads each on its own so
+a mistake in one costs only that one: `order`, `removed`, `span`, `at` and
+`adopted`. The last two are the ones with a rule of their own. A cell under
+`at` is the only part whose meaning depends on how wide the page is drawn, so
+`place` clamps it rather than this validating it. And `adopted` names tiles
+**another page wrote**, as `page/id`, because an id is unique on its own page
+and nowhere else: it is how a tile that was moved is said to be here.
+
+Which page a moved tile is on is written **once**, by the page holding it.
+The page it came from says nothing at all, and what it has lost is derived
+from every `adopted` list there is (`menu.adoptions`). Two tables that each
+had a say could disagree; one cannot. `removed` was called `hidden` until the
+strip gave a tile somewhere to be, and the old name is still read.
 
 ## The socket payloads - line-delimited JSON
 

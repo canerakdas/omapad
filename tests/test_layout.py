@@ -39,11 +39,12 @@ class ReadingTests(unittest.TestCase):
         got = self.write("this is not toml [[[ = = =\n")
         self.assertEqual(got, {})
 
-    def test_a_page_reads_its_four_parts(self):
+    def test_a_page_reads_its_five_parts(self):
         got = self.write(
             '[layout.audio]\n'
             'order = ["volume", "mute"]\n'
-            'hidden = ["devices"]\n'
+            'removed = ["devices"]\n'
+            'adopted = ["now/keyboard"]\n'
             '[layout.audio.span]\n'
             'volume = [4, 2]\n'
             '[layout.audio.at]\n'
@@ -51,10 +52,30 @@ class ReadingTests(unittest.TestCase):
         )
         self.assertEqual(got, {"audio": {
             "order": ["volume", "mute"],
-            "hidden": ["devices"],
+            "removed": ["devices"],
             "span": {"volume": (4, 2)},
             "at": {"mute": (3, 1)},
+            "adopted": ["now/keyboard"],
         }})
+
+    def test_the_old_name_for_the_removed_list_is_read(self):
+        # `hidden` is what it was called while a tile taken off a page had
+        # nowhere to go but the page it came off. A file written then must
+        # not lose what somebody put away.
+        got = self.write(
+            '[layout.audio]\n'
+            'hidden = ["devices"]\n'
+        )
+        self.assertEqual(got["audio"]["removed"], ["devices"])
+
+    def test_a_reference_that_is_not_one_is_dropped(self):
+        # Only the shape is checked here: whether the page still has the tile
+        # is the tree's answer, and `menu.adoptions` is where it is asked.
+        got = self.write(
+            '[layout.audio]\n'
+            'adopted = ["now/keyboard", "bare", "", "a/b/c", 4]\n'
+        )
+        self.assertEqual(got["audio"]["adopted"], ["now/keyboard"])
 
     def test_the_top_left_corner_is_a_cell_and_off_the_page_is_not(self):
         # `0` is where a tile in the corner sits, so it cannot be the value
@@ -114,24 +135,26 @@ class RoundTripTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, directory, True)
         path = os.path.join(directory, "layout.toml")
         layout = {
-            "audio": {"order": ["volume", "mute"], "hidden": ["devices"],
-                      "span": {"volume": (4, 2)}, "at": {"mute": (3, 1)}},
-            "now": {"order": ["keyboard"], "hidden": [], "span": {},
-                    "at": {}},
+            "audio": {"order": ["volume", "mute"], "removed": ["devices"],
+                      "span": {"volume": (4, 2)}, "at": {"mute": (3, 1)},
+                      "adopted": ["now/keyboard"]},
+            "now": {"order": ["keyboard"], "removed": [], "span": {},
+                    "at": {}, "adopted": []},
         }
         with open(path, "w") as handle:
             handle.write(render_layout(layout))
         self.assertEqual(read_layout(path), layout)
 
     def test_a_page_with_nothing_in_it_is_not_written(self):
-        text = render_layout({"empty": {"order": [], "hidden": [],
-                                        "span": {}, "at": {}}})
+        text = render_layout({"empty": {"order": [], "removed": [],
+                                        "span": {}, "at": {},
+                                        "adopted": []}})
         self.assertNotIn("[layout.empty]", text)
 
     def test_a_page_that_only_holds_a_cell_is_still_written(self):
         # The one part that can be the whole of an arrangement: put the single
         # tile on a page somewhere and nothing else about it has changed.
-        text = render_layout({"hud": {"order": [], "hidden": [], "span": {},
+        text = render_layout({"hud": {"order": [], "removed": [], "span": {},
                                       "at": {"processor": (3, 3)}}})
         self.assertIn("[layout.hud.at]", text)
         self.assertIn('"processor" = [3, 3]', text)
@@ -142,8 +165,9 @@ class RoundTripTests(unittest.TestCase):
         directory = tempfile.mkdtemp(prefix="omapad-layout-")
         self.addCleanup(shutil.rmtree, directory, True)
         path = os.path.join(directory, "layout.toml")
-        layout = {"a": {"order": ["x.y"], "hidden": [],
-                        "span": {"x.y": (2, 1)}, "at": {"x.y": (0, 2)}}}
+        layout = {"a": {"order": ["x.y"], "removed": [],
+                        "span": {"x.y": (2, 1)}, "at": {"x.y": (0, 2)},
+                        "adopted": []}}
         with open(path, "w") as handle:
             handle.write(render_layout(layout))
         self.assertEqual(read_layout(path), layout)

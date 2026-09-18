@@ -9,9 +9,10 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import actions, config as config_module
-from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, TAKEABLE, arrange,
-                         build, build_head, effective_span, head_sources,
-                         listed, minute_of_day, place, second_of_minute, slug)
+from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, TAKEABLE,
+                         adoptions, arrange, build, build_head,
+                         effective_span, head_sources, listed, minute_of_day,
+                         pages_of, place, second_of_minute, slug)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -1820,19 +1821,36 @@ class ArrangeTests(unittest.TestCase):
         out = arrange(items, {"order": ["gone", "two", "one"]})
         self.assertEqual([item["id"] for item in out], ["two", "one"])
 
-    def test_hidden_suppresses_only_what_the_config_still_has(self):
-        # Rule 1: it can never hide something that did not exist when it was
-        # written, because there is nothing there to hide.
+    def test_removed_suppresses_only_what_the_config_still_has(self):
+        # Rule 1: it can never take away something that did not exist when it
+        # was written, because there is nothing there to take.
         items = self.page("One", "Two")
-        out = arrange(items, {"order": [], "hidden": ["two", "never"]})
+        out = arrange(items, {"order": [], "removed": ["two", "never"]})
         self.assertEqual([item["id"] for item in out], ["one"])
 
-    def test_a_hidden_tile_is_still_drawn_while_editing(self):
-        # There is nowhere for it to have gone, so putting it back is the same
-        # press that took it away.
+    def test_a_removed_tile_is_off_the_page_while_it_is_rearranged_too(self):
+        # It is in the strip along the foot of the card, which is where it
+        # can be put back or put on another page. Drawn faded in its own cell
+        # is what it was while there was nowhere for it to go, and one tile
+        # in two places is what that would be now.
         items = self.page("One", "Two")
-        out = arrange(items, {"order": [], "hidden": ["two"]}, editing=True)
-        self.assertEqual([item["id"] for item in out], ["one", "two"])
+        out = arrange(items, {"order": [], "removed": ["two"]})
+        self.assertEqual([item["id"] for item in out], ["one"])
+
+    def test_a_tile_this_page_was_given_is_drawn_after_its_own(self):
+        # Rule 2, the second half: what a page was given lands at the end,
+        # the way a newly shipped tile does, and answers to its reference.
+        items = self.page("One", "Two")
+        other = self.page("Three")
+        given = dict(other[0], id="elsewhere/three")
+        out = arrange(items, None, [given])
+        self.assertEqual([item["id"] for item in out],
+                         ["one", "two", "elsewhere/three"])
+
+    def test_a_tile_another_page_is_holding_is_dropped_here(self):
+        items = self.page("One", "Two")
+        out = arrange(items, None, (), {"two"})
+        self.assertEqual([item["id"] for item in out], ["one"])
 
     def test_a_break_keeps_the_slot_it_was_written_in(self):
         # Authored rather than arranged: it is the page's paragraph mark, and
@@ -1877,7 +1895,7 @@ class RearrangeTests(unittest.TestCase):
         model = self.model()
         self.assertFalse(model.pick())
         self.assertFalse(model.carry("right"))
-        self.assertFalse(model.hide())
+        self.assertFalse(model.remove())
 
     def cells(self, model):
         return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
@@ -1955,25 +1973,33 @@ class RearrangeTests(unittest.TestCase):
         self.assertIsNone(model.picked)
         self.assertFalse(model.edit)
 
-    def test_hiding_and_putting_back_are_the_same_press(self):
+    def test_removing_takes_a_tile_off_the_page_and_into_the_strip(self):
         model = self.model()
         model.set_edit(True)
         model.select_id("three")
-        self.assertTrue(model.hide())
-        self.assertTrue(model.hidden("three"))
-        # Still on the page while editing, so there is nothing to go and find.
-        self.assertIn("three", self.order(model))
-        model.select_id("three")
-        self.assertTrue(model.hide())
-        self.assertFalse(model.hidden("three"))
-        model.set_edit(False)
-        self.assertIn("three", self.order(model))
+        self.assertTrue(model.remove())
+        self.assertNotIn("three", self.order(model))
+        self.assertEqual([chip["ref"] for chip in model.removed()],
+                         ["group/three"])
+        self.assertEqual(model.layout["group"]["removed"], ["three"])
 
-    def test_a_hidden_tile_is_gone_once_editing_stops(self):
+    def test_the_selection_lands_on_what_closed_up_into_the_cell(self):
+        # A removed tile is not drawn where it stood any more, so something
+        # has to say where the thumb was left - and the top of the page is
+        # not it.
         model = self.model()
         model.set_edit(True)
         model.select_id("three")
-        model.hide()
+        where = model.index
+        model.remove()
+        self.assertEqual(model.index, where)
+        self.assertEqual(model.selected, "four")
+
+    def test_a_removed_tile_is_still_off_once_editing_stops(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("three")
+        model.remove()
         model.set_edit(False)
         self.assertNotIn("three", self.order(model))
 
@@ -2007,7 +2033,7 @@ class RearrangeTests(unittest.TestCase):
         model.set_edit(True)
         model.pick()
         model.carry("right")
-        model.hide()
+        model.remove()
         self.assertTrue(model.restore())
         self.assertEqual(self.order(model)[:2], ["one", "two"])
         self.assertFalse(model.restore())
@@ -2028,13 +2054,245 @@ class RearrangeTests(unittest.TestCase):
         model = self.model()
         model.set_edit(True)
         model.pick()
+        self.assertEqual(model.view_state(True)["pick"], "one")
         model.select_id("two")
-        model.hide()
+        model.remove()
         state = model.view_state(True)
         self.assertTrue(state["edit"])
-        rows = dict((row["id"], row) for row in state["items"])
-        self.assertTrue(rows["two"]["off"])
-        self.assertNotIn("off", rows["one"])
+        self.assertNotIn("two", [row["id"] for row in state["items"]])
+        self.assertEqual(state["rm"],
+                         [{"id": "group/two", "l": "Two", "p": "Group"}])
+        self.assertEqual(state["rmat"], -1)
+
+    def test_the_strip_is_off_the_wire_while_nobody_is_rearranging(self):
+        # It is a part of that mode, and every other payload this surface
+        # sends is one somebody is looking at a page through.
+        model = self.model()
+        self.assertNotIn("rm", model.view_state(True))
+
+
+class MovingATileToAnotherPage(unittest.TestCase):
+    """The strip along the foot, and what a tile on no page is."""
+
+    def model(self, layout=None):
+        return MenuModel(build([
+            {"label": "Apps", "items": [
+                {"label": "Steam", "action": "nop"},
+                {"label": "Music", "action": "nop"},
+            ]},
+            {"label": "System", "items": [
+                {"label": "Power", "action": "nop"},
+            ]},
+        ], settings={}), columns=6, layout=layout)
+
+    def ids(self, model):
+        return [tile["item"]["id"] for tile in model.tiles]
+
+    def taken_off(self, model):
+        return [chip["ref"] for chip in model.removed()]
+
+    def test_the_strip_says_what_was_taken_off_and_where_from(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        self.assertEqual(model.removed(), [
+            {"ref": "apps/steam", "label": "Steam", "page": "Apps"},
+        ])
+
+    def test_it_is_taken_off_one_page_and_put_on_another(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.removed_enter()
+        model.group_move(1)
+        self.assertEqual(model.page(), "system")
+        self.assertTrue(model.removed_place())
+        self.assertIn("apps/steam", self.ids(model))
+        # In the hand, because somebody who has carried a tile across the bar
+        # has already said where they want it.
+        self.assertEqual(model.picked, "apps/steam")
+        self.assertEqual(model.layout["system"]["adopted"], ["apps/steam"])
+        self.assertEqual(model.layout["apps"]["removed"], [])
+        self.assertEqual(self.taken_off(model), [])
+        model.group_move(-1)
+        self.assertNotIn("steam", self.ids(model))
+
+    def test_the_page_it_came_from_says_nothing(self):
+        # One fact in one place: the page holding it is the only one that
+        # knows, so there is nothing that can disagree with it.
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.removed_enter()
+        model.group_move(1)
+        model.removed_place()
+        self.assertNotIn("steam", model.layout["apps"]["removed"])
+        self.assertNotIn("apps/steam", model.layout["apps"].get("adopted"))
+
+    def test_resetting_the_page_holding_it_hands_it_home(self):
+        # Y on the page it was moved to. The page it came from never wrote
+        # anything down, so there is nothing left saying it is away.
+        model = self.model({"system": {"adopted": ["apps/steam"]}})
+        model.group_move(1)
+        self.assertIn("apps/steam", self.ids(model))
+        self.assertTrue(model.restore())
+        self.assertEqual(self.ids(model), ["power"])
+        model.group_move(-1)
+        self.assertIn("steam", self.ids(model))
+        self.assertEqual(model.removed(), [])
+
+    def test_putting_it_back_from_the_strip_needs_no_walking(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.group_move(1)
+        model.removed_enter()
+        self.assertTrue(model.removed_return())
+        self.assertEqual(self.taken_off(model), [])
+        model.group_move(-1)
+        self.assertIn("steam", self.ids(model))
+
+    def test_putting_it_back_on_its_own_page_holds_nothing(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.removed_enter()
+        self.assertTrue(model.removed_place())
+        self.assertIn("steam", self.ids(model))
+        self.assertEqual(model.layout["apps"]["adopted"], [])
+
+    def test_a_tile_taken_off_a_page_it_was_given_to_goes_home(self):
+        model = self.model({"system": {"adopted": ["apps/steam"]}})
+        model.group_move(1)
+        model.set_edit(True)
+        model.select_id("apps/steam")
+        self.assertTrue(model.remove())
+        self.assertEqual(model.layout["system"]["adopted"], [])
+        self.assertEqual(model.layout["apps"]["removed"], ["steam"])
+        self.assertEqual(self.taken_off(model), ["apps/steam"])
+
+    def test_the_focus_walks_the_strip_and_comes_back_up(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.select_id("music")
+        model.remove()
+        self.assertFalse(model.in_removed)
+        self.assertTrue(model.removed_enter())
+        # On the one just put there, not at the far end of a list nobody has
+        # looked at.
+        self.assertEqual(model.removed_chip()["ref"], "apps/music")
+        self.assertTrue(model.removed_step("left"))
+        self.assertEqual(model.removed_chip()["ref"], "apps/steam")
+        self.assertFalse(model.removed_step("left"))
+        self.assertTrue(model.removed_leave())
+        self.assertFalse(model.in_removed)
+        self.assertIsNone(model.removed_chip())
+
+    def test_an_empty_strip_is_not_a_place(self):
+        model = self.model()
+        model.set_edit(True)
+        self.assertFalse(model.removed_enter())
+        self.assertFalse(model.in_removed)
+
+    def test_leaving_the_mode_leaves_the_strip(self):
+        model = self.model()
+        model.set_edit(True)
+        model.remove()
+        model.removed_enter()
+        model.set_edit(False)
+        self.assertFalse(model.in_removed)
+        # And what it holds is still held: this is how a tile is hidden.
+        self.assertEqual(model.layout["apps"]["removed"], ["steam"])
+
+    def test_resetting_a_page_settles_the_focus_in_the_strip(self):
+        # Y hands back what this page took off as well as how it was laid
+        # out, so what the strip holds can change under the thumb standing
+        # in it.
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.select_id("music")
+        model.remove()
+        model.removed_enter()
+        self.assertEqual(model.removed_at, 1)
+        self.assertTrue(model.restore())
+        self.assertEqual(model.removed(), [])
+        self.assertEqual(model.removed_at, -1)
+
+    def test_a_reference_the_config_lost_resolves_to_nothing(self):
+        model = self.model({"system": {"adopted": ["apps/gone",
+                                                   "nowhere/steam"]}})
+        model.group_move(1)
+        self.assertEqual(self.ids(model), ["power"])
+
+    def test_two_pages_claiming_one_tile_is_the_first_by_name(self):
+        # The pin collision rule: one tile is on one page however the file
+        # reads, and which one does not depend on dict order.
+        model = self.model({"system": {"adopted": ["apps/steam"]},
+                            "apps": {"adopted": []}})
+        self.assertEqual(adoptions(model.layout), {"apps/steam": "system"})
+
+    def test_a_page_a_moved_tile_opens_keeps_its_own_name(self):
+        # What is inside a tile belongs to the tile, not to wherever the tile
+        # is standing: a page that renamed itself by being moved would walk
+        # away from the arrangement of its own tiles.
+        model = MenuModel(build([
+            {"label": "Apps", "items": [
+                {"label": "Games", "items": [
+                    {"label": "Steam", "action": "nop"},
+                ]},
+            ]},
+            {"label": "System", "items": [
+                {"label": "Power", "action": "nop"},
+            ]},
+        ], settings={}), columns=6,
+            layout={"system": {"adopted": ["apps/games"]}})
+        model.group_move(1)
+        self.assertTrue(model.select_id("apps/games"))
+        model.press()
+        self.assertEqual(model.page(), "games")
+
+    def test_every_page_in_the_tree_is_named(self):
+        # What a reference is resolved against, and the same vocabulary the
+        # file and `MenuModel.page` use: a group on the bar, a tile that
+        # opens a page, and a verb on the bar as the page of one it is drawn
+        # as.
+        items = build([
+            {"label": "Apps", "items": [
+                {"label": "Games", "items": [
+                    {"label": "Steam", "action": "nop"},
+                ]},
+            ]},
+            {"label": "Sleep", "action": "nop"},
+        ], settings={})
+        pages = pages_of(items)
+        self.assertEqual(sorted(pages), ["apps", "games", "sleep"])
+        self.assertEqual(pages["apps"]["label"], "Apps")
+        self.assertEqual([item["id"] for item in pages["games"]["items"]],
+                         ["steam"])
+        self.assertEqual([item["id"] for item in pages["sleep"]["items"]],
+                         ["sleep"])
+
+    def test_the_tiles_of_the_tree_are_never_mutated(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("steam")
+        model.remove()
+        model.removed_enter()
+        model.group_move(1)
+        model.removed_place()
+        self.assertEqual(
+            [item["id"] for item in model.root[0]["items"]],
+            ["steam", "music"],
+        )
 
 
 class APageIsAGridNotAList(unittest.TestCase):
@@ -2196,7 +2454,7 @@ class APageThatIsAlsoAScreenHasALastRow(unittest.TestCase):
         # past the end reads the same in the place it is arranged and the
         # place it is drawn.
         model = self.model(limit=4)
-        model.layout["page"] = {"order": [], "hidden": [], "span": {},
+        model.layout["page"] = {"order": [], "removed": [], "span": {},
                                 "at": {"tile-1": (0, 40)}}
         model.repack()
         self.assertEqual(self.cells(model)["tile-1"], (0, 3))
@@ -2232,13 +2490,13 @@ class APinIsClampedNeverLost(unittest.TestCase):
                      settings={})[0]["items"]
 
     def test_a_pin_past_the_last_column_is_pulled_back_onto_the_page(self):
-        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-1": (5, 0)}}
+        plan = {"order": [], "removed": [], "span": {}, "at": {"tile-1": (5, 0)}}
         tiles, _ = place(self.page(), 3, plan)
         cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
         self.assertEqual(cells["tile-1"], (2, 0))
 
     def test_a_wide_tile_is_clamped_by_its_own_width(self):
-        plan = {"order": [], "hidden": [],
+        plan = {"order": [], "removed": [],
                 "span": {"tile-1": (3, 1)}, "at": {"tile-1": (4, 0)}}
         tiles, _ = place(self.page(), 6, plan)
         cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
@@ -2247,7 +2505,7 @@ class APinIsClampedNeverLost(unittest.TestCase):
     def test_two_pins_over_one_cell_leave_the_first_where_it_is(self):
         # Only a hand-edited file or two of those clamps can make this, and
         # the page still has to be a packing rather than a pile.
-        plan = {"order": [], "hidden": [], "span": {},
+        plan = {"order": [], "removed": [], "span": {},
                 "at": {"tile-1": (0, 0), "tile-2": (0, 0)}}
         tiles, _ = place(self.page(), 6, plan)
         cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
@@ -2257,14 +2515,14 @@ class APinIsClampedNeverLost(unittest.TestCase):
     def test_a_pin_is_placed_before_anything_flows_into_it(self):
         # Pins first, or where a tile ended up would depend on what else
         # happened to be on the page.
-        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-2": (0, 0)}}
+        plan = {"order": [], "removed": [], "span": {}, "at": {"tile-2": (0, 0)}}
         tiles, _ = place(self.page(), 6, plan)
         cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
         self.assertEqual(cells["tile-2"], (0, 0))
         self.assertEqual(cells["tile-1"], (1, 0))
 
     def test_the_rows_a_page_needs_count_a_pin_below_everything(self):
-        plan = {"order": [], "hidden": [], "span": {}, "at": {"tile-1": (0, 3)}}
+        plan = {"order": [], "removed": [], "span": {}, "at": {"tile-1": (0, 3)}}
         _, rows = place(self.page(), 6, plan)
         self.assertEqual(rows, 4)
 
@@ -2274,7 +2532,7 @@ class APinIsClampedNeverLost(unittest.TestCase):
             {"control": "row_break"},
             {"label": "Two", "action": "nop"},
         ]}], settings={})[0]["items"]
-        plan = {"order": [], "hidden": [], "span": {}, "at": {"one": (0, 4)}}
+        plan = {"order": [], "removed": [], "span": {}, "at": {"one": (0, 4)}}
         tiles, _ = place(items, 6, plan)
         cells = dict((tile["item"]["id"], tile["at"]) for tile in tiles)
         self.assertEqual(cells["one"], (0, 4))

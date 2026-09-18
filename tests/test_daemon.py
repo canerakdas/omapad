@@ -5471,28 +5471,96 @@ class EditModeTests(DaemonTestCase):
         self.assertTrue(self.daemon.guide_open)
         self.assertFalse(self.daemon.menu.edit)
 
+    def legend(self):
+        return [row["n"] for row in self.menu_client.sent[-1]["keys"]]
+
     def test_the_legend_says_what_every_button_means_now(self):
-        # It is the discoverability surface: eight rows, because the four
-        # borrowed shoulders and triggers must not be a secret - a size
-        # nobody can find is a size nobody changes.
+        # It is the discoverability surface, and it prints the state the
+        # mode is in: with an empty hand the shoulders walk the bar, because
+        # the page a tile is going to is not the page it came off.
         self.daemon.menu_command("edit")
-        rows = self.menu_client.sent[-1]["keys"]
-        self.assertEqual([row["n"] for row in rows],
-                         ["Move", "Done", "Hide", "Reset",
+        self.assertEqual(self.legend(),
+                         ["Move", "Done", "Remove", "Reset",
+                          "Previous", "Next"])
+
+    def test_the_sizes_are_the_legend_with_a_tile_in_the_hand(self):
+        # And the two triggers, which say nothing in either of the other
+        # states: a page is not walked away from with a tile in the hand.
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("pick")
+        self.assertEqual(self.legend(),
+                         ["Drop", "Done", "Remove", "Reset",
                           "Narrower", "Wider", "Shorter", "Taller"])
 
+    def test_the_strip_has_a_legend_of_its_own(self):
+        self.daemon.menu_command("edit")
+        self.daemon.menu_command("remove")
+        self.assertTrue(self.into_the_strip())
+        self.assertEqual(self.legend(),
+                         ["Place", "Done", "Return", "Reset",
+                          "Previous", "Next"])
+
     def test_what_the_legend_prints_is_what_a_press_does(self):
-        # One table, read by both, so they cannot drift apart.
+        # One table per state, read by both, so they cannot drift apart.
         self.daemon.menu_command("edit")
         for button, command in (("A", "menu:pick"), ("B", "menu:edit_off"),
-                                ("X", "menu:hide"), ("Y", "menu:restore"),
+                                ("X", "menu:remove"), ("Y", "menu:restore"),
+                                ("L", "menu:group_prev"),
+                                ("R", "menu:group_next")):
+            self.assertEqual(
+                self.daemon.menu_key_spec(button)["tap"], command, button)
+            binding = self.daemon.binding_for("menu", button)
+            self.assertIsNotNone(binding, button)
+        self.daemon.menu_command("pick")
+        for button, command in (("A", "menu:pick"),
                                 ("L", "menu:narrower"), ("R", "menu:wider"),
                                 ("ZL", "menu:shorter"),
                                 ("ZR", "menu:taller")):
             self.assertEqual(
                 self.daemon.menu_key_spec(button)["tap"], command, button)
-            binding = self.daemon.binding_for("menu", button)
-            self.assertIsNotNone(binding, button)
+        self.daemon.menu_command("pick")
+        self.daemon.menu_command("remove")
+        self.assertTrue(self.into_the_strip())
+        for button, command in (("A", "menu:place"),
+                                ("X", "menu:put_back"),
+                                ("L", "menu:group_prev"),
+                                ("R", "menu:group_next")):
+            self.assertEqual(
+                self.daemon.menu_key_spec(button)["tap"], command, button)
+
+    def test_a_press_is_the_table_in_force_and_not_the_one_cached(self):
+        # One button is three specs here, and the page key cache was keyed on
+        # the page alone: L walked the bar with a tile in the hand while the
+        # legend said `Narrower`. Pressed through the **button** path, for
+        # item 70's reason - calling the command is exactly what does not
+        # catch it.
+        self.daemon.menu_command("edit")
+        self.press("R")
+        self.release("R")
+        group = self.daemon.menu.group
+        self.daemon.menu_command("pick")
+        name = self.daemon.menu.picked
+        before = self.sizes()[name]
+        self.press("R")
+        self.release("R")
+        self.assertEqual(self.daemon.menu.group, group)
+        self.assertNotEqual(self.sizes()[name], before)
+
+    def test_a_trigger_the_state_does_not_spend_reaches_nothing_else(self):
+        # ZL is the window layer's trigger and the pointer's modifier out
+        # here. A state that says nothing with it must still swallow it, or
+        # a layer opens silently under a card that says `Previous`.
+        self.daemon.menu_command("edit")
+        self.assertEqual(self.daemon.surface_override("ZL"), "menu")
+        self.assertIsNone(self.daemon.menu_key_spec("ZL"))
+
+    def test_the_shoulders_walk_the_bar_with_an_empty_hand(self):
+        self.daemon.menu_command("edit")
+        before = self.daemon.menu.group
+        self.press("R")
+        self.release("R")
+        self.assertNotEqual(self.daemon.menu.group, before)
+        self.assertTrue(self.daemon.menu.edit)
 
     def test_a_tile_is_picked_up_carried_and_put_down(self):
         before = self.order()
@@ -5565,13 +5633,13 @@ class EditModeTests(DaemonTestCase):
         self.assertEqual(after[name],
                          (before[name][0], before[name][1] + 1))
 
-    def test_hiding_a_reading_takes_it_off_the_screen_too(self):
+    def test_removing_a_reading_takes_it_off_the_screen_too(self):
         self.open_readings()
         self.daemon.set_hud(True)
         self.daemon.menu_command("edit")
         name = self.daemon.menu.selected
         self.assertIn(name, self.drawn())
-        self.daemon.menu_command("hide")
+        self.daemon.menu_command("remove")
         self.daemon.menu_command("edit_off")
         self.assertNotIn(name, self.drawn())
 
@@ -5713,16 +5781,60 @@ class EditModeTests(DaemonTestCase):
         self.daemon.menu_command("left")     # already first
         self.assertIn(self.daemon.rumble.effects["edge"], self.device.played)
 
-    def test_hiding_takes_a_tile_off_the_page_and_says_so(self):
+    def into_the_strip(self):
+        """Walk down off the bottom of the page, the way a thumb does."""
+        for _ in range(20):
+            if self.daemon.menu.in_removed:
+                return True
+            self.daemon.menu_command("down")
+        return False
+
+    def test_removing_takes_a_tile_off_the_page_and_into_the_strip(self):
+        self.daemon.menu_command("edit")
+        name = self.order()[0]
+        self.daemon.menu_command("remove")
+        self.assertNotIn(name, self.order())
+        sent = self.menu_client.sent[-1]
+        self.assertEqual([chip["id"] for chip in sent["rm"]],
+                         ["controller/" + name])
+        self.daemon.menu_command("edit_off")
+        self.assertNotIn(name, self.order())
+        self.assertIn("removed = [", self.written())
+
+    def test_the_old_name_for_removing_still_means_it(self):
+        # `hide` is what it was called while a tile taken off a page had
+        # nowhere to go, and a config or a script that says it means this.
         self.daemon.menu_command("edit")
         name = self.order()[0]
         self.daemon.menu_command("hide")
-        rows = dict((row["id"], row) for row in
-                    self.menu_client.sent[-1]["items"])
-        self.assertTrue(rows[name]["off"])
-        self.daemon.menu_command("edit_off")
         self.assertNotIn(name, self.order())
-        self.assertIn("hidden = [", self.written())
+
+    def test_down_at_the_bottom_of_the_page_reaches_the_strip(self):
+        self.daemon.menu_command("edit")
+        name = self.order()[0]
+        self.daemon.menu_command("remove")
+        self.assertTrue(self.into_the_strip())
+        sent = self.menu_client.sent[-1]
+        self.assertEqual(sent["rmat"], 0)
+        self.daemon.menu_command("up")
+        self.assertFalse(self.daemon.menu.in_removed)
+        self.assertEqual(self.menu_client.sent[-1]["rmat"], -1)
+
+    def test_a_tile_is_taken_off_one_page_and_placed_on_another(self):
+        self.daemon.menu_command("edit")
+        name = self.order()[0]
+        self.daemon.menu_command("remove")
+        self.assertTrue(self.into_the_strip())
+        page = self.daemon.menu.page()
+        self.daemon.menu_command("group_next")
+        self.assertNotEqual(self.daemon.menu.page(), page)
+        self.daemon.menu_command("press")
+        here = "%s/%s" % (page, name)
+        self.assertIn(here, self.order())
+        self.assertEqual(self.daemon.menu.picked, here)
+        self.daemon.menu_command("edit_off")
+        self.assertIn("adopted = [", self.written())
+        self.assertIn(here, self.order())
 
     def test_reset_hands_the_page_back_and_writes_that_down(self):
         before = self.order()

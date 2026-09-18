@@ -224,7 +224,7 @@ class TheGridIsTheScreen(unittest.TestCase):
         self.assertEqual(HudModel(None, rows=0).rows, 1)
 
     def test_a_tile_reaches_the_last_row(self):
-        plan = {"order": [], "hidden": [], "span": {},
+        plan = {"order": [], "removed": [], "span": {},
                 "at": {"processor": (4, 7)}}
         model = HudModel(tree(readout("Processor", "cpu")), rows=8,
                          layout={"hud": plan})
@@ -236,7 +236,7 @@ class TheGridIsTheScreen(unittest.TestCase):
         # last row, so a tile can be carried further down there than this grid
         # has - and a pin drawn off the end of the screen is the arrangement
         # breaking rather than adapting.
-        plan = {"order": [], "hidden": [], "span": {},
+        plan = {"order": [], "removed": [], "span": {},
                 "at": {"processor": (0, 40)}}
         model = HudModel(tree(readout("Processor", "cpu")), rows=8,
                          layout={"hud": plan})
@@ -244,7 +244,7 @@ class TheGridIsTheScreen(unittest.TestCase):
         self.assertEqual(row["y"], 7)
 
     def test_a_tall_tile_is_clamped_by_its_own_height(self):
-        plan = {"order": [], "hidden": [], "span": {"processor": (2, 3)},
+        plan = {"order": [], "removed": [], "span": {"processor": (2, 3)},
                 "at": {"processor": (0, 7)}}
         model = HudModel(tree(readout("Processor", "cpu")), rows=8,
                          layout={"hud": plan})
@@ -252,7 +252,7 @@ class TheGridIsTheScreen(unittest.TestCase):
         self.assertEqual((row["y"], row["h"]), (5, 3))
 
     def test_a_tile_taller_than_the_page_is_the_page(self):
-        plan = {"order": [], "hidden": [], "span": {"processor": (2, 9)},
+        plan = {"order": [], "removed": [], "span": {"processor": (2, 9)},
                 "at": {"processor": (0, 2)}}
         model = HudModel(tree(readout("Processor", "cpu")), rows=4,
                          layout={"hud": plan})
@@ -360,24 +360,54 @@ class TheArrangementIsTheSameOne(unittest.TestCase):
         self.assertEqual([row["l"] for row in drawn],
                          ["Disk", "Processor", "Memory"])
 
-    def test_a_hidden_tile_is_not_on_the_hud(self):
-        plan = {"hidden": ["memory"]}
+    def test_a_removed_tile_is_not_on_the_hud(self):
+        plan = {"removed": ["memory"]}
         model = HudModel(tree(*self.entries), layout={"hud": plan})
         drawn = model.view_state(
             True, answers(cpu="1%", memory="2%", disk="3%"))["items"]
         self.assertEqual([row["l"] for row in drawn], ["Processor", "Disk"])
 
-    def test_a_hidden_tile_is_not_asked_for_either(self):
+    def test_a_removed_tile_is_not_asked_for_either(self):
         # Nothing is polled for a reading nobody can see.
-        plan = {"hidden": ["memory"]}
+        plan = {"removed": ["memory"]}
         model = HudModel(tree(*self.entries), layout={"hud": plan})
+        self.assertEqual(model.names(), ["cpu", "disk"])
+
+    def two_pages(self):
+        """The readings page, and a page of its own for the fan."""
+        return menu_module.build([
+            {"id": "hud", "label": "Readings", "items": list(self.entries)},
+            {"id": "other", "label": "Other",
+             "items": [readout("Fan", "fan")]},
+        ], settings={"hud": {"kind": "bool"}},
+            machine=sysinfo_module.READINGS)
+
+    def test_a_reading_given_to_this_page_is_drawn_on_it(self):
+        # The menu is where a page is arranged, so a reading moved onto this
+        # page there has to land here. It answers to `other/fan`, because an
+        # id is unique on the page that wrote it and nowhere else.
+        model = HudModel(self.two_pages(),
+                         layout={"hud": {"adopted": ["other/fan"]}})
+        drawn = model.view_state(
+            True, answers(cpu="1%", memory="2%", disk="3%", fan="4"))["items"]
+        self.assertIn("Fan", [row["l"] for row in drawn])
+        self.assertIn("fan", model.names())
+
+    def test_a_reading_this_page_lost_is_not_drawn_on_it(self):
+        # And the other half: the page holding it says so, the page it came
+        # from says nothing, and this reads that one fact.
+        model = HudModel(self.two_pages(),
+                         layout={"other": {"adopted": ["hud/memory"]}})
+        drawn = model.view_state(
+            True, answers(cpu="1%", memory="2%", disk="3%"))["items"]
+        self.assertEqual([row["l"] for row in drawn], ["Processor", "Disk"])
         self.assertEqual(model.names(), ["cpu", "disk"])
 
     def test_a_reading_put_in_a_cell_is_drawn_in_that_cell(self):
         # The reason the carry gesture became a cell at all: over a game,
         # where a reading sits is the whole of what the page says, and the top
         # left corner is where the game puts its own.
-        plan = {"order": [], "hidden": [], "span": {},
+        plan = {"order": [], "removed": [], "span": {},
                 "at": {"memory": (3, 2)}}
         model = HudModel(tree(*self.entries), layout={"hud": plan})
         drawn = model.view_state(

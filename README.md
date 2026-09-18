@@ -2331,25 +2331,34 @@ leave the press silent.
 ### Arranging a page from the pad
 
 **Press Y** on any page and its tiles become yours. Every button on the card
-means something else while you are there, and the legend says which:
+means something else while you are there, and the legend says which — and it
+says what they mean **now**, because that depends on what is in your hand:
 
-| | |
-|---|---|
-| **A** | pick a tile up, and put it down |
-| **B** | done — and that is when it is written down |
-| **X** | take a tile off the page, or put it back |
-| **Y** | reset the page to the one that shipped |
-| **LB / RB** | narrower / wider, while you are carrying one |
-| **LT / RT** | shorter / taller, while you are carrying one |
+| | nothing in your hand | carrying a tile | standing in the strip |
+|---|---|---|---|
+| **A** | pick a tile up | put it down | put it on this page |
+| **B** | done — and that is when it is written down | done | done |
+| **X** | take a tile off the page | take it off | put it back where it came from |
+| **Y** | reset the page to the one that shipped | reset | reset |
+| **LB / RB** | previous / next page | narrower / wider | previous / next page |
+| **LT / RT** | — | shorter / taller | — |
 
 Both axes, because a cell is a shape rather than a width: a card of rows with
 a row too many, a reading you want to see from further away, a keyboard tile
 that wants two rows rather than four. On the page the readings are drawn from,
 a tile stops at the last row that page has.
 
-A tile you take off stays on the page while you are arranging it, faded, so
-putting it back is the same press that took it away — there is no second
-screen to go and find it on.
+**A tile you take off goes to the strip along the foot of the card** — its
+name, the page it came from, and everything you have taken off every other
+page beside it. Press **down** past the bottom row to walk into the strip and
+**up** to come back out.
+
+So a tile is **moved to another page** rather than only taken off one: X on
+`Apps`, the shoulders to `System`, down into the strip, and A puts it there —
+in your hand, so the next press is a direction. A tile you leave in the strip
+stays there, which is what hiding one is, and it is still there the next time
+you press Y anywhere. That is also how a tile reaches a page inside a page:
+take it off, press B, walk in, press Y, and place it.
 
 **A tile goes in the cell you put it in**, including one with nothing leading
 to it: carry it three across and three down on an otherwise empty page and
@@ -2368,14 +2377,17 @@ On a screen with a different `[menu] columns`, a cell off the right-hand edge
 is **pulled back onto the page** rather than lost. `omapad check --layout`
 prints the cells and says which ones that would happen to.
 
-What you do lands in `~/.config/omapad/layout.toml` — the order, what is
-hidden, any size you changed, and the cells you put tiles in — and it and
-`config.toml` cannot break each other. A tile a new version ships appears at
-the end of your page rather than being invisible; a tile that goes away is
-dropped from your order rather than leaving a hole; and a tile you hid is
-hidden only while it still exists. If the file is damaged the daemon says so once and uses the
-shipped arrangement. `omapad check --layout` says what yours still resolves to,
-and deleting the file — or resetting one page with Y — hands it back.
+What you do lands in `~/.config/omapad/layout.toml` — the order, what you
+took off, what each page was given, any size you changed, and the cells you
+put tiles in — and it and `config.toml` cannot break each other. A tile a new
+version ships appears at the end of your page rather than being invisible; a
+tile that goes away is dropped from your order rather than leaving a hole;
+and a tile you took off is off only while it still exists. Where a moved tile
+lives is written **once**, by the page holding it, so resetting that page
+hands it straight home. If the file is damaged the daemon says so once and
+uses the shipped arrangement. `omapad check --layout` says what yours still
+resolves to — including which page is holding what — and deleting the file,
+or resetting one page with Y, hands it back.
 
 **Along the foot of the card is a legend** saying what the buttons do **on
 the tile you are standing on**, drawn with the same buttons the guide and the
