@@ -91,6 +91,7 @@ action = "exec:omarchy-menu toggle apps"
 | `id` | what a layout calls this tile. A slug of the label unless said, and unique on its page |
 | `span` | `[width, height]` in cells. `[1, 1]` unless said, and never wider than `[menu] columns` |
 | `control` | what kind of tile this is. `row_break` ends the row and draws nothing; `rows` draws its own `items` as lines inside it; `toggle`, `choice`, `slider`, `gauge` and `media` hold a value |
+| `many` | on a `rows` card: its keys **latch** rather than interlock, so any number of rows can be on at once. The line down the card goes and every row gets a key. Refused anywhere else, and on a card that lists |
 | `shows` | which stick a `gauge` draws the position of, `left` or `right`. Required on one, refused on anything else |
 | `reads` | where a control takes its value, `pad:<setting>` or `live:<reading>`. Required on a control, refused on anything else |
 
@@ -390,6 +391,57 @@ What a card may not do, each of which `omapad check` names:
   card of rows has no corner to spare. Set at the heading's size in front of
   tracked capitals a glyph reads as a bullet. The marks go on the **rows**,
   where a row that needs one says so.
+
+### A card of switches, whose keys latch
+
+`many = true` is the same card with the rows latching rather than
+interlocking. Reach for one where the rows are **not** alternatives - where
+two of them being on at once is an ordinary thing to want:
+
+```toml
+[[menu.items.items]]
+label = "Feedback"
+detail = "What a press answers with"
+control = "rows"
+many = true
+span = [3, 2]
+
+  [[menu.items.items.items]]
+  label = "Vibration"
+  detail = "The motor, in the hands"
+  action = "pad:rumble=toggle"
+
+  [[menu.items.items.items]]
+  label = "Sounds"
+  detail = "A cue, in the room"
+  action = "live:mute=toggle"
+```
+
+The ordinary card says which row is in force by lighting its **length** of the
+line beside the rows, and a length has one start and one end - so on a card
+where two rows are on there is nothing for it to light. The old radio is the
+whole argument: the band buttons are interlocked and pressing one lets the last
+one out; the tone keys beside them each stay down on their own. So a latching
+card drops the line and gives every row a **key** - a small rectangle at the
+head of it, with a lit core in the middle while it is down.
+
+- **The row's action is what flips it**, and for a switch that is
+  `pad:<name>=toggle` or `live:<name>=toggle`. Those answer which way the
+  switch is set, which is what lights the key: a row written as
+  `pad:rumble=on` would light while it was on and never turn it off again.
+- **Every row on one stays**, without being asked. A key that sent the menu
+  away as it went down would be a bank nobody could set.
+- **A latching row carries no glyph.** The key stands in the slot a glyph
+  wants, and two marks at the head of one row is a card asking a reader to
+  learn which of them means what.
+- **A card that lists cannot latch.** The `*` a listing prints is the mark of
+  the one in force and a press moves it, so there is nothing there to latch.
+- Give one the width its sentences need, like any card of rows.
+
+**Do not reach for one where the rows are alternatives.** `Start in` is a card
+of two rows and exactly one of them is true; drawn as keys it would be offering
+a state - both of them - that the setting behind it cannot hold. The test is
+whether pressing the second row should let the first one out.
 
 ### A card that lists what is plugged in
 

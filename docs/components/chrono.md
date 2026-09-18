@@ -5,7 +5,7 @@
 | **Daemon** | `omapad/chrono.py` (the stopwatch), `omapad/menu.py` (the tile) |
 | **Panel** | `shell-plugin/Clock.qml` |
 | **Socket** | `menu.sock` - it is a menu tile, not a surface |
-| **Config** | `control = "chrono"` on any `[[menu.items]]` tile |
+| **Config** | `control = "chrono"` on any `[[menu.items]]` tile; `[chrono] rumble` |
 | **Verb** | A, on the tile |
 
 The only clock in this tree that **measures** rather than tells. `menu.py`
@@ -43,6 +43,40 @@ is pressed rather than discovered by pressing.
 The verbs live in `chrono.py` rather than in the daemon because the press and
 the word are one decision: a cycle that gained a state and left the words
 behind would be a legend that lies about the next press.
+
+## A running measurement strikes the minute
+
+`Chrono.strike(now)` says, once per turn of the sweep hand, that it has come
+back to twelve; `daemon.check_chrono` answers with `rumble`'s `tick`.
+**That is the only thing a stopwatch can say to somebody who is not looking at
+it** - and most of what one left running while you do something else is worth,
+which is the difference between a stopwatch on a pad and a stopwatch on a
+wall.
+
+Three things about it are the design rather than the implementation:
+
+- **The mark is the hand coming round, not a length of time somebody set.**
+  `SWEEP` is 60 seconds and is not a setting: it is the dial's own geometry,
+  and a strike at ninety seconds would land with the hand at six, saying
+  nothing that can be read off the face. An alarm after a length you set is a
+  different instrument, and it would want a number on screen to set before it
+  wanted a motor. `[chrono] rumble` is a switch, and the only one.
+- **Asked on the loop's heartbeat, not on the menu's.** The measurement
+  outlives the page it was started on, so the mark does too: the menu can be
+  shut, and an app can be holding the pad - the stopwatch is the person's,
+  not the focused window's. How late the mark is, is the idle poll, a quarter
+  of a second at worst against a hand that takes a minute to come round.
+- **The motor alone, never `say()`.** Nothing was pressed. `say()` is two
+  vocabularies answering one press together ([`rumble.md`](rumble.md)), and a
+  machine that made a noise at somebody once a minute for as long as a
+  measurement ran would be answering a question nobody asked.
+
+`strike()` is true once per turn however long it has been since the last ask,
+so a loop that went quiet for five minutes has one thing to say rather than
+five. The count goes with the measurement - a reset clears the turns with the
+seconds - and it is advanced whether the switch is on or not, so a switch
+turned on halfway through a measurement waits for the next turn instead of
+answering one that went by while nothing was listening.
 
 ## Nothing here reads a clock of its own
 
@@ -133,6 +167,10 @@ and simply not drawn, exactly as a switch is.
 
 - **A fourth state, or a second pusher**, is `chrono.py` and the legend
   together: `VERBS` has a word per state because the word *is* the press.
+- **A mark somewhere other than the turn** - every five minutes, or at a time
+  you set - is a countdown rather than a chronograph, and it needs a face that
+  says what it is counting to before it needs a motor. `SWEEP` is not the
+  place to start it.
 - **The registers are not art.** Three sunk discs and three hands, all of them
   answering to a number - see [`assets.md`](assets.md) for why that keeps them
   out of the generator, and `Clock.qml` for the panda layout they are in.

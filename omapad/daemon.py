@@ -119,6 +119,33 @@ DICTATE_WORDS = {"idle": "", "recording": "on", "transcribing": "busy"}
 # in, so the strip teaches it every time it is glanced at.
 MENU_LEGEND = ("A", "B", "X", "Y")
 
+# What A does on the tile in front, where the kind of tile is the whole
+# answer. The rest are conditions rather than kinds - a switch says which way
+# it is about to go, a control being held says what letting go keeps, a row
+# says its own name - and those live in `menu_verb` beside the state they
+# read.
+#
+# **This table is why the strip stopped saying `Pick` everywhere.** `Pick` is
+# the *layer's* word: true of the button, and silent about the press. A on the
+# keyboard tile opens the keyboard, A on `Previous` skips back, A on a ring
+# takes hold of it - and a legend that says one word on every tile of every
+# page is a legend read once and then never again.
+CONTROL_VERBS = {
+    "slider": "Adjust",
+    menu_module.KNOB: "Adjust",
+    "gauge": "Adjust",
+    # A list in a card, and A is the way into it rather than a press on it.
+    ROWS: "Open",
+    # Two or three values in one cell, walked in place: A steps to the next.
+    "choice": "Next",
+}
+
+# Which way the two directions take a control somebody is holding, by the kind
+# of thing it holds. A number has more and less of it; a ring pointed at a
+# list has neither - `More` of a choice is not a thing anybody could act on -
+# so it steps along the list instead.
+ADJUST_WORDS = {"choice": ("Previous", "Next"), "": ("Less", "More")}
+
 # The two triggers, read as axes while the menu is open. Named here rather
 # than bound: `bindings.md` says of ZL that a layer trigger has no binding of
 # its own, in any layer or profile, and this gives it none. A surface layer
@@ -243,6 +270,16 @@ def knob_place(angle):
 # setting: it is the cadence of a file check, and nobody wants it different -
 # what it decides is a delay too short to see.
 THEME_POLL = 2.0
+
+
+def _stamp_moved(seen, stamp):
+    """Did the thing behind these two stamps change under us?
+
+    Neither None is a change: one is a file we could not look at, and the
+    other is the first look - where we came in, rather than something that
+    moved.
+    """
+    return seen is not None and stamp is not None and stamp != seen
 
 
 def _nothing(lines):
@@ -508,6 +545,10 @@ class Daemon:
         # again. A theme change is the one thing that undoes what omapad has
         # asked the desktop for - see `check_theme`.
         self._theme_seen = None
+        # And what Hyprland's own config looked like, for the reloads a theme
+        # change is not the cause of - the same beat, the same rule to put
+        # back.
+        self._compositor_seen = None
         self._theme_next_check = 0.0
         # Whether the compositor animates anything at all. Cached rather
         # than asked per push: it is read on the theme beat, and a payload
@@ -1557,11 +1598,18 @@ class Daemon:
         The guide already turns a binding into words and the bar already reads
         them short; this is the same pair one surface along, so a legend that
         disagreed with either would be the odd one out rather than the truth.
+
+        **The layer's word is the fallback, not the answer.** A and B are the
+        two the contract settles and whose *work* changes with every tile a
+        thumb walks onto, so the strip asks the tile first - `menu_verb` and
+        `menu_leave` are that question. What comes back is still the layer's
+        binding read short wherever the tile has nothing of its own to say.
         """
         if not self.config.menu_keys:
             return []
         available = self.available_buttons()
         rows = []
+        leave = ""
         for button in (EDIT_LEGEND if self.menu.edit else MENU_LEGEND):
             if available is not None and button not in available:
                 continue
@@ -1571,29 +1619,160 @@ class Daemon:
             if row is None:
                 continue
             word = row["d"]
-            if button == self.config.confirm_cancel \
-                    and self._menu_countdown is not None:
-                # While a row is counting, B is not the way back out of the
-                # page - it is the way to stop what is about to happen, and
-                # the row printing a number is no use to somebody who does
-                # not know which button takes it back.
-                word = "Cancel"
-            if button == "A" and self.menu_on_chrono():
-                # A pusher rather than a press, and which of the three it is
-                # now is the whole of what somebody standing on this tile has
-                # to know before they press it. Said here for the same reason
-                # `Hold to confirm` is: this row is the page's own line about
-                # its buttons.
-                word = self.chrono.verb()
-            if button == "A" and self.menu_holds():
-                # The one tile where A is not a press. Said before it is
-                # pressed rather than found out by pressing: this row is the
-                # page's own line about its buttons, and a button that means
-                # something else on the tile in front is exactly what it is
-                # for.
-                word = "Hold to confirm"
+            if button == "A":
+                said = self.menu_verb()
+                if said is not None:
+                    word = said
+            elif button == self.config.confirm_cancel:
+                said = self.menu_leave()
+                if said is not None:
+                    word = said
+                leave = word
+            elif button == "X" and word == leave:
+                # **B and X are two ways out of one place, and at the top of a
+                # group they are the same way out**: the menu closes either
+                # way, and one word under two badges is the reason the strip
+                # read as furniture. X stands down where it has nothing of its
+                # own to add - inside a submenu it has, because there B climbs
+                # a level and X leaves outright.
+                continue
+            if not word:
+                # A press that does nothing gets no row. A reading, a clock, a
+                # card of one: offering A on a tile that will not answer is
+                # worse than a strip one row shorter, because the strip is
+                # what somebody checks *before* pressing.
+                continue
             rows.append({"b": row["b"], "k": row["k"], "n": word})
+        return rows + self.menu_directions()
+
+    def menu_verb(self):
+        """What A does on the tile in front. None for the layer's own word.
+
+        Empty where A does nothing at all, which the legend draws by leaving
+        the row off. Asked of `acting` rather than of `current`, so a card of
+        rows that has been gone into answers for the row rather than for
+        itself - the same thing a press asks.
+        """
+        if not self.menu_open or self.menu.edit:
+            return None
+        if self._menu_countdown is not None:
+            # A row is already counting, and A does nothing rather than
+            # starting a second one or skipping to the end - the wait is the
+            # whole point of it. The only button that matters now is the one
+            # that stops it, which is saying `Cancel` two rows along.
+            return ""
+        if self.menu_on_chrono():
+            # A pusher rather than a press, and which of the three it is now is
+            # the whole of what somebody standing on this tile has to know
+            # before they press it.
+            return self.chrono.verb()
+        item = self.menu.acting
+        if item is None:
+            return ""
+        if self.menu_holds():
+            # The one tile where A is not a press. Said before it is pressed
+            # rather than found out by pressing, which is what this row is for.
+            return "Hold to confirm"
+        if self.menu.taken is not None and not self.menu.entered:
+            # A control being held. Letting go is the decision, and A is the
+            # half of it that keeps what the value has been pushed to - B puts
+            # it back, and says so.
+            return "Keep"
+        if item["items"] is not None:
+            return "Open"
+        control = item["control"]
+        if control in ("readout", menu_module.CLOCK) or self.menu.lone(item):
+            # The tiles with nothing to press: what the machine is doing is
+            # published rather than set, a clock is not a button, and a card
+            # that lists one thing is furniture round a fact.
+            return ""
+        if control in ("toggle", "media"):
+            # The one word that has to read the value: a switch says which way
+            # it is about to go, and the transport says which mark A is about
+            # to draw. Both are on the tile already - this is the same answer
+            # in the legend's voice.
+            on = bool((self.menu_reading(item) or {}).get("on"))
+            if control == "media":
+                return "Pause" if on else "Play"
+            return "Turn off" if on else "Turn on"
+        if control in CONTROL_VERBS:
+            return CONTROL_VERBS[control]
+        if item["action"] is None:
+            return ""
+        # A row that runs something says **its own name**. The label is
+        # already the interface's answer to "what happens if I press this",
+        # written to the budget in `pad-wording.md` and kept in step with the
+        # tile the thumb is on by construction; deriving a verb from the
+        # action instead would have printed `live:media=previous` under a tile
+        # called `Previous`.
+        return item["label"]
+
+    def menu_leave(self):
+        """What B does here. None for the layer's own word.
+
+        B leaves in every layer and every surface; what it leaves differs by
+        where you are standing, and that difference is the whole of what this
+        row can add. The bar is not a level to climb to, so at the top of a
+        group there is nothing above the page and B closes the menu - which is
+        what `back()` answers False to.
+        """
+        if not self.menu_open or self.menu.edit:
+            return None
+        if self._menu_countdown is not None:
+            # While a row is counting, B is not the way back out of the page -
+            # it is the way to stop what is about to happen, and the row
+            # printing a number is no use to somebody who does not know which
+            # button takes it back.
+            return "Cancel"
+        if self.menu.taken is not None and not self.menu.entered:
+            # Leaving a control you have pushed too far is putting it back.
+            return "Cancel"
+        if self.menu.entered or self.menu.depth:
+            return "Back"
+        return "Close"
+
+    def menu_directions(self):
+        """The directions that move a control, while one is being held.
+
+        Off the strip the rest of the time, and that is the point of them:
+        left and right walk the page until a control is taken, so printing
+        them beside a value nobody is holding would be this row's one job done
+        backwards. They arrive the moment A takes hold, which is the moment
+        they mean something.
+
+        **The ring names the stick as well**, because it is the one control
+        the stick does something else with: a thumb carried round the edge of
+        it is the gesture the drawing is of, and everywhere else the stick is
+        the D-pad said twice.
+        """
+        item = self.menu.held
+        if item is None or self.menu.entered or self.menu.edit:
+            return []
+        less, more = ADJUST_WORDS.get(self.menu_kind(item), ADJUST_WORDS[""])
+        rows = [{"b": guide_module.badge_of(button, self.guide.layout),
+                 "k": "dpad", "n": word}
+                for button, word in (("DPAD_LEFT", less),
+                                     ("DPAD_RIGHT", more))]
+        if item["control"] == menu_module.KNOB:
+            # The badge the guide prints for the stick itself rather than for
+            # clicking it: what turns a ring is the thumb going round, and L3
+            # is a different button.
+            rows.append({"b": "L", "k": "stick", "n": "Turn"})
         return rows
+
+    def menu_kind(self, item):
+        """What a control tile holds - `number`, `choice`, `bool`, ``.
+
+        The same tables `menu.build` validated the tile against, asked again
+        here: what a control *is* decides what its two directions are called,
+        and the knob is the one that reads two kinds.
+        """
+        if not item or not item["reads"]:
+            return ""
+        source, name = item["reads"]
+        table = {"pad": CHOSEN, "live": live_module.READINGS}.get(source)
+        found = (table or {}).get(name)
+        return found["kind"] if found else ""
 
     # The layers that are ours rather than the game's: a surface drawn on
     # screen reads the pad even in game mode, because it was opened on purpose
@@ -2111,6 +2290,13 @@ class Daemon:
             # surface is drawn rather than what it holds - and because a
             # person who has rounded one of them has rounded all of them.
             state["radius"] = self.config.ui_radius
+            # And the family every word on it is set in, empty for the
+            # desktop's own. Here rather than per surface for the radius's
+            # reason: somebody who has chosen a face for the menu has chosen
+            # it for the guide and the keyboard in the same breath. It is
+            # *not* what the badges are lettered in - that face is punched
+            # into the drawings themselves.
+            state["font"] = self.config.ui_font
         return state
 
     def show_ripple(self, button):
@@ -2466,6 +2652,10 @@ class Daemon:
         # looks like a shell constant, for the reason every geometry setting
         # does: the shell cannot read the config.
         state["corner"] = self.config.menu_tile_corner
+        # And how solid a plain tile's ground is drawn. Travels for the same
+        # reason the corner does: it is how the page is drawn, and the page
+        # cannot look it up.
+        state["fill"] = self.config.menu_tile_fill
         # And how long a tile stays lit once a press has landed on it. The
         # model says which tile and which press; how long is a setting, and
         # `menu.py` reads no config.
@@ -4386,6 +4576,32 @@ class Daemon:
         log.info("menu: chronograph %s", state)
         self.push_menu_view()
 
+    def check_chrono(self, now):
+        """The minute mark: a tick when the sweep hand comes back to twelve.
+
+        Here rather than beside the menu's own heartbeat, and asked whether
+        the menu is open or not: the measurement outlives the page it was
+        started on (`chrono.py`), and being told about one you are not
+        looking at is the whole of what this is for. An app holding the pad
+        does not silence it either - the stopwatch is the person's, not the
+        focused window's.
+
+        The motor alone rather than `say()`, because nobody pressed
+        anything: `say()` is two vocabularies answering one press together,
+        and a machine that made a noise at somebody once a minute for as long
+        as a stopwatch was left running would be answering a question that
+        was never asked.
+
+        How late the mark is, is the loop's own idle poll - a quarter of a
+        second at worst, against a hand that takes a minute to come round.
+        """
+        # The hand is asked whether the switch is on or not, so the count
+        # follows the measurement rather than the setting: a switch turned on
+        # halfway through one waits for the next turn instead of answering a
+        # mark that went by while nothing was listening.
+        if self.chrono.strike(now) and self.config.chrono_rumble:
+            self.rumble.play("tick")
+
     def menu_arm(self, item):
         """Start holding a row that cannot be taken back.
 
@@ -6256,6 +6472,7 @@ class Daemon:
         self.apply_idle()
         self.apply_blur()
         self._theme_seen = self.theme_stamp()
+        self._compositor_seen = self.compositor_stamp()
         self.check_pointer_hiding()
 
     def theme_stamp(self):
@@ -6270,6 +6487,37 @@ class Daemon:
         except OSError:
             return None
 
+    def compositor_stamp(self):
+        """The newest mtime under Hyprland's own config, or None.
+
+        A theme is not the only thing that reloads the compositor, and a
+        reload throws away the blur rule whoever caused it. The menu's own
+        `Scale up` is the case that found this: it runs
+        `omarchy-hyprland-monitor-scaling`, which rewrites `monitors.lua` so
+        the new scale survives a reboot - Hyprland reloads on that write, and
+        the blur behind the menu went with it while the menu was still open.
+
+        The directory rather than one file, because a reload is a reload
+        whichever of them moved; not recursive, because Hyprland's config is
+        a handful of files beside each other and a `source` of something
+        deeper is a setup this cannot promise to see anyway.
+        """
+        base = os.environ.get("XDG_CONFIG_HOME") \
+            or os.path.expanduser("~/.config")
+        newest = None
+        try:
+            with os.scandir(os.path.join(base, "hypr")) as entries:
+                for entry in entries:
+                    try:
+                        moved = entry.stat().st_mtime_ns
+                    except OSError:
+                        continue  # deleted between the listing and the stat
+                    if newest is None or moved > newest:
+                        newest = moved
+        except OSError:
+            return None  # no Hyprland config is a daemon that still works
+        return newest
+
     def check_theme(self, now):
         """Ask again for what the desktop may have changed underneath us.
 
@@ -6278,6 +6526,13 @@ class Daemon:
         one of those. The game-mode pointer is the other: it is a file omapad
         drew from the palette that was in force, and a shell repainting itself
         cannot put either back.
+
+        A theme is only the commonest reason for a reload, though, not the
+        rule: anything that writes Hyprland's config reloads it, and the blur
+        goes whoever wrote it - so `compositor_stamp` watches that directory
+        for the same reason. The cursor does not ride along with it, because
+        a reload is not a new palette: the pointer on disk is still the right
+        one, and redrawing it would be a file read for nothing.
 
         The third is not a theme change at all and rides here for its beat:
         whether the compositor animates anything (`[ui] motion`). It is asked
@@ -6300,18 +6555,25 @@ class Daemon:
         # the stat below.
         if self.read_desktop_motion():
             self.push_open_views()
-        stamp = self.theme_stamp()
-        if stamp is None or stamp == self._theme_seen:
-            return
-        first = self._theme_seen is None
-        self._theme_seen = stamp
-        if first:
-            return  # the first look is where we came in, not a change
-        log.info("the desktop theme changed; asking for ours again")
-        self.apply_blur()
-        # Redrawn only where the colours really moved: `prepare_cursor`
-        # compares a stamp on disk, so this is a file read where nothing has.
-        self.apply_cursor()
+        theme = self.theme_stamp()
+        theme_moved = _stamp_moved(self._theme_seen, theme)
+        if theme is not None:
+            self._theme_seen = theme
+        compositor = self.compositor_stamp()
+        config_moved = _stamp_moved(self._compositor_seen, compositor)
+        if compositor is not None:
+            self._compositor_seen = compositor
+        if theme_moved:
+            log.info("the desktop theme changed; asking for ours again")
+        elif config_moved:
+            log.info("the compositor was reconfigured; asking for the blur again")
+        if theme_moved or config_moved:
+            self.apply_blur()
+        if theme_moved:
+            # Redrawn only where the colours really moved: `prepare_cursor`
+            # compares a stamp on disk, so this is a file read where nothing
+            # has.
+            self.apply_cursor()
 
     def apply_blur(self):
         """Ask the compositor to blur behind our own surfaces.
@@ -6458,6 +6720,9 @@ class Daemon:
                 self.check_menu_countdown(now)
                 self.check_awake(now)
                 self.fire_repeats(now)
+                # The stopwatch's minute mark, whether or not the surface
+                # that draws it is up.
+                self.check_chrono(now)
                 # A tick that has run its length is told to stop, because the
                 # stop the kernel owes it does not always arrive - see
                 # rumble.SETTLE_MARGIN.

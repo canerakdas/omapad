@@ -38,21 +38,28 @@
 // come, and a scale with stops fills that run in the accent where one without
 // them tints it at half.
 //
-// **The rim is generated and nothing else is.** It is the gauge's own
-// `dial-face.svg`, because a knob is the same circle as the dial beside it
-// and the clock under it, and a page holding three circles drawn to three
-// weights reads as a fault rather than as three tiles. Everything else here
-// answers to a number - an arc from one angle to another, a notch per stop, a
-// rectangle turned to where the value is - and a shape parameterised by a
-// number cannot be drawn once. That is `assets.md`'s split, and the reason a
-// knob adds nothing at all to `shapes/`.
+// **The pointer and the rim are drawn; the scale is an arc.** The rim is the
+// gauge's own `dial-face.svg`, because a knob is the same circle as the dial
+// beside it and the clock under it, and a page holding three circles drawn to
+// three weights reads as a fault rather than as three tiles. The pointer and
+// the notch under a stop are drawings for the clock's hands' reason: a
+// silhouette that is the same at every value is a shape, and the value only
+// decides the angle it is turned to.
 //
-// The scale's own marks are the one place this parts company with the clock,
-// which *does* generate its twelve. Those twelve are the same twelve on every
-// clock ever drawn; a knob's marks are its stops, and a ring reading a list
-// of three has three where one reading a ladder of six has six. A family of
-// marks drawn at its ends and computed in its middle is two drawings of one
-// figure, which is how two drawings of one thing quietly stop matching.
+// What stays geometry is the ring itself - the scale and the run of it the
+// value has covered. That run grows with the number, so it cannot be a
+// drawing; and a track drawn once with a run computed against it would be two
+// drawings of one figure, which is how two drawings of one thing quietly stop
+// matching. `scaleRadius` and `scaleWeight` below are the arc, and they are
+// also what `dial-notch.svg` was drawn to hang off: a wider scale is a
+// redrawn notch. That is `assets.md`'s split, drawn where this control puts
+// it.
+//
+// **How many marks there are is still the panel's**, which is where this
+// parts company with the clock: the clock generates its twelve because they
+// are the same twelve on every clock ever drawn, and a knob's marks are its
+// stops - a ring reading a list of three has three where one reading a ladder
+// of six has six. One drawing, turned to as many places as the value has.
 //
 // Every measurement below is a share of the face and none of them is on the
 // ladder (qml.md 8.2.1), for `Clock.qml`'s reason: a hand is a fraction of
@@ -119,26 +126,21 @@ Item {
   function angleAt(place) {
     return knob.arcFrom + knob.arcSweep * place
   }
-  // A rectangle drawn up out of the pivot points at twelve o'clock, which is
-  // a quarter turn before three - so the pointer's rotation is the scale's
-  // angle with that quarter added back.
+  // The pointer and the notch are both drawn standing at twelve o'clock,
+  // which is a quarter turn before the three the scale's angles are measured
+  // from - so a figure's rotation is the scale's angle with that quarter
+  // added back.
   function turnAt(place) {
     return knob.angleAt(place) + 90
   }
 
-  // The four radii, out from the middle. Each figure owns its own band: the
-  // pointer stops short of the scale, the notches begin where the scale ends
-  // and reach the rim's inner edge, and nothing is painted over anything -
-  // which is the travel's rule about translucent ink painted twice, one
-  // drawing along.
+  // The ring, out from the middle. Each figure owns its own band and nothing
+  // is painted over anything - which is the travel's rule about translucent
+  // ink painted twice, one drawing along - but only these two are numbers
+  // now: the pointer stops short of the scale and the notch begins where the
+  // scale's stroke ends, and both of those are in the drawings.
   readonly property real scaleRadius: knob.unit * 12.5
   readonly property real scaleWeight: knob.unit * 1.6
-  readonly property real notchFrom: knob.unit * 13.3
-  readonly property real notchTo: knob.unit * 15
-  readonly property real notchWeight: knob.unit * 1.2
-  readonly property real pointerFrom: knob.unit * 1.5
-  readonly property real pointerTo: knob.unit * 10.5
-  readonly property real pointerWeight: knob.unit * 2
 
   // **A scale with stops fills its run in the accent; one without them tints
   // it.** Two different claims rather than two strengths of one: a stop is a
@@ -213,41 +215,22 @@ Item {
     Repeater {
       model: knob.stepped ? knob.stops : 0
 
-      Item {
+      BadgeArt {
         required property int index
-        x: face.width / 2
-        y: face.height / 2
-        width: 0
-        height: 0
+        anchors.fill: parent
         rotation: knob.turnAt(index / knob.divisions)
-
-        Rectangle {
-          x: -knob.notchWeight / 2
-          y: -knob.notchTo
-          width: knob.notchWeight
-          height: knob.notchTo - knob.notchFrom
-          color: knob.ink
-        }
+        drawn: knob.art ? knob.art.find("dial", "notch") : null
+        fill: knob.ink
       }
     }
 
     // The value. The loudest thing on the drawing, and the only figure out
     // of the middle, because it is the one thing the tile exists to say.
-    Item {
-      x: face.width / 2
-      y: face.height / 2
-      width: 0
-      height: 0
+    BadgeArt {
+      anchors.fill: parent
       rotation: knob.turnAt(knob.here)
-
-      Rectangle {
-        x: -knob.pointerWeight / 2
-        y: -knob.pointerTo
-        width: knob.pointerWeight
-        height: knob.pointerTo - knob.pointerFrom
-        radius: width / 2
-        color: knob.mark
-      }
+      drawn: knob.art ? knob.art.find("dial", "pointer") : null
+      fill: knob.mark
     }
 
     // What the pointer comes out of. The clock's own, for the clock's reason:

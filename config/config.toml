@@ -1326,6 +1326,21 @@ opacity = 0.9
 # themselves; a binding with a `desc` says it in its own words instead.
 # socket = "/run/user/1000/omapad/guide.sock"  # defaults to $XDG_RUNTIME_DIR
 
+[chrono]
+# The stopwatch behind a `chrono` tile - one measurement, however many faces
+# draw it. The cycle (start, stop, reset) and the pusher (A) are the
+# instrument rather than anything to choose, so this switch is the whole of
+# what there is to decide about it.
+#
+# A tick under the thumb every time the sweep hand comes back to twelve, so a
+# measurement can be followed without looking at it - which is most of what a
+# stopwatch left running while you do something else is worth. It strikes the
+# minute and only the minute: the mark is the hand coming round, not a length
+# of time you set, and an alarm you can set is a different instrument. Turn it
+# off for a stopwatch that is read rather than felt. `[rumble] enabled` still
+# wins - this asks for a tick, it does not turn the motor on.
+rumble = true
+
 [window]
 step = 900.0                  # window move/resize pixels per second (window layer sticks)
 update_hz = 30.0
@@ -2485,6 +2500,33 @@ dim = 0.6
 # about *windows*, and a tile is not a window - a selection that vanished at 0
 # is the one thing this must not do.
 tile_corner = 23
+
+# How solid a tile's ground is drawn, where nothing about the tile says
+# otherwise. 1.0 is the opaque card this surface was drawn to; lower it and
+# the page opens up - what comes through is the scrim, and under that whatever
+# the compositor is blurring behind the whole surface. At 0 a plain tile has
+# no ground at all and the page is its ink and its edges.
+#
+# **It is the fill, not the tile.** A label and an icon are drawn at full
+# strength whatever this says: a page you can see through is not the same
+# thing as a page you cannot read.
+#
+# **And the tile under the thumb is always the whole of it.** Whatever this
+# is, a selected tile is drawn solid - so lowering it is also how far the
+# page falls back behind the thing you are on, and the selection comes
+# forward as you walk rather than only being ringed. At 1.0 there is nothing
+# to come forward from, which is why the shipped page looks exactly as it did.
+#
+# Two other grounds ignore it, because each of them *is* a state rather than
+# the absence of one: a switch that is on stays filled, and a tile held in the
+# hand keeps its own tint.
+#
+# **`dim` above does the work this gives up.** What a label stands on once the
+# fill is low is the scrim, so a page that reads badly over a window full of
+# text is asking for a darker `dim` rather than a higher fill. With `[ui] blur`
+# on there is a blur under that as well, and the two together are what make a
+# low fill legible at all.
+tile_fill = 1.0
 # How long a tile stays lit after A lands on it, in milliseconds. A press is
 # the one thing this surface does that has no state to show afterwards: the
 # thumb is on a button that feels the same whatever it did, and a tile that
@@ -3141,6 +3183,18 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
   label = "Corners"
   control = "slider"
   reads = "pad:radius"
+
+  # And how solid a tile's ground is drawn, which is here for the reason the
+  # two above it are: you find out by looking, and what you are looking at
+  # while you move this is the page the slider is on - the tiles open up under
+  # the thumb and the desktop comes through them. At 0 a plain tile has no
+  # ground at all; the tile you are on stays solid whatever it says, so the
+  # slider is also how far the page falls back behind the selection.
+  [[menu.items.items]]
+  icon = "󱡔"
+  label = "Tile fill"
+  control = "slider"
+  reads = "pad:tile_fill"
 
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and

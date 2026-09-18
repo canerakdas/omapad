@@ -86,6 +86,12 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+
+  // The family this surface's words are set in, from the daemon
+  // (`[ui] font`); empty is the desktop's own. Not the badges' - those are
+  // lettered in the face their drawings were punched with, which is
+  // `buttonArt.family`. See `Metrics.fontFamily`.
+  property string fontFamily: ""
   // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
@@ -117,6 +123,7 @@ Item {
   Metrics {
     id: metrics
     scale: root.uiScale
+    fontFamily: root.fontFamily
     motion: root.motion
     safeArea: root.safeArea
   }
@@ -301,6 +308,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.font !== undefined) root.fontFamily = String(s.font)
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)

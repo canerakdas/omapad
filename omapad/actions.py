@@ -706,7 +706,20 @@ class PadAction(Action):
 
         None for one that steps rather than sets: no single step of a number
         is the one the setting is on.
+
+        **A switch is the exception, and the row is what makes it one.** Read
+        literally, `pad:rumble=toggle` is never already the case - flipping a
+        thing is not something a thing is currently doing - and that is the
+        right answer for a button, which asks this to find out whether it
+        would change anything. A row carrying one is not asking that: the row
+        *is* the switch, so what it has to say is which way the switch is
+        set. Without it a card of them could say nothing about itself, and
+        the one way to write a row that both flips and answers would be two
+        rows saying `on` and `off`, which is the longhand this surface spent
+        a year taking out.
         """
+        if self.request[0] == "toggle":
+            return bool(ctx.daemon.config.setting(self.setting))
         if self.request[0] != "set":
             return None
         return ctx.daemon.config.setting(self.setting) == self.request[1]
@@ -754,9 +767,18 @@ class LiveAction(Action):
 
         None for a step and for the transport: no single step of a number is
         the one it is on, and `next` is never already the case.
+
+        A `toggle` answers which way the switch is set, for the reason
+        `PadAction.state` gives: the row carrying it is the switch. None
+        where nothing has answered yet - the mixer is asked in a thread, and
+        a row that drew itself off while the answer was still coming would be
+        saying something it does not know.
         """
         from .live import READINGS
 
+        if self.request[0] == "toggle":
+            value = ctx.daemon.live.value(self.reading)
+            return None if value is None else bool(value)
         if self.request[0] != "set":
             return None
         if READINGS.get(self.reading, {}).get("kind") == "media":

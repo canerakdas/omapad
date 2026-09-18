@@ -24,8 +24,11 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/system.svg` | The oblong: Create, Options, and the bare shape the shell types a word into. |
 | `shapes/stick.svg` | The stick, seen from above: one pill, 56 by 40. Wide because of what it carries - `L3` is two characters, and a circle the size of a face button will not hold two at the cap the rest of the pad is set at. It had a rim once, and lost it: every other badge on the pad is a solid silhouette with its label punched out, and one that was a ring read as a different colour in a row of them. |
 | `shapes/dial-*.svg` etc. | The parts a **control tile** is drawn from - a dial, a clock's face, a switch, the chevrons, the transport, the grip. No labels on any of them, so no font. |
-| *(the knob has no row here)* | **And that is the entry.** A knob is drawn from `dial-face.svg`, because it is the same circle as the dial beside it and the clock under it. Its scale's marks are not art and that is where it parts company with the clock: twelve hour marks are the same twelve on every clock ever drawn, where a knob's marks are its *stops* - three on a ring reading a list of three, six on one reading a ladder of six. A family of marks drawn at its ends and computed in its middle is two drawings of one figure. |
-| `shapes/clock-*.svg` | The clock's furniture, and the chronograph's: the rim, its twelve marks and the hub the hands meet under. A chronograph adds nothing here - its three registers are a disc of ground apiece and its hands are rectangles, all of them answering to a number. Drawn on the dial's own 40-unit canvas so the two circles a page may hold are one circle, with a rim two units thick against the dial's three - this one has two hands inside it rather than a dot. The hands are the panel's. |
+| `shapes/dial-pointer.svg`, `shapes/dial-notch.svg` | The knob's two turning figures: the pointer at the value, and the mark under a stop. Both drawn standing at twelve on the dial's own canvas, because a silhouette that is the same at every value is a shape and the value only decides the angle. The knob's *rim* is `dial-face.svg` - it is the same circle as the dial beside it and the clock under it. |
+| *(the knob's scale has no row here)* | **And that is the entry.** The ring and the run of it the value has covered are an arc, not a drawing: the run grows with the number, and a track drawn once with that run computed against it would be two drawings of one figure. `dial-notch.svg` is drawn to hang off where that stroke ends, so a knob given a wider scale (`Knob.qml`'s `scaleRadius`) needs the notch redrawn with it. How many notches there are is the panel's too, which is where a knob parts company with a clock: twelve hour marks are the same twelve on every clock ever drawn, where a knob's marks are its *stops* - three on a ring reading a list of three, six on one reading a ladder of six. |
+| `shapes/travel-*.svg` | The strokes that stand on a line - a slider's, a stepped slider's, a reading's, and the same line stood up down a card of rows. **Four of them, because one stroke answers two questions**: how far it reaches (five line weights at a stop, seven at an end) and whether the line runs *through* it or stops at it. `stop` and `end-open` leave the line's own weight of air between two arms, because every ink on these surfaces is the theme's own at a share of itself and a bar run through the line would light that square twice; `end` and `mark` own every pixel they stand on. `side` is the fifth and the odd one: the pair that bracket the row in force on a card, out of one face of the line, because what they mark is the length behind them. Drawn ten units wide, which is the line's own weight - so `Metrics.spine` reads its two reaches back off these rather than rounding its own, and a figure lands on whole pixels at every scale. The line itself is still geometry: it is as long as the tile, and a drawing cannot stretch. |
+| `shapes/key-*.svg` | The key at the head of a row on a **latching** card, and what is in its window: `key-ring.svg` and `key-lit.svg`, on one 32-unit canvas and one box. Two drawings rather than one with its fill switched, because they are painted in two colours - the ring takes the card's line ink and does not light with the row, and the window takes the accent. The ring is wound so its hole survives either fill rule, like every annulus here. Its corner is the drawing's own: a key is 16 pixels square, and what was following the ladder had already hit the quarter-of-a-side cap it is drawn at. |
+| `shapes/clock-*.svg` | Everything on a clock face and on the chronograph that shares it: the rim, its twelve marks, the hub, the hour and minute hands, the sweep hand, and a register's disc and hand. Drawn on the dial's own 40-unit canvas so the two circles a page may hold are one circle, with a rim two units thick against the dial's three - this one has hands inside it rather than a dot - except the register's pair, which is drawn on the register's own 40 so a hand there is measured against the circle it turns in. A hand stands at twelve, pinned at 20,20 where the hub is; the panel turns the whole face-sized box about its middle and names no length, weight or corner. What is left to it is where the three registers sit and how big they are. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
 | `sounds/` | Generated: the four WAVs a press is answered with. Nothing hand-made stands behind them - the source is the table in `sounds.py`. See [`sound.md`](sound.md). |
@@ -62,10 +65,16 @@ generated is the same path data with that step skipped. Say so wherever this
 is described - "generate a font for the elements too" is the obvious reading of
 what the buttons do, and it is the wrong one.
 
-**Only the furniture is generated**, meaning what does not depend on the value.
-Where the thumb dot sits, how far a switch's knob has travelled and which way
-a clock's hands point are geometry, and geometry is the panel's: a shape
-parameterised by a number cannot be drawn once. It is the same split
+**Every figure whose silhouette is the same at every value is generated**,
+the turning ones included: a clock's hands and a knob's pointer are drawings
+standing at twelve, and where they point is a rotation rather than a second
+drawing. What is left to the panel is what a number genuinely redraws - where
+the thumb dot sits, how far a switch's knob has travelled, an arc that grows
+along a ring, a disc whose radius is a setting, a line as long as the tile it
+sits in - though what *stands* on that line is drawn, and one of the two
+things a stroke has to say (whether the line runs through it) could never be
+said by the ladder that sized it. A shape parameterised by a number cannot be drawn once; an angle does
+not parameterise a shape. It is the same split
 `BadgeArt.qml` already makes between a button and the label set into it, which
 is also why `BadgeArt` paints both files without knowing there are two.
 
@@ -152,6 +161,14 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
   would have made every stick badge on the pad slightly soft with nothing to
   say so; `tests/test_assets.py::ShapesFitTheBadgeGrid` is what says it now.
 
+  **The strokes on a line are exempt, and the exemption is this rule read
+  twice.** What the grid is for is a box a *surface* reserves and rounds.
+  Nothing reserves a box for a `travel-*.svg`: the panel hands it the line's
+  own weight and takes the height the drawing asks for, so what has to be
+  whole is the aspect itself - five line weights at a stop, seven at an end -
+  and then the box is whole pixels on both sides at every scale there is. The
+  same test checks that instead.
+
   It buys the flat edge, not the whole drawing: a coordinate is *painted*
   crisply only where `unit / h` also makes it whole. That is every multiple of
   five for the system pill's own rim (8 and 32 of 40), and `unit` a multiple of
@@ -175,7 +192,8 @@ than the same weight set solid. It lives in `../shell-plugin/fonts/`; see
 - **A ground is the one drawing that answers to a size, and it answers by not
   being one drawing.** A menu tile is `w` cells by `h` rows, so it has no fixed
   aspect and the rule above would rule it out entirely - which is exactly why
-  the slider's travel and the dial's shaded zone are *not* drawn art. A corner
+  the slider's *line* and the dial's shaded zone are not drawn art, where the
+  strokes standing on that line are. A corner
   is not parameterised by anything, though, and a straight edge does not have
   to be drawn to be right. So `assets/shapes/ground-*.svg` is a **quarter**:
   the corner, with the box it turns in filled behind it. `corner_run` takes out

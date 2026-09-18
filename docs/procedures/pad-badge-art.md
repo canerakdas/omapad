@@ -44,6 +44,8 @@ yesterday's button and nothing else complains.
 | `shapes/stick.svg` | the **stick from above** - 56x40, one pill, wide because `L3` is two characters. No rim: every badge on the pad is a solid silhouette, and a ring among them reads as a different colour |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
 | `shapes/ground-*.svg` | **a quarter of a menu tile** - one corner per tile state, and the one drawing here that answers to a size |
+| `shapes/travel-*.svg` | **the strokes that stand on a line** - two reaches, and for each whether the line runs through it. Ten units across, which is the line's own weight, so the panel sizes them from `Metrics.spine` and they land on whole pixels |
+| `shapes/key-*.svg` | **the key on a latching row and its window** - two drawings on one canvas, because the ring and what lights inside it are painted in two colours |
 | `generate.py` | the generator; `truetype.py`, `svgpath.py`, `place.py` its parts |
 
 ## The four tables in `generate.py`
@@ -87,7 +89,7 @@ the word no matter what the door's numbers say.
 
 The menu's tiles hold values, and the parts they are drawn from live in the
 same `shapes/` directory - `dial-*`, `clock-*`, `switch-*`, `chev-*`,
-`media-*`, `grip`.
+`media-*`, `travel-*`, `key-*`, `grip`.
 They go in `CONTROLS_TO_DRAW`, `(family, name, shape.svg)`, and come out in
 `shell-plugin/ControlArt.qml`.
 
@@ -97,18 +99,52 @@ Nothing in a dial has a letter in it, so nothing here goes near it - what is
 generated is the same path data with that step skipped. "Generate a font for
 these too" is the obvious reading of what the buttons do, and it is wrong.
 
-**Draw only the furniture** - what does not depend on the value:
+**Draw every figure whose silhouette is the same at every value** - a
+turning one included, because an angle is a transform and not a second
+drawing. Leave what a number actually redraws:
 
 | Draw | Leave to the panel |
 |---|---|
-| the rim, the notches, the thumb dot | where the dot sits, and the shaded zone - a circle of variable radius, which is `radius: width / 2` rather than a drawing |
+| the rim, the thumb dot | where the dot sits, and the shaded zone - a circle of variable radius, which is `radius: width / 2` rather than a drawing |
 | the switch's pill and knob | how far the knob has travelled |
 | the chevrons, the transport marks | which one is drawn or dimmed |
-| the clock's rim, its twelve marks, the hub | every hand - a rectangle hung off a point and turned to an angle the time decides - and a chronograph's three registers, which are a disc of ground each |
+| the strokes that stand on a line - a stop, an end, the value's own mark, the pair that bracket a row | the line itself, and how far along it anything stands |
+| the key at the head of a latching row, and what is in its window | which of the two is drawn |
+| the clock's rim, its twelve marks, the hub, both hands, the sweep, a register's disc and hand | which way each one points, and where the three registers sit and how big they are |
+| the knob's pointer, and the notch under one stop | the scale and the run of it the value has covered - an arc that grows with the number - and how many notches there are |
 
 A shape parameterised by a number cannot be drawn once. Same split `BadgeArt`
 already makes between a button and the label set into it - which is why
 `BadgeArt` paints these without knowing there are two files.
+
+**A figure sized from a line is the one exemption from the badge grid**, and
+it earns it by being sized more strictly rather than less. A `travel-*.svg` is
+drawn ten units across - the line's own weight - and a whole number of them
+tall, so the panel hands it `spine.weight` and takes the height the drawing
+asks for: five weights at a stop, seven at an end. `Metrics.spine` reads its
+two reaches back off the drawings for that reason, and a new stroke drawn at
+any other aspect fails `ShapesFitTheBadgeGrid` with that said in the message.
+
+**Two strokes that differ only in a gap are two drawings, not one.** Whether
+the line runs *through* a stroke or stops at it is the second question every
+one of them answers, and it cannot be a colour: every ink on these surfaces is
+the theme's own at a share of itself, so a bar run through the line paints that
+square twice and lights it. It shipped as one solid rectangle for as long as
+the strokes were rectangles, and the middle stops of a stepped slider are where
+that showed.
+
+**A turning figure is drawn standing at twelve, pinned at the middle of its
+own canvas**, and the panel gives it the whole face to fill and rotates it.
+That is why the hands are centred on 20,20 of a 40: a drawing positioned by
+its angle as well as turned by it is arithmetic in two places.
+
+`ShapesSitOnTheGrid` **exempts them**, and the exemption is the rule rather
+than a hole in it. A straight run parallel to an axis lands on half a pixel
+and is painted grey; a hand is parallel to one at four angles out of a full
+turn and antialiased at every other. Holding it to the grid would force an
+even width on a figure centred on its pivot, which would make the sweep hand
+and the minute hand the same weight - the one thing two hands on one face may
+not be.
 
 The shape rules below all apply. Two do **not**:
 

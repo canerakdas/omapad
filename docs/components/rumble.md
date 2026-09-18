@@ -23,7 +23,7 @@ Four words, uploaded once at `attach()`, in `VOCABULARY`:
 
 | Word | Says | Waveform | Fired by |
 |---|---|---|---|
-| `tick` | a press landed | `FF_RUMBLE` | a binding's `rumble`, `[snap] rumble`, `[mode] rumble`, the confirmation countdown |
+| `tick` | a press landed | `FF_RUMBLE` | a binding's `rumble`, `[snap] rumble`, `[mode] rumble`, the confirmation countdown, the stopwatch's minute mark |
 | `edge` | you cannot go further | `FF_SQUARE`, two cycles | a control at its end, the grid's rim, a transport direction the player says is closed |
 | `commit` | that took | `FF_TRIANGLE`, one cycle | a switch flipped, a choice walked, a tile picked up or put down |
 | `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** while a control is being *pushed*, **stopped** when it stops |
@@ -177,6 +177,11 @@ buzz.
 - Nothing here decides *when* to buzz. The daemon does, from the binding, from
   `[snap] rumble` and from `[mode] rumble` - the mode switch, whose result is
   across the room rather than under the thumb.
+- **One of them answers no press at all**: `[chrono] rumble` ticks when a
+  running stopwatch's sweep hand comes back to twelve
+  ([`chrono.md`](chrono.md)). The motor alone rather than `say()`, because
+  there was nothing to answer: a noise made at somebody once a minute for as
+  long as a measurement is left running is a machine talking to itself.
 - A new effect kind is **a fifth entry in `VOCABULARY`**, uploaded at attach
   beside the other four. Never a re-upload per press, and never a parameter
   passed to `play()`.

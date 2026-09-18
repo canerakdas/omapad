@@ -1323,6 +1323,80 @@ class RowsTileTests(unittest.TestCase):
         item = self.card()
         self.assertTrue(item["rows"][2]["confirm"])
 
+    # -- a card whose keys latch -------------------------------------------
+
+    FEEL = {
+        "label": "Feel",
+        "control": "rows",
+        "many": True,
+        "items": [
+            {"label": "Vibration", "action": "pad:rumble=toggle"},
+            {"label": "Sounds", "action": "pad:sound=toggle"},
+        ],
+    }
+
+    def latching(self, **keys):
+        entry = dict(self.FEEL)
+        entry.update(keys)
+        return build([entry], settings=config_module.CHOSEN)[0]
+
+    def test_a_latching_card_says_so_on_the_wire(self):
+        # The card's to say and not a thing the rows add up to: two rows on
+        # at once is what a bank of switches looks like *and* what a card of
+        # alternatives looks like for the instant a setting is being written,
+        # and the drawing may not wait for a second row to find out which.
+        model = MenuModel([self.latching()])
+        card = model.view_state(True)["items"][0]
+        self.assertTrue(card["many"])
+
+    def test_and_an_ordinary_card_says_nothing(self):
+        model = MenuModel([self.card()])
+        self.assertNotIn("many", model.view_state(True)["items"][0])
+
+    def test_two_of_its_rows_may_be_on_at_once(self):
+        # Which is the whole of what it is for: the daemon answers each row
+        # on its own, and neither answer says anything about the other.
+        model = MenuModel([self.latching()])
+
+        def answer(on):
+            card = model.view_state(
+                True, state=lambda action: on[action.setting])["items"][0]
+            return [row["on"] for row in card["rs"]]
+
+        self.assertEqual(answer({"rumble": True, "sound": True}),
+                         [True, True])
+        self.assertEqual(answer({"rumble": False, "sound": True}),
+                         [False, True])
+
+    def test_every_row_on_one_stays(self):
+        # A key that sent the menu away as it went down would be a bank
+        # nobody could set: the whole of what one is for is pressing the next
+        # one while looking at the last.
+        self.assertTrue(all(row["stay"] for row in self.latching()["rows"]))
+
+    def test_only_a_card_of_rows_can_latch(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Vibration", "control": "toggle", "many": True,
+                    "reads": "pad:rumble"}], settings=config_module.CHOSEN)
+        self.assertIn("only a card of rows", str(caught.exception))
+
+    def test_and_a_card_that_lists_is_marked_by_its_command(self):
+        # A listing marks the one in force itself and picking a row moves
+        # that mark rather than flipping it, so a latched listing would be
+        # guessing at the next answer.
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Output", "control": "rows", "many": True,
+                    "action": "exec:set %1", "from": "list-outputs"}])
+        self.assertIn("not latched", str(caught.exception))
+
+    def test_and_a_latching_row_carries_no_glyph(self):
+        # The key stands in the slot a glyph wants, and two marks at the head
+        # of one row is the card saying which of them means what.
+        with self.assertRaises(MenuError) as caught:
+            self.latching(items=[{"label": "Vibration", "icon": "V",
+                                  "action": "pad:rumble=toggle"}])
+        self.assertIn("its key", str(caught.exception))
+
     # -- going in, and walking it ------------------------------------------
 
     def test_a_card_is_entered_before_it_is_walked(self):

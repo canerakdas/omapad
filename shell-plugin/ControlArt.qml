@@ -8,11 +8,13 @@
 // letter in it, so nothing here goes near it. What is generated is the same
 // path data with that step skipped.
 //
-// Only the furniture is here - what does not depend on the value. The arc
-// that follows a number, the dot that follows a thumb and the travel of a
-// knob are geometry, and geometry is the panel's: a shape parameterised by a
-// number cannot be drawn once. It is the same split BadgeArt already makes
-// between a button and the label set into it.
+// **Every figure whose silhouette is the same at every value is here**,
+// turning ones included: a clock's hands and a knob's pointer are drawn
+// standing at twelve and rotated to wherever a number puts them, and an angle
+// is a transform rather than a shape. What is left to the panel is what a
+// number genuinely redraws - an arc that grows along a ring, a disc whose
+// radius is a setting, a track as wide as the tile it sits in. It is the same
+// split BadgeArt already makes between a button and the label set into it.
 //
 // Coordinates are in the shape's own units (`w` x `h`); a Shape scales them.
 // Painted by BadgeArt, like any other drawn entry.
@@ -25,18 +27,32 @@ QtObject {
     "chev:left": { w: 32, h: 32, shape: "M21 5L10 16L21 27L25 23L18 16L25 9Z" },
     "chev:right": { w: 32, h: 32, shape: "M11 5L22 16L11 27L7 23L14 16L7 9Z" },
     "clock:face": { w: 40, h: 40, shape: "M2 20A18 18 0 0 1 38 20A18 18 0 0 1 2 20ZM4 20A16 16 0 0 0 36 20A16 16 0 0 0 4 20Z" },
+    "clock:hour": { w: 40, h: 40, shape: "M18.5 14.5A1.5 1.5 0 0 1 21.5 14.5V18.5A1.5 1.5 0 0 1 18.5 18.5Z" },
     "clock:hub": { w: 40, h: 40, shape: "M18 20A2 2 0 1 0 22 20A2 2 0 1 0 18 20Z" },
+    "clock:minute": { w: 40, h: 40, shape: "M19 11A1 1 0 0 1 21 11V19A1 1 0 0 1 19 19Z" },
+    "clock:register": { w: 40, h: 40, shape: "M0 20A20 20 0 1 0 40 20A20 20 0 1 0 0 20Z" },
+    "clock:register-hand": { w: 40, h: 40, shape: "M17.5 8A2.5 2.5 0 0 1 22.5 8V17.5A2.5 2.5 0 0 1 17.5 17.5Z" },
+    "clock:sweep": { w: 40, h: 40, shape: "M19.25 7.75A0.75 0.75 0 0 1 20.75 7.75V21.05A0.75 0.75 0 0 1 19.25 21.05Z" },
     "clock:ticks": { w: 40, h: 40, shape: "M19 6H21V10H19ZM19 30H21V34H19ZM6 19H10V21H6ZM30 19H34V21H30ZM25 9.61A1 1 0 1 0 27 9.61A1 1 0 1 0 25 9.61ZM29.39 14A1 1 0 1 0 31.39 14A1 1 0 1 0 29.39 14ZM29.39 26A1 1 0 1 0 31.39 26A1 1 0 1 0 29.39 26ZM25 30.39A1 1 0 1 0 27 30.39A1 1 0 1 0 25 30.39ZM13 30.39A1 1 0 1 0 15 30.39A1 1 0 1 0 13 30.39ZM8.61 26A1 1 0 1 0 10.61 26A1 1 0 1 0 8.61 26ZM8.61 14A1 1 0 1 0 10.61 14A1 1 0 1 0 8.61 14ZM13 9.61A1 1 0 1 0 15 9.61A1 1 0 1 0 13 9.61Z" },
     "dial:face": { w: 40, h: 40, shape: "M2 20A18 18 0 0 1 38 20A18 18 0 0 1 2 20ZM5 20A15 15 0 0 0 35 20A15 15 0 0 0 5 20Z" },
+    "dial:notch": { w: 40, h: 40, shape: "M19.4 5H20.6V6.7H19.4Z" },
+    "dial:pointer": { w: 40, h: 40, shape: "M19 10.5A1 1 0 0 1 21 10.5V17.5A1 1 0 0 1 19 17.5Z" },
     "dial:thumb": { w: 40, h: 40, shape: "M17 20A3 3 0 1 0 23 20A3 3 0 1 0 17 20Z" },
     "dial:ticks": { w: 40, h: 40, shape: "M19 6H21V10H19ZM19 30H21V34H19ZM6 19H10V21H6ZM30 19H34V21H30Z" },
+    "key:lit": { w: 32, h: 32, shape: "M8 8H24V24H8Z" },
+    "key:ring": { w: 32, h: 32, shape: "M8 0H24A8 8 0 0 1 32 8V24A8 8 0 0 1 24 32H8A8 8 0 0 1 0 24V8A8 8 0 0 1 8 0ZM8 4A4 4 0 0 0 4 8V24A4 4 0 0 0 8 28H24A4 4 0 0 0 28 24V8A4 4 0 0 0 24 4Z" },
     "media:next": { w: 32, h: 32, shape: "M8 7L20 16L8 25ZM22 7H25V25H22Z" },
     "media:pause": { w: 32, h: 32, shape: "M10 7H15V25H10ZM17 7H22V25H17Z" },
     "media:play": { w: 32, h: 32, shape: "M10 7L25 16L10 25Z" },
     "media:prev": { w: 32, h: 32, shape: "M24 7L12 16L24 25ZM7 7H10V25H7Z" },
     "switch:body": { w: 64, h: 40, shape: "M16 4H48A16 16 0 0 1 48 36H16A16 16 0 0 1 16 4Z" },
     "switch:knob": { w: 40, h: 40, shape: "M6 20A14 14 0 1 0 34 20A14 14 0 1 0 6 20Z" },
-    "tile:grip": { w: 32, h: 32, shape: "M10 9A2 2 0 1 0 14 9A2 2 0 1 0 10 9ZM18 9A2 2 0 1 0 22 9A2 2 0 1 0 18 9ZM10 16A2 2 0 1 0 14 16A2 2 0 1 0 10 16ZM18 16A2 2 0 1 0 22 16A2 2 0 1 0 18 16ZM10 23A2 2 0 1 0 14 23A2 2 0 1 0 10 23ZM18 23A2 2 0 1 0 22 23A2 2 0 1 0 18 23Z" }
+    "tile:grip": { w: 32, h: 32, shape: "M10 9A2 2 0 1 0 14 9A2 2 0 1 0 10 9ZM18 9A2 2 0 1 0 22 9A2 2 0 1 0 18 9ZM10 16A2 2 0 1 0 14 16A2 2 0 1 0 10 16ZM18 16A2 2 0 1 0 22 16A2 2 0 1 0 18 16ZM10 23A2 2 0 1 0 14 23A2 2 0 1 0 10 23ZM18 23A2 2 0 1 0 22 23A2 2 0 1 0 18 23Z" },
+    "travel:end": { w: 10, h: 70, shape: "M0 0H10V70H0Z" },
+    "travel:end-open": { w: 10, h: 70, shape: "M0 0H10V30H0ZM0 40H10V70H0Z" },
+    "travel:mark": { w: 10, h: 50, shape: "M0 0H10V50H0Z" },
+    "travel:side": { w: 20, h: 10, shape: "M0 0H20V10H0Z" },
+    "travel:stop": { w: 10, h: 50, shape: "M0 0H10V20H0ZM0 30H10V50H0Z" }
   })
 
   // One part, or null where that family has no such part - a caller that

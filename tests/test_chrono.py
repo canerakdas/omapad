@@ -12,7 +12,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from omapad.chrono import Chrono, IDLE, RUNNING, STOPPED
+from omapad.chrono import Chrono, SWEEP, IDLE, RUNNING, STOPPED
 
 
 class TheCycle(unittest.TestCase):
@@ -89,6 +89,64 @@ class WhatTheLegendSays(unittest.TestCase):
         for _ in range(3):
             self.assertEqual(len(chrono.verb().split()), 1)
             chrono.press(1.0)
+
+
+class TheMinuteMark(unittest.TestCase):
+    """One strike per turn of the sweep hand, and only while it is running."""
+
+    def setUp(self):
+        self.chrono = Chrono()
+
+    def test_nothing_is_struck_before_the_hand_has_come_round(self):
+        self.chrono.press(100.0)
+        self.assertFalse(self.chrono.strike(100.0))
+        self.assertFalse(self.chrono.strike(159.9))
+
+    def test_the_turn_is_struck_once_and_not_again(self):
+        # Asked twenty times a second while a gauge is on screen, and the
+        # mark is one thing that happened: a motor buzzing on every ask for
+        # the rest of the minute is the fault this counter exists to stop.
+        self.chrono.press(100.0)
+        self.assertTrue(self.chrono.strike(100.0 + SWEEP))
+        self.assertFalse(self.chrono.strike(100.0 + SWEEP))
+        self.assertFalse(self.chrono.strike(100.0 + SWEEP + 30.0))
+
+    def test_every_turn_after_it_is_struck_as_well(self):
+        self.chrono.press(0.0)
+        for turn in range(1, 5):
+            self.assertTrue(self.chrono.strike(turn * SWEEP))
+            self.assertFalse(self.chrono.strike(turn * SWEEP + 1.0))
+
+    def test_turns_nobody_asked_about_are_one_mark_between_them(self):
+        # A loop that went quiet for five minutes has five marks to answer
+        # for and one thing to say - and a motor cannot say it five times
+        # anyway.
+        self.chrono.press(0.0)
+        self.assertTrue(self.chrono.strike(5 * SWEEP))
+        self.assertFalse(self.chrono.strike(5 * SWEEP + 1.0))
+        self.assertTrue(self.chrono.strike(6 * SWEEP))
+
+    def test_a_stopwatch_that_is_not_running_strikes_nothing(self):
+        # Neither one that has never run nor one stopped past a whole minute:
+        # a stopped measurement is a number being read, and the hand is not
+        # moving.
+        self.assertFalse(self.chrono.strike(1000.0))
+        self.chrono.press(0.0)
+        self.chrono.press(90.0)
+        self.assertEqual(self.chrono.state, STOPPED)
+        self.assertFalse(self.chrono.strike(1000.0))
+
+    def test_a_reset_throws_away_the_turns_with_the_seconds(self):
+        # Without this the next measurement would be a minute in before it
+        # struck anything: the count is part of what a reset clears.
+        self.chrono.press(0.0)
+        self.chrono.strike(SWEEP)
+        self.chrono.press(90.0)
+        self.assertEqual(self.chrono.press(91.0), IDLE)
+        self.chrono.press(200.0)
+        self.assertEqual(self.chrono.state, RUNNING)
+        self.assertFalse(self.chrono.strike(200.0 + SWEEP - 0.1))
+        self.assertTrue(self.chrono.strike(200.0 + SWEEP))
 
 
 class ThePayload(unittest.TestCase):

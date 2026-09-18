@@ -128,6 +128,20 @@ KNOB = "knob"
 # they are stacked rather than laid side by side.
 ROWS = "rows"
 
+# The same card, with the keys latching rather than interlocking. What an
+# ordinary card says is *which row is in force*, and it says it as a length of
+# the line beside the rows - which is a drawing that can only ever mean one of
+# them, the way a radio's band buttons let the last one out when the next goes
+# down. Several rows on at once is the other mechanism the same bank has: the
+# tone keys, each of which stays down on its own, and no length of line can
+# say which of them are.
+#
+# So a card that says `many` drops the line and gives every row a key. It is a
+# field on the card rather than a second control because nothing else about it
+# differs - the same rows, the same walk, the same press - and a `rows` tile
+# that had a twin would be two files to keep in step for one drawing.
+MANY = "many"
+
 # The time, drawn as a face rather than printed as a figure. It is the second
 # tile with nothing to press - `readout` is the first - and the only one that
 # reads nothing at all: what a clock is on is not a setting, not something the
@@ -410,6 +424,12 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             # what a tile *is*, so a card of rows reads as a leaf everywhere
             # that asks - the payload's `sub`, the title line, `press`.
             "rows": None,
+            # Whether those rows latch rather than interlock - see `MANY`. It
+            # is asked of the card because it is a fact about the *set*: one
+            # row cannot know whether the one under it is an alternative or a
+            # second switch, and the drawing has to say which before any of
+            # them is read.
+            "many": bool(entry.get(MANY, False)),
             # A row that is not picked but **held**: A starts an announced
             # hold on it - the same gesture, the same two waits and the same
             # cancel button a binding's `confirm = true` gets - and only when
@@ -459,6 +479,23 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             raise MenuError(
                 "%s: a %s tile has no mark of its own - its rows carry theirs"
                 % (path, ROWS)
+            )
+        if item["many"] and item["control"] != ROWS:
+            # Said rather than ignored: a switch, a choice and a slider each
+            # hold one value and have one drawing for it, so a tile asking to
+            # hold several has misread what it is.
+            raise MenuError(
+                "%s: only a card of rows can hold more than one at a time"
+                % path
+            )
+        if item["many"] and source is not None:
+            # A listing marks the one in force itself, and picking a row
+            # moves that mark rather than flipping it (`choose`). A card that
+            # latched what a command is about to answer again would be
+            # guessing at the next answer.
+            raise MenuError(
+                "%s: a card that lists is marked by the command, not latched"
+                % path
             )
         if item["control"] == ROWS and item["keys"]:
             # `_keys` allows one because the entry has `items`; this tile has
@@ -527,7 +564,7 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             if not page:
                 raise MenuError("%s opens an empty submenu" % path)
             if item["control"] == ROWS:
-                item["rows"] = _rows(page, path)
+                item["rows"] = _rows(page, path, item["many"])
             else:
                 item["items"] = page
         elif spec is not None:
@@ -561,7 +598,7 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
     return items
 
 
-def _rows(items, path):
+def _rows(items, path, many=False):
     """The rows a card draws inside itself, checked for what a row may be.
 
     A row here is a verb and nothing else. It cannot open a page - the card is
@@ -573,6 +610,14 @@ def _rows(items, path):
 
     A break is refused for the same reason it is a break: it ends a row of
     cells, and these are not cells.
+
+    A card whose rows **latch** asks two more things of them. A key stands in
+    the slot a row's glyph wants, so a row on one carries no glyph: two marks
+    at the head of one row is the card saying which slot means what, which is
+    a thing no card should have to say. And every row on one stays, the way a
+    repeating row does: a key that sent the menu away as it went down would
+    be a bank nobody could set - the whole of what one is for is pressing the
+    next one while looking at the last.
     """
     for index, item in enumerate(items):
         where = "%s.items[%d]" % (path, index)
@@ -588,6 +633,13 @@ def _rows(items, path):
             raise MenuError(
                 "%s: a row here cannot open a page - the card is one" % where
             )
+        if many and item["icon"]:
+            raise MenuError(
+                "%s: a latching row's mark is its key - it takes no glyph"
+                % where
+            )
+        if many:
+            item["stay"] = True
     return items
 
 
@@ -2435,6 +2487,14 @@ class MenuModel:
                 # carry no cells: what places a row is the row above it.
                 row["rs"] = [self._row_state(one, state, value)
                              for one in self.rows_of(item)]
+                if item.get("many"):
+                    # That the rows latch, which is the card's to say and not
+                    # a thing the rows add up to: two of them answering `on`
+                    # at once is what a latching card looks like *and* what a
+                    # card of alternatives looks like for the moment a
+                    # setting is being written. The drawing may not wait for
+                    # a second row to find out which it is.
+                    row[MANY] = True
                 if self.lone(item):
                     # And that it has nothing to choose between, so the panel
                     # draws the one line as a reading rather than as a column

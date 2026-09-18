@@ -33,11 +33,15 @@
 // the value has *stood on*, and a continuous value has been at every point
 // behind it and stood at none.
 //
-// **One stroke, and everything on the line is it**: the cap at each end, a
-// stop a stepped value may stand on, and the value's own place. Equal reach
-// either side of the line, so the figure is a cross and says *here* rather
-// than pointing anywhere - a wedge is the row card's mark because there is a
-// row beside it to point at, and along the foot of a card there is nothing.
+// **One stroke, and everything on the line is it**: the mark at each end, a
+// stop a stepped value may stand on, and the value's own place. Four drawings
+// of it (`travel-*.svg`), because one stroke answers two questions - how far
+// it reaches, and whether the line runs through it or stops at it - and the
+// second of those is a gap the drawing owns rather than a sum here. Equal
+// reach either side of the line, so the figure is a cross and says *here*
+// rather than pointing anywhere - the row card's own mark leaves the line on
+// one side because there is a row beside it to point at, and along the foot
+// of a card there is nothing.
 // A stepped travel and a continuous one then differ by exactly what the two
 // controls differ by, which is whether the line has places printed on it.
 //
@@ -60,6 +64,13 @@ Item {
   // rather than `QtObject` because the ladder is a bag of measurements this
   // reads through rather than a type it has anything to say about.
   property var ladder: null
+
+  // The generated strokes, handed in rather than built here. `ControlArt`
+  // cannot be a `pragma Singleton` - it does not register from a plugin
+  // directory - so a copy built in this file would be a copy per slider on
+  // the page, and both surfaces that draw one already have one to lend. A
+  // travel handed none draws its line and nothing on it.
+  property var art: null
 
   // Where along, 0 to 1. The daemon normalises it, so no minimum or maximum
   // reaches this side of the wire.
@@ -168,6 +179,27 @@ Item {
   }
   readonly property int markReach: travel.reachAt(travel.markAt)
 
+  // **Which of the four strokes stands at `x`**, and the two questions are
+  // the drawings' own: how far it reaches, and whether the line runs through
+  // it. A stroke at either end of the travel is the long one and there is no
+  // line under it - the line is drawn *between* the marks - so it is drawn
+  // whole. Anywhere else the line passes under, and a stroke drawn whole over
+  // it would paint the theme's own ink twice and light that square brighter:
+  // `open` is the same figure with the line's own weight of air in it.
+  //
+  // The exception is the value's own mark, which is the one thing here drawn
+  // in the accent. That ink is opaque, so it covers the line rather than
+  // tinting it twice - and it has to, or the loudest mark on the drawing
+  // would be the one figure with a gap in it.
+  function figureAt(x, whole) {
+    if (x === travel.from || x === travel.to) return "end"
+    return whole ? "mark" : "stop"
+  }
+  function strokeAt(x, whole) {
+    return travel.art ? travel.art.find("travel", travel.figureAt(x, whole))
+                      : null
+  }
+
   // **Where the value was taken from**, if it has been taken at all and has
   // moved since. One mark, faint, and nothing between it and the value: the
   // length between the two was drawn for three passes - dashed, then as
@@ -252,31 +284,36 @@ Item {
   // press is measured against, so *what was it before* is a thing on screen
   // rather than a thing to remember. It is the only thing a held control
   // draws that a loose one does not.
-  Rectangle {
+  BadgeArt {
     visible: travel.changed
     x: travel.wasAt
     y: travel.lineY - travel.reachAt(travel.wasAt)
     width: travel.weight
-    height: travel.reachAt(travel.wasAt) * 2 + travel.weight
-    color: travel.ghost
+    height: implicitHeight
+    // Open where the line runs through it: the ghost is the faintest ink on
+    // the drawing, and a faint square painted over the line is a brighter
+    // line rather than a mark on it.
+    drawn: travel.strokeAt(travel.wasAt, false)
+    fill: travel.ghost
   }
 
-  // **The strokes, and every one of them is the same stroke**: the cap at
-  // each end of the line and a stop a stepped value may stand on are one
-  // drawing at one size, and so is the mark below. A cross rather than a tick
-  // hanging under the line, and the same reach either side of it, so the
-  // figure says *here* rather than pointing anywhere - there is nothing
-  // beside a horizontal line to point at.
+  // **The strokes, and every one of them is one stroke drawn twice**: the
+  // mark at each end of the line and a stop a stepped value may stand on are
+  // the same figure at two reaches, and so is the mark below. A cross rather
+  // than a tick hanging under the line, and the same reach either side of it,
+  // so the figure says *here* rather than pointing anywhere - there is
+  // nothing beside a horizontal line to point at.
   //
-  // **Two arms, and neither of them crosses the line.** Every ink here is the
-  // theme's own at a share of itself, so a square painted twice is a square
-  // painted brighter, and a bar run through the line would light the pixel
-  // where they meet. The line takes the crossing; the arms start above and
-  // below it.
+  // **Two arms at a stop, and neither of them crosses the line.** Every ink
+  // here is the theme's own at a share of itself, so a square painted twice
+  // is a square painted brighter, and a bar run through the line would light
+  // the pixel where they meet. The line takes the crossing; the arms start
+  // above and below it, and the air between them is in the drawing rather
+  // than in an arithmetic here - see `figureAt`.
   Repeater {
     model: travel.ticks
 
-    delegate: Item {
+    delegate: BadgeArt {
       required property int index
       required property int modelData
       // **A mark the value has been past belongs to the run**, and takes its
@@ -292,26 +329,25 @@ Item {
       x: modelData
       y: travel.lineY - reach
       width: travel.weight
-      height: reach * 2 + travel.weight
-
-      Rectangle {
-        width: parent.width
-        height: parent.height
-        color: passed ? travel.covering : travel.ink
-      }
+      height: implicitHeight
+      drawn: travel.strokeAt(modelData, false)
+      fill: passed ? travel.covering : travel.ink
     }
   }
 
   // **Where the value is: the same stroke again, in the accent.** One piece
   // rather than two arms, because the accent is opaque and covers the line it
   // crosses instead of tinting it twice - so the figure closes into a cross
-  // where every other one is an arm either side of an unbroken line.
-  Rectangle {
+  // where every other one is an arm either side of an unbroken line. That is
+  // `mark` against `stop`, and the two are drawn rather than reasoned about
+  // here.
+  BadgeArt {
     x: travel.markAt
     y: travel.lineY - travel.markReach
     width: travel.weight
-    height: travel.markReach * 2 + travel.weight
-    color: travel.mark
+    height: implicitHeight
+    drawn: travel.strokeAt(travel.markAt, true)
+    fill: travel.mark
     visible: travel.width > 0
   }
 }

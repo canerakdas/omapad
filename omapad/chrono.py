@@ -25,6 +25,13 @@ wrist too, and the honest half of it is that the pad says which press is
 coming - `Chrono.verb()` is what the legend under the card prints, so *Reset*
 is read before it is pressed rather than discovered by pressing.
 
+**A running measurement strikes the minute.** `strike()` says, once per turn
+of the sweep hand, that it has come back to twelve, and the daemon answers
+with a tick - the only thing a stopwatch can say to somebody who is not
+looking at it, and most of what one left running while you do something else
+is worth. `[chrono] rumble` is the switch, and the mark is the hand coming
+round rather than a length of time anybody set: see `SWEEP`.
+
 Nothing here reads a clock of its own: every entry point takes `now`, which
 is `time.monotonic()` in the daemon and a number in the tests. A stopwatch
 that asked the wall clock what time it was would measure a machine coming back
@@ -46,6 +53,14 @@ STOPPED = "stopped"
 # about the next press. `docs/conventions/writing.md` is the rule they follow.
 VERBS = {IDLE: "Start", RUNNING: "Stop", STOPPED: "Reset"}
 
+# One turn of the sweep hand, in seconds, and the mark a running chronograph
+# strikes. Not a setting: it is the dial's own geometry rather than a length
+# of time anybody chose, and a strike at ninety seconds would land with the
+# hand at six, saying nothing that can be read off the face. An alarm after a
+# length somebody set is a different instrument, and it would need a number on
+# screen to set before it needed a motor.
+SWEEP = 60.0
+
 
 class Chrono(object):
     """Started, stopped, reset - and how long it has been, at any moment."""
@@ -60,6 +75,10 @@ class Chrono(object):
         # pusher would be two lines here rather than a rewrite.
         self.gone = 0.0
         self.state = IDLE
+        # How many turns of the sweep hand have already been struck, so a
+        # mark is answered once however often the loop asks. It goes with the
+        # measurement: a reset throws away the turns as well as the seconds.
+        self.laps = 0
 
     def elapsed(self, now):
         """How long it has been measuring, in seconds."""
@@ -70,6 +89,29 @@ class Chrono(object):
         # running backwards, which is a fault nobody would think to look for
         # in the arithmetic.
         return self.gone + max(0.0, now - self.at)
+
+    def strike(self, now):
+        """Has the sweep hand come round since this was last asked?
+
+        The one thing a stopwatch can say to a hand that is not looking at
+        it: `daemon.check_chrono` turns a True into a tick, which is what a
+        measurement left running while you do something else is for.
+
+        Asked by the loop rather than fired from a timer of its own, for the
+        header's reason - nothing here reads a clock - so how late the mark
+        is, is whatever the loop's idle poll is, and never more than that.
+
+        True once per turn however long it has been since the last ask: two
+        marks gone by while nobody was asking is still one thing to say, and
+        a motor cannot say it twice anyway.
+        """
+        if self.state != RUNNING:
+            return False
+        laps = int(self.elapsed(now) // SWEEP)
+        if laps <= self.laps:
+            return False
+        self.laps = laps
+        return True
 
     def verb(self):
         """What the next press does, in one word."""
@@ -87,6 +129,7 @@ class Chrono(object):
             self.state = STOPPED
         elif self.state == STOPPED:
             self.gone = 0.0
+            self.laps = 0
             self.state = IDLE
         else:
             self.at = now

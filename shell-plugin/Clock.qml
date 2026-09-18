@@ -10,13 +10,20 @@
 // something else, and what a glance gets off two hands is roughly when it is,
 // which is the whole question anybody asks a clock from a sofa.
 //
-// **The face is generated and the hands are not.** The rim, the twelve marks
-// and the hub are drawing that does not depend on the time, so they come out
-// of `ControlArt.qml` like every other piece of a control tile; a hand is a
-// rectangle turned to an angle the time decides, and a shape parameterised by
-// a number cannot be drawn once. Same split the gauge makes between its dial
-// and the dot that follows a thumb, and the same one `BadgeArt` makes between
-// a button and the label set into it.
+// **Every figure on this face is drawn, and the time only turns them.** The
+// rim, the twelve marks, the hub, the two hands, the sweep and both halves of
+// a register come out of `ControlArt.qml`, because not one of them is
+// parameterised by anything: a hand is the same pill at every hour, drawn
+// standing at twelve on the shapes' own canvas, and an angle is a transform
+// rather than a shape. What is left as geometry is what genuinely answers to
+// a number - how big a register is and where the three of them sit. Same
+// split the gauge makes one control along, and the same one `BadgeArt` makes
+// between a button and the label set into it.
+//
+// It is why a redrawn hand is a redrawn *file*: `assets/shapes/` holds every
+// line on this tile, so the whole set can be restyled without a line of QML
+// moving. A drawing whose box is the face is pinned at the shapes' own 20,20,
+// which is where every hand here meets the hub.
 //
 // **A clock has no second hand.** The daemon re-sends the page every
 // `VIEW_HEARTBEAT` seconds, so a hand that moved every second would be a
@@ -202,72 +209,43 @@ Item {
   readonly property real countedAngle: ((clock.shown / 60) % 60) * 6
   readonly property real hoursAngle: ((clock.shown / 3600) % 12) * 30
 
-  // Long, thin, up to the marks; short, thick, well inside them. The pair has
-  // to differ in both at once - at a tile's size two hands of one weight are
-  // one hand and a shadow, and two of one length are a cross.
-  //
-  // The minute hand stops **at** the marks rather than on them: the marks run
-  // from 10 to 14 of the face's 20, and a hand drawn into that band crosses
-  // whichever one it is nearest and takes a bite out of the only ring on the
-  // drawing that says what o'clock means.
-  readonly property real minuteLength: clock.unit * 10
-  readonly property real minuteWeight: clock.unit * 2
-  readonly property real hourLength: clock.unit * 7
-  readonly property real hourWeight: clock.unit * 3
-
-  // The sweep hand is the longest and the thinnest thing on the face, and it
-  // is the one hand drawn *into* the marks: it is read against them one
-  // second at a time, where the time of day is read off two hands nowhere
-  // near each other. The tail past the pivot is a counterweight, which is
-  // what a real one is for and what says at a glance which hand this is even
-  // when it is standing under another.
-  readonly property real sweepLength: clock.unit * 13
-  readonly property real sweepTail: clock.unit * 1.8
-  readonly property real sweepWeight: clock.unit * 1.5
-
-  // A register, and how far out its middle sits. 6.4 and 3.3 are one
-  // decision: the hour marks begin at 10, so this is the whole of the room
-  // between the hub and them, and a register drawn any larger lands its own
-  // edge among those marks.
+  // How big a register is and how far out its middle sits. 6.4 and 6.6 are
+  // one decision: the hour marks begin at 10, so this is the whole of the
+  // room between the hub and them, and a register drawn any larger lands its
+  // own edge among those marks. Both are still numbers because both are
+  // genuinely parameters - the drawing inside is the same drawing wherever
+  // the three of them are put.
   readonly property real registerOut: clock.unit * 6.4
   readonly property real registerSize: clock.unit * 6.6
-  readonly property real registerReach: clock.unit * 2.4
-  readonly property real registerWeight: clock.unit * 0.8
 
-  // One counter, sunk into the dial. Everything about it answers to a number,
-  // so none of it is drawn art: the disc is `radius: width / 2`, which is
-  // what a circle of any size is, and the hand is the rectangle every other
-  // hand on this face is.
+  // One counter, sunk into the dial: a disc and a hand, drawn on the
+  // register's own canvas rather than on the face's. Its 40 is this disc,
+  // so a hand here is drawn against the circle it turns in and not against a
+  // face six times the size - which is what keeps the register a drawing
+  // somebody can open rather than two numbers that happen to look like one.
+  //
+  // The art is handed in for the reason the clock's own is: `ControlArt`
+  // cannot be a singleton from a plugin directory, and a component reaching
+  // out of its own scope for an id is what the surfaces have a rule against.
   component Register: Item {
     id: register
 
+    property var art: null
     property real angle: 0
-    property real reach: 0
-    property real weight: 0
     property color ground: "transparent"
     property color hand: "transparent"
 
-    Rectangle {
+    BadgeArt {
       anchors.fill: parent
-      radius: width / 2
-      color: register.ground
+      drawn: register.art ? register.art.find("clock", "register") : null
+      fill: register.ground
     }
 
-    Item {
-      x: register.width / 2
-      y: register.height / 2
-      width: 0
-      height: 0
+    BadgeArt {
+      anchors.fill: parent
       rotation: register.angle
-
-      Rectangle {
-        x: -register.weight / 2
-        y: -register.reach
-        width: register.weight
-        height: register.reach
-        radius: width / 2
-        color: register.hand
-      }
+      drawn: register.art ? register.art.find("clock", "register-hand") : null
+      fill: register.hand
     }
   }
 
@@ -300,9 +278,8 @@ Item {
       width: clock.registerSize
       height: clock.registerSize
       visible: clock.chrono
+      art: clock.art
       angle: clock.secondsAngle
-      reach: clock.registerReach
-      weight: clock.registerWeight
       ground: clock.wash
       hand: clock.ink
     }
@@ -316,9 +293,8 @@ Item {
       width: clock.registerSize
       height: clock.registerSize
       visible: clock.chrono
+      art: clock.art
       angle: clock.countedAngle
-      reach: clock.registerReach
-      weight: clock.registerWeight
       ground: clock.wash
       hand: clock.mark
     }
@@ -333,73 +309,40 @@ Item {
       width: clock.registerSize
       height: clock.registerSize
       visible: clock.chrono
+      art: clock.art
       angle: clock.hoursAngle
-      reach: clock.registerReach
-      weight: clock.registerWeight
       ground: clock.wash
       hand: clock.mark
     }
 
-    // Each hand hangs off a point rather than off a box. A rectangle rotated
-    // about its own centre would have to be positioned by the angle as well
-    // as turned by it; a zero-sized item at the middle of the face turns
-    // about the one place a hand is pinned, and the rectangle under it is
-    // then written as what it is - so wide, so long, and standing up.
-    Item {
-      x: face.width / 2
-      y: face.height / 2
-      width: 0
-      height: 0
+    // Each hand fills the face and turns about the middle of it. The drawing
+    // is pinned where the hub is, so the box a hand is given is the face
+    // itself and the angle is the only thing said about it here - a hand
+    // positioned by its angle as well as turned by it is the arithmetic this
+    // is not doing.
+    BadgeArt {
+      anchors.fill: parent
       rotation: clock.hourAngle
-
-      Rectangle {
-        x: -clock.hourWeight / 2
-        y: -clock.hourLength
-        width: clock.hourWeight
-        height: clock.hourLength
-        // Round because it is round: a hand with square ends reads as a
-        // pointer at one size and as a plank at the next.
-        radius: width / 2
-        color: clock.ink
-      }
+      drawn: clock.art ? clock.art.find("clock", "hour") : null
+      fill: clock.ink
     }
 
-    Item {
-      x: face.width / 2
-      y: face.height / 2
-      width: 0
-      height: 0
+    BadgeArt {
+      anchors.fill: parent
       rotation: clock.minuteAngle
-
-      Rectangle {
-        x: -clock.minuteWeight / 2
-        y: -clock.minuteLength
-        width: clock.minuteWeight
-        height: clock.minuteLength
-        radius: width / 2
-        color: clock.ink
-      }
+      drawn: clock.art ? clock.art.find("clock", "minute") : null
+      fill: clock.ink
     }
 
     // The sweep hand, over the two that tell the time: it is the hand the
     // press moves, so it is the hand nothing else is allowed to stand in
     // front of.
-    Item {
-      x: face.width / 2
-      y: face.height / 2
-      width: 0
-      height: 0
+    BadgeArt {
+      anchors.fill: parent
       visible: clock.chrono
       rotation: clock.sweepAngle
-
-      Rectangle {
-        x: -clock.sweepWeight / 2
-        y: -clock.sweepLength
-        width: clock.sweepWeight
-        height: clock.sweepLength + clock.sweepTail
-        radius: width / 2
-        color: clock.mark
-      }
+      drawn: clock.art ? clock.art.find("clock", "sweep") : null
+      fill: clock.mark
     }
 
     // Over all of them, because what it is there for is the corner each one

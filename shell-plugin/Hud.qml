@@ -59,6 +59,12 @@ Item {
   // keyboard and game mode from a sofa, so the scale follows the mode rather
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
+
+  // The family this surface's words are set in, from the daemon
+  // (`[ui] font`); empty is the desktop's own. Not the badges' - those are
+  // lettered in the face their drawings were punched with, which is
+  // `buttonArt.family`. See `Metrics.fontFamily`.
+  property string fontFamily: ""
   // How solid the readings are over what is behind them (`[hud] opacity`). A
   // HUD is read while something else is being watched, so the thing it is
   // over has to stay watchable - and how much is not this panel's to decide.
@@ -114,6 +120,7 @@ Item {
     id: metrics
     radiusScale: root.radiusScale
     scale: root.uiScale
+    fontFamily: root.fontFamily
     motion: root.motion
     safeArea: root.safeArea
     cornerBase: root.corner
@@ -197,6 +204,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.font !== undefined) root.fontFamily = String(s.font)
       if (s.radius !== undefined)
         root.radiusScale = Math.max(0, Number(s.radius))
       if (s.motion !== undefined)
@@ -391,6 +399,9 @@ Item {
               width: parent.width
               height: readingTravel.implicitHeight
               ladder: metrics
+              // The page's own, the way the clock below takes it: one
+              // `ControlArt` per surface, because it cannot be a singleton.
+              art: controlArt
               value: tile.modelData.v !== undefined ? tile.modelData.v : 0
               ink: root.spineInk
               trail: root.trailInk

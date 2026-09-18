@@ -209,6 +209,11 @@ conditions rather than getting its own:
   has to remember. Nothing in the shipped tree spends a key, and play / pause
   on the `Now` page is the worked example of when not to: the tile is right
   there.
+- **X stands down where it says what B just said.** At the top of a group B
+  closes the menu and so does the layer's X, and one word under two badges is
+  a row nobody reads; a page that spends X gets both printed, because then
+  they mean two things. The legend's own rule, in
+  [`../components/menu.md`](../components/menu.md).
 - The guide, opened from that page, prints the page's answer rather than the
   layer's - see [`../components/guide.md`](../components/guide.md). A guide
   that was wrong about the two buttons somebody opened it to ask about would

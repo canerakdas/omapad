@@ -175,6 +175,7 @@ PAD_NAMES = {
     "start_mode": "Start in",
     "hold_scale": "Hold time",
     "radius": "Corners",
+    "tile_fill": "Tile fill",
     "dictate_clipboard": "Dictate to clipboard",
     # Named for the tile it decides, because that is the only place anybody
     # sees it: the menu opening once is what writes it, and a binding is only

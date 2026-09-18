@@ -260,44 +260,50 @@ class EveryControlIsDrawn(unittest.TestCase):
         # any size is, and it keeps a one-pixel outline one pixel wide at the
         # two-percent values this setting is actually set to.
         "gauge": ("dial:face", "dial:ticks", "dial:thumb"),
-        # No hands: they are two rectangles turned to an angle the time
-        # decides, which is the dial's thumb one shape along - a drawing
-        # parameterised by a number cannot be drawn once. The hub is here
-        # because the join under them is not parameterised by anything.
-        "clock": ("clock:face", "clock:ticks", "clock:hub"),
-        # The clock's own face and nothing else. Everything a chronograph
-        # adds answers to a number - three sunk registers, three hands and a
-        # sweep hand - and a shape parameterised by a number cannot be drawn
-        # once. Listed so the other half of this test still sees the control,
-        # the way `slider` and `readout` are.
-        "chrono": ("clock:face", "clock:ticks", "clock:hub"),
-        # **The dial's own rim and nothing else of its own.** A knob is the
-        # same circle as the gauge beside it and the clock under it, so it is
-        # the same drawing - a page holding three circles at three weights
-        # reads as a fault rather than as three tiles.
+        # The hands as well: what the time decides is the angle one is
+        # turned to, and an angle is a transform rather than a shape. The hub
+        # is here because the join under them is not parameterised by
+        # anything either.
+        "clock": ("clock:face", "clock:ticks", "clock:hub",
+                  "clock:hour", "clock:minute"),
+        # The clock's, and everything a chronograph adds on top. A register is
+        # a disc and a hand drawn on the register's own canvas - one pair
+        # turned to three angles and set in three places, because what a panel
+        # decides about a register is where it sits and how big it is.
+        "chrono": ("clock:face", "clock:ticks", "clock:hub",
+                   "clock:hour", "clock:minute", "clock:sweep",
+                   "clock:register", "clock:register-hand"),
+        # **The dial's own rim**, because a knob is the same circle as the
+        # gauge beside it and the clock under it - a page holding three
+        # circles at three weights reads as a fault rather than as three
+        # tiles - plus the two figures it turns: the pointer at the value and
+        # the notch under a stop.
         #
-        # And its scale is not art, which is the one place it parts company
-        # with the clock. Twelve marks are the same twelve on every clock ever
-        # drawn; a knob's marks are its stops, and a knob reading a list of
-        # three has three of them where one reading a ladder of six has six.
-        # A family of marks that was drawn for its ends and computed for its
-        # middle would be two drawings of one figure, which is exactly how two
-        # drawings of one thing quietly stop matching.
-        "knob": ("dial:face",),
+        # Its *scale* is still not art, which is the one place it parts
+        # company with the clock. The run of it the value has covered grows
+        # with the number, and a track drawn once with that run computed
+        # against it would be two drawings of one figure - which is exactly
+        # how two drawings of one thing quietly stop matching. How many
+        # notches there are is the panel's for the same reason: twelve marks
+        # are the same twelve on every clock ever drawn, and a knob reading a
+        # list of three has three where one reading a ladder of six has six.
+        "knob": ("dial:face", "dial:pointer", "dial:notch"),
         "toggle": ("switch:body", "switch:knob"),
         "choice": ("chev:left", "chev:right"),
-        # Nothing, and that is the entry rather than an omission: a track is
-        # as wide as the tile it sits in, a drawn shape cannot stretch, and
-        # `radius: height / 2` is what a rounded bar of any width is. Listed
-        # so the other half of this test still sees the control.
-        "slider": (),
+        # **The strokes on the line, not the line.** The line itself is as
+        # long as the tile it sits in and a drawn shape cannot stretch - that
+        # part is still geometry, and always was. What stands *on* it is four
+        # drawings: how far a stroke reaches is two of them, and whether the
+        # line runs through it or stops at it is the other two. A stepped
+        # travel needs all three of these; the fourth (`end-open`) is the
+        # card's, below.
+        "slider": ("travel:end", "travel:stop", "travel:mark"),
         "media": ("media:play", "media:pause", "media:next", "media:prev"),
-        # Nothing, for the slider's reason and one of its own. The bar a
-        # share draws is the slider's track again - as wide as the tile, so
-        # not a drawing - and the rest of a readout is a word and a number,
-        # which are type. It is the one tile with no control on it at all,
-        # and listing it here is what says that was meant.
-        "readout": (),
+        # The slider's line with nothing to stand on it: a reading has no
+        # stops, because what it answers is how far along a scale it has got
+        # and the scale is the machine's rather than a list of places somebody
+        # chose. So the two ends and the mark, and no `stop`.
+        "readout": ("travel:end", "travel:mark"),
         # Nothing, and it reached for art three times to get here. A tick at
         # the far end of the row said nothing - a mark with no second state,
         # at the opposite end of the card from the words it is about. A radio
@@ -313,7 +319,19 @@ class EveryControlIsDrawn(unittest.TestCase):
         # 8.1.1). Like the ground under the cursor and the spine itself, it is
         # the slider's track argument one shape along: a rectangle as tall as
         # whatever it is drawn on, which no drawing can be.
-        "rows": (),
+        #
+        # **The card is the travel stood up**, so what stands on its line is
+        # the travel's own drawing turned a quarter: `end-open` at both ends,
+        # where the line carries on past the crossing, and `side` for the two
+        # marks that bracket the row in force - the one stroke on either
+        # drawing that leaves the line on one side, because what it marks is
+        # the length behind it.
+        #
+        # And the key, where the card latches: a bank of switches has no one
+        # row to point at, so the state is drawn on the row. Two drawings
+        # rather than a fill switched, because the ring and the window are
+        # painted in two colours.
+        "rows": ("travel:end-open", "travel:side", "key:ring", "key:lit"),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark
@@ -370,7 +388,10 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     both where the two subpaths are wound the opposite way round.
     """
 
-    RINGS = ("dial-face.svg", "clock-face.svg")
+    # And the key at the head of a latching row, which is the first one of
+    # these that is not a circle: a rounded square with a rounded square out
+    # of the middle of it is the same trap with corners on.
+    RINGS = ("dial-face.svg", "clock-face.svg", "key-ring.svg")
 
     def test_a_ring_is_wound_so_the_hole_survives(self):
         for name in self.RINGS:
@@ -411,9 +432,23 @@ class ShapesSitOnTheGrid(unittest.TestCase):
     # corner leaves its arc.
     SEEN = 1.5
 
+    # **The figures that turn are exempt, and it is the rule rather than a
+    # hole in it.** What this test is about is a straight run landing on half
+    # a pixel and being painted grey instead of drawn; a hand, a sweep, a
+    # register's hand, a knob's pointer and the notch under a stop are all
+    # drawn standing at twelve and then rotated to wherever a number puts
+    # them, so their long edges are parallel to an axis at four angles out of
+    # a full turn and antialiased at every other one. Holding them to the
+    # grid would buy nothing and would cost the drawing: a hand is centred on
+    # the pivot, so a whole-unit edge means an even width, and the sweep and
+    # the minute hand would have to be the same weight as each other - which
+    # is the one thing two hands on one face may not be.
+    TURNS = ("clock-hour.svg", "clock-minute.svg", "clock-sweep.svg",
+             "clock-register-hand.svg", "dial-pointer.svg", "dial-notch.svg")
+
     def test_every_flat_edge_of_every_shape_is_on_a_whole_unit(self):
         for name in sorted(os.listdir(generate.SHAPES)):
-            if not name.endswith(".svg"):
+            if not name.endswith(".svg") or name in self.TURNS:
                 continue
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
             for edge in self.flat_edges(shape.fills):
@@ -453,6 +488,17 @@ class ShapesFitTheBadgeGrid(unittest.TestCase):
     It is 56 by 40 for this reason and no other.
     """
 
+    # **The strokes on a line are exempt, and the exemption is the rule read
+    # twice.** What the grid is for is a box a *surface* reserves: it rounds
+    # `unit * w / h` and BadgeArt then scales by that rounded width, so the
+    # aspect has to survive the rounding. Nothing reserves a box for these.
+    # A travel hands the figure the line's own weight and takes the height the
+    # drawing asks for, which is that weight times a whole number - five for a
+    # stop, seven for an end - so the box is whole pixels on both sides at
+    # every scale there is, and `Metrics.spine` reads its two reaches back off
+    # these drawings rather than rounding its own.
+    SIZED_BY_THE_LINE = "travel-"
+
     def test_the_grid_divides_every_shape_s_aspect(self):
         metrics = os.path.join(ROOT, "shell-plugin", "Metrics.qml")
         with open(metrics) as handle:
@@ -461,6 +507,20 @@ class ShapesFitTheBadgeGrid(unittest.TestCase):
         grid = int(found.group(1))
         for name in sorted(os.listdir(generate.SHAPES)):
             if not name.endswith(".svg"):
+                continue
+            if name.startswith(self.SIZED_BY_THE_LINE):
+                # And the one thing that does have to hold: a figure sized
+                # from the line is only whole on both sides while its aspect
+                # is a whole number of line weights.
+                shape = generate.Shape(os.path.join(generate.SHAPES, name))
+                ratio = max(shape.width, shape.height) / min(shape.width,
+                                                             shape.height)
+                self.assertEqual(
+                    ratio, round(ratio),
+                    "%s is %g by %g: a stroke is handed the line's own weight "
+                    "and takes the height its aspect asks for, so an aspect "
+                    "that is not a whole number of them lands off its box"
+                    % (name, shape.width, shape.height))
                 continue
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
             self.assertEqual(

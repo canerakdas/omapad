@@ -70,6 +70,10 @@ costs tens, and nothing on the loop may do it.
 - `menu_arm()` / `check_menu_confirm()` / `menu_disarm()` - the same gesture
   for a menu row that cannot be taken back, drawn on the tile rather than on a
   badge. See [`menu.md`](menu.md).
+- `check_chrono()` - the stopwatch's minute mark. A running measurement ticks
+  the pad every time its sweep hand comes back to twelve, on the loop's own
+  heartbeat rather than the menu's: the measurement outlives the page it was
+  started on, so the mark does too. See [`chrono.md`](chrono.md).
 - `ramped()` - how a held direction accelerates. One helper for both places a
   walk is timed: `fire_repeats` (the D-pad, through `repeat_start`) and the
   two stick walkers, which keep their own countdown off the tick's `dt`.
@@ -161,7 +165,7 @@ all of them: a stick held over an app that has the pad would drive the pointer
 across it until the thumb came off. [handover](handover.md) says why they get
 no `reaches_past` to come back on.
 
-## What a theme change takes away
+## What a reload takes away
 
 `omarchy-theme-set` ends in `hyprctl reload`, and a reload **throws away every
 rule asked for at runtime** - the blur behind omapad's own surfaces is one of
@@ -174,6 +178,16 @@ looks at the theme's own colours file - the same one `cursor.py` reads - and
 when its target or its mtime moves, asks for both again. `prepare_cursor()`
 compares a stamp on disk, so a change that was not a colour change costs a
 file read.
+
+**A theme is the commonest reason for a reload, not the rule.** Anything that
+writes Hyprland's config reloads it, and the blur goes whoever wrote it -
+including omapad: the menu's `Scale up` runs
+`omarchy-hyprland-monitor-scaling`, which rewrites `monitors.lua` so the new
+scale survives a reboot, and the menu that is still open loses its blur as it
+does. So `compositor_stamp()` watches `~/.config/hypr` on the same beat - the
+newest mtime in the directory, because a reload is a reload whichever file
+moved - and a change there asks for the blur again. Only the blur: a reload is
+not a new palette, so the drawn pointer on disk is still the right one.
 
 **Polled, not subscribed to.** One `stat` every `THEME_POLL` on the beat the
 surfaces already heartbeat at is cheaper than a second socket to keep alive,

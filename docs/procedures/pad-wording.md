@@ -62,6 +62,12 @@ Then two that decide whether the line should exist at all:
 The 40 comes from `Menu.qml`: a 320 px panel less a 36 px icon and a 14 px
 tick, at `bodySmall`. Game mode scales panel and type together, so it holds.
 
+**A menu `label` is spent twice**: on the tile, and in the legend along the
+foot of the card, where it is what A says it will do. Read it once beside a
+button badge - `A  Remap the buttons` - before settling on it. A tile that
+holds a value says something else there (`Turn on`, `Adjust`, `Play`), and
+that word is the daemon's rather than the config's: `docs/components/menu.md`.
+
 ## The reader's word, not ours
 
 The code keeps its own names; do not rename it to match.

@@ -296,8 +296,8 @@ comment which: a stroke weight, a card's own width, a letterform's own
 tracking, and above all **anything mirrored from another surface**. The menu's
 legend is the whole of that last case — badge, letter, word and both spacings
 are `GameBar.qml`'s expressions character for character, because on a
-fullscreen HUD that row sits in the bar's band saying the same four words
-about the same four buttons. Putting a mirrored measurement on the ladder is
+fullscreen HUD that row sits in the bar's band saying the same kind of thing
+about the same buttons. Putting a mirrored measurement on the ladder is
 how the two quietly stop matching.
 
 **8.2.2** **One ladder, both questions.** Space and type both climb by √2 —
@@ -383,9 +383,21 @@ control tile is drawn from come from `ControlArt.qml`. Both are painted by
 colour it was drawn with.
 
 **8.4** Both are **generated**. Edit `assets/shapes/` or a table in
-`assets/generate.py` and re-run it. `ControlArt.qml` holds only the furniture
-of a control - what does not depend on its value; an arc that follows a number
-is geometry, and geometry is the panel's.
+`assets/generate.py` and re-run it. `ControlArt.qml` holds every figure of a
+control whose silhouette is the same at every value - a turning one included,
+because an angle is a transform and not a second drawing, so a clock's hands
+and a knob's pointer are drawings there. What is geometry, and so the panel's,
+is what a number redraws: an arc that grows along a ring, a disc whose radius
+is a setting, a track as wide as the tile.
+
+**8.4.1** **Two font groups, and a surface asks the right one.** A word set
+beside a badge takes `buttonArt.family` - the face `assets/generate.py`
+punched the drawn labels out of - because a typed label in any other family
+would not match the drawing next to it. Everything else takes
+`metrics.font.family`, which is `[ui] font` off the payload and the session's
+own where that is empty. NEVER reach for `Style.font.family` in a surface: the
+group already falls back to it, and a surface asking directly is one the
+setting cannot reach.
 
 **8.5** **Text set inside a button is centred on its capitals, never by
 `anchors.verticalCenter`.** That anchor centres the *line box*, and Fira Code's

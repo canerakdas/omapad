@@ -1187,8 +1187,8 @@ It is the same drawing either way — nothing in `assets/shapes/` knows which
 style is on — so a button looks like the same button in both, and each surface
 keeps its own colour: the accent on the guide and the mapping screen, the
 bar's own text colour on the bar, the key's colour on the keyboard. The one
-exception is the menu's legend: it is the bar's row — the same four words in
-the bar's band, while the bar itself is down — so it wears the bar's colour
+exception is the menu's legend: it is the bar's row — the same kind of words
+in the bar's band, while the bar itself is down — so it wears the bar's colour
 and the bar's resting fills rather than the menu's.
 
 The label is a **hole**, not a letter painted the colour of the background. A
@@ -1926,13 +1926,16 @@ binding fires:
 Y = { tap = "hypr:hl.dsp.window.center()", rumble = true }
 ```
 
-In the shipped scheme this flag is not on anywhere. The rumble's two standing
-jobs are elsewhere. One is the **confirmation countdown**: the pad ticks when
+In the shipped scheme this flag is not on anywhere. The rumble's standing jobs
+are elsewhere. One is the **confirmation countdown**: the pad ticks when
 the `confirm_ms` above runs out. With the screen off or a window fullscreen you
 do not see the notification but you do feel the rumble — and that situation is
-the whole reason the countdown exists. The other is the **mode switch**
+the whole reason the countdown exists. Another is the **mode switch**
 (`[mode] rumble`), which is the same problem: what changes is across the room,
-so one tick goes in and one comes back out.
+so one tick goes in and one comes back out. The third is the one nobody
+presses: a running [stopwatch](#tiles-that-hold-a-value) ticks every time
+its sweep hand comes back to twelve, so a measurement can be followed without
+looking at it (`[chrono] rumble`).
 
 **Controller › Vibration** in the menu turns it on and off and steps the
 strength, ticking the motor at each step so you set it by feel rather than by
@@ -2205,7 +2208,7 @@ The tiles carry their own background, so they read over a game or a wallpaper.
 It covers the bars along the bottom too — it prints its own row of hints, so
 there is nothing down there worth leaving room for — and that row sits in
 **exactly the band the game bar's row sits in**, at the same height and the
-same distance from the edge. It is the same four words about the same four
+same distance from the edge. It is the same kind of row about the same
 buttons, and it wears the bar's own colours — the same text colour, the same
 resting fills — so nothing moves, and nothing changes colour, when the menu
 opens — and omapad's own bar is taken
@@ -2241,22 +2244,71 @@ hl.config({ decoration = { blur = { enabled = true, size = 8, passes = 3 } } })
 
 Set `fullscreen = false` for the card, which is the better shape at a desk.
 
-**Each state of a tile is drawn on its own outline**, not on the same rectangle
-in a different colour. A plain tile is rounded, the selected one is cut back to
-a facet, and a tile you are carrying has a bite out of its corner — so which
-tile the pad is on reads from across a room, from the shape of it, before the
-colour has to say anything at all. That matters most on a theme whose accent
-sits close to its surface: there the selection would otherwise be left to the
-border, and the border is the thinnest thing on the tile.
+**A tile changes shape only when it leaves the page's order.** A plain tile is
+rounded and a tile you are carrying has a bite out of its corner, and that is
+the whole of it — the shape is the loudest thing a tile can say with, so it is
+spent on the one state where the tile is somewhere it does not belong. The tile
+the pad is on is a ring, a glow round it and a light across its face; a slider
+you have taken keeps every one of those and adds a second ring inside its edge,
+which is this surface's one mark for *A has hold of this*. Both were cut back to
+a facet once, and a page on which three tiles are three shapes reads as a page
+where something has gone wrong.
 
 **The compositor decides how hard a corner is rounded, where it has decided.**
 Every radius the menu draws inside its card steps down from Hyprland's own
 `decoration:rounding`, so a desktop that rounds windows at 12 gets tiles at 12
 without being told. `[menu] tile_corner` is the answer where it rounds
 nothing, which Omarchy ships as — that is the compositor speaking about
-*windows*, and a tile is not a window: at 0 every tile would be the same
-square and the selection would lose its silhouette. Raise it and the shapes
-read from further away.
+*windows*, and a tile is not a window: at 0 every tile is the same square, and
+a tile in the hand has no corner left to take a bite out of. Raise it and the
+shapes read from further away.
+
+**How solid a tile is drawn is `[menu] tile_fill`**, and it is the fill rather
+than the tile: the label and the icon are at full strength whatever it says.
+
+```toml
+[menu]
+tile_fill = 1.0               # 1.0 opaque, 0 no ground at all
+```
+
+At 1.0 the page is the opaque card this surface was drawn to, which is what it
+ships as — lower it and what comes through is the scrim, and under that
+whatever `[ui] blur` is having the compositor blur behind the whole surface.
+At 0 a plain tile has no ground and the page is its ink and its edges.
+
+**And the tile under the thumb is always the whole of it.** Whatever the fill
+is, the selected tile is drawn solid — so lowering it is also how far the page
+falls back behind the thing you are on, and the selection comes *forward* as
+you walk rather than only being ringed. Two grounds ignore it, because each of
+them is a state rather than the absence of one: a switch that is on stays
+filled, and a tile in the hand keeps its own tint.
+
+**And the focus dims with it.** The halo and the light across a selected
+tile's face are both there to lift one card out of a page of cards — so what
+they have to overcome is the page, and the fill is how much page there is. At
+1.0 the selected tile's ground is everyone's ground, it says nothing, and the
+light is the whole of what a lit face is: the surface as drawn. Lower down,
+the selection has gained a channel it never had — it is the solid card on a
+page of glass — and light at full strength is saying a second time what the
+ground already said, louder at every step. So both lights come down with the
+fill. The **ring** does not: it is the mark rather than a glow, and it is the
+one thing on a selected tile that means *here* at any fill.
+
+**The bar follows the grid.** A group chip is one cell of the same module,
+sitting an inch above the tiles it names, so a row of solid cards over a page
+of glass would be the bar claiming to be a different kind of thing. The chips
+you are *not* on thin with everything else; the one you are on stays filled
+with the accent, and that is the second half of the same rule — its label sits
+**on** that fill rather than under it, and the contrast it is set at is
+measured against a solid accent. There is no thinner accent that keeps its own
+label honest, so the setting reaches that card by the gap rather than by the
+alpha: everything around it falls back and it does not.
+
+`[menu] dim` does the work this gives up — once the fill is low, what a label
+stands on is the scrim, so a page that reads badly over a window full of text
+is asking for a darker `dim` rather than a higher fill. It is on the pad as
+`Display > Tile fill`, beside `Corners`, and for the same reason: the page you
+are looking at while you move the slider is the page that opens up under it.
 
 **A switch you have turned on fills its whole tile** with the accent, rather
 than drawing a little pill in the middle of it — a card has room to say one
@@ -2325,13 +2377,38 @@ hidden only while it still exists. If the file is damaged the daemon says so onc
 shipped arrangement. `omapad check --layout` says what yours still resolves to,
 and deleting the file — or resetting one page with Y — hands it back.
 
-**Along the foot of the card is a legend** saying what A, B, X and Y do on the
-page you are looking at, drawn with the same buttons the guide and the bar
-print — and, because it is the bar's row, in the bar's own text colour rather
-than the menu's accent, so the buttons read the same whether the bar or the
-menu is answering them. `[menu] keys = false` turns it off — in game mode omapad's own bar is
-already saying the same kind of thing across the screen, though only the
-legend can say what a page has spent a key on.
+**Along the foot of the card is a legend** saying what the buttons do **on
+the tile you are standing on**, drawn with the same buttons the guide and the
+bar print — and, because it is the bar's row, in the bar's own text colour
+rather than the menu's accent, so the buttons read the same whether the bar or
+the menu is answering them.
+
+It is the tile's line rather than the page's, so it changes as you walk:
+
+| On | A says |
+|---|---|
+| the keyboard tile | `Keyboard` — a row that runs something says its own name |
+| `Previous` | `Previous` |
+| a page that opens | `Open` |
+| the volume ring, or any bar | `Adjust` — A takes hold of it |
+| a switch | `Turn on` or `Turn off`, whichever way it is about to go |
+| what is playing | `Play` or `Pause` |
+| the stopwatch | `Start`, `Stop`, `Reset` — whichever press is next |
+| a row that cannot be taken back | `Hold to confirm` |
+| a reading, or the clock | nothing at all, and the row is left off |
+
+**Take hold of a control and the directions that move it appear**: ◀ `Less`
+and ▶ `More`, and on the volume ring the left stick as well, because that is
+the one control a thumb turns rather than steps. They are not there before you
+press A, because until you do, left and right walk the page.
+
+**B says what it is actually leaving** — `Back` inside a page, `Close` at the
+top of a group, `Cancel` over a value you have pushed or a row that is
+counting down. Where B closes the menu, X says nothing: it closes it too, and
+one word under two badges is a row you stop reading. `[menu] keys = false`
+turns the whole strip off — in game mode omapad's own bar is already saying
+the same kind of thing across the screen, though only the legend can say what
+a page has spent a key on, or what the tile under your thumb does.
 
 **The menu comes back where it was.** Close it on the volume and the next
 press opens on the volume — you turn it down, go back to the game, and come
@@ -2611,9 +2688,10 @@ which is what a selector knob has always been. Turning it stops at the ends
 rather than coming round — a press on a `choice` tile still wraps, because
 that is one way through a list and this is a thing with a position.
 
-Neither of them is the better one, which is why the shipped page has one of
-each: `Volume` is a ring and `Brightness` beside it is a bar. A length is read
-faster; a ring is turned better. Swap the word in either to have two of a kind.
+Neither of them is the better one, which is why the shipped tree has one of
+each: `Volume` on `Now` is a ring and `Brightness` on `Display` is a bar. A
+length is read faster; a ring is turned better. Swap the word in either to have
+two of a kind.
 
 A choice tile shows **one** value, so it has nowhere to put the line saying how
 the values differ — which is what `Button labels` and `Profile` keep their
@@ -2645,6 +2723,19 @@ it had two pushers. The line under the card says which of the three the next
 press is, so `Reset` is read rather than discovered. What it costs is
 resuming: a stopped measurement is thrown away by the next press, not
 restarted.
+
+**It strikes the minute.** A measurement that is running ticks the pad every
+time the sweep hand comes back to twelve, so it can be followed without looking
+at it — which is most of what a stopwatch you are holding is worth over one on
+the wall. The menu can be shut and a game can have the pad; the measurement is
+yours either way. It marks the turn of the hand and only that: an alarm after a
+length you set is a different instrument, and this one has no number to set it
+with. `[chrono] rumble = false` leaves it to be read rather than felt.
+
+```toml
+[chrono]
+rumble = true                 # tick when the sweep hand comes round
+```
 
 There is **one stopwatch**, however many tiles draw one: start it here, walk to
 another page, and it is the same measurement still running. It ships on `Now`,
@@ -2778,10 +2869,55 @@ A runs the row in front, and **B leaves the card without leaving the page**.
 The row you were on is waiting the next time you go in.
 
 Two marks, one thing each. A line runs down the side of the list: the row **in
-force** is its length of that line, lit, with a small wedge leaving it to the
-right, and it is there whether or not you have selected the card. The row **A would run**
+force** is its length of that line, lit, with a small stroke marking each end
+of it, and it is there whether or not you have selected the card. The row **A would run**
 has a faint ground instead, and only once you are inside. A card of verbs has
 nothing lit, because nothing on one is in force.
+
+### A card of switches, whose keys latch
+
+The card above is a set of **alternatives** — one row is in force and picking
+the next one lets the last one out, which is why what says so is a length of
+the line beside the rows. Some lists are not like that. `many = true` is the
+same card with its keys **latching**: any number of rows can be on at once, the
+line goes, and every row gets a small key at its head with a lit core in the
+middle while it is down.
+
+```toml
+[[menu.items.items]]
+label = "Feedback"
+detail = "What a press answers with"
+control = "rows"
+many = true
+span = [3, 2]
+
+  [[menu.items.items.items]]
+  label = "Vibration"
+  detail = "The motor, in the hands"
+  action = "pad:rumble=toggle"
+
+  [[menu.items.items.items]]
+  label = "Sounds"
+  detail = "A cue, in the room"
+  action = "pad:sound=toggle"
+```
+
+It is an old radio, and both of its mechanisms: the band buttons are
+interlocked, so pressing one lets the last one out, and the tone keys beside
+them each stay down on their own. One bank, two mechanisms — and a length of
+line can only ever say the first of them, because a length has one start and
+one end.
+
+Write each row as a **toggle** — `pad:<name>=toggle` or `live:<name>=toggle` —
+because that is what both flips the switch and says which way it is set. A row
+written as `pad:rumble=on` would light while it was on and never turn it off
+again. The menu stays up on every row of one without being asked: the whole of
+what a bank is for is pressing the next key while looking at the last. A
+latching row carries no glyph, because the key is already at its head.
+
+Reach for one only where the rows are **not** alternatives. The test is whether
+pressing the second row should let the first one out — if it should, the card
+above it is the one you want.
 
 ### Giving a page its own X or Y
 
@@ -2927,11 +3063,11 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 
 | Group | Holds |
 |---|---|
-| **Now** | the keyboard, volume, brightness, what is playing — and the workspace lock and *Keep the controller* while there is anything to use them on |
+| **Now** | the keyboard, the volume, what is playing, the stopwatch — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Workspaces** | fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone, and where dictation puts the words |
-| **Display** | scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
+| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
 | **Controller** | everything about the pad — see below |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
 | **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, and the way out into the Omarchy menu |
@@ -2940,13 +3076,16 @@ What you change now, then what you open, then what is on screen, then the room,
 then the pad, then the machine. `Now` is where the menu opens, which is why the
 things you reach for while you are sitting in the room are on it rather than at
 the top of `Audio` and `Display` — those pages keep what you set when the room
-changes instead.
+changes instead. Brightness is the line between the two, and it is on
+`Display`: how bright the screen is follows the light coming in the window
+rather than what you are doing, which is the same errand as the scale.
 
 ### What the machine is doing
 
-`Volume`, `Brightness` and `Music` on `Now` read the **machine** rather than
-omapad: the real percentage, and the real track. They were five stepping rows
-and a mute row before, none of which could say what the number was.
+`Volume` and `Music` on `Now`, and `Brightness` on `Display`, read the
+**machine** rather than omapad: the real percentage, and the real track. They
+were five stepping rows and a mute row before, none of which could say what the
+number was.
 
 omapad knows nothing about PulseAudio, backlights or MPRIS. It runs a command
 and parses what comes back, and **every command is a setting**, under `[live]`:
@@ -3737,6 +3876,31 @@ Slight · The desktop's · Round`, over a bar drawn in the stops themselves — 
 a number you have to divide before it says anything, and the segments have
 already said how far along. A number written by hand between two stops is kept
 and prints itself; the pad walks the ladder.
+
+### The face they are set in
+
+Every word omapad writes — a menu label, a guide line, a key on the keyboard —
+is set in the desktop's own font, because these surfaces are meant to read as
+part of the session they stand in. Where that is the wrong answer, it is one
+line:
+
+```toml
+[ui]
+font = ""   # empty is the desktop's own; name one family to take it over
+```
+
+Name it the way `fc-list : family` spells it, and name **one**: Qt takes a
+single family and a comma-separated list is a font nobody has installed. The
+reason to set it is that a desktop font is chosen at a desk — a face picked
+for a terminal at arm's length is rarely the face for a menu read across a
+room, and this changes that without touching the desktop's.
+
+**It does not reach the buttons, and that is deliberate.** The A, the B and
+the ZR on these surfaces are drawings, and their letters were punched out of
+the silhouettes in the face shipped with omapad. A typed label — the word the
+shell sets into a blank shape for a button nothing is drawn for — takes that
+same face, so the two always match. There are two font groups here: one you
+choose, and one the drawings already decided.
 
 ### How much they move
 

@@ -286,10 +286,12 @@ and `Stencil` would be a length drawn over two words with no arithmetic
 between them. `CONTROL_KINDS` is where that is written down, and it is the
 only entry with two kinds in it.
 
-**Neither of them is the better one, and the shipped page says so.** A length
-is read faster and a ring is turned better, so `Volume` is a knob and
-`Brightness` beside it is a bar - the page that holds both is where you find
-out which you reach for. It takes the dial's square for the dial's reason.
+**Neither of them is the better one.** A length is read faster and a ring is
+turned better, and the shipped tree has one of each: `Volume` on `Now` is a
+knob and `Brightness` on `Display` is a bar. They stood on one page for a
+while to find out which gets reached for, which settled something else - the
+drawing is not what decides where a tile lives - and the ring keeps the dial's
+square for the dial's reason.
 
 **A `readout` is a control that is not a control.** What the machine is
 doing is published rather than set - a temperature is not a setting - so the
@@ -382,7 +384,8 @@ to and come back from and its rows get a card each; these are already in front
 of you, and what buys them their length is that they are stacked.
 
 `_rows()` is what a row may be, and it is a short list on purpose: a verb, with
-no page under it and no control on it. A row that opened a page would have
+no page under it and no control on it - and, on a card whose keys latch, no
+glyph either. A row that opened a page would have
 nowhere to go, and every control this surface has is a card's worth of drawing
 that a line of text cannot hold. A `row_break` is refused for the reason it is
 a break - it ends a row of cells, and these are not cells. A card cannot
@@ -399,7 +402,7 @@ to the tile. Only a press reaches further in, and `acting` is where that is
 asked: it is the row where there is one and `current` everywhere else, which is
 what makes `confirm`, `stay` and `repeat` the row's answers rather than the
 card's. The legend asks the same property, so `A` says `Hold to confirm` over a
-row that has to be held and `Pick` over the one beside it.
+row that has to be held and the row's own name over the one beside it.
 
 **A card is entered before it is walked, and `TAKEABLE` is where that lives.**
 It did not, at first: `step()` walked the rows and handed the press back to
@@ -420,10 +423,19 @@ Two things follow that the drawing has to say. **The row cursor is drawn only
 while somebody is inside** - a card standing in the grid shows which row is in
 force and no cursor at all, because a cursor would be promising a walk that
 press does not make. And **an entered card is not `lifted`**: filling with the
-accent and cutting its corners is what a tile *out of the page's order* does -
-a tile in the hand, a slider being pushed - and a card being read is neither.
-It was filled once, and it was the loudest thing on the page with the least
-readable rows on it.
+accent and cutting its corners is what a tile *out of the page's order* does,
+which now means a tile in the hand and nothing else. It was filled once, and
+it was the loudest thing on the page with the least readable rows on it.
+
+**A taken slider is not `lifted` either, and for the same reason.** It was,
+along with a knob and a gauge, on the argument that a control owning both axes
+is out of the page's order the way a carried tile is. It is not: it has not
+left its cell, it is being pushed in it - and filled and cut back it turned
+into the loudest thing on the page at exactly the moment its figure and its
+travel are what the eye is on. The changed silhouette read as a tile that had
+gone wrong beside seven that had not. What says A has hold of a control is the
+press ring, the same as everywhere else, and what says what the press has done
+is the ghost on its travel.
 
 **What an entered card takes is the press ring**, and getting there took two
 wrong answers first.
@@ -490,10 +502,11 @@ is why a slider's range starts an arm inside the mark that ends its line.
 
 **One stroke, and both drawings have only it.** The cap here, a stop on a
 slider's travel and the place a value has got to are one figure: a bar of the
-line's own weight crossing it, reaching the same distance either side.
-`Metrics.spine.cross` is that distance for a stop - the arm stepped a rung of
-the space ladder and halved - and `crossEnd` is a rung above it, for the marks
-that **end** a line. The card's caps take `crossEnd` too: the end of a list and
+line's own weight crossing it, reaching the same distance either side. They are
+**drawn** (`travel-*.svg`), and `Metrics.spine` reads its two reaches back off
+the drawings: a stroke is ten units across, which is the line's own weight, and
+a whole number of them tall - five at a stop (`spine.cross` either side) and
+seven at the marks that **end** a line (`crossEnd`). The card's caps take `crossEnd` too: the end of a list and
 the end of a travel are the same claim, *this is as far as it goes*, and a card
 whose ends were a stop's size ended more quietly than the slider sitting beside
 it on the same page.
@@ -618,6 +631,98 @@ two sizes.
 
 The `rs` payload is unchanged through all three: `on` is the question, and how
 it is drawn is the panel's.
+
+### A bank of keys, where the line has nothing to light
+
+`many = true` on a card is the same rows with the keys **latching** rather than
+interlocking, and it is one field rather than a second control because nothing
+else about the card differs: the same rows, the same walk in, the same press.
+
+It exists because of what the line can say. The row in force is a *length* of
+the spine, and a length has one start and one end - so a card where two rows
+are on at once has no length to light, and the drawing that carries the whole
+of this card's state would be left saying nothing while two rows said
+something. That is a radio's two mechanisms, and the argument is worth keeping
+in those words: the band buttons are interlocked, so pressing one lets the last
+one out, and the tone keys beside them each stay down on their own. One bank,
+two mechanisms, and no line down the side of either.
+
+So a latching card **drops the spine** and gives every row a key. The three
+things that follow a stateless card out follow this one out with it - the row
+takes its own left corner back, the sweep and the press ring start at the row's
+own edge, and the words move a rung left - because they follow the *line*
+rather than the state. `railed` is that question in the panel (`stated &&
+!many`), and `stated` is left answering the one it was always asking, which is
+whether any row was asked at all.
+
+**The key is a drawing this card was right to refuse once**, and that is not a
+reversal. A radio ring at the head of every row was tried against the
+interlocked card and dropped, because the line already changed colour at the
+row it meant: a second mark saying the same thing is a mark to learn for
+nothing. A latching card has no such line. There is no *one* row to point at,
+so what says a row is on has to be on the row - and the slot the ring wanted is
+free, because a latching row carries no glyph.
+
+**A key rather than a tick.** A tick is a mark somebody makes in a box while
+filling a form in; a key is a thing on the front of a radio that is down or up,
+and this is a bank of them. What is read is whether anything is lit in the
+window rather than which glyph is in the box, which is the difference between a
+state and a record of a decision - and it keeps the card to the two figures it
+already has, a rectangle and a stroke.
+
+So the key is a square stroked in the line's own ink at the line's own weight -
+the head slot's own square, so the names line up whether a card's slot holds
+keys or glyphs - and what says it is down is a **filled core inside it**, one
+stroke of air in from the border, in the accent.
+
+**Both halves are drawings** (`key-ring.svg`, `key-lit.svg`), on one canvas and
+one box, the way a button and the label punched through it are - and two rather
+than one with its fill switched, because they are painted in two colours and
+one of them lights while the other does not. What that moved is the corner: it
+was the row's stepped a rung down and then **capped at a quarter of its own
+side**, and what is drawn is that cap. Past it a 16-pixel square is not a
+rounder key, it is a pill, which is the shape of the switch on a tile rather
+than of a key on a bank - the argument `RADIUS_STOPS` makes about a tile that
+has become a circle, four rungs further down. The cost is a theme that rounds
+nothing at all, which now keeps a rounded key; the trade is that the figure a
+hand reads at 16 pixels is redrawn in `shapes/` rather than computed here. The
+state is a thing that is *there* rather than a colour the key turns, which is
+qml.md 8.1.1 read at a key's size: a theme whose accent sits close to its card
+exists, and on one of those the difference between an empty window and a full
+one is still a difference. The border does not light with it - the keys are
+what makes this stack read as a list, which is the job the line has on every
+other card, so they are a constant and what moves is inside them.
+
+A row that was never **asked** draws no key at all, only the slot: a bank with
+a gap in it is a bank whose gap means something, and a key that can never go
+down is worse than nothing beside three that can.
+
+Three things a latching card refuses, each of which `omapad check` names:
+
+- **Only a card of rows latches.** A switch, a choice and a slider each hold
+  one value and have one drawing for it, so a tile asking to hold several has
+  misread what it is.
+- **A card that lists cannot latch.** The `*` a listing prints marks the one in
+  force, and picking a row moves that mark rather than flipping it (`choose`) -
+  a latched listing would be guessing at what the command is about to say.
+- **A latching row carries no glyph.** The key stands in the slot a glyph
+  wants, and two marks at the head of one row is the card asking a reader to
+  learn which of them means what.
+
+And one it does without being asked: **every row on one stays**, the way a
+repeating row does. A key that sent the menu away as it went down would be a
+bank nobody could set, and the whole of what one is for is pressing the next
+one while looking at the last.
+
+**What a row does is still the row's own action**, and for a switch that is
+`pad:<name>=toggle` or `live:<name>=toggle`. Read literally a toggle is never
+"already the case" - flipping a thing is not something a thing is currently
+doing - and that is the right answer for the button asking whether it would
+change anything. A row carrying one is not asking that: the row *is* the
+switch, so `PadAction.state` and `LiveAction.state` answer which way it is
+set. Without that a card of switches could say nothing about itself, and the
+only way to write a row that both flips and answers would be two rows saying
+`On` and `Off` - the longhand this surface spent a year taking out.
 
 ### The travel, which is the spine turned on its side
 
@@ -749,13 +854,21 @@ not: its ends are values. The tail read as a drawing that had not been trimmed,
 and it put the end marks out of the value's reach, so a slider pushed the whole
 way stopped short of the mark it was reaching for.
 
-**The two that end the travel are longer than the stops between them**, by one
-rung of the space ladder - `spine.crossEnd` against `spine.cross`. An
+**The two that end the travel are longer than the stops between them** -
+`spine.crossEnd` against `spine.cross`, half a stop's reach again. An
 instrument of one stroke weight has only length to tell one kind of mark from
 another with, and the two kinds here are *this is as far as it goes* and *this
-is a place it can stand*, which is one rung's worth of difference. It was the
-whole silver step for a pass and read as two marks of two different sizes
-rather than as one scale. The value's own mark takes the reach of whatever mark
+is a place it can stand*. It was the whole silver step for a pass and read as
+two marks of two different sizes rather than as one scale.
+
+**And whether the line runs through a stroke is the other thing it says**,
+which is why there are four drawings and not two. Every ink here is the theme's
+own at a share of itself, so a square painted twice is a square painted
+brighter: a stop has the line's own weight of air between its two arms and the
+line takes the crossing, where a mark at either end of the line - and the
+value's own mark, which is opaque and covers what it crosses - is drawn whole.
+It was one solid rectangle for as long as the strokes were rectangles, and the
+middle stop of a stepped slider was the pixel that showed it. The value's own mark takes the reach of whatever mark
 it is standing on, so at either end it covers that mark exactly instead of
 sitting inside it with the tips showing.
 
@@ -1149,7 +1262,7 @@ Fullscreen changes four things, and each is the same argument:
   asks for.
 
 - **The legend moves into the game bar's own band.** Not the bottom right
-  corner: the same four words about the same four buttons must not move when
+  corner: a row about the same buttons in the same band must not move when
   the menu opens, and a row that jumped an inch up the screen would read as a
   different row. So it takes the bar's height (`barh` on the payload, which
   is `[gamebar] height`) and the bar's edge padding, and sits flush at the
@@ -1246,8 +1359,8 @@ for a good reason - the bar is already saying where you are, in the
 same words and an inch below, and a line above it saying `Go…` is the card
 telling you twice. But what a group *holds* is the one thing the bar cannot
 say, and every group in the shipped config has already been written a detail
-that nothing was drawing: `Sound, screen, what is playing`, `Where the sound
-goes`. No ellipsis on it - it is a description, not a place.
+that nothing was drawing: `The keyboard, sound, what is playing`, `Where the
+sound goes`. No ellipsis on it - it is a description, not a place.
 
 It is a fixed-height line either way, so walking the bar never resizes the
 card under a thumb that is aiming at a tile. That is why the detail is not on
@@ -1532,8 +1645,8 @@ converted for the room rather than because a chevron suited it.
 ## The legend
 
 The strip along the foot of the card prints what each face button does **on
-this page**, in the contract's own order - A, B, X, Y - so the strip teaches it
-every time it is glanced at.
+the tile in front**, in the contract's own order - A, B, X, Y - so the strip
+teaches the order every time it is glanced at.
 
 The daemon resolves it, through `guide.button_row(..., brief=True)`: the guide
 already turns a binding into words and the bar already reads them short, so
@@ -1542,10 +1655,65 @@ the **page's** spec where there is one and the layer's otherwise - the same
 place a press reads, so the legend cannot be a second answer to what a button
 does.
 
+**That is the fallback, and it used to be the whole answer.** The layer's word
+for A is `Pick`, which is true of the button and silent about the press: it
+stood under the keyboard tile, under `Previous`, under the volume ring and
+under a stopwatch, and four words that never change are four words nobody
+reads twice. So A and B - the two the contract settles, and the two whose
+*work* changes with every tile a thumb walks onto - ask the tile first.
+
+**`menu_verb()` is what A says.** It reads `acting` rather than `current`, so
+a card of rows that has been gone into answers for the row, which is the same
+thing a press acts on.
+
+| The tile in front | A |
+|---|---|
+| a row that runs something | **its own label** |
+| a submenu, or a card of rows not yet entered | `Open` |
+| a slider, a knob, a gauge | `Adjust` - A takes hold of it |
+| the same, while it is held | `Keep` |
+| a switch | `Turn on` / `Turn off`, read off the value |
+| what is playing | `Play` / `Pause`, read off the value |
+| a choice walked in place | `Next` |
+| the chronograph | `Start` / `Stop` / `Reset` - `Chrono.verb()` |
+| a row that cannot be taken back | `Hold to confirm` |
+| a reading, a clock, a card that lists one thing, a row that counts | nothing, and the row is left off |
+
+**A row that runs something says its own name**, and that is the one entry
+worth arguing about. The alternative was to derive a verb from the action the
+way the bar does - which prints `live:media=previous` under a tile called
+`Previous`, because `live:` has no describer and never will have one for every
+row a config can write. The label is already the interface's answer to *what
+happens if I press this*, written to `pad-wording.md`'s budget, and it cannot
+drift from the tile it is under.
+
+**Nothing to press gets no row.** The strip is what somebody checks *before*
+pressing, so offering A on a tile that will not answer is worse than a strip
+one row shorter.
+
+**`menu_leave()` is what B says**, and it is the same rule one button along: B
+leaves in every layer and every surface, and *what* it leaves is the only
+thing this row can add. `Cancel` over a value pushed too far or a row counting
+down, `Back` inside a page or a card, `Close` at the top of a group - where
+`back()` answers False because the bar is not a level to climb to.
+
+**And there X stands down.** X is `menu:close`, so at the top of a group B and
+X are one answer printed twice; the strip drops X where its word is the word B
+just said. Inside a submenu they part company again - B climbs a level, X
+leaves outright - and both are printed.
+
+**`menu_directions()` adds the directions that move a control, while one is
+held.** `◀ Less` and `▶ More` - `Previous` / `Next` where the control reads a
+choice, because *more* of a list is not a thing anybody could act on - and on
+a knob the left stick as well, which is the one control the stick does
+something else with. They are off the strip the rest of the time on purpose:
+left and right walk the page until A takes hold, so printing them beside a
+value nobody is holding would be this row's one job done backwards.
+
 `[menu] keys` turns it off. In game mode omapad's own bar is already along an
 edge saying the same kind of thing, and somebody running that may not want it
 said twice; the two are not the same answer in general, though, because only
-this one is page-scoped.
+this one is tile-scoped.
 
 ## The grid
 
@@ -1755,10 +1923,10 @@ ground the way the badge's sweep is clipped to the badge's drawing. The fill
 runs in over `hold_ms` and back out over `confirm_ms`, so the tile is empty at
 the moment the row runs.
 
-`menu_holds()` is the other half, and it is what the legend reads: while the
-tile in front is one of these, A's word is `Hold to confirm` rather than
-`Pick`. Said before it is pressed, because a gesture you find out about by
-making it is a gesture nobody makes on purpose.
+`menu_holds()` is the other half, and it is the first thing `menu_verb()`
+asks: while the tile in front is one of these, A's word is `Hold to confirm`
+rather than the row's own name. Said before it is pressed, because a gesture
+you find out about by making it is a gesture nobody makes on purpose.
 
 ## Which way a page was reached from
 
@@ -1986,7 +2154,13 @@ questions a tile is asked and no others, because a row has no cells, no control
 and nowhere to drill in to. `d` is **the line a choice tile had nowhere to
 put**: a row is as wide as the card, so it can carry the sentence saying how it
 differs from the row under it, and `value()` still replaces it for a row that
-steps a number. Which of them the cursor is on is the surface's
+steps a number. `many` rides beside it where the card's keys **latch** rather than
+interlock, and it is the card's to say rather than something the panel adds
+up: two rows answering `on` at once is what a bank of switches looks like and
+also what a card of alternatives looks like for the instant a setting is being
+written, and the drawing may not wait for a second row to find out which. It
+is off the wire for every other card, so `one` and `many` are never both on a
+tile - a listing is marked by its command and cannot latch. Which of them the cursor is on is the surface's
 `row`, an id like `sel`, and it is its own field rather than a second meaning
 for `sel`: the grid scrolls to a tile and rings a tile, and only the press
 reaches the row, so a panel that had to work out which of the two `sel` meant
@@ -2033,6 +2207,46 @@ is built, so a scroll worked out at construction is worked out against a width
 of nothing, and the answer sticks. That is how a grid that fitted ended up
 scrolled past its own last row with everything above it off screen.
 
+**The fold falls between two cells, never through one.** A tile centres its
+ink, so the visible part of a cut one carries none at all: a page cropped
+mid-tile ends in a band of nothing and reads as bad padding rather than as
+"there is more below". That was measured once against Omarchy's own menu and
+fixed for the card's rows; `wholeCells` is the same measurement written as one
+rule, on both axes and on the fullscreen page as well.
+
+What a band is *given* and what it may **show** are two numbers for that
+reason, and only the fullscreen page has them disagree. A card is sized to the
+page it holds, so there the cut is in the height and the width themselves -
+that is what keeps the card's foot off the floor of the screen and its last
+column off its own border, and what the cut leaves over is a narrower card,
+which is centred. The fullscreen page is given the room whether or not it
+fills it, because what sits under it is the legend and a legend that floated
+up under a short page would not be at the foot of anything; there the clip
+stops short inside the room it was given and the remainder is air under the
+last row and outside the last column, where nothing is drawn. The bar is cut
+the same way and for the same reason: a nav card is a cell, it stands on the
+grid's own columns, and a half card at the right edge is the one place the two
+bands could disagree about where the page ends.
+
+**A tile wider than one cell can still cross the fold**, and that is the cut
+this does not answer: `Workspace lock` is three cells, and a page whose fold
+falls inside it is a tile that carries on past the edge. The fold is between
+two cells and cannot be between two tiles - a whole-tile fold would be a
+different width in every row and would move as the page scrolled. A page that
+is columns wider than the screen is `[menu] columns` and `cell` against the
+monitor rather than a drawing question, and `config.toml` carries the
+arithmetic beside them.
+
+**What `reveal` brings into view is the tile and its halo**, which is the same
+`haloReach` the grid is grown by. Stopping at the tile's own box stops with the
+glow on that side already outside the clip, and a tile that has just been
+scrolled to is the one tile on the page that has to look selected. The reach
+is in the content on every side - column 0 sits at `haloReach` and the content
+is that much wider - so the sums land exactly where a page that needs no
+scrolling already rests. It hid until a scale put a page wider than the card
+on the screen: the grid had to come back to column 0, and the leftmost tile
+came back with a broken ring down its left side.
+
 The one departure from the Omarchy menu's rules is the game bar. `bar` in the
 payload says it is up, and the window turns `ExclusionMode.Normal` on and takes
 what is left of the screen rather than all of it, so the scrim stops where the
@@ -2065,11 +2279,13 @@ meant for the window under their scrims. The menu swallows them - that is what
 ## What a tile is drawn on
 
 Every state of a tile is drawn on its **own outline**, not on one rectangle in
-a different colour: a plain tile is rounded, a selected one is cut back to a
-facet, and a tile being carried has a bite out of its corner. The state is
-said twice - once in ink and once in the silhouette - because a theme whose
-accent sits close to its surface leaves a selection to the border alone, and
-the border is the thinnest thing on the tile.
+a different colour: a plain tile is rounded and a tile being carried has a bite
+out of its corner. The silhouette is the second channel a state can be said on
+- the first is ink, and a theme whose accent sits close to its surface leaves a
+border with very little to say - but it is the loudest one there is, so only
+the tile that has left the page's order spends it. A selection does not, and
+neither does a control being pushed: both of those were cut back for a while,
+and a page where three tiles are three shapes is a page you read as broken.
 
 **A toggle that is on is a lit card**, not a filled one and not a pill in the
 middle of one. The pill went first: the body and the knob that slides in it is
@@ -2205,8 +2421,55 @@ clip, so they hang over the edge of the ground the tile is drawn on. It is the
 one setting that moves when the ladder does, which is also why it is the one
 whose default is worth re-deriving rather than nudging.
 
+**How solid that ground is drawn is `[menu] tile_fill`**, applied as an alpha
+on `cellGround` and never as `opacity` on the delegate: the second one would
+take the label, the icon and every figure on the tile down with it, which is a
+page you cannot read rather than one you can see through. What shows through
+is the scrim and, under it, whatever the compositor is blurring behind the
+whole layer - there is no per-tile blur to arrange, because `apply_blur` has
+already put one behind everything.
+
+`ground.fill` is where the state comes in: a **selected** tile is `1.0`
+whatever the setting says, so a lowered fill is also how far the page falls
+back behind the selection, and the ring gains a second channel that costs the
+design nothing at 1.0. That is why `fillColor` grew a `Behavior` - the fill
+now says what the ring says, and a fill that snapped while the ring faded
+would be the selection arriving twice. `cellLit` and the carried tint ignore
+the setting: each of them *is* a state, and the carried one is already
+translucent over whatever it is being carried across.
+
+**`tile.focusLight` is the other thing it moves.** The halo's and the sheen's
+`opacity` were `tile.selected ? 1 : 0`; they are `tile.focusLight` now, which
+is `tile.selected ? root.tileFill : 0` - one number for both, because both are
+answering the same question. A lit face exists to lift one card out of a page
+of cards, and below 1.0 the selection is already the only solid card on the
+page: the ground has taken the job, and the glow left at full strength is the
+state said twice and louder each step down. The ring is deliberately not in
+it - `strokeColor` is the mark, not light, and a focus whose *mark* faded with
+a look setting would be a surface that forgets where it is.
+
+**The bar takes it too, and only half of it.** A nav card is a cell of the
+same module, so the chips you are not on are `Util.alpha(cellGround,
+tileFill)` like any plain tile. The one you are on is not: `root.onAccent` is
+`ink.on(Color.accent, ...)`, a contrast measured against a **solid** accent,
+and this is the one fill on the surface that carries a label rather than
+sitting under one - so a thinned accent is a ratio worked out against a colour
+that is no longer on the screen, over an arbitrary desktop. It keeps its fill
+and the setting reaches it through the widening gap instead, which is the same
+thing `ground.fill` does for the selected tile.
+
+`rowGround` - the row you are on inside an opened card - stays solid for that
+reason as well, and needs no code to say so: it is drawn only where
+`line.here`, so it is already nothing but the place you are standing.
+
+**The payload field is `fill`, and it is read without `|| 1`.** Zero is a
+value somebody asked for - the page with no grounds at all - so the usual
+`Number(x) || default` idiom would make the one look this setting exists to
+reach unreachable. `tests/test_shell_plugin.py` holds that, because on screen
+it is a slider whose last step does nothing.
+
 Settings: `[menu] title`, `clock`, `columns`, `cell_height`, `bias`, `keys`,
-`tile_corner`, `press_ms`, `countdown`,
+`tile_corner`, `tile_fill`, `press_ms`, `countdown`,
 `repeat_delay_ms`, `repeat_rate_ms`, `group_settle_ms`, `list_timeout_ms`,
 `list_limit`, `socket`,
 `[[menu.head]]`, `[[menu.items]]`, `[bindings.menu]`.

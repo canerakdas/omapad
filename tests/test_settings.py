@@ -67,6 +67,14 @@ class IdleConfigTests(unittest.TestCase):
         self.assertIn("idle.awake_ms", str(caught.exception))
 
 
+class ChronoConfigTests(unittest.TestCase):
+    def test_the_minute_mark_ships_on(self):
+        # A stopwatch on a pad that can be felt is the reason to keep one
+        # there rather than on the wall, so it is on and there is a line in
+        # the config to turn it off.
+        self.assertTrue(shipped().chrono_rumble)
+
+
 class TurnGearingConfigTests(unittest.TestCase):
     """The two numbers that gear a knob, and what `[menu]` refuses."""
 
@@ -272,7 +280,8 @@ class ApplyTests(unittest.TestCase):
             self.assertLessEqual(len(config_module.CHOSEN[name]["stops"]), 7)
         self.assertEqual(swept, {"sound_volume", "rumble_strength",
                                  "scroll_speed", "pointer_speed",
-                                 "left_deadzone", "right_deadzone"})
+                                 "left_deadzone", "right_deadzone",
+                                 "tile_fill"})
 
     def test_motion_is_worded_because_off_is_the_stop_that_matters(self):
         # It exists for somebody who cannot read a moving screen, and the stop
@@ -483,6 +492,26 @@ class ActionTests(unittest.TestCase):
         # And almost nothing else answers the question at all.
         self.assertIsNone(actions.parse("exec:true").state(ctx))
 
+    def test_and_a_switch_answers_which_way_it_is_set(self):
+        # Read literally a toggle is never already the case - flipping is not
+        # something a thing is currently doing - and that is the right answer
+        # for a button, which asks this to find out whether it would change
+        # anything. A row carrying one *is* the switch, so what it has to say
+        # is which way the switch is set: without it a card of switches could
+        # say nothing about itself.
+        class Ctx:
+            class daemon:
+                config = shipped()
+
+        ctx = Ctx()
+        ctx.daemon.config.set_setting("rumble", ("set", True))
+        self.assertTrue(actions.parse("pad:rumble=toggle").state(ctx))
+        ctx.daemon.config.set_setting("rumble", ("set", False))
+        self.assertFalse(actions.parse("pad:rumble=toggle").state(ctx))
+        # A choice reads `toggle` as one step along, and a step is not a
+        # value: nothing about it is in force.
+        self.assertIsNone(actions.parse("pad:layout=toggle").state(ctx))
+
 
 class BadgeStyleTests(unittest.TestCase):
     """The style is chosen from the sofa, so it is held to the same rules."""
@@ -505,6 +534,40 @@ class BadgeStyleTests(unittest.TestCase):
         with self.assertRaises(config_module.ConfigError) as caught:
             config_module.Config({"ui": {"badge_style": "outline"}})
         self.assertIn("ui.badge_style", str(caught.exception))
+
+
+class TileFillTests(unittest.TestCase):
+    """How solid a tile's ground is, which is walked from the page it opens."""
+
+    def test_the_page_ships_solid(self):
+        # The look this surface was drawn to, so nobody gets a glassy menu
+        # they did not ask for - and so the selection has nothing to come
+        # forward from until somebody lowers it.
+        self.assertEqual(config_module.Config({}).menu_tile_fill, 1.0)
+
+    def test_it_steps_a_tenth_and_stops_at_both_ends(self):
+        config = shipped()
+
+        def step(word):
+            return config.set_setting(
+                "tile_fill", config_module.setting_request("tile_fill", word)
+            )
+
+        step("0.2")
+        self.assertAlmostEqual(step("down"), 0.1)
+        self.assertAlmostEqual(step("down"), 0.0)
+        # Nothing under nothing: a page with no grounds is the bottom of this
+        # range rather than a value it passes through.
+        self.assertAlmostEqual(step("down"), 0.0)
+        step("0.9")
+        self.assertAlmostEqual(step("up"), 1.0)
+        self.assertAlmostEqual(step("up"), 1.0)
+        self.assertAlmostEqual(config.menu_tile_fill, 1.0)
+
+    def test_a_fill_that_is_not_a_share_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"menu": {"tile_fill": 1.4}})
+        self.assertIn("menu.tile_fill", str(caught.exception))
 
 
 if __name__ == "__main__":

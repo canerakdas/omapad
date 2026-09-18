@@ -221,18 +221,51 @@ CONTROLS_TO_DRAW = (
     # parameterised by anything, and the join it covers is the one place two
     # rotating rectangles show their corners.
     ("clock", "hub", "clock-hub.svg"),
-    # **The chronograph's three registers are not here, and that is the
-    # entry.** A panda dial is three counters sunk into the face, and what
-    # makes one read as a counter at a tile's size is the change of ground
-    # rather than anything drawn on it: marks inside a register 15 pixels
-    # across are two-pixel dots among the twelve marks already on the dial,
-    # which is the fault this was drawn with before it was drawn without. So
-    # a register is a disc of a size the panel decides and a hand turned to
-    # an angle a measurement decides - `radius: width / 2` and a rectangle,
-    # the same two things the gauge's shaded zone and the slider's track are.
+    # **The hands.** An angle is a number and a hand is not: what the time
+    # decides is where the drawing is turned to, and the drawing itself is
+    # the same pill on every face this pad will ever draw. So each is here,
+    # standing at twelve on the face's own canvas and pinned at 20,20 - the
+    # panel turns the whole face-sized box about its middle and names no
+    # length, no weight and no corner.
+    #
+    # Long and thin against short and thick, and the pair has to differ in
+    # both at once: at a tile's size two hands of one weight are one hand and
+    # a shadow, and two of one length are a cross. The minute hand stops *at*
+    # the marks rather than on them - they run from 10 to 14 of the face's 20,
+    # and a hand drawn into that band crosses whichever one it is nearest.
+    ("clock", "hour", "clock-hour.svg"),
+    ("clock", "minute", "clock-minute.svg"),
+    # The longest and thinnest thing on the face, and the one hand drawn
+    # *into* the marks: it is read against them one second at a time. The tail
+    # past the pivot is a counterweight, which is what says at a glance which
+    # hand this is even when it is standing under another.
+    ("clock", "sweep", "clock-sweep.svg"),
+    # **The chronograph's three registers, which are one drawing twice.** A
+    # panda dial is three counters sunk into the face, and what makes one read
+    # as a counter at a tile's size is the change of ground rather than
+    # anything drawn on it: marks inside a register 15 pixels across are
+    # two-pixel dots among the twelve marks already on the dial, which is the
+    # fault this was drawn with before it was drawn without. So a register is
+    # a disc and a hand, both drawn on the register's own 40 - the panel
+    # decides how big one is and where the three sit, and a measurement
+    # decides the angle.
+    ("clock", "register", "clock-register.svg"),
+    ("clock", "register-hand", "clock-register-hand.svg"),
     ("dial", "face", "dial-face.svg"),
     ("dial", "ticks", "dial-ticks.svg"),
     ("dial", "thumb", "dial-thumb.svg"),
+    # The knob's own two, and the same split: **a pointer is a drawing and
+    # the scale it stands in is an arc.** What the value moves is the angle of
+    # the one and the sweep of the other, and only the first of those is a
+    # shape that can be drawn once - an arc that grows with the number would
+    # be a second drawing of the ring it grows along.
+    #
+    # `dial-notch.svg` is the mark under a stop, hung just outside the scale
+    # and touching it: it begins where the scale's stroke ends, which is a
+    # number this file cannot see. A knob drawn with a wider scale needs this
+    # redrawn with it - `Knob.qml`'s `scaleRadius` is the one that moves.
+    ("dial", "pointer", "dial-pointer.svg"),
+    ("dial", "notch", "dial-notch.svg"),
     ("switch", "body", "switch-body.svg"),
     ("switch", "knob", "switch-knob.svg"),
     ("chev", "left", "chev-left.svg"),
@@ -241,6 +274,53 @@ CONTROLS_TO_DRAW = (
     ("media", "pause", "media-pause.svg"),
     ("media", "next", "media-next.svg"),
     ("media", "prev", "media-prev.svg"),
+    # **The strokes on a line, and there are four because there are two
+    # questions.** How far it reaches - a stop's reach, or the longer one the
+    # two ends of a travel take - and whether the line runs *through* it.
+    #
+    # The second is the one that could not be drawn while these were
+    # rectangles, and it is not tidiness: every ink on these surfaces is the
+    # theme's own at a share of itself, so a square painted twice is a square
+    # painted brighter. A stroke the line passes under is two arms with the
+    # line's own weight of air between them; a stroke the line stops at, or
+    # one the value has taken in the accent, owns every pixel it stands on
+    # and is drawn whole. Both readings shipped as one solid bar, and the
+    # middle stops of a stepped travel were the pixel that showed it.
+    #
+    # **Drawn standing, on ten units of line weight**, so the figure is the
+    # panel's own `spine.weight` across and a whole number of them tall - 5
+    # for a stop and 7 for an end. That is where `Metrics.spine`'s `cross` and
+    # `crossEnd` come from now: the drawing owns the proportion, the ladder
+    # owns the weight, and the two cannot disagree at a scale nobody drew at.
+    # A card of rows is the same line stood up, so it turns these a quarter
+    # rather than drawing its own.
+    ("travel", "end", "travel-end.svg"),
+    ("travel", "end-open", "travel-end-open.svg"),
+    ("travel", "mark", "travel-mark.svg"),
+    ("travel", "stop", "travel-stop.svg"),
+    # The one stroke that is not a cross: the pair that bracket the row in
+    # force on a card, out of one face of the line and never across it,
+    # because what they mark is the length *behind* them. Two units of reach
+    # by one of weight - a stop's own reach, so a card's marks and a travel's
+    # are one size.
+    ("travel", "side", "travel-side.svg"),
+    # **The key at the head of a latching row, and its window.** A bank of
+    # switches has no one row to point at, so what says a row is on has to be
+    # on the row: the slot is drawn empty and the state is a thing that is
+    # *there* inside it rather than a colour the slot turns.
+    #
+    # Two drawings rather than one with a fill switched, because they are two
+    # figures and they are painted in two colours - the ring takes the line's
+    # ink and does not light with the row, and what lights is inside it. It is
+    # the split BadgeArt already makes between a button and its label, at a
+    # key's size.
+    #
+    # The ring is wound so its hole survives either fill rule, the way every
+    # annulus here is, and its corner is **the drawing's own**: a key is 16
+    # pixels square and what was following the ladder there had already hit
+    # the quarter-of-a-side cap it is drawn at.
+    ("key", "ring", "key-ring.svg"),
+    ("key", "lit", "key-lit.svg"),
     ("tile", "grip", "grip.svg"),
 )
 
@@ -718,11 +798,13 @@ def controls_qml(entries):
 // letter in it, so nothing here goes near it. What is generated is the same
 // path data with that step skipped.
 //
-// Only the furniture is here - what does not depend on the value. The arc
-// that follows a number, the dot that follows a thumb and the travel of a
-// knob are geometry, and geometry is the panel's: a shape parameterised by a
-// number cannot be drawn once. It is the same split BadgeArt already makes
-// between a button and the label set into it.
+// **Every figure whose silhouette is the same at every value is here**,
+// turning ones included: a clock's hands and a knob's pointer are drawn
+// standing at twelve and rotated to wherever a number puts them, and an angle
+// is a transform rather than a shape. What is left to the panel is what a
+// number genuinely redraws - an arc that grows along a ring, a disc whose
+// radius is a setting, a track as wide as the tile it sits in. It is the same
+// split BadgeArt already makes between a button and the label set into it.
 //
 // Coordinates are in the shape's own units (`w` x `h`); a Shape scales them.
 // Painted by BadgeArt, like any other drawn entry.

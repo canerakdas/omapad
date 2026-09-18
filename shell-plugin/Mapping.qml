@@ -54,6 +54,12 @@ Item {
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
 
+  // The family this surface's words are set in, from the daemon
+  // (`[ui] font`); empty is the desktop's own. Not the badges' - those are
+  // lettered in the face their drawings were punched with, which is
+  // `buttonArt.family`. See `Metrics.fontFamily`.
+  property string fontFamily: ""
+
   // Whether omapad's own bar is holding a strip of the screen under this.
   // The scrim dims the desktop, and the bar is not the desktop: it prints
   // what the face buttons do in the surface on top of it. See `Menu.qml`.
@@ -76,6 +82,7 @@ Item {
   Metrics {
     id: metrics
     scale: root.uiScale
+    fontFamily: root.fontFamily
     motion: root.motion
   }
 
@@ -119,6 +126,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.font !== undefined) root.fontFamily = String(s.font)
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       // Whether the pad has been touched lately enough to go on holding

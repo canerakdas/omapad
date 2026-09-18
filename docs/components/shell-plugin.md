@@ -119,19 +119,22 @@ missing optional package must cost one feature rather than the keyboard.
   value and its ghost - so the ring takes no `ghost` and reads no `b`, and
   what the turn has done is the run lengthening behind the pointer. The rim is the gauge's own `dial-face.svg` - a
   page holding a knob, a dial and a clock holds one circle drawn three times -
-  and nothing else in it is generated, because an arc between two angles, a
-  notch per stop and a rectangle turned to a value all answer to a number. The
-  caller hands it `art` (the surface's `ControlArt`), the value, the stops and
-  three colours.
+  and so are the two figures it turns, the pointer and the notch under a stop.
+  What is not generated is the scale: the run of it the value has covered
+  grows with the number, and a track drawn once with that run computed against
+  it would be two drawings of one ring. How many notches there are is the
+  panel's too. The caller hands it `art` (the surface's `ControlArt`), the
+  value, the stops and three colours.
 - **`Clock.qml`** - the time with hands on it, and the stopwatch that shares
   its face, for the two surfaces that draw a clock tile. One file for `Travel.qml`'s reason: the menu is where the tile
   is put on the page and the HUD is where it is looked at, and a face that
   differed between them would be the arrangement saying something it does not
-  mean. The rim, the twelve marks and the hub come out of `ControlArt.qml` -
-  drawing that does not depend on the time - and the two hands are rectangles
-  hung off a point at the middle of the face and turned, because a shape
-  parameterised by a number cannot be drawn once. **A clock has no second
-  hand**:
+  mean. Every figure on it comes out of `ControlArt.qml` - the rim, the twelve
+  marks, the hub, both hands, the sweep and a register's disc and hand - and
+  the time only turns them: a hand is drawn standing at twelve, pinned where
+  the hub is, and the panel gives it the whole face to fill and a rotation.
+  What is left as geometry is where the three registers sit and how big they
+  are. **A clock has no second hand**:
   the page arrives every `VIEW_HEARTBEAT` seconds, so one would be visibly
   wrong most of the time on a surface whose whole argument is that nothing on
   it twitches. The caller hands it `art` (the surface's `ControlArt`), the
@@ -161,6 +164,17 @@ missing optional package must cost one feature rather than the keyboard.
   stays roomy. `Style.gapsOut` is **not** scaled: it is the compositor's own
   geometry, and a surface that kept a different gap from the windows beside it
   just looks wrong.
+
+  **`metrics.font` is the same idea about type**, and it is the second of two
+  font groups. The family comes off the payload (`[ui] font`) and falls back
+  to the session's where that is empty, so a face can be chosen for surfaces
+  read from a sofa without changing the one the desktop is read at. The first
+  group is the badges' - `ButtonArt.family`, the face `assets/generate.py`
+  punched the drawn labels out of - and it does not follow this one, because a
+  typed label in another family would stand beside a drawn one that did not
+  match. A surface asks `buttonArt.family` for a button and `metrics.font` for
+  every other word; reaching past the group for `Style.font.family` is what
+  `FontTests` in `tests/test_shell_plugin.py` fails on.
 
   **`metrics.time` is the same idea about time.** Three named durations, all
   multiplied by `[ui] motion` from the payload, so turning motion off is one

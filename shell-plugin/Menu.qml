@@ -26,7 +26,7 @@
 // stroke weights, and **the whole of the legend along the foot**: badge,
 // letter, word and both spacings are GameBar.qml's expressions mirrored
 // character for character, because on a fullscreen HUD that row sits in the
-// bar's band saying the same four words about the same four buttons. A badge
+// bar's band saying the same kind of thing about the same buttons. A badge
 // that grew when the menu opened would read as a different row.
 import QtQuick
 import QtQuick.Shapes
@@ -80,6 +80,13 @@ Item {
   // first answer and is 0 on plenty of setups - which would leave every state
   // of a tile drawn as the same square.
   property real corner: 23
+  // How solid a plain tile's ground is drawn - `menu.tile_fill`. 1.0 is the
+  // opaque card this surface was drawn to; below it the scrim shows through,
+  // and under that whatever the compositor is blurring behind the surface.
+  // **The fill, not the tile**: every label and icon is drawn at full strength
+  // whatever this is, because a page you can see through is not the same thing
+  // as a page you cannot read.
+  property real tileFill: 1.0
   // One cell, square, before this surface's own scale. `menu.cell`: the module
   // the whole page is built from, and the shell cannot read the config.
   property int cellUnit: 128
@@ -163,6 +170,12 @@ Item {
   // than the session. Every measurement below goes through `metrics`.
   property real uiScale: 1.0
 
+  // The family this surface's words are set in, from the daemon
+  // (`[ui] font`); empty is the desktop's own. Not the badges' - those are
+  // lettered in the face their drawings were punched with, which is
+  // `buttonArt.family`. See `Metrics.fontFamily`.
+  property string fontFamily: ""
+
   // Whether omapad's own bar is holding a strip of the screen under this.
   // The scrim dims the desktop the menu stands in front of, and the bar is
   // not that desktop: while the menu is up it prints what A, B and X do *in
@@ -185,8 +198,8 @@ Item {
 
   // What the legend's own band gives up to a cropped edge. It has to be the
   // number `GameBar.qml` uses, arrived at the same way from the same screen:
-  // the fullscreen legend sits in the bar's band saying the same four words
-  // about the same four buttons, and a row that came in off the edge by a
+  // the fullscreen legend sits in the bar's band saying the same kind of
+  // thing about the same buttons, and a row that came in off the edge by a
   // different amount than the bar did would be the drift that band exists to
   // avoid.
   readonly property int safeGap: metrics.edge(root.screenH, 0)
@@ -206,6 +219,7 @@ Item {
     id: metrics
     radiusScale: root.radiusScale
     scale: root.uiScale
+    fontFamily: root.fontFamily
     motion: root.motion
     safeArea: root.safeArea
     cornerBase: root.corner
@@ -244,7 +258,7 @@ Item {
   // The badge the legend is drawn at, and the one thing on this surface that
   // is **not** off the ladder. It is GameBar.qml's own expression, character
   // for character: on a fullscreen HUD this row sits in the bar's band saying
-  // the same four words about the same four buttons, so a badge that grew
+  // the same kind of thing about the same buttons, so a badge that grew
   // when the menu opened would read as a different row. Mirrored rather than
   // shared, the same as `barh` and `barSideMargin` above - if it changes
   // there it changes here.
@@ -503,20 +517,45 @@ Item {
     return n > 0 ? n * root.cellHeight + (n - 1) * root.cellGap : 0
   }
 
+  // **The fold falls between two cells, never through one.** A tile centres
+  // its ink, so the visible part of a cut one carries none at all: a page
+  // cropped mid-tile ends in a band of nothing and reads as bad padding
+  // rather than as "there is more below". That was measured once against
+  // Omarchy's own menu and fixed for the card's rows; it is the same
+  // measurement on the fullscreen page and on the columns, and it is one rule
+  // now rather than an arithmetic in the one place it first went wrong.
+  //
+  // `room` is what the band was given; what comes back is what may be
+  // *shown* in it, which is a whole number of cells and never more of them
+  // than the page has. One cell at least: a screen too small for a module is
+  // a tile hanging over the edge rather than a page with nothing on it.
+  function wholeCells(room, cell) {
+    return Math.max(1, Math.floor(
+      (room + root.cellGap) / (cell + root.cellGap)))
+  }
+  function shownRows(room) {
+    return root.rowsHeight(
+      Math.min(root.rows, root.wholeCells(room, root.cellHeight)))
+  }
+  function shownCols(room) {
+    return root.cellSpan(
+      Math.min(root.cols, root.wholeCells(room, root.cellWidth)))
+  }
+
   // How much of the screen the grid may have before a long group scrolls
   // behind the fold. A card stops at a little over half, because a card that
   // swallowed the screen would read as a page rather than as a menu - which
   // is exactly what `full` asks for, so there it takes whatever the head, the
   // bar and the legend leave.
   //
-  // Cut to whole rows either way: clamping the height alone puts the fold
-  // through the middle of a tile, which reads as bad padding rather than as
-  // "there is more below".
-  // What the grid is *given*. On a card it is cut to whole rows so the fold
-  // never runs through the middle of a tile; on the whole screen it takes the
-  // space whether or not it fills it, because what sits under it is the
-  // legend and a legend that floated up under a short page would not be at
-  // the foot of anything.
+  // **What the band is given and what it may show are two numbers**, and only
+  // here do they come apart. A card is sized to its page, so the cut belongs
+  // in the height itself - that is what keeps the card's foot off the floor
+  // of the screen. The fullscreen page is given the room whether or not it
+  // fills it, because what sits under it is the legend and a legend that
+  // floated up under a short page would not be at the foot of anything; there
+  // the clip stops short inside the room it was given and the remainder is
+  // air under the last row, where nothing is drawn.
   readonly property int gridHeight: {
     var cap = root.full
       ? panel.height - root.contentMargin * 2
@@ -532,9 +571,7 @@ Item {
       // three fifths.
       : Math.round(panel.height * (1 - 1 / metrics.silver))
     if (root.full) return Math.max(root.cellHeight, cap)
-    var whole = Math.max(1, Math.floor(
-      (cap + root.cellGap) / (root.cellHeight + root.cellGap)))
-    return root.rowsHeight(Math.max(1, Math.min(root.rows, whole)))
+    return root.shownRows(cap)
   }
 
   // omapad re-sends the whole payload every VIEW_HEARTBEAT seconds, so a
@@ -571,6 +608,7 @@ Item {
       var s = JSON.parse(text)
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
+      if (s.font !== undefined) root.fontFamily = String(s.font)
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)
@@ -617,6 +655,11 @@ Item {
       if (s.dim !== undefined) root.dim = Number(s.dim)
       if (s.barh !== undefined) root.barh = Number(s.barh) || 32
       if (s.corner !== undefined) root.corner = Number(s.corner) || 0
+      // `|| 1` would be wrong here: 0 is a fill somebody asked for - it is
+      // the page with no grounds at all - and the fallback is for a field
+      // that did not arrive rather than for one that arrived as zero.
+      if (s.fill !== undefined)
+        root.tileFill = Math.max(0, Math.min(1, Number(s.fill)))
       // After the model above and before the press below: what arrives is a
       // new page, and the slide is that page arriving rather than anything
       // about the press that asked for it.
@@ -737,8 +780,17 @@ Item {
         + ":" + root.items[i].w + "x" + root.items[i].h
       if (key === root.revealed) return
       root.revealed = key
-      var top = root.cellY(root.items[i].y)
-      var bottom = top + root.rowsHeight(root.items[i].h)
+      // **What is brought into view is the tile *and its halo*.** The glow is
+      // drawn `haloReach` outside the tile's own box and the Flickable clips,
+      // so scrolling a box flush with an edge scrolls the ring on that side
+      // off with it: the tile arrives selected and looks unmarked down one
+      // side. The reach is already in the content on every side - the first
+      // column sits at `haloReach` and the content is that much wider - so
+      // the resting page is the same page these sums ask for, `contentX` 0
+      // for column 0 and the full `contentWidth` for the last.
+      var top = root.cellY(root.items[i].y) - root.haloReach
+      var bottom = root.cellY(root.items[i].y)
+        + root.rowsHeight(root.items[i].h) + root.haloReach
       if (top < grid.contentY)
         grid.contentY = top
       else if (bottom > grid.contentY + grid.height)
@@ -746,8 +798,9 @@ Item {
       // And the same across, now that a page can be wider than the card. The
       // selection lives in the daemon and walks cells it cannot see; this is
       // the only thing that brings the card to it.
-      var left = root.cellX(root.items[i].x)
-      var right = left + root.cellSpan(root.items[i].w)
+      var left = root.cellX(root.items[i].x) - root.haloReach
+      var right = root.cellX(root.items[i].x)
+        + root.cellSpan(root.items[i].w) + root.haloReach
       if (left < grid.contentX)
         grid.contentX = left
       else if (right > grid.contentX + grid.width)
@@ -937,7 +990,7 @@ Item {
   // surfaces is three buttons as far as the eye is concerned.
   //
   // Only the legend uses this Badge, and the legend is the game bar's row:
-  // the same four words about the same four buttons, printed in the exact
+  // the same kind of words about the same buttons, printed in the exact
   // band the bar's row sat in. So it is drawn in the bar's own text colour
   // rather than the menu's accent - the menu has taken the bar's place, and
   // buttons that changed colour as the menu opened would read as a different
@@ -1066,11 +1119,16 @@ Item {
       // no width of its own here at all.
       //
       // Capped at the screen, where a page too wide for it scrolls sideways
-      // the way a page too tall scrolls down.
+      // the way a page too tall scrolls down - and the cap is cut to whole
+      // columns, which is the fold's own rule turned on its side. A card
+      // whose last column is a sliver of a tile ends in the same band of
+      // nothing the cut row ended in, and what the cut leaves over is a
+      // narrower card, which is centred.
+      readonly property int roomAcross: parent.width - Style.gapsOut * 2
+        - card.borderLeft - card.borderRight - root.contentMarginX * 2
       width: root.full ? parent.width
-        : Math.min(card.borderLeft + card.borderRight
-                   + root.contentMarginX * 2 + root.gridWidth,
-                   parent.width - Style.gapsOut * 2)
+        : card.borderLeft + card.borderRight + root.contentMarginX * 2
+          + root.shownCols(card.roomAcross)
       height: root.full ? parent.height : Math.min(
         card.borderTop + card.borderBottom + root.contentMargin * 2
           + (root.headRows > 0
@@ -1357,7 +1415,11 @@ Item {
         // them than fit is what the Flickable is for, and always was.
         Flickable {
           id: bar
-          width: parent.width
+          // Cut to whole cards, and a nav card is a cell: the bar sits on the
+          // grid's own columns an inch above it, so a half card at the right
+          // edge is the one place the two bands would disagree about where
+          // the page ends.
+          width: root.shownCols(parent.width)
           // The row, and then the air it keeps under itself - see `navGap`.
           height: root.navHeight + root.navGap
           contentWidth: navs.width
@@ -1434,7 +1496,33 @@ Item {
                     // Everywhere else a state is a fifth of the accent and
                     // the theme's own ink still stands on it; here the card
                     // is the accent, so the ink is measured against it.
-                    fillColor: nav.here ? Color.accent : root.cellGround
+                    //
+                    // **A card you are not on thins with the grid** - the bar
+                    // is a row of cells over a grid of them, and a page of
+                    // glass under a row of solid cards would be the bar
+                    // saying it is a different kind of thing from the tiles
+                    // it names. `menu.tile_fill` is one answer about this
+                    // surface's cards, and these are cards.
+                    //
+                    // **The one you are on does not**, and that is not the
+                    // selected tile's reason twice over. A tile's label sits
+                    // *under* its ground, so thinning the ground costs the
+                    // label nothing; this label sits **on** the fill, and
+                    // `root.onAccent` is measured against a solid accent - so
+                    // an accent at four tenths is a contrast ratio that was
+                    // worked out against a colour no longer on the screen,
+                    // over whatever the desktop happens to be showing. There
+                    // is no fill for it that keeps its own label honest.
+                    //
+                    // So the setting reaches this card the way it reaches the
+                    // selected tile: **by the gap rather than by the alpha.**
+                    // Everything around it thins and it does not, which is
+                    // the page falling back behind the place you are standing
+                    // in - the same sentence the grid tells, told once on the
+                    // bar.
+                    fillColor: nav.here
+                      ? Color.accent
+                      : Util.alpha(root.cellGround, root.tileFill)
                     strokeColor: nav.here ? Color.accent : root.cellEdge
                     strokeWidth: navGround.weight > 0 ? navGround.weight : -1
 
@@ -1632,13 +1720,21 @@ Item {
         // enough that a focused tile in the first row keeps its glow, near
         // enough that it stays inside the card's own padding.
         Item {
+          id: gridBox
           width: parent.width
           height: root.gridHeight
 
           Flickable {
             id: grid
-            anchors.fill: parent
-            anchors.margins: -root.haloReach
+            // The box is what the `Column` measured; the clip is what may be
+            // shown in it, cut to whole cells on both axes - see
+            // `wholeCells`. On a card the two are the same number and this is
+            // the box; on the fullscreen page the remainder is air under the
+            // last row and outside the last column, where nothing is drawn.
+            x: -root.haloReach
+            y: -root.haloReach
+            width: root.shownCols(gridBox.width) + root.haloReach * 2
+            height: root.shownRows(gridBox.height) + root.haloReach * 2
             // The page's own width, which is `cols` modules whatever the screen
             // is. A screen narrower than that scrolls sideways, exactly as one
             // shorter than the page scrolls down - a module that shrank to fit
@@ -1819,6 +1915,30 @@ Item {
                 readonly property string outline: tile.lifted
                   ? "carried" : "plain"
 
+                // **How much light the focus is worth, which is what the page
+                // is worth.** The halo and the sheen are the two lit channels
+                // of a selection - a glow outside the ring and a light across
+                // the face - and both of them exist to lift one card out of a
+                // page of cards. So what they have to overcome is the page,
+                // and how much page there is is `menu.tile_fill`.
+                //
+                // At 1.0 the selected tile's ground is the same ground every
+                // other tile has, so the ground says nothing and the light is
+                // the whole of what a lit face is: the design as drawn, and
+                // this multiplies by one. Below it the selection has gained a
+                // channel it did not have - it is the solid card on a page of
+                // glass, which at 0.2 is the loudest thing on the screen
+                // before a single lumen is spent - and light at full strength
+                // is then saying a second time what the ground has already
+                // said, louder each step the fill comes down.
+                //
+                // So the two fall together and by the same number, because
+                // they are answering the same question. **The ring does not**:
+                // it is not light, it is the mark, and it is the one thing on
+                // a selected tile that means *here* at every fill.
+                readonly property real focusLight:
+                  tile.selected ? root.tileFill : 0
+
                 // A tile that is not selected still needs a ground. A row in a
                 // column is bounded by the rows above and below it; a tile has
                 // air on four sides, and six of them drawn on nothing read as a
@@ -1885,12 +2005,43 @@ Item {
                   // A tile in the hand is the exception and keeps its tint,
                   // because being carried is not a selection - it is a tile out
                   // of the page's order for as long as it is held.
+                  //
+                  // **And how solid that card is drawn is `menu.tile_fill`,
+                  // except on the tile you are on.** A selected tile is
+                  // always the whole of it: lowering the fill is then how far
+                  // the page falls back behind the thing under the thumb, and
+                  // the selection comes forward as you walk rather than only
+                  // being ringed. At 1.0 there is nothing to come forward
+                  // from and the page is exactly what it always was, which is
+                  // what makes this safe to ship at 1.0.
+                  //
+                  // The other two grounds ignore it, because each of them
+                  // *is* a state rather than the absence of one: a switch
+                  // that is on stays filled, and a tile in the hand keeps its
+                  // own tint - which is already translucent, and already
+                  // showing what it is being carried over.
+                  readonly property real fill:
+                    tile.selected ? 1.0 : root.tileFill
+
                   readonly property color face: tile.lifted
                     ? Util.alpha(Color.accent, root.full ? 0.55 : 0.32)
-                    : (tile.lit ? root.cellLit : root.cellGround)
+                    : (tile.lit ? root.cellLit
+                                : Util.alpha(root.cellGround, ground.fill))
 
                   ShapePath {
                     fillColor: ground.face
+
+                    // **A fourth transitioned property, and it is the same
+                    // one.** The design fades a ring between two tiles and
+                    // switches everything else outright - which was right
+                    // while the fill said nothing about the selection. Below
+                    // 1.0 it says exactly what the ring says, so a fill that
+                    // snapped while the ring faded would be the selection
+                    // arriving twice, a tenth of a second apart. At 1.0 the
+                    // two colours are equal and this costs nothing.
+                    Behavior on fillColor {
+                      ColorAnimation { duration: metrics.time.brisk }
+                    }
                     // **The edge belongs to the selection alone.** A lit tile
                     // is a ground and a mark and stops there: an accent border
                     // on it would put the state back on the one channel the
@@ -1944,7 +2095,7 @@ Item {
                   anchors.fill: parent
                   preferredRendererType: Shape.CurveRenderer
                   visible: halo.opacity > 0
-                  opacity: tile.selected ? 1 : 0
+                  opacity: tile.focusLight
                   Behavior on opacity { NumberAnimation { duration: metrics.time.brisk } }
 
                   // Four pixels, which is the design's own and a rung of
@@ -2012,7 +2163,7 @@ Item {
                   anchors.fill: parent
                   preferredRendererType: Shape.CurveRenderer
                   visible: sheen.opacity > 0
-                  opacity: tile.selected ? 1 : 0
+                  opacity: tile.focusLight
                   Behavior on opacity { NumberAnimation { duration: metrics.time.brisk } }
 
                   readonly property real weight: metrics.gap.hairline
@@ -2322,11 +2473,6 @@ Item {
                 // travel's are one size.
                 readonly property int markReach: metrics.spine.cross
 
-                // Whether **any** row in this card carries a glyph, which is
-                // what decides the slot for all of them. A name that started
-                // in a different place depending on whether its own row had a
-                // mark would make one list of four read as two lists of two,
-                // and a list is a list because its names line up.
                 // **Whether any row on this card can be *in force*.** A card
                 // of verbs cannot: `Lock`, `Suspend`, `Logout` are things
                 // that happen, and none of them is a thing the machine is
@@ -2346,7 +2492,33 @@ Item {
                   return false
                 }
 
+                // **A card whose rows latch rather than interlock**, which
+                // the daemon says and nothing here works out: two rows on at
+                // once is what a bank of switches looks like, and it is also
+                // what a card of alternatives looks like for the instant a
+                // setting is being written.
+                //
+                // What it changes is which drawing carries the state. A row
+                // in force on an ordinary card is a *length* of the line
+                // beside it, and a length has one start and one end - so on
+                // a card where three rows may be on there is no length to
+                // light, and the line would be left saying nothing while
+                // three rows said something. The key on each row says it
+                // instead, and the line goes.
+                readonly property bool many: tile.modelData.many === true
+                // Whether the line is drawn at all: a card whose state is a
+                // length of it, and no other. A card of verbs has no state
+                // to carry and a latching card carries its own on the rows,
+                // and both then take their left corner back - see `stated`.
+                readonly property bool railed: tile.stated && !tile.many
+
+                // Whether **any** row carries a glyph, or the card spends the
+                // slot on keys - one head slot either way, because a name
+                // that started in a different place depending on what was
+                // beside it would make one list of four read as two lists of
+                // two.
                 readonly property bool slotted: {
+                  if (tile.many) return true
                   for (var i = 0; i < tile.lines.length; i++) {
                     var row = tile.lines[i]
                     if (row.i !== undefined && row.i.length > 0) return true
@@ -2379,25 +2551,28 @@ Item {
                   && root.counting.id === tile.modelData.id
                 readonly property int remaining: tile.counting
                   ? (Number(root.counting.left) || 0) : 0
-                // **Out of the page's order**, which is what a tile in the
-                // hand is and what a control with a range becomes while both
-                // axes are its: it fills with the accent and cuts its corners
-                // for as long as that lasts.
+                // **Out of the page's order**, and a tile in the hand is the
+                // only thing that is: it fills with the accent and cuts its
+                // corners for as long as it is held, because it has left its
+                // cell and is waiting to be put down in another one.
                 //
-                // A card of rows is neither, and that is why it is excepted.
-                // Going in takes one axis of the two, and what says so is the
-                // rail that appears on a row - filled, the card was the
-                // loudest thing on the page and the rows on it the hardest to
-                // read, which is the opposite of what going in is for.
+                // **A control being adjusted has not gone anywhere.** A
+                // slider, a knob and a gauge were lifted too, on the argument
+                // that both axes belong to one while A is down - and a card of
+                // rows was excepted for the reason that turns out to be all
+                // three's: filled and cut back, the tile is the loudest thing
+                // on the page at exactly the moment its number and its travel
+                // are what you are trying to read, and the shape it changes to
+                // reads as a tile that has gone wrong beside seven that have
+                // not. It is still the cell it was. It is being pushed.
                 //
-                // What it does take is the **press ring** - see `hit`, and
-                // `ground.weight` for why it is not a heavier border. The
-                // rail says which row; the ring inside the card's edge says
-                // which card, and a card needs one: a two-pixel mark on one
-                // of its rows is not something you find from the other side
-                // of a room.
+                // What a taken tile takes instead is the **press ring** - see
+                // `hit`, and `ground.weight` for why it is not a heavier
+                // border - over a selection that stays exactly where it was:
+                // the hairline outside says which tile, the two-pixel ring
+                // inside says A has hold of it, and the ghost on the travel
+                // says what this press has done to it.
                 readonly property bool lifted: tile.carried
-                  || (tile.taken && !tile.column)
 
                 // One column, not two anchored groups: a tile is 1 cell tall
                 // more often than not, and a name anchored to the top and a
@@ -2545,6 +2720,10 @@ Item {
                   anchors.bottomMargin: tile.pad
                   height: figureTravel.implicitHeight
                   ladder: metrics
+                  // The page's own, not one per slider: a `ControlArt` cannot
+                  // be a singleton, so a component that built its own would
+                  // build one per tile on the page.
+                  art: controlArt
                   // Bindings rather than anything a signal starts, so a
                   // delegate rebuilt mid-push is born where the value already
                   // is - qml.md 5.5.
@@ -2757,7 +2936,7 @@ Item {
                 // as well.
                 Repeater {
                   model: rowStack.visible && rowStack.height > 0
-                    && tile.stated ? 2 : 0
+                    && tile.railed ? 2 : 0
 
                   delegate: Item {
                     id: cap
@@ -2770,23 +2949,38 @@ Item {
                       : rowStack.y + rowStack.height + tile.spineArm
                         - tile.spineWeight
 
-                    // The two arms of the cap, one either side of the line
-                    // and the same reach each - the stroke a travel's stops
-                    // and its mark are drawn with, stood on end.
-                    Rectangle {
-                      x: rowStack.x - tile.spineCap
-                      y: cap.edge
-                      width: tile.spineCap
-                      height: tile.spineWeight
-                      color: root.spineInk
-                    }
-
-                    Rectangle {
-                      x: rowStack.x + tile.spineWeight
-                      y: cap.edge
-                      width: tile.spineCap
-                      height: tile.spineWeight
-                      color: root.spineInk
+                    // **The cap itself: the travel's own drawing, turned a
+                    // quarter.** A card of rows is that line stood up, so the
+                    // stroke that ends it is the stroke that ends a slider -
+                    // `travel-end-open.svg`, the long one with the line's own
+                    // weight of air through the middle, because here the line
+                    // carries on past the crossing and a stroke drawn whole
+                    // over it would paint the same ink twice.
+                    //
+                    // Drawn along its own axis and rotated about its middle,
+                    // which is why the box is the figure lying down and the
+                    // placement is its centre: a drawing positioned by its
+                    // rotation as well as turned by it is arithmetic in two
+                    // places, and it is the rule the clock's hands are drawn
+                    // under.
+                    BadgeArt {
+                      id: capCross
+                      // The middle of the line, which is what the figure is
+                      // centred on at both ends.
+                      readonly property real mid: rowStack.x
+                        + tile.spineWeight / 2
+                      // Standing, like the drawing: the width is the line's
+                      // own weight and the height follows the figure's aspect
+                      // - seven of them. The quarter turn then lays that
+                      // across the line, centred on the same point.
+                      width: tile.spineWeight
+                      height: capCross.implicitHeight
+                      x: capCross.mid - capCross.width / 2
+                      y: cap.edge + tile.spineWeight / 2
+                        - capCross.height / 2
+                      rotation: 90
+                      drawn: controlArt.find("travel", "end-open")
+                      fill: root.spineInk
                     }
 
                     // And the line's own run past the rows, which is what
@@ -2915,6 +3109,16 @@ Item {
                       readonly property bool here: tile.selected && tile.taken
                         && root.selRow === line.modelData.id
                       readonly property bool ticked: line.modelData.on === true
+                      // **Whether the row was asked**, which is not whether
+                      // the answer was yes: a key is drawn for every row on
+                      // a latching card that has an answer at all, because a
+                      // bank with a gap in it is a bank whose gap means
+                      // something. A row nothing could answer for - a verb
+                      // among switches, a reading the mixer has not sent yet
+                      // - leaves the slot empty rather than drawing a key
+                      // that can never go down.
+                      readonly property bool asked:
+                        line.modelData.on !== undefined
                       readonly property bool marked:
                         line.modelData.i !== undefined
                         && line.modelData.i.length > 0
@@ -2974,7 +3178,7 @@ Item {
                       // spine's own width where there is one, and the row's
                       // own edge where there is not.
                       readonly property int inset:
-                        tile.stated ? tile.spineWeight : 0
+                        tile.railed ? tile.spineWeight : 0
 
                       // **The ground is the cursor**, and only while the card
                       // has been entered. It said which row was in force for
@@ -2992,15 +3196,15 @@ Item {
                       Rectangle {
                         id: lineGround
                         anchors.fill: parent
-                        anchors.leftMargin: tile.stated ? tile.spineWeight : 0
+                        anchors.leftMargin: tile.railed ? tile.spineWeight : 0
                         color: line.here ? root.rowGround : "transparent"
                         topRightRadius: line.corner
                         bottomRightRadius: line.corner
                         // Square down the left only where there is a spine
                         // for it to meet. With none, the row is a shape of
                         // its own and takes its corner on all four.
-                        topLeftRadius: tile.stated ? 0 : line.corner
-                        bottomLeftRadius: tile.stated ? 0 : line.corner
+                        topLeftRadius: tile.railed ? 0 : line.corner
+                        bottomLeftRadius: tile.railed ? 0 : line.corner
                       }
 
                       // The countdown, swept across the row the way it is
@@ -3061,8 +3265,8 @@ Item {
                           // rounded at both ends where there is no spine.
                           topRightRadius: line.corner
                           bottomRightRadius: line.corner
-                          topLeftRadius: tile.stated ? 0 : line.corner
-                          bottomLeftRadius: tile.stated ? 0 : line.corner
+                          topLeftRadius: tile.railed ? 0 : line.corner
+                          bottomLeftRadius: tile.railed ? 0 : line.corner
                           color: Util.alpha(tile.mark, 0.35)
                         }
                       }
@@ -3085,8 +3289,8 @@ Item {
                         // rounded at both ends where there is no spine.
                         topRightRadius: line.corner
                         bottomRightRadius: line.corner
-                        topLeftRadius: tile.stated ? 0 : line.corner
-                        bottomLeftRadius: tile.stated ? 0 : line.corner
+                        topLeftRadius: tile.railed ? 0 : line.corner
+                        bottomLeftRadius: tile.railed ? 0 : line.corner
                         color: "transparent"
                         border.color: tile.mark
                         // The design's `inset 0 0 0 2px`, off the ladder for
@@ -3115,7 +3319,7 @@ Item {
                       // Full height and no gap between rows, so the segments
                       // meet and the line is one line.
                       Rectangle {
-                        visible: tile.stated
+                        visible: tile.railed
                         anchors.left: parent.left
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
@@ -3143,23 +3347,37 @@ Item {
                       // they mark is a *state*, and opaque over whatever the
                       // row is filled with.
                       Repeater {
-                        model: line.ticked ? 2 : 0
+                        // With the line gone they have nothing to bracket:
+                        // a latching card says which rows are on with the
+                        // key at the head of each, and two marks against the
+                        // card's own edge would be a length measured on a
+                        // line that is not there.
+                        model: line.ticked && tile.railed ? 2 : 0
 
-                        delegate: Rectangle {
+                        delegate: BadgeArt {
                           required property int index
                           x: tile.spineWeight
                           y: index === 0
                             ? 0 : line.height - tile.spineWeight
                           width: tile.markReach
-                          height: tile.spineWeight
-                          color: Color.accent
+                          height: implicitHeight
+                          // The one stroke on either drawing that is not a
+                          // cross, so the one with a drawing of its own: two
+                          // units of reach by one of weight, out of one face
+                          // of the line.
+                          drawn: controlArt.find("travel", "side")
+                          fill: Color.accent
                         }
                       }
 
-                      // **The glyph slot at the head of the row**, where a
-                      // row carries one. A fixed slot rather than a glyph
+                      // **The slot at the head of the row**: the row's
+                      // glyph where it carries one, and the card's key where
+                      // the card latches. A fixed slot rather than a mark
                       // measured at the call site, so every row's name starts
-                      // in the same place whatever is beside it.
+                      // in the same place whatever is beside it - and one
+                      // slot rather than two, because a row that carried
+                      // both would be asking a reader to learn which of two
+                      // marks at its head means which.
                       Item {
                         id: lineMark
                         // The slot is the card's and what is in it is the
@@ -3173,7 +3391,7 @@ Item {
                         width: tile.slotted ? metrics.gap.xl : 0
                         height: metrics.gap.xl
                         anchors.left: parent.left
-                        anchors.leftMargin: tile.stated
+                        anchors.leftMargin: tile.railed
                           ? metrics.gap.xxl : metrics.gap.lg
                         anchors.verticalCenter: lineName.verticalCenter
 
@@ -3188,6 +3406,83 @@ Item {
                           opacity: line.here ? 1 : root.inkMuted
                           font.family: root.glyphFont(line.modelData)
                           font.pixelSize: metrics.type.body
+                        }
+
+                        // **The key, on a card whose rows latch.** It is the
+                        // one drawing this card was right to refuse while
+                        // its state was a length of line - a ring at the
+                        // head of every row was tried and dropped, because
+                        // the line already changed colour at the row it
+                        // meant and a second mark saying the same thing is a
+                        // mark to learn for nothing. A bank of switches has
+                        // no such line: there is no *one* row to point at,
+                        // so what says a row is on has to be on the row.
+                        //
+                        // A key rather than a tick. A tick is a mark made in
+                        // a box by somebody filling a form in; a key is a
+                        // thing on the front of a radio that is down or up,
+                        // and this is a bank of them - the state is the
+                        // key's own, and reading it is reading whether
+                        // anything is lit in the window rather than reading
+                        // a glyph. It also keeps the card to the two figures
+                        // it already has: a rectangle and a stroke.
+                        //
+                        // **The slot and what is in it are two drawings**
+                        // (`key-ring.svg`, `key-lit.svg`), on one canvas and
+                        // one box, the way a button and the label punched
+                        // through it are. Two because they are painted in two
+                        // colours: the ring takes the card's own line ink and
+                        // does not light with the row, and the window does.
+                        //
+                        // The key's corner is **the drawing's** rather than
+                        // the ladder's, which is the one thing it gave up by
+                        // becoming art. It had already stopped following the
+                        // ladder in the place that mattered: a rung under the
+                        // row's corner, then capped at a quarter of its own
+                        // side, because past that a 16-pixel square is not a
+                        // rounder key, it is a pill - a different shape, and
+                        // the shape of the switch on a tile rather than of a
+                        // key on a bank. What is drawn is that cap. A theme
+                        // that rounds nothing at all now keeps a rounded key,
+                        // which is the trade: the figure is one a hand reads
+                        // at 16 pixels, and it is redrawn in `shapes/` rather
+                        // than computed here.
+                        Item {
+                          id: lineKey
+                          visible: tile.many && line.asked
+                          anchors.centerIn: parent
+                          width: metrics.gap.xl
+                          height: metrics.gap.xl
+
+                          // The card's own line, at the card's own weight:
+                          // the keys are what makes this stack a list, which
+                          // is the job the line has on every other card.
+                          BadgeArt {
+                            anchors.fill: parent
+                            drawn: controlArt.find("key", "ring")
+                            fill: root.spineInk
+                          }
+
+                          // **What is in the window when the key is down.**
+                          // The state is a thing that is *there* rather than
+                          // a colour the key turns, which is qml.md 8.1.1
+                          // read at a key's size: a theme whose accent sits
+                          // close to its card exists, and on one of those the
+                          // difference between an empty window and a full one
+                          // is still a difference.
+                          //
+                          // One stroke of air inside the ring, and square
+                          // where the ring is round - a shape drawn that far
+                          // inside another takes that much less corner
+                          // (qml.md 8.2.6), and at this size two equal radii
+                          // read as the inner one bulging. Both of those are
+                          // in the drawing now.
+                          BadgeArt {
+                            visible: line.ticked
+                            anchors.fill: parent
+                            drawn: controlArt.find("key", "lit")
+                            fill: Color.accent
+                          }
                         }
                       }
 

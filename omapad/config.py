@@ -200,6 +200,22 @@ CHOSEN = {
         "kind": "choice", "choices": BADGE_STYLES,
         "words": {"filled": "Filled", "stencil": "Stencil"},
     },
+    # How solid a tile's ground is drawn. On the pad for `radius`'s reason and
+    # more so: the page the slider is on is the page it opens up, so the tiles
+    # go glassy under the thumb that is moving it - and how much of a desktop
+    # you want showing through a menu is a judgement about the room you are
+    # sitting in rather than one a config file can make for you.
+    "tile_fill": {
+        "attr": "menu_tile_fill", "table": "menu", "key": "tile_fill",
+        # A tenth per step, which is `sound_volume`'s answer and for the same
+        # reason: ten places end to end, and a difference smaller than that
+        # between two tiles is not one anybody sees from a sofa. A `stops`
+        # ladder would be wrong here - this is an amount you cross rather than
+        # a handful of places to stand, which is what separates it from
+        # `radius`.
+        "kind": "number", "step": 0.1, "min": 0.0, "max": 1.0,
+        "unit": "%", "scale": 100,
+    },
     "rumble": {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
         "kind": "bool",
@@ -1397,6 +1413,27 @@ class Config:
         self.ui_safe_area = float(ui.get("safe_area", 0.0))
         if not 0.0 <= self.ui_safe_area <= 0.2:
             raise ConfigError("ui.safe_area must be between 0 and 0.2")
+        # The family the surfaces set their words in, and the empty string
+        # means the desktop's own. It rides the payload beside the scale for
+        # the scale's reason - the plugin cannot read this file - and it is a
+        # *name* rather than a list: Qt takes one family in `font.family`, so
+        # a comma here would be a font nobody has installed.
+        #
+        # It does not reach the badges, and cannot: a button's label is
+        # punched out of its silhouette by `assets/generate.py` in the face
+        # shipped beside it, so a typed label in another family would stand
+        # next to a drawn one that did not match.
+        #
+        # Not on the pad, and that is the rule rather than an omission: what
+        # this takes is the name of a face somebody has installed, and a
+        # thumb cannot type one - every setting the menu carries is a switch,
+        # a list of words or a ladder of numbers.
+        self.ui_font = str(ui.get("font", "")).strip()
+        if "," in self.ui_font:
+            raise ConfigError(
+                "ui.font names one family, not a list - Qt takes a single "
+                "name and falls back on its own"
+            )
         # How hard a corner is rounded, against what the compositor rounds a
         # window by. The ceiling is the ladder's own top stop: past it a tile
         # is not a rounded rectangle any more, it is a lozenge.
@@ -1684,6 +1721,13 @@ class Config:
             raise ConfigError("menu.tile_corner must be 0 or more")
         # How long a tile stays lit after a press lands on it. The shell
         # cannot read this file either, so it travels with the flash it times.
+        # How solid a plain tile's ground is drawn, before the tile has said
+        # anything about itself. Travels for `tile_corner`'s reason, and is
+        # the fill rather than the tile: the ink on it is drawn at full
+        # strength whatever this is.
+        self.menu_tile_fill = float(menu.get("tile_fill", 1.0))
+        if not 0.0 <= self.menu_tile_fill <= 1.0:
+            raise ConfigError("menu.tile_fill must be between 0 and 1")
         self.menu_press_ms = int(menu.get("press_ms", 160))
         if self.menu_press_ms < 0:
             raise ConfigError("menu.press_ms must be 0 or more")
@@ -1818,6 +1862,14 @@ class Config:
 
         guide = data.get("guide", {})
         self.guide_socket = guide.get("socket") or None
+
+        chrono = data.get("chrono", {})
+        # The minute mark: a running stopwatch ticks the pad each time its
+        # sweep hand comes round. The only decision the instrument has - the
+        # cycle and the pusher are what a monopusher chronograph is - and the
+        # turn itself is the dial's geometry rather than a number to set, so
+        # there is nothing here to get wrong and nothing to validate.
+        self.chrono_rumble = bool(chrono.get("rumble", True))
 
         self.mapping_socket = data.get("mapping", {}).get("socket") or None
         self.status_socket = data.get("status", {}).get("socket") or None

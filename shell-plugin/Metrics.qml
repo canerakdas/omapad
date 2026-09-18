@@ -166,8 +166,10 @@ QtObject {
   //
   // **Off the size ladder, the way every stroke weight is** (qml.md 8.2.1): a
   // line is structure rather than a gap between two things. The weight is two
-  // pixels at this surface's scale, and everything else is that weight
-  // stepped by `silver` - the smallest amount this tree has a name for.
+  // pixels at this surface's scale, the run past the ends is that weight
+  // stepped by `silver` - the smallest amount this tree has a name for - and
+  // the two reaches are whole multiples of it, because the strokes that
+  // stand on the line are drawings and a drawing owns its own proportion.
   readonly property QtObject spine: QtObject {
     id: spine
 
@@ -185,22 +187,28 @@ QtObject {
     // reaches on **each** side, so the two halves are equal and the figure is
     // a cross rather than a tick hanging off one face.
     //
-    // The arm stepped a rung of the space ladder and halved, which is what
-    // keeps the whole of it a little longer than the line's own run past the
-    // rows: a mark on a scale has to be found from a sofa, and a corner does
-    // not.
-    readonly property int cross: Math.round(
-      metrics.rung(spine.arm, 1) / 2)
-    // And how far the two that **end** a travel reach: one rung of the space
-    // ladder above a stop, which is the silver ratio less one and the step
-    // everything else on these surfaces climbs by. An instrument of one
+    // **The drawings own these two numbers now** (`travel-*.svg`), which is
+    // the one place on this ladder a rung is read off a shape. A stroke is
+    // drawn ten units of line weight across and a whole number of them tall -
+    // five for a stop, seven for an end - so a figure handed a box of
+    // `weight` by `weight * 5` lands exactly on it at every scale there is,
+    // and the air between its two arms is exactly the line that runs through
+    // it. Rounded off the silver ladder they were 4 and 6 at this surface's
+    // own scale, which is what these say, and 5 and 7 at half as much again -
+    // a drawing scaled into that box would stand a fraction of a pixel off it
+    // and be painted grey.
+    //
+    // What that buys is the whole of why the strokes are drawings: the ladder
+    // could say how long a mark is, and it could not say whether the line
+    // runs through it.
+    readonly property int cross: spine.weight * 2
+    // And how far the two that **end** a travel reach. An instrument of one
     // stroke weight has only length to tell one kind of mark from another,
     // and the two kinds here are *this is as far as it goes* and *this is a
-    // place it can stand* - which is one rung's worth of difference. It was
-    // the whole silver step for a pass and read as two marks of two
-    // different sizes rather than one scale.
-    readonly property int crossEnd: Math.round(
-      metrics.rung(spine.cross, 1))
+    // place it can stand* - which is half a stop's reach again. It was the
+    // whole silver step for a pass and read as two marks of two different
+    // sizes rather than one scale.
+    readonly property int crossEnd: spine.weight * 3
   }
 
   // -- the durations --------------------------------------------------------
@@ -330,9 +338,25 @@ QtObject {
       Style.cornerRadius > 0 ? Style.cornerRadius : metrics.cornerBase)
   }
 
+  // **These surfaces set their words in their own family**, and the payload
+  // says which (`[ui] font`). Empty is the session's own, which is what they
+  // shipped reading as and what most desktops want: the group exists so a
+  // face can be chosen for a menu read from a sofa without changing the one
+  // the desktop is read at.
+  //
+  // It is the *second* of two font groups and the one that moves. The first
+  // is the badges' - `ButtonArt.family`, Fira Code, shipped beside the
+  // drawings - and it cannot follow this one: a label is punched out of its
+  // silhouette by `assets/generate.py` in that face, so a typed label set in
+  // another would not match the drawn one beside it. A surface asks
+  // `buttonArt.family` for a button and this for everything else.
+  property string fontFamily: ""
+
   readonly property QtObject font: QtObject {
-    // The family is the session's, at any size.
-    readonly property string family: Style.font.family
+    // The family, at any size: what the payload asked for, or the session's
+    // where it asked for nothing.
+    readonly property string family: metrics.fontFamily !== ""
+      ? metrics.fontFamily : Style.font.family
     readonly property string resolvedFamily: Style.font.resolvedFamily
     readonly property string menuFamily: Style.font.menuFamily
     readonly property int baseSize: metrics.px(Style.font.baseSize)

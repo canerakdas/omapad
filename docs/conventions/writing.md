@@ -111,7 +111,18 @@ YouTube · Video                      does not
     `Text.AlignHCenter`). Measured: 94 British spellings against 54 American,
     and all 54 are API names.
 
-13. **One thing has one name everywhere.** Whatever the menu calls it, the
+13. **A menu `label` is read twice: on the tile, and under it.** The legend
+    along the foot of the card prints the label of the row A is about to run,
+    because deriving a verb from the action would have printed
+    `live:media=previous` under a tile called `Previous`. So a label has to
+    stand on its own beside a button badge as well as under an icon - which
+    rule 11 was already asking for, and is the second reason to keep it to
+    three words. The tiles that hold a value are the exception and say so in
+    [`../components/menu.md`](../components/menu.md): a switch's word is
+    `Turn on` or `Turn off`, a bar's is `Adjust`, and neither is written in
+    the config file.
+
+14. **One thing has one name everywhere.** Whatever the menu calls it, the
     guide, the game bar, `README.md` and the settings file call it the same:
     *dead zone*, never *deadzone* or *threshold* in the same breath. A reader
     who has to work out that two words are one thing has been given a puzzle

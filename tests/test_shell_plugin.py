@@ -105,6 +105,90 @@ class TheGridFollowsACarriedTile(unittest.TestCase):
         self.assertIn("root.revealed", body)
 
 
+class TheGridScrollsToTheHaloToo(unittest.TestCase):
+    """`reveal` brings a tile's *halo* into view, not only its box.
+
+    The glow is drawn `haloReach` outside the tile's own box and the grid
+    clips, so a scroll that stops at the box stops with the ring on that side
+    already cut: the tile arrives selected and reads as unmarked down one
+    edge. It stayed hidden while a page fitted the card - the first column
+    rests at `contentX` 0, where the reach is already in the content - and
+    showed up the moment a scale put a page wider than the card on the screen
+    and the grid had to come back to column 0.
+
+    Read rather than run, like everything else here.
+    """
+
+    def setUp(self):
+        with open(os.path.join(PLUGIN, "Menu.qml")) as handle:
+            source = handle.read()
+        self.body = source[source.index("function reveal()"):]
+        self.body = self.body[:self.body.index("\n  }")]
+
+    def test_all_four_bounds_carry_the_reach(self):
+        # Two near edges out, two far edges out: top, left, bottom, right.
+        self.assertEqual(self.body.count("- root.haloReach"), 2)
+        self.assertEqual(self.body.count("+ root.haloReach"), 2)
+
+
+
+class TheFoldFallsBetweenTwoCells(unittest.TestCase):
+    """What a band may show is a whole number of cells, on both axes.
+
+    A tile centres its ink, so the visible part of a cut one carries none at
+    all: a page cropped mid-tile ends in a band of nothing and reads as bad
+    padding rather than as "there is more below". The card's rows were cut to
+    whole ones for that reason once; the columns and the fullscreen page were
+    not, and a screen narrower than the page ended in a sliver of a tile.
+
+    The trap this guards is the easy refactor: the clip is *not* the box it
+    sits in. The box keeps the room the `Column` gave it - the legend hangs
+    under it - and the `Flickable` inside stops short of that room. An
+    `anchors.fill` put back there would fit the page to the screen again with
+    nothing in any log to say so.
+
+    Read rather than run, like everything else here.
+    """
+
+    def setUp(self):
+        with open(os.path.join(PLUGIN, "Menu.qml")) as handle:
+            self.source = handle.read()
+
+    def test_the_arithmetic_is_written_once(self):
+        # Every cut asks `wholeCells`; a second copy of the pitch is a second
+        # answer to where the fold is.
+        self.assertEqual(self.source.count("function wholeCells("), 1)
+        self.assertEqual(
+            self.source.count("/ (cell + root.cellGap)"), 1)
+
+    def test_the_grid_clips_to_whole_cells_on_both_axes(self):
+        body = self.source[self.source.index("id: grid"):]
+        body = body[:body.index("Repeater {")]
+        self.assertIn("width: root.shownCols(", body)
+        self.assertIn("height: root.shownRows(", body)
+        # The clip is not the box: an `anchors.fill` here is the bug.
+        self.assertNotIn("anchors.fill", body)
+
+    def test_the_bar_is_cut_to_whole_cards(self):
+        # A nav card is a cell on the grid's own columns, so a half card at
+        # the right edge is the two bands disagreeing about where the page
+        # ends.
+        body = self.source[self.source.index("id: bar"):]
+        body = body[:body.index("Row {")]
+        self.assertIn("width: root.shownCols(", body)
+
+    def test_the_card_is_sized_to_whole_columns(self):
+        # A card is as wide as the page it holds, and the screen's cap on that
+        # is cut the same way - what it leaves over is a narrower card.
+        self.assertIn("+ root.shownCols(card.roomAcross)", self.source)
+
+    def test_a_page_may_not_be_shown_wider_than_it_is(self):
+        # `cols` and `rows` are the page's own size; the cut may only take
+        # away.
+        self.assertIn("Math.min(root.cols, root.wholeCells(", self.source)
+        self.assertIn("Math.min(root.rows, root.wholeCells(", self.source)
+
+
 class EverySocketIsDrawn(unittest.TestCase):
     """A socket the daemon writes to and nothing reads is a surface that is
     simply not there.
@@ -231,18 +315,72 @@ class MotionTests(unittest.TestCase):
                     % (name, n, line.strip()))
 
 
+class FontTests(unittest.TestCase):
+    """**Two font groups, and only one of them moves.**
+
+    The badges are lettered in the face `assets/generate.py` punched their
+    labels out of - `buttonArt.family`, shipped beside the drawings - and a
+    typed label in any other would stand next to a drawn one that did not
+    match it. Everything else a surface writes is set in the family the
+    payload names (`[ui] font`), which is empty for the desktop's own.
+
+    A surface that forgot to take it would go on drawing in the session's
+    font while the rest changed, and nothing on screen or in any log would
+    say which one had not been told - the same silence the motion multiplier
+    is guarded against above.
+    """
+
+    def setUp(self):
+        self.files = sorted(
+            name for name in os.listdir(PLUGIN) if name.endswith(".qml")
+        )
+
+    def test_every_panel_that_writes_a_word_takes_the_family(self):
+        # Keyed on using the group rather than on building `Metrics`: a
+        # surface with no words in it - the ripple is one - has no family to
+        # be told about, and listing the exceptions by name is how a list
+        # goes stale.
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            if "metrics.font." not in source:
+                continue
+            self.assertIn(
+                "fontFamily: root.fontFamily", source,
+                "%s builds Metrics without handing it the family" % name)
+            self.assertIn(
+                "s.font", source,
+                "%s never reads the family off its payload" % name)
+
+    def test_no_surface_reaches_past_the_group_for_the_session_font(self):
+        # `Style.font.family` is the desktop's answer and the group already
+        # falls back to it. A surface asking for it directly is one the
+        # setting cannot reach.
+        for name in self.files:
+            if name == "Metrics.qml":
+                continue
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            self.assertNotIn(
+                "Style.font.family", source,
+                "%s takes the session's font instead of the surface's" % name)
+
+
 class TravelTests(unittest.TestCase):
     """The line a value sits on takes everything it draws with from the call
     site, and says nothing when it is handed none of it.
 
-    `Travel.qml` names no colour (qml.md 8.1) and builds no `Metrics` of its
-    own - the scale on the payload belongs to the surface, not to a component
-    inside one. So a travel missing `ladder` draws a one-pixel line with no
-    mark anywhere on it, and one missing a colour draws nothing at all: a
-    slider that looks like an empty card, with nothing in any log about it.
+    `Travel.qml` names no colour (qml.md 8.1) and builds neither a `Metrics`
+    nor a `ControlArt` of its own - the scale on the payload belongs to the
+    surface, and a component that built its own art would build one per slider
+    on the page. So a travel missing `ladder` draws a one-pixel line with no
+    mark anywhere on it, one missing `art` draws the line and nothing standing
+    on it, and one missing a colour draws nothing at all: a slider that looks
+    like an empty card, with nothing in any log about it.
     """
 
-    REQUIRED = ("ladder:", "value:", "ink:", "trail:", "ghost:", "mark:")
+    REQUIRED = ("ladder:", "art:", "value:", "ink:", "trail:", "ghost:",
+                "mark:")
 
     def setUp(self):
         self.files = sorted(
@@ -372,6 +510,81 @@ class KnobArcTests(unittest.TestCase):
                              getattr(daemon_module, attribute))
 
 
+class TileFillTests(unittest.TestCase):
+    """`menu.tile_fill`, whose two halves fail quietly in opposite ways.
+
+    A fill read through `|| 1` turns the one page this setting exists to
+    reach - no grounds at all - back into the opaque one. And a fill applied
+    to the tile rather than to its ground would fade every label with it,
+    which is a page you cannot read rather than one you can see through.
+    """
+
+    def test_a_fill_of_zero_survives_the_payload(self):
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        found = re.search(r"if \(s\.fill !== undefined\)\s*\n"
+                          r"\s*root\.tileFill = Math\.max\(0, Math\.min\(1,"
+                          r" Number\(s\.fill\)\)\)", source)
+        self.assertIsNotNone(
+            found, "menu.tile_fill is not read, or falls back over a real 0")
+
+    def test_it_is_the_ground_that_thins_and_not_the_tile(self):
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        self.assertIn("Util.alpha(root.cellGround, ground.fill)", source)
+        # Never on the delegate itself: `opacity` there takes the label, the
+        # icon and every figure on the tile with it.
+        self.assertIsNone(
+            re.search(r"^\s*opacity:.*\btileFill\b", source, re.M),
+            "tile_fill is fading the whole tile, not its ground")
+
+    def test_the_bar_thins_with_the_grid(self):
+        # A row of solid cards over a page of glass would be the bar saying it
+        # is a different kind of thing from the tiles it names. The bar is a
+        # row of cells over a grid of them.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        self.assertIn("Util.alpha(root.cellGround, root.tileFill)", source)
+
+    def test_but_the_card_you_are_on_keeps_its_accent_solid(self):
+        # Its label sits *on* the fill and `onAccent` is measured against a
+        # solid accent, so a thinned one is a contrast ratio worked out
+        # against a colour no longer on the screen.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        found = re.search(r"fillColor: nav\.here\s*\n\s*\? Color\.accent",
+                          source)
+        self.assertIsNotNone(
+            found, "the nav card you are on no longer fills with the accent")
+        self.assertIsNone(
+            re.search(r"Util\.alpha\(Color\.accent, root\.tileFill", source),
+            "tile_fill is thinning the accent a label is measured against")
+
+    def test_both_lit_channels_of_the_focus_come_down_with_the_page(self):
+        # The halo and the sheen lift one card out of a page of cards. With
+        # less page to lift it out of they are saying a second time what the
+        # solid ground has already said - which on screen is a selection that
+        # gets louder every step the fill comes down.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        self.assertEqual(source.count("opacity: tile.focusLight"), 2)
+        found = re.search(r"readonly property real focusLight:\s*\n"
+                          r"\s*tile\.selected \? root\.tileFill : 0", source)
+        self.assertIsNotNone(found, "the focus lights no longer follow it")
+
+    def test_but_the_ring_is_not_light_and_does_not(self):
+        # It is the mark rather than a glow, and it is the one thing on a
+        # selected tile that has to mean *here* at every fill.
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        found = re.search(
+            r"strokeColor: tile\.selected \? tile\.mark : root\.cellEdge",
+            source)
+        self.assertIsNotNone(found, "the focus ring has started fading")
+
+    def test_the_tile_under_the_thumb_is_always_solid(self):
+        source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+        found = re.search(
+            r"readonly property real fill:\s*\n"
+            r"\s*tile\.selected \? 1\.0 : root\.tileFill", source)
+        self.assertIsNotNone(
+            found, "a lowered fill takes the selected tile down with it")
+
+
 class ShortPushTests(unittest.TestCase):
     """What a payload that carries almost nothing is not allowed to say.
 
@@ -426,3 +639,31 @@ class ShortPushTests(unittest.TestCase):
             menu_module.MenuModel([], columns=6), True, {"hv": 0.5})
         self.assertNotIn("items", short)
 
+
+
+class LatchingCardTests(unittest.TestCase):
+    """A card of rows carries its state in one drawing or the other.
+
+    The line down a card says which row is in force by lighting a *length* of
+    itself, which is a figure with one start and one end - so on a card where
+    three rows may be on there is nothing for it to light. The keys say it
+    there instead. Both at once would be a card with a line on it that means
+    nothing beside keys that mean everything, and it is the kind of thing an
+    edit adds back by making one of them unconditional.
+    """
+
+    def setUp(self):
+        self.source = io.open(os.path.join(PLUGIN, "Menu.qml")).read()
+
+    def test_the_line_is_not_drawn_where_the_keys_are(self):
+        self.assertIn("readonly property bool railed: tile.stated "
+                      "&& !tile.many", self.source)
+        # And nothing draws the line off `stated` any more, which is the
+        # question about whether a row was *asked* rather than about which
+        # drawing answers it.
+        for line in self.source.split("\n"):
+            if "tile.stated" in line:
+                self.assertIn("railed", line, "%s draws off `stated`" % line)
+
+    def test_and_the_keys_are_not_drawn_where_the_line_is(self):
+        self.assertIn("visible: tile.many && line.asked", self.source)

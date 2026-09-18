@@ -829,6 +829,59 @@ class RumbleTests(DaemonTestCase):
         self.assertEqual(self.device.effects, {})
 
 
+class ChronoMarkTests(DaemonTestCase):
+    """The stopwatch's minute mark, felt rather than watched."""
+
+    def tick(self):
+        return self.daemon.rumble.effects["tick"]
+
+    def start(self):
+        """A measurement running, and the moment it started."""
+        at = time.monotonic()
+        self.daemon.chrono.press(at)
+        return at
+
+    def test_a_running_stopwatch_ticks_when_the_hand_comes_round(self):
+        # With the menu shut, which is the case this exists for: a
+        # measurement is a thing in the room, not a property of the page it
+        # was started on.
+        at = self.start()
+        self.daemon.check_chrono(at + 59.0)
+        self.assertEqual(self.device.played, [])
+        self.daemon.check_chrono(at + 60.0)
+        self.assertEqual(self.device.played, [self.tick()])
+
+    def test_it_ticks_once_a_turn_and_not_once_a_pass(self):
+        at = self.start()
+        for turn in (1, 2, 3):
+            for ask in (0.0, 0.25, 30.0):
+                self.daemon.check_chrono(at + turn * 60.0 + ask)
+        self.assertEqual(self.device.played, [self.tick()] * 3)
+
+    def test_a_stopwatch_nobody_started_never_ticks(self):
+        self.daemon.check_chrono(time.monotonic() + 600.0)
+        self.assertEqual(self.device.played, [])
+
+    def test_the_switch_leaves_it_silent(self):
+        self.config.chrono_rumble = False
+        at = self.start()
+        self.daemon.check_chrono(at + 60.0)
+        self.assertEqual(self.device.played, [])
+        # And the turn is not owed afterwards: the hand came round while
+        # nothing was listening, which is not a mark saved up.
+        self.config.chrono_rumble = True
+        self.daemon.check_chrono(at + 90.0)
+        self.assertEqual(self.device.played, [])
+
+    def test_the_loop_stays_awake_for_the_stop_the_mark_owes(self):
+        # The same tick every other press plays, so it has the same debt:
+        # on the idle poll the motor would run a quarter-second long.
+        at = self.start()
+        self.assertFalse(self.daemon.needs_tick())
+        self.daemon.check_chrono(at + 60.0)
+        self.assertTrue(self.daemon.needs_tick())
+
+
 class TriggerTests(DaemonTestCase):
     def test_left_trigger_activates_window_layer(self):
         self.assertEqual(self.daemon.current_layer, "base")
@@ -2867,7 +2920,8 @@ class MenuTests(DaemonTestCase):
     def test_a_repeat_row_leaves_the_menu_where_it_is(self):
         # A row you nudge rather than pick: reopening the menu per step is
         # absurd. Nothing shipped is marked any more - what used to be marked
-        # was the volume and brightness stepping rows, and those are bars now
+        # was the volume and brightness stepping rows, and those are a ring
+        # and a bar now
         # - so the flag needs its own tile to be tested at all.
         self.config.menu_items[0]["items"].append({
             "label": "Nudge", "action": "exec:nudge-it", "repeat": True,
@@ -3364,6 +3418,45 @@ class ConfirmedRowTests(DaemonTestCase):
                     count(item["items"])
         count(shipped_config().menu_items)
         self.assertEqual(every, [True] * 2)
+
+
+class FontTests(DaemonTestCase):
+    """`[ui] font`: the family the surfaces set their words in.
+
+    The second of omapad's two font groups and the one that moves. The first
+    is the badges', which is the face `assets/generate.py` punched their
+    labels out of and cannot be chosen here: a typed label in another family
+    would stand beside a drawn one that did not match it.
+    """
+
+    def test_every_surface_is_told_at_once(self):
+        # Somebody who has chosen a face for the menu has chosen it for the
+        # guide and the keyboard in the same breath, so it rides the payload
+        # beside the scale rather than one surface's own state.
+        self.daemon.set_osk(True)
+        self.daemon.set_menu(True)
+        self.assertEqual(self.osk_client.sent[-1]["font"], "")
+        self.assertEqual(self.menu_client.sent[-1]["font"], "")
+
+    def test_the_name_travels_as_it_was_written(self):
+        # A family name is matched by the shell against what is installed, so
+        # the daemon passes it through rather than tidying it: a face called
+        # `Berkeley Mono` is not `berkeley mono` to fontconfig.
+        self.daemon.config.ui_font = "Berkeley Mono"
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["font"], "Berkeley Mono")
+
+    def test_a_list_of_families_is_named_rather_than_drawn(self):
+        # Qt takes one name in `font.family`, so a list is a font nobody has
+        # installed - and a surface drawing in the wrong face says nothing in
+        # any log. `omapad check` has to be what says so.
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"ui": {"font": "Inter, sans-serif"}})
+        self.assertIn("ui.font", str(caught.exception))
+
+    def test_an_empty_name_is_the_desktop_own(self):
+        made = config_module.Config({"ui": {"font": "   "}})
+        self.assertEqual(made.ui_font, "")
 
 
 class CornerTests(DaemonTestCase):
@@ -4363,7 +4456,12 @@ class PageKeyTests(DaemonTestCase):
         self.daemon.menu_command("group_next")
         keys = self.menu_client.sent[-1]["keys"]
         said = dict((row["b"], row["n"]) for row in keys)
-        self.assertEqual(said.get("X"), "Close")
+        # X is the layer's `menu:close` here, and at the top of a group B
+        # closes the menu too - so the strip says it once, under the button
+        # the contract owns. Two badges over one word is what made the row
+        # read as furniture.
+        self.assertEqual(said.get("B"), "Close")
+        self.assertIsNone(said.get("X"))
         self.assertEqual(said.get("Y"), "Arrange")
 
     def test_the_legend_prints_the_contract_in_its_own_order(self):
@@ -4398,6 +4496,128 @@ class PageKeyTests(DaemonTestCase):
                     for row in group["rows"]:
                         words.append((row["b"], row["d"]))
         return words
+
+
+class MenuLegendTests(DaemonTestCase):
+    """What the strip along the foot of the card says about the tile in front.
+
+    It used to say the **layer's** word on every tile of every page: `Pick`,
+    `Back`, `Close`, `Arrange`, whatever the thumb was standing on. That is
+    true of the buttons and silent about the press - and read from a sofa,
+    four words that never change are four words nobody reads twice. Every
+    test here is one tile answering for itself.
+    """
+
+    def stand_on(self, tile):
+        """Walk the shipped tree to that tile, wherever its page is."""
+        self.daemon.set_menu(True)
+        for group in range(len(self.daemon.menu.groups)):
+            self.daemon.menu.enter_group(group)
+            if self.daemon.menu.select_id(tile):
+                return
+        self.fail("no tile called %r on any page" % tile)
+
+    def words(self):
+        return dict((row["b"], row["n"]) for row in self.daemon.menu_legend())
+
+    def test_a_row_that_runs_something_says_its_own_name(self):
+        # The keyboard tile said `Pick`, which is the one thing about that
+        # press nobody needed telling.
+        self.stand_on("keyboard")
+        self.assertEqual(self.words().get("A"), "Keyboard")
+        self.stand_on("previous")
+        self.assertEqual(self.words().get("A"), "Previous")
+
+    def test_a_page_that_opens_says_so(self):
+        self.stand_on("sticks")
+        self.assertEqual(self.words().get("A"), "Open")
+
+    def test_a_control_with_a_range_says_the_gesture_it_starts(self):
+        # A on it is not the decision - it is taking hold of the thing the
+        # decision is made with.
+        self.stand_on("volume")
+        self.assertEqual(self.words().get("A"), "Adjust")
+
+    def test_a_switch_says_which_way_it_is_about_to_go(self):
+        self.stand_on("vibration")
+        self.assertEqual(self.words().get("A"), "Turn off")
+        self.daemon.set_setting("rumble", ("toggle", None))
+        self.assertEqual(self.words().get("A"), "Turn on")
+
+    def test_a_tile_with_nothing_to_press_gets_no_row_at_all(self):
+        # A reading is published rather than set and a clock is not a button.
+        # Offering A on one is worse than a strip one row shorter: the strip
+        # is what somebody checks *before* pressing.
+        self.stand_on("processor")
+        self.assertIsNone(self.words().get("A"))
+        self.stand_on("time")
+        self.assertIsNone(self.words().get("A"))
+        # And the rest of it is still there to be read.
+        self.assertEqual(self.words().get("Y"), "Arrange")
+
+    def test_a_card_of_rows_answers_for_the_row_it_is_on(self):
+        # The same question a press asks - `acting`, not `current` - so the
+        # word and the press cannot be about two different things.
+        self.stand_on("power")
+        self.assertEqual(self.words().get("A"), "Open")
+        self.daemon.menu_command("press")
+        first = self.words().get("A")
+        self.daemon.menu_command("down")
+        self.assertNotEqual(self.words().get("A"), first)
+
+    def test_the_directions_arrive_when_the_control_is_taken(self):
+        # And not before: left and right walk the page until A takes hold, so
+        # printing them beside a value nobody is holding would be this row's
+        # one job done backwards.
+        self.stand_on("volume")
+        self.assertIsNone(self.words().get("◀"))
+        self.daemon.menu_command("press")
+        said = self.words()
+        self.assertEqual(said.get("◀"), "Less")
+        self.assertEqual(said.get("▶"), "More")
+
+    def test_and_the_stick_is_named_on_the_one_control_it_turns(self):
+        # A ring is turned by carrying a thumb round the edge of the stick,
+        # which is the whole argument for the control; everywhere else the
+        # stick is the D-pad said twice, and a row saying it twice is noise.
+        self.stand_on("volume")
+        self.daemon.menu_command("press")
+        self.assertEqual(self.words().get("L"), "Turn")
+        self.daemon.menu_command("back")
+        self.stand_on("brightness")
+        self.daemon.menu_command("press")
+        self.assertIsNone(self.words().get("L"))
+        self.assertEqual(self.words().get("◀"), "Less")
+
+    def test_a_held_control_says_what_letting_go_keeps(self):
+        self.stand_on("volume")
+        self.daemon.menu_command("press")
+        said = self.words()
+        self.assertEqual(said.get("A"), "Keep")
+        # B leaves everywhere, and leaving a value you have pushed too far is
+        # putting it back - which is not the word `Back`.
+        self.assertEqual(said.get("B"), "Cancel")
+
+    def test_b_says_what_it_is_actually_leaving(self):
+        # The bar is not a level to climb to, so at the top of a group there
+        # is nothing above the page and B closes the menu.
+        self.stand_on("sticks")
+        self.assertEqual(self.words().get("B"), "Close")
+        self.assertIsNone(self.words().get("X"))
+        self.daemon.menu_command("press")
+        said = self.words()
+        self.assertEqual(said.get("B"), "Back")
+        # And now X has something of its own to say: B climbs one level and X
+        # leaves outright, which is two presses from in here.
+        self.assertEqual(said.get("X"), "Close")
+
+    def test_what_the_strip_prints_is_what_a_press_does(self):
+        # The rule the whole row rests on: the word comes off the tile the
+        # press acts on, so walking the page changes both together.
+        self.stand_on("keyboard")
+        first = self.words().get("A")
+        self.stand_on("volume")
+        self.assertNotEqual(self.words().get("A"), first)
 
 
 class ListedMenuTests(DaemonTestCase):
@@ -4632,15 +4852,41 @@ class LiveTests(DaemonTestCase):
     def test_every_reading_on_the_page_is_asked_once_when_it_appears(self):
         self.daemon.set_menu(True)
         self.daemon.live_refresh(time.monotonic())
-        # The four a page of controls reads. A nav card's `meta` is a command
-        # too and lands in the same queue, so it is filtered out here: what
-        # this counts is what `live` asked for, not what an open menu spends.
+        # The three the page the menu opens on reads. A nav card's `meta` is a
+        # command too and lands in the same queue, so it is filtered out here:
+        # what this counts is what `live` asked for, not what an open menu
+        # spends.
         asked = [one for one in self.asked() if one not in self.metas()]
-        self.assertEqual(len(asked), 4)
+        self.assertEqual(len(asked), 3)
         self.assertTrue(any("get-sink-volume" in one for one in asked))
         self.assertTrue(any("get-sink-mute" in one for one in asked))
-        self.assertTrue(any("brightness" in one for one in asked))
         self.assertTrue(any("media status" in one for one in asked))
+
+    def test_a_reading_waits_for_the_page_that_holds_it(self):
+        # How bright the screen is is asked for by `Display` and by nothing
+        # else: the tile moved off the opening page, and a reading is asked
+        # for when its own tile appears rather than when the menu does.
+        self.daemon.set_menu(True)
+        self.daemon.live_refresh(time.monotonic())
+        self.assertFalse([one for one in self.asked() if "brightness" in one])
+        self.commands.submitted = []
+        walk_menu(self.daemon, ["Display"], lambda: None)
+        self.daemon.live_refresh(time.monotonic())
+        self.assertTrue([one for one in self.asked() if "brightness" in one])
+
+    def test_a_switch_row_says_which_way_the_switch_is_set(self):
+        # `live:mute=toggle` read literally is never already the case, and a
+        # row carrying one is not asking that question: the row *is* the
+        # switch. Nothing has answered before the mixer does, and a row that
+        # drew itself off while the answer was still coming would be saying
+        # something it does not know.
+        live = self.daemon.live
+        row = actions.parse("live:mute=toggle")
+        self.assertIsNone(row.state(self.daemon.ctx))
+        live.took("mute", ["Mute: yes"], live.generation)
+        self.assertTrue(row.state(self.daemon.ctx))
+        live.took("mute", ["Mute: no"], live.generation)
+        self.assertFalse(row.state(self.daemon.ctx))
 
     def test_a_volume_answer_reaches_its_tile(self):
         self.open_on("Volume")
@@ -4817,7 +5063,7 @@ class LiveTests(DaemonTestCase):
         self.commands.submitted = []
         self.daemon.set_menu(True)
         self.daemon.live_refresh(time.monotonic())
-        self.assertEqual(len(self.asked()), 4)
+        self.assertEqual(len(self.asked()), 3)
 
 
 class GaugeTests(DaemonTestCase):
@@ -4994,6 +5240,18 @@ class FullscreenTests(DaemonTestCase):
         self.assertEqual(self.menu_client.sent[-1]["dim"],
                          self.config.menu_dim)
 
+    def test_how_solid_a_tile_is_travels_with_it(self):
+        # The shell cannot read the config, so a number it draws with arrives
+        # in the payload like the corner does.
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["fill"], 1.0)
+        self.config.menu_tile_fill = 0.0
+        self.daemon.push_menu_view()
+        # Sent as 0 rather than left off: a page with no grounds is a fill
+        # somebody asked for, and a panel that fell back to its default would
+        # draw the one page this setting cannot otherwise reach.
+        self.assertEqual(self.menu_client.sent[-1]["fill"], 0.0)
+
     def test_how_tall_a_cell_is_travels_with_it(self):
         # `cols` says how wide a cell is and this says the rest of its shape.
         # Both have to arrive: the panel has no config to look either up in.
@@ -5087,6 +5345,81 @@ class ThemeChangeTests(DaemonTestCase):
                 self.daemon, "apply_cursor") as redraw:
             self.daemon.check_theme(self.later())
         self.assertEqual(redraw.call_count, 1)
+
+
+class CompositorReloadTests(DaemonTestCase):
+    """The reloads a theme change is not the cause of.
+
+    The menu's own `Scale up` is one: it rewrites `monitors.lua` so the new
+    scale survives a reboot, Hyprland reloads on the write, and the blur
+    behind the menu that is still open goes with it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-hypr-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.hypr_dir = os.path.join(directory, "hypr")
+        os.mkdir(self.hypr_dir)
+        self.write("monitors.lua", "scale = 1")
+        patch = unittest.mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": directory})
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.daemon._compositor_seen = self.daemon.compositor_stamp()
+
+    def write(self, name, text):
+        path = os.path.join(self.hypr_dir, name)
+        with open(path, "w") as handle:
+            handle.write(text + "\n")
+        # The stamp is in nanoseconds, but two writes inside one test can
+        # still land on the same one: age the file instead of sleeping.
+        stamp = os.stat(path).st_mtime_ns + 1000000000
+        os.utime(path, ns=(stamp, stamp))
+
+    def later(self, seconds=daemon_module.THEME_POLL + 1.0):
+        return time.monotonic() + seconds
+
+    def test_a_rewritten_config_asks_for_the_blur_again(self):
+        self.write("monitors.lua", "scale = 1.25")
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(len(self.hypr.evaluated), 1)
+        self.assertIn("blur = true", self.hypr.evaluated[0])
+
+    def test_any_file_beside_it_counts(self):
+        # A reload is a reload whichever file moved.
+        self.write("looknfeel.lua", "rounding = 8")
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(len(self.hypr.evaluated), 1)
+
+    def test_a_config_that_stands_still_asks_nothing(self):
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+
+    def test_the_first_look_is_not_a_change(self):
+        self.daemon._compositor_seen = None
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+        self.assertIsNotNone(self.daemon._compositor_seen)
+
+    def test_no_hyprland_config_at_all_is_not_a_change(self):
+        shutil.rmtree(self.hypr_dir)
+        self.hypr.evaluated = []
+        self.daemon.check_theme(self.later())
+        self.assertEqual(self.hypr.evaluated, [])
+
+    def test_the_pointer_is_left_alone(self):
+        # A reload is not a new palette: the drawn pointer on disk is still
+        # the right one, and redrawing it would be a file read for nothing.
+        self.write("monitors.lua", "scale = 1.25")
+        with unittest.mock.patch.object(
+                self.daemon, "apply_cursor") as redraw:
+            self.daemon.check_theme(self.later())
+        self.assertEqual(redraw.call_count, 0)
 
 
 class EditModeTests(DaemonTestCase):

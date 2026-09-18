@@ -4344,6 +4344,21 @@ looked at and deleted. `EveryControlIsDrawn` lists the kind with the clock's
 three parts and nothing of its own, the way `slider` and `readout` are listed
 with none.
 
+**And then it struck the minute.** Asked from the sofa once it had been lived
+with: *chrono her 1dkda dolunca kolu titretsin.* A stopwatch on a pad can do
+the one thing a stopwatch on a wall cannot - say something to a hand that is
+not looking at it - and that is most of what one left running while you do
+something else is worth. `Chrono.strike()` says, once per turn of the sweep
+hand, that it has come back to twelve; `daemon.check_chrono` answers with
+`rumble`'s tick, on the loop's own heartbeat rather than the menu's, because
+the measurement outlives the page it was started on and an app holding the pad
+does not own the stopwatch either. The mark is the hand coming round rather
+than a length anybody set - a strike at ninety seconds lands with the hand at
+six, saying nothing you could read off the face - so `[chrono] rumble` is a
+switch with no number beside it. An alarm you set is a different instrument,
+and it would want a face saying what it is counting to before it wanted a
+motor.
+
 ### 76. The value a thumb could turn rather than push · ✅ Done · M
 
 Asked from the sofa: *volume için dikey slider yerine control knob
@@ -4471,9 +4486,212 @@ than a line of config: a payload field, a delegate that reads it, and a rule
 saying which metas are worth shouting about. Worth having if an update that
 has been waiting a fortnight goes unread; the words are what ships.
 
+### 78. The bar that was on the wrong page · ✅ Done · S
+
+Asked for from the sofa, in four words: *brightness display altina gitsin.*
+
+`Brightness` was on `Now` for two reasons that had both stopped being reasons.
+Item 68 put what you reach for while you are sitting down on one page and left
+`Audio` and `Display` holding what you set when the room changes, and item 76
+kept the bar there beside the new ring so that one page held a length and an
+angle answering one question - the honest way to find out which gets reached
+for.
+
+- **The page's own rule decides it.** How bright the screen is follows the
+  light coming in the window rather than what you are doing with the machine,
+  which is `Display`'s half of that split and the same errand as the scale. It
+  is the volume that belongs on `Now`: that one moves with the film.
+- **The comparison survives the move.** A ring and a bar still ship, one page
+  apart, and nothing about either drawing depended on them touching - what a
+  knob is worth against a slider is a question about the hand. What the
+  experiment actually settled is that the drawing is not what decides where a
+  tile lives, which is the line both comments carry now.
+- **It fills a band that was empty.** `Display`'s first row was one card three
+  cells square with nine columns of nothing beside it; the bar takes the top of
+  that, and the break under them still says which tiles are the **screen** -
+  how big, how bright - and which are what omapad draws over it.
+- **`Now` is a row shorter.** Six and four and two fills its first two rows
+  exactly and the bar was the whole of the third, so the transport, the
+  stopwatch and the two conditional tiles come up a row.
+- **A reading is asked for by the page that holds it**, which is `live`'s own
+  rule and now has a test that says so out loud: the opening page asks three
+  things instead of four, and nothing asks the backlight how bright it is
+  until you walk to `Display`.
+
+### 79. Four words that never changed · ✅ Done · S
+
+Asked for from the sofa: *menudeki bir kartin ustune gelince sag alttaki
+butonlar cok anlamsiz surekli ayni sey yaziyor gibi, b ve x varsayilan olarak
+cikma egilimi, a'da klavyede pick yazmasi ne alaka, previous'da da pick
+yaziyor previous yazmasi gerekmez mi, volume icin knobda left right arrow ve
+left stick cikmasi lazim bence.*
+
+Every clause of that is one fault. The legend was **page-scoped**, and a page
+is not what a thumb is standing on: `Pick`, `Back`, `Close`, `Arrange` stood
+under the keyboard tile, under `Previous`, under the volume ring and under a
+stopwatch, unchanged all the way across the page. Three exceptions had already
+been carved out of it - the chronograph's pusher, `Hold to confirm`, `Cancel`
+under a count - which is the shape of a rule that wants inverting rather than
+three special cases.
+
+- **A asks the tile.** `menu_verb()` reads `acting`, the same property a press
+  acts on, so the word and the press cannot be about two different things. A
+  row that runs something says **its own label** - `Keyboard`, `Previous`,
+  `All apps`; a page says `Open`; a bar or a ring says `Adjust`, and `Keep`
+  once it is held; a switch says which way it is about to go; the transport
+  says `Play` or `Pause`. The three exceptions are now three rows of that
+  table rather than three branches in the loop.
+- **Deriving the verb from the action was tried first and is wrong.**
+  `guide.brief_of` is what the game bar reads a binding with, and pointed at
+  `live:media=previous` it prints `live:media=previous`: `live:` has no
+  describer, and it would need one per row a config file can invent.
+  `exec:omarchy-menu toggle apps` reads no better - it comes back as `Menu`.
+  The label is the interface's answer to *what happens if I press this*,
+  already written to `writing.md`'s budget, and it is under the thumb. That is
+  now rule 13 there.
+- **A press that does nothing gets no row.** A reading is published rather
+  than set, a clock is not a button, a card that lists one thing is furniture
+  round a fact, and a row already counting down refuses a second press. The
+  strip is what somebody checks *before* pressing, so an A on any of those is
+  worse than a strip one row shorter.
+- **B says what it is leaving**, which is the `b ve x` half of it. `Cancel`
+  over a value pushed too far or a count, `Back` inside a page, `Close` at the
+  top of a group - where `back()` answers False because the bar is not a level
+  to climb to. And there X stands down: it is `menu:close`, so it was printing
+  B's own answer a second time under a second badge. Inside a submenu they
+  part company again and both are printed.
+- **The directions arrive when they mean something.** Take a control and the
+  strip gains `◀ Less` and `▶ More` - `Previous` / `Next` where the control
+  reads a choice - and on a knob the left stick, which is the one control the
+  stick does something else with. Not before: until A takes hold, left and
+  right walk the page, so printing them beside a value nobody is holding would
+  be this row's one job done backwards.
+
+**What it cost to draw: nothing.** `LegendBadge` already asks `ButtonArt` for
+a kind and a label, and the D-pad and the stick have been in the generated art
+since the guide first printed them - so the two arrows and the ring's stick
+are rows on an existing wire with an existing drawing. The payload did not
+change shape either: it is still `{b, k, n}` per row, and the panel still
+draws whatever it is sent.
+
+**The one shipped page, walked tile by tile**, is what the review asked for
+and is in `MenuLegendTests`. `Now` now reads `A Keyboard`, `A Play`,
+`A Adjust`, `A Previous`, `A Turn on`, `A Start` as the thumb crosses it,
+against `A Pick` six times before.
+
+### 80. Four strokes where there was one rectangle · ✅ Done · S
+
+Asked for from the sofa, with the card open: *yatay ve dikey slider'i da
+parcalara ayirip font yapabilir miyiz, ek olarak bu checkbox'in da dolu ve bos
+halini svg'den font'a cevirebilir miyiz.* And then, to the first answer:
+*hepsi tek gorsel/karakter olmak zorunda degil, bolerek kullanalim?*
+
+The first answer was **no, and it was wrong**. What it said is true of the
+line - a travel is as wide as the tile it sits in, a drawing cannot stretch,
+and `EveryControlIsDrawn` has listed `slider` with no parts of its own since
+the day the test was written. What it missed is that the line is not the
+drawing: the *strokes standing on it* are, and split into parts each one is a
+figure of fixed proportion, which is the only thing the rule was ever about.
+
+- **A figure sized from the line is exact at every scale**, which is the
+  objection turned round. A stroke is drawn ten units across - the line's own
+  weight - and a whole number of them tall, so the panel hands it
+  `spine.weight` and takes the height the drawing asks for: five weights at a
+  stop, seven at an end. `Metrics.spine.cross` and `crossEnd` are read back
+  off the drawings for that reason, and they are 4 and 6 at this surface's own
+  scale, which is exactly what the silver ladder had rounded them to. It is
+  the one exemption from `ShapesFitTheBadgeGrid`, and it earns it by being
+  sized more strictly than the rule asks rather than less.
+- **The split found a bug the comment had been describing for months.**
+  "Two arms, and neither of them crosses the line" is what `Travel.qml` says
+  about its stops, and what it drew was one solid bar through the line at
+  every one of them - every ink here is the theme's own at a share of itself,
+  so that square was painted twice and lit. The gap is in `travel-stop.svg`
+  now, and `travel-mark.svg` is the same stroke without it, because the
+  value's own mark is opaque and has to cover what it crosses.
+- **That is the second question, and it is why there are four.** How far a
+  stroke reaches is two of them and whether the line runs through it is the
+  other two: `end` and `mark` own every pixel they stand on, `end-open` and
+  `stop` leave the line's weight of air. A fifth, `side`, is the pair that
+  bracket the row in force on a card - the one stroke that leaves the line on
+  one side, because what it marks is the length behind it.
+- **The vertical one is the horizontal one turned a quarter**, which
+  `Metrics.qml` has claimed in a comment since the two were drawn and the code
+  has never done: the card's caps were their own pair of rectangles in
+  `Menu.qml`. They are `end-open` rotated 90 degrees now, placed by the middle
+  of the figure the way a clock's hands are.
+- **The key is two drawings, not one with its fill switched** -
+  `key-ring.svg` and `key-lit.svg`, on one canvas and one box. Two because
+  they are painted in two colours: the ring takes the card's line ink and does
+  not light with the row, and the window takes the accent. The ring is wound
+  so its hole survives either fill rule, the way every annulus here is.
+
+**What it cost** is the key's corner, and it is worth saying out loud rather
+than discovering later: it was the row's stepped a rung down and capped at a
+quarter of its own side, and what is drawn is that cap. A theme that rounds
+nothing at all keeps a rounded key now. The trade is that the figure a hand
+reads at 16 pixels is redrawn in `shapes/` instead of computed in a binding -
+which is the whole of what was asked for, and what it buys is that the filled
+state can stop being a smaller square without a line of QML changing.
+
+### 81. The page that ended in half a tile · ✅ Done · S
+
+Asked for from the sofa: *menude ekrana sigmayan tile'lar kesik gorunuyor
+sadece belirli bir kismi gorunen tile'lar icin shadow gibi bir sey mi eklesek
+sagdan veya daha iyi bir fikrin var mi, tam grid sayisi kadar gostermek de
+mantikli olabilir.*
+
+The second half of that is the answer, and it is item 25's answer: **cut to
+whole cells.** A gradient down the cut column would be a gradient over the one
+tile on the page nobody can read - a tile centres its ink, so the visible part
+of a cut one carries none at all, which is why a cropped page ends in a band
+of nothing rather than in "there is more below". That was measured against
+Omarchy's own menu once and fixed for the card's rows; it was never applied to
+the columns, and the fullscreen page had been exempt from it since the day it
+was added.
+
+- **One rule, two axes, both shapes.** `wholeCells` is the arithmetic item 25
+  wrote inline, and `shownRows` / `shownCols` are what a band may show against
+  what it was given. The card is sized to the page it holds, so there the cut
+  stays in the height and the width themselves - that is what keeps its foot
+  off the floor of the screen and its last column off its own border, and what
+  the cut leaves over is a narrower card, which is centred. The fullscreen
+  page keeps the room it was given, because the legend sits under it and a
+  legend that floated up under a short page would not be at the foot of
+  anything; there the clip stops short inside that room and the remainder is
+  air where nothing is drawn.
+- **The bar is cut the same way.** A nav card is a cell standing on the grid's
+  own columns an inch above the tiles, so a half card at the right edge is the
+  one place the two bands would disagree about where the page ends.
+- **A fold that lands in a gap came out of it for free.** `reveal` scrolls the
+  least it can to bring a tile and its halo into view; against a viewport that
+  is a whole number of cells, both of its answers are a multiple of the cell
+  pitch. Nothing in `reveal` changed, and there is no page snapping to write.
+
+**And the measurement was worth taking.** This monitor is 1920x1200 at a
+Hyprland scale of 1.25, so the surface is drawn on 1536 logical pixels - and
+the shipped `columns = 12` at `cell = 128` comes to 1712 before the fullscreen
+page's 91 either side, which leaves room for **nine of the twelve columns**.
+Three of them have been living past the fold. That is `config.toml`'s own
+arithmetic - `columns * cell * scale + (columns - 1) * 16 * scale` against the
+screen less twice the padding - and the screen it is written against is 1920
+with nothing scaling it. `cell = 96` is what puts the whole page on this one.
+
+**The one cut left is a tile wider than a cell.** `Workspace lock` is three of
+them, and on the card the fold falls inside it. A fold between two *tiles*
+cannot be a rule: it would be a different width in every row and would move as
+the page scrolled - so it is between two cells, and a tile that spans it
+carries on past the edge. What settles that page is the paragraph above, which
+is a setting rather than a drawing.
+
+**Verified live** at both shapes: the fullscreen page ends after a whole
+column where it used to show a sliver of the next one, and the card comes up a
+column narrower and centred. No fade and no row of dots - what says there is
+more is still the page moving when a thumb pushes into it.
+
 ## Suggested order
 
-Done: **01–09**, **11**, **13–66**, **68–77**. The button scheme (07) settled first because it
+Done: **01–09**, **11**, **13–66**, **68–81**. The button scheme (07) settled first because it
 decided what the keyboard's own map (03) should be; the keyboard itself (03–06)
 followed, then the menu (08), and 13–17 and 19–22 came out of using the thing, and 09
 (per-app profiles) landed once the map underneath had a shape to layer over.
