@@ -2320,7 +2320,7 @@ grid's own columns, and a half card at the right edge is the one place the two
 bands could disagree about where the page ends.
 
 **A tile wider than one cell can still cross the fold**, and that is the cut
-this does not answer: `Workspace lock` is three cells, and a page whose fold
+this does not answer: `Workspace lock` is six cells, and a page whose fold
 falls inside it is a tile that carries on past the edge. The fold is between
 two cells and cannot be between two tiles - a whole-tile fold would be a
 different width in every row and would move as the page scrolled. A page that

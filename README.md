@@ -3129,8 +3129,9 @@ Any of them works from a button too — `live:volume=up`, `live:media=next` — 
 same grammar as `pad:`.
 
 **`Music` is one tile and A plays or pauses it**, because it has two states,
-the way a switch does. `Previous` and `Next` are two tiles either side of it,
-so left and right walk to them exactly as they walk to anything else. A
+the way a switch does. `Previous`, `Next` and `Mute` are three tiles in the
+row under it, a third of the page each, so left and right walk to them
+exactly as they walk to anything else. A
 direction the player says is closed ticks the motor rather than doing nothing
 quietly.
 

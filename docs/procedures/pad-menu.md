@@ -276,8 +276,8 @@ read `Game mode` and you had to press it to find out what else there was; as a
 card it shows both values, each with its own line, and fills the one waiting.
 
 Give a control tile room for its name **over** the control - `Hide the
-pointer` is `span = [2, 1]` because three words over a switch do not fit in
-one cell. A control tile draws no icon: the control is the picture. A slider
+pointer` is `span = [3, 1]` because three words over a switch do not fit in
+one cell, and because three is the width of the column it stands in. A control tile draws no icon: the control is the picture. A slider
 is three cells by default and reads left to right - its name and its number
 share one line and the bar goes under both - so it needs no `span` and no
 `detail`; the number is the detail.
@@ -292,6 +292,11 @@ setting decides rather than the row: the bar becomes one segment per stop, lit
 up to the one you are on, and the line above it prints that stop's word rather
 than a percentage. `Corners` is the one that ships. See
 [`pad-setting.md`](pad-setting.md).
+
+**A bar is aimed at, so give it the width the band can spare.** Three cells
+is the default and the floor; the shipped sliders run to four and six where
+the row had the room, and the longest of them are the three on `Display` -
+the numbers you set by looking at what they did.
 
 **A slider is how a number gets a tile.** `pad:<name>=up|down` rows are the
 shape a number had before there was one: two rows saying "faster" and
@@ -557,6 +562,26 @@ control = "row_break"
 Reach for one to group tiles that belong together, and **not** to nudge a tile
 into place: the same page has to read at six columns and at four, and a break
 is the one gap that means the same thing at both.
+
+**A page is bands, and a band comes to twelve.** The card is `[menu] columns`
+wide whatever is on it, so a page whose tiles come to eight columns is a page
+with a third of itself blank - which reads as a drawing fault rather than as
+air. Add the spans up before you write them: every shipped page but one is a
+whole number of rows of twelve, and the spans are what gets adjusted to make
+it so. A tile is widened to the width of what it is under, not to fill a hole
+with nothing in it - `Previous` is four cells because the row is three verbs
+under a media tile, and it says its whole name at four.
+
+Two things that will not bend for the arithmetic. **A circle is two by two** -
+the knob, the dial, the clock and the stopwatch are one drawing at one size,
+and a page that holds two of them at two sizes reads as a fault. And **a span
+is never wider than six**: `build` refuses one wider than the columns there
+are, `[menu] columns` is a setting somebody may turn down, and six is the
+width below which there is nowhere to put a bar.
+
+So a band of two-row tiles takes its squares with it, and a band of one-row
+tiles is bars and verbs. Mixing the two heights in one band is what leaves a
+row with a hole at one end and a tile hanging under it.
 
 ## Spending a page's X or Y
 

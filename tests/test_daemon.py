@@ -3353,8 +3353,11 @@ class ConfirmedRowTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu_open)
 
     def test_walking_off_the_tile_drops_it(self):
+        # Upwards, because the page this row was appended to is packed: a
+        # tile added to the end of it stands alone on a row of its own, and
+        # a press of `left` there is a press into the edge.
         self.press("A")
-        self.daemon.menu_command("left")
+        self.daemon.menu_command("up")
         self.assertIsNone(self.daemon._menu_confirm)
 
     def test_closing_the_menu_drops_it_without_calling_it_cancelled(self):
@@ -3371,8 +3374,9 @@ class ConfirmedRowTests(DaemonTestCase):
         words = {row["b"]: row["n"] for row in legend}
         self.assertEqual(words.get("A"), "Hold to confirm")
         # And it is the tile's fact, not the page's: the tile next door is an
-        # ordinary press.
-        self.daemon.menu_command("left")
+        # ordinary press. Above rather than beside, for the reason
+        # `test_walking_off_the_tile_drops_it` gives.
+        self.daemon.menu_command("up")
         legend = self.menu_client.sent[-1]["keys"]
         words = {row["b"]: row["n"] for row in legend}
         self.assertNotEqual(words.get("A"), "Hold to confirm")
@@ -5174,28 +5178,32 @@ class GaugeTests(DaemonTestCase):
     def test_a_held_stick_walks_the_grid_the_way_a_held_key_does(self):
         # A direction held, not a shove: walking a grid is a thing you do
         # several of in a row.
+        #
+        # Across rather than down: the sticks page is two rows of bars with
+        # a dial at each end, so two steps of a held direction are two steps
+        # along a row rather than down a column.
         self.land("Controller", "Sticks", "Pointer")
-        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
         self.daemon.tick(0.05)
-        self.assertEqual(self.daemon.menu.selected, "left-dead-zone")
+        self.assertEqual(self.daemon.menu.selected, "scroll")
         # ...and it waits out the delay before the next one, rather than
         # running the length of the page in one push.
         self.daemon.tick(0.05)
-        self.assertEqual(self.daemon.menu.selected, "left-dead-zone")
+        self.assertEqual(self.daemon.menu.selected, "scroll")
         self.daemon.tick(self.config.traverse_repeat_delay)
-        self.assertEqual(self.daemon.menu.selected, "left-stick")
+        self.assertEqual(self.daemon.menu.selected, "right-stick")
 
     def test_a_stick_let_go_of_walks_again_at_once(self):
         # A new direction steps immediately and then waits, the way a key
         # pressed again does - so two deliberate pushes are two tiles.
         self.land("Controller", "Sticks", "Pointer")
-        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
         self.daemon.tick(0.05)
-        self.feed((li.EV_ABS, li.ABS_Y, 0))
+        self.feed((li.EV_ABS, li.ABS_X, 0))
         self.daemon.tick(0.05)
-        self.feed((li.EV_ABS, li.ABS_Y, 32767))
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
         self.daemon.tick(0.05)
-        self.assertEqual(self.daemon.menu.selected, "left-stick")
+        self.assertEqual(self.daemon.menu.selected, "right-stick")
 
     def test_a_stick_on_a_taken_control_moves_it_rather_than_the_selection(
             self):
