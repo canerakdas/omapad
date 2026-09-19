@@ -72,7 +72,7 @@ step once stays out of step.
 **`Action.spans_hold` is what makes it possible, and it is opt-in for a
 reason.** `Binding.holdable` is `not is_tap_hold and tap.holdable`, so the
 hold half of a pair has always gone through `fire_once` - press and release
-together, no interval to speak in (roadmap #29 hit exactly this and shelved
+together, no interval to speak in ([decision 29](../decisions/29-assistant.md) hit exactly this and shelved
 the assistant's `talk`). Making every holdable action span its hold instead
 would have changed four shipped bindings: `hold = "key:ENTER"` means one
 Enter, and one that lasted would reach the compositor's key repeat. So the

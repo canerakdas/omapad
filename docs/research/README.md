@@ -1,7 +1,7 @@
 # Research
 
 Documents written outside this project, kept here because an argument in
-`components/` or `roadmap.md` leans on them.
+`components/` or `decisions/` leans on them.
 
 | Document | What it surveys |
 |---|---|

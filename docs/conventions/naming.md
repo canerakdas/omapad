@@ -26,6 +26,7 @@ omapad/
   docs/             this folder
     conventions/    how to write in each language
     components/     one document per component
+    decisions/      one file per decision, numbered
     procedures/     one document per recurring job
     research/       documents written outside this project, kept as received
   manifest.json     the Omarchy plugin manifest - at the root, not in
@@ -53,6 +54,7 @@ omapad/
 | Vendored asset | beside what loads it | the upstream filename, unchanged, with its licence file next to it | `shell-plugin/fonts/FiraCode-Medium.ttf`, `OFL.txt` |
 | Manifest / unit / rule | where the tool that reads it demands | the name that tool demands, never a name of ours | `manifest.json`, `omapad.service` |
 | Documentation | `docs/` | `kebab-case.md`, one component per file | `docs/components/linux-input.md` |
+| Decision | `docs/decisions/` | `NN-kebab-case.md`, the number first. A file is renamed when a better name turns up and **never renumbered**, because the components and the other decisions cite it by number | `docs/decisions/44-handover-lock.md` |
 | Procedure | `docs/procedures/` | `pad-<job>.md`, `kebab-case`, naming the job rather than the component. The rest of the rules are [`procedures.md`](procedures.md) | `docs/procedures/pad-bindings.md` |
 | Imported reference | `docs/research/` | `kebab-case.md`, named for what was surveyed rather than for who wrote it or when | `docs/research/console-launcher-ux.md` |
 

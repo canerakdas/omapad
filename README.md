@@ -4153,7 +4153,8 @@ neither real hardware nor permission on `/dev/uinput`.
 |---|---|
 | `docs/components/README.md` | The map: which file belongs to which component, and one document per component — what it owns, what it may assume, what breaks it |
 | `docs/conventions/` | How to write in each language the project uses, and `naming.md` for file names and folder structure |
-| `docs/roadmap.md` | Planned work, with per-item confidence |
+| `docs/decisions/` | One file per decision, numbered — what the problem turned out to be, what was built, what was rejected |
+| `docs/roadmap.md` | The short list of what those decisions leave unfinished |
 
 The badges are generated rather than drawn in QML. `assets/shapes/*.svg` is the
 source; `python3 assets/generate.py` sets the labels into them in Fira Code and

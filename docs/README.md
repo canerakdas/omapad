@@ -6,7 +6,8 @@ whoever is changing the code.
 
 | Path | What it is |
 |---|---|
-| [`roadmap.md`](roadmap.md) | Planned work, with per-item confidence. |
+| [`decisions/`](decisions/) | One file per decision, numbered: what the problem turned out to be, what was built, and what was rejected. Cited by number from the components and from each other. |
+| [`roadmap.md`](roadmap.md) | The short list of what those decisions leave unfinished. |
 | [`conventions/`](conventions/) | How to write in each language this project uses, and how files and folders are named. |
 | [`components/`](components/) | One document per component: what it owns, what it may assume, what breaks it. |
 | [`procedures/`](procedures/) | One document per recurring job that spans several files and fails silently: bindings, surfaces, settings, menu rows, wording, badge art, diagnosis. Adding one: [`conventions/procedures.md`](conventions/procedures.md). |

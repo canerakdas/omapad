@@ -22,7 +22,8 @@ library.
 
 `VENDOR`, `MOUSE_PRODUCT`, `KEYBOARD_PRODUCT` and `IDENTITIES` are not
 decoration. A virtual device that looks like a gamepad to another program gets
-treated as one - roadmap item 15 is the keyboard that Steam picked up as a
+treated as one - [decision 15](../decisions/15-keyboard-seen-as-controller.md)
+is the keyboard that Steam picked up as a
 controller. Anything added here declares only the event types it actually
 sends, and identifies itself as what it is.
 

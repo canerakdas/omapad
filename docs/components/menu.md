@@ -1455,7 +1455,7 @@ somewhere real, and a layout written as names survives a different column
 count, a new tile and another screen. What an order cannot express is an
 **empty cell**: with one tile on a page there is nothing to be third in, so
 there was no gesture that put it anywhere but the top left - and the page the
-HUD draws is one whose whole content is where it sits. Item 52 in the roadmap
+HUD draws is one whose whole content is where it sits. Decision [52](../decisions/52-cell-with-nothing-leading-to-it.md)
 is the reversal and why.
 
 `place()` is therefore two passes, and the order of them is the design:
@@ -1918,7 +1918,8 @@ uses, one surface along - but the two share syntax and validation, not
 internals: a submenu source turns lines into selectable tiles, a head source
 turns output into one drawn string.
 
-**Why the weather is here at all**, when `roadmap.md` refused it. It was
+**Why the weather is here at all**, when [23](../decisions/23-game-bar.md)
+refused it. It was
 refused because *"putting it here means network I/O in an input daemon, with
 caching, failures and a location to own"*, and none of that lands here.
 `omarchy-weather-status` owns the lookup, `omarchy-weather-icon` owns the

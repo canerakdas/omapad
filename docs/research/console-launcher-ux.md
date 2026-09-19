@@ -8,8 +8,9 @@ September 2026.
 It is kept **as it was received**: the spellings, the metrics and the opinions
 are its own, and rewriting a source into this project's voice is how a
 quotation quietly becomes a paraphrase nobody can check. Nothing in it is
-normative. A rule lives in [`../conventions/`](../conventions/); a plan lives
-in [`../roadmap.md`](../roadmap.md); this is the outside evidence either one
+normative. A rule lives in [`../conventions/`](../conventions/); a decision
+lives in [`../decisions/`](../decisions/); what is still open lives in
+[`../roadmap.md`](../roadmap.md). This is the outside evidence any of them
 may cite.
 
 Most of it is about a launcher - a library, a store, a boot screen - and this

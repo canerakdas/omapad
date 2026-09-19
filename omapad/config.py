@@ -1366,7 +1366,7 @@ class Config:
         self.rumble_commit_duration = int(
             rumble.get("commit_duration_ms", 90))
         # On, where it shipped off. What it says is no longer a flat hum
-        # under a moving thumb - the thing roadmap 17's rule is about - but
+        # under a moving thumb - the thing decision 17's rule is about - but
         # how far a value has been taken from where it stood, which is
         # silence until something has actually been changed.
         self.rumble_texture = bool(rumble.get("texture", True))
