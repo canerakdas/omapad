@@ -118,3 +118,4 @@ and is in the order it was found.
 | 81 | [The page that ended in half a tile](81-page-ending-in-half-a-tile.md) | ✅ Done | S | A page ends on a whole tile, measured against the screen it is on. |
 | 82 | [Somewhere for a tile to go](82-somewhere-for-a-tile-to-go.md) | ✅ Done | M | A strip along the foot holds a tile that is on no page. |
 | 83 | [Pages that came to whole rows](83-pages-of-whole-rows.md) | ✅ Done | S | A page comes to whole rows - the arithmetic is the design, not a tidy-up. |
+| 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | ✅ Done | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |

@@ -206,24 +206,30 @@ BLANKS_TO_DRAW = (
 # The clock is the clearest case of that split, and it is drawn on the dial's
 # own 40-unit canvas so the two circles a page may hold are one circle: a
 # gauge and a clock side by side drawn to two rules read as two mistakes. What
-# differs is the rim's weight - two units against the dial's three - because
-# this one has two hands inside it rather than a dot, and a rim as heavy as a
-# hand makes the face read as a ring with sticks in it.
+# differs is the rim: a hairline case with a chapter ring inside it, against
+# the dial's one band three units thick. This face has five hands and twelve
+# marks inside it, and a rim as heavy as a hand makes the whole of that read
+# as a ring with sticks in it.
 CONTROLS_TO_DRAW = (
     ("clock", "face", "clock-face.svg"),
-    # Twelve of them: the quarters as bars, the hours between them as dots.
-    # An hour mark drawn as a bar at 30 degrees is the one mark on this pad
-    # that could not stand on a whole unit - a dot has no flat edge to land
-    # badly, and at a tile's size the two read the same anyway.
+    # Twelve applied batons, and the twelve drawn as two - which is the one
+    # mark on a dial that says which way up it is without printing a number.
+    #
+    # Eight of them stand at an angle no pixel grid can hold, and that is the
+    # hands' own exemption rather than a new one: `ShapesSitOnTheGrid` is
+    # about a *straight run parallel to an axis* landing on half a pixel, and
+    # a baton at 30 degrees has no such edge to land badly. The four that do
+    # are two units wide on whole units, which is what the quarters were
+    # drawn as when the other eight were dots.
     ("clock", "ticks", "clock-ticks.svg"),
     # What the hands meet under. It is here rather than in the panel for the
-    # dial's thumb's reason: a disc at the centre of the face is not
-    # parameterised by anything, and the join it covers is the one place two
-    # rotating rectangles show their corners.
+    # dial's thumb's reason: a ring at the centre of the face is not
+    # parameterised by anything, and the join it covers is the one place five
+    # rotating batons show their corners.
     ("clock", "hub", "clock-hub.svg"),
     # **The hands.** An angle is a number and a hand is not: what the time
     # decides is where the drawing is turned to, and the drawing itself is
-    # the same pill on every face this pad will ever draw. So each is here,
+    # the same baton on every face this pad will ever draw. So each is here,
     # standing at twelve on the face's own canvas and pinned at 20,20 - the
     # panel turns the whole face-sized box about its middle and names no
     # length, no weight and no corner.
@@ -231,8 +237,11 @@ CONTROLS_TO_DRAW = (
     # Long and thin against short and thick, and the pair has to differ in
     # both at once: at a tile's size two hands of one weight are one hand and
     # a shadow, and two of one length are a cross. The minute hand stops *at*
-    # the marks rather than on them - they run from 10 to 14 of the face's 20,
-    # and a hand drawn into that band crosses whichever one it is nearest.
+    # the marks rather than on them - they run from 12 to 16 of the face's
+    # 20, and a hand drawn into that band crosses whichever one it is
+    # nearest. Each is a baton with a point on it and a short tail past the
+    # pivot: the taper is what separates a hand from a mark at a glance, now
+    # that all twelve marks are batons too.
     ("clock", "hour", "clock-hour.svg"),
     ("clock", "minute", "clock-minute.svg"),
     # The longest and thinnest thing on the face, and the one hand drawn

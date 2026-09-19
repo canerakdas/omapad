@@ -13,7 +13,7 @@
 // **Every figure on this face is drawn, and the time only turns them.** The
 // rim, the twelve marks, the hub, the two hands, the sweep and both halves of
 // a register come out of `ControlArt.qml`, because not one of them is
-// parameterised by anything: a hand is the same pill at every hour, drawn
+// parameterised by anything: a hand is the same baton at every hour, drawn
 // standing at twelve on the shapes' own canvas, and an angle is a transform
 // rather than a shape. What is left as geometry is what genuinely answers to
 // a number - how big a register is and where the three of them sit. Same
@@ -209,14 +209,14 @@ Item {
   readonly property real countedAngle: ((clock.shown / 60) % 60) * 6
   readonly property real hoursAngle: ((clock.shown / 3600) % 12) * 30
 
-  // How big a register is and how far out its middle sits. 6.4 and 6.6 are
-  // one decision: the hour marks begin at 10, so this is the whole of the
-  // room between the hub and them, and a register drawn any larger lands its
-  // own edge among those marks. Both are still numbers because both are
-  // genuinely parameters - the drawing inside is the same drawing wherever
-  // the three of them are put.
-  readonly property real registerOut: clock.unit * 6.4
-  readonly property real registerSize: clock.unit * 6.6
+  // How big a register is and how far out its middle sits. 6.8 and 7.4 are
+  // one decision: the hour marks begin at 12, so this is the room between
+  // the hub and them, and a register drawn any larger lands its own edge
+  // among those marks. Both are still numbers because both are genuinely
+  // parameters - the drawing inside is the same drawing wherever the three
+  // of them are put.
+  readonly property real registerOut: clock.unit * 6.8
+  readonly property real registerSize: clock.unit * 7.4
 
   // One counter, sunk into the dial: a disc and a hand, drawn on the
   // register's own canvas rather than on the face's. Its 40 is this disc,

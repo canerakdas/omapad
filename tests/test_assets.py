@@ -394,16 +394,26 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     RINGS = ("dial-face.svg", "clock-face.svg", "key-ring.svg")
 
     def test_a_ring_is_wound_so_the_hole_survives(self):
+        # A drawing may be more than one ring - the clock's rim is the case
+        # and the chapter ring inside it, which is two - so what has to hold
+        # is each pair on its own: an outer wound one way and its hole the
+        # other, in that order. A shape that came out odd is a ring somebody
+        # drew without a hole, and it would paint as a disc over everything
+        # the face is meant to show through.
         for name in self.RINGS:
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
             areas = []
             for data in shape.fills:
                 for poly in svgpath.flatten(data):
                     areas.append(self.signed_area(poly))
-            self.assertEqual(len(areas), 2, "%s is not one ring" % name)
-            self.assertLess(areas[0] * areas[1], 0,
-                            "%s: both subpaths wind the same way, so the "
-                            "filled style paints it solid" % name)
+            self.assertTrue(areas and len(areas) % 2 == 0,
+                            "%s is %d subpaths, which is not a whole number "
+                            "of rings" % (name, len(areas)))
+            for outer, inner in zip(areas[0::2], areas[1::2]):
+                self.assertLess(outer * inner, 0,
+                                "%s: two subpaths of a ring wind the same "
+                                "way, so the filled style paints it solid"
+                                % name)
 
     def signed_area(self, poly):
         total = 0.0
