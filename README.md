@@ -30,6 +30,7 @@ already been typed.
 [What each button means](#the-face-buttons-mean-the-same-thing-everywhere) ·
 [Controller modes](#controller-modes) · [Configuration](#configuration) ·
 [Application profiles](#application-profiles) · [The menu](#the-menu) ·
+[The quick menu](#the-quick-menu) ·
 [The readings](#the-readings-how-busy-how-full-how-hot) ·
 [The bindings guide](#the-bindings-guide) · [The bar widget](#the-bar-widget) ·
 [Controller mapping](#controller-mapping) · [Typing](#typing) ·
@@ -290,9 +291,11 @@ are two of them.
 
 First: **the MINUS + PLUS chord, which opens the controller menu.** Two buttons
 at once is not an input any game binds, and this is the door — the keyboard, the
-window controls, the guide and the app launcher are all rows behind it. The
-moment the menu opens omapad takes the pad back (otherwise the D-pad
-would drive both the menu and the game), and lets go again when it closes.
+window controls, the guide and the app launcher are all rows behind it, and
+**PLUS inside the menu goes on to [the quick menu](#the-quick-menu)**, the row
+Start opens on the desktop. The moment either opens omapad takes the pad back
+(otherwise the D-pad would drive both the menu and the game), and lets go again
+when it closes.
 
 Second: **an announced hold that counts down** (`confirm_ms`).
 The app already sees that button, so the only gesture that may get through is
@@ -300,18 +303,26 @@ one nobody could make by accident — held for seconds, saying what is about to
 happen through a rumble and a notification, and abandoned by letting go or by
 pressing the cancel button.
 
-**Single-button summons stand aside.** On the desktop PLUS opens the menu and
-MINUS the keyboard; over an app that has the pad, both do nothing, because Back
-and Start are buttons every game binds and our menu appearing every time you
+**Single-button summons stand aside.** On the desktop PLUS opens the quick menu
+and MINUS the keyboard; over an app that has the pad, both do nothing, because
+Back and Start are buttons every game binds and our menu appearing every time you
 reach for the game's pause screen is the same fault pointing the other way. That
 is the shipped config's choice, not a rule — `reaches_past` is the key, and
 removing it puts them back:
 
 ```toml
 [bindings.base]
-PLUS  = { tap = "menu:toggle", hold = "exec:omarchy-menu toggle", hold_ms = 400, reaches_past = false }
+PLUS  = { tap = "quick:toggle", on_press = true, reaches_past = false }
 MINUS = { tap = "osk:toggle", reaches_past = false }
 ```
+
+HOME is the other way round, and on purpose. Its hold is the mode switch, which
+has to work over a game, and a binding cannot let one half through and keep
+the other back — so its tap, the controller menu, reaches past as well. Over a
+game that means the button in the middle of the pad opens our menu; where a
+launcher already spends that button on an overlay of its own, add
+`reaches_past = false` to `HOME` and the chord is the way in, the same as for
+PLUS.
 
 The shipped `[profile.steam]` uses this: hold a shoulder inside Big Picture or a
 game and the badge on the bar fills in; when it is full the pad ticks and says
@@ -501,7 +512,7 @@ all, so without it the screensaver arrives mid-game. Games that use a class of
 their own rather than `steam_app_*` need their own line.
 
 **And the way out with the pad in your hands**, for when it happens anyway:
-`PLUS` → **Workspaces** → **Fullscreen**. The menu is the only thing that reaches
+`HOME` → **Workspaces** → **Fullscreen**. The menu is the only thing that reaches
 past an app holding the pad, which is why those rows are in it and not only on
 the `ZL` window layer.
 
@@ -1014,11 +1025,11 @@ hold in every layer and every application —
 | ZL | **window layer (hold)** | – |
 | L / R | previous / next workspace (the pad ticks) | move the window to the previous / next workspace |
 | D-pad | arrow keys | window focus (by direction) |
-| PLUS | tap: **the controller menu**, hold: the Omarchy menu | toggle split |
+| PLUS | **[the quick menu](#the-quick-menu)**, the moment it goes down | toggle split |
 | MINUS | tap: **the on-screen keyboard**, hold: **push to talk** | – |
 | MINUS + PLUS | **the controller menu** (a chord, everywhere, and the only way in over a game) | – |
 | ZL + B, ZR + B | **the workspace lock** — a chord, and only over an app that already has the pad | – |
-| HOME | tap: switch window, hold: **switch mode** | centre the window |
+| HOME | press: **the controller menu**, the moment it goes down · hold: **switch mode** | centre the window |
 | Left stick click | middle click | pin the window |
 | Right stick click | back (mouse 4) | the on-screen keyboard |
 | Capture* | tap: screenshot, hold: region | screen recording |
@@ -2072,8 +2083,8 @@ affected — `omarchy-shell ipc call omapad-sound state` says which it is.
 
 ## The menu
 
-Press **PLUS**. Three things open together, stacked down the middle of the
-screen:
+Press **HOME** — the button in the middle of the pad, the Xbox button. Three
+things open together, stacked down the middle of the screen:
 
 - **the head** — the day, the time, and whatever else you point a command at.
   Game mode takes Omarchy's bar away and there is no other clock the pad can
@@ -2085,7 +2096,8 @@ screen:
 - **the grid** — the tiles of the group you are on, some of them wider or
   taller than others.
 
-**Hold** PLUS and the real Omarchy menu opens. That one wants a keyboard and a
+The real Omarchy menu is a tile under **System**, and PLUS opens
+[the quick menu](#the-quick-menu). The Omarchy menu wants a keyboard and a
 mouse; this one takes them both — the same Exclusive focus, hover-to-select and
 clicks — so whichever hand you are holding, the menu reads the same way.
 
@@ -2108,7 +2120,8 @@ entries, and has nowhere to put a page.
 | L / R | Previous / next group |
 | A | Pick — and go in, if it opens a page |
 | B | Back to the page above; at the top it closes the menu |
-| X · PLUS · Capture · Right stick click | Close the menu outright, from any depth |
+| X · Capture · Right stick click | Close the menu outright, from any depth |
+| PLUS | Go to [the quick menu](#the-quick-menu) |
 | Y | Open [the bindings guide](#the-bindings-guide) |
 | HOME | Tap: close the menu · Hold: switch mode |
 
@@ -2580,7 +2593,7 @@ both, and neither goes beside `repeat`.
 
 `open_on` is the other half of `when`, and it needs one: while the condition
 holds, the menu **opens on this tile**. It is what a capability that has to be
-found the moment you press PLUS asks for, now that the bar holds places rather
+found the moment you press HOME asks for, now that the bar holds places rather
 than verbs. The earliest one in the tree wins.
 
 If you redefine the `items` list in your own config it replaces **the whole**
@@ -3333,6 +3346,95 @@ There is the same control socket for opening the menu without a pad:
 omapad ctl menu toggle
 ```
 
+## The quick menu
+
+Press **PLUS** — Start, the Xbox pad's ☰. One row of tiles opens across the
+middle of the screen, with a band under it for the tile in front: its name,
+what it is on, and what A will do. The window in front is named at the top
+left, and the buttons are along the foot — in the game bar's place and at its
+size, because the bar steps down while the row is up and this is its row.
+
+The controller menu is a place — groups, pages, a head — and HOME is its door.
+This is what a pause button is for instead: the handful of things somebody
+stops a game to do, walked end to end with the D-pad rather than found on a
+page. It is drawn after `Console Overlay` in the Console OS v2 mockups, in the
+theme's own colours.
+
+| Button | Job |
+|---|---|
+| D-pad ← → · L / R | Walk the row (it wraps) |
+| D-pad ↑ ↓ | Turn the value on the tile in front up or down |
+| A | Pick — the row closes first and the tile runs after |
+| B | Back out of a tile waiting for its second press, then close |
+| X · PLUS · Capture · Right stick click | Close |
+| Y · HOME | Go to the controller menu · Hold HOME: switch mode |
+
+It opens on **Resume** every time, so PLUS then A is always back to what was in
+front. What ships:
+
+| Tile | Does |
+|---|---|
+| Resume | Closes the row |
+| Volume | ↑ ↓ turn it; the band draws where it is |
+| Brightness | The same, for the screen — left off where the machine cannot say how bright it is |
+| Screenshot | What the Capture button does |
+| Keyboard | The on-screen keyboard |
+| Menu | The controller menu |
+| Close window | **Pressed twice** — the first A says so in the band, B lets go of it |
+
+**Over a game** PLUS belongs to the game's pause screen, so the way in is the
+MINUS + PLUS chord: it opens the controller menu, and PLUS inside the menu goes
+on to the row. Everything on it runs over the game from there, the same way a
+menu row does.
+
+**HOME is the same.** Its hold switches the mode, and while the menu waited
+for the release a press held a moment too long to make sure switched the mode
+instead. It opens as the button goes down now; hold on to the switch and the
+menu closes again as the mode changes.
+
+**PLUS opens it the moment it goes down.** It is half of the MINUS + PLUS
+chord, and a chord member normally waits for its release to find out which it
+was — which made a menu that only appeared when the thumb came off, and read
+as a button that wanted holding. `on_press = true` on a binding says to act at
+once anyway; if the partner lands while the button is still down, the chord
+takes over from it. PLUS carries no hold either: a button that opens one menu
+when tapped and another when held a beat too long is a button whose press is a
+guess, so the Omarchy menu is a tile under System instead.
+
+The row is `[[quick.items]]`, in the binding grammar, so a tile reaches anything
+a button can:
+
+```toml
+[[quick.items]]
+icon = "󰕾"
+label = "Volume"
+detail = "Up and down turn it"     # the line in the band
+up = "live:volume=up"              # what ↑ does on this tile - both or neither
+down = "live:volume=down"
+
+[[quick.items]]
+icon = "󰅖"
+label = "Close window"
+action = "hypr:hl.dsp.window.close()"
+arm = true                         # A twice
+danger = true                      # the theme's urgent colour
+```
+
+A tile whose `up` is a `live:` reading waits for that reading's first answer
+before it takes a place on the row: a desktop monitor that speaks no DDC answers
+the brightness read with nothing, and a tile turning a number nobody can read
+changes nothing on screen.
+
+`stay = true` keeps the row up after A instead of closing it first. Redefining `items` in your own config replaces the whole row. The row
+takes the menu's `cell`, `tile_corner` and `dim`, so the two look like one
+family.
+
+To drive it without a pad:
+
+```bash
+omapad ctl quick toggle     # open | close | left | right | up | down | press | back | select N
+```
+
 ## The bindings guide
 
 **Controller › Buttons › Shortcuts** in the menu opens a map of the bindings in
@@ -3377,8 +3479,8 @@ script name says nothing on its own. For those the binding says it itself:
 ```toml
 [bindings.base]
 L = { tap = "hypr:hl.dsp.focus({ workspace = 'r-1' })", desc = "Previous workspace" }
-HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle",
-         hold_ms = 700, desc = "Next window", hold_desc = "Switch mode" }
+HOME = { tap = "menu:toggle", hold = "mode:toggle",
+         hold_ms = 700, desc = "Controller menu", hold_desc = "Switch mode" }
 ```
 
 `desc` shows up in the guide only; it does not touch how the binding works — a
@@ -3411,7 +3513,7 @@ drawn in **the bar's own urgent colour** — rather than a colour we made up,
 because the bar already has a way of saying "look here", and game mode is
 exactly the case where the button you press does nothing on the desktop.
 
-Left click opens the menu (whatever PLUS does on the pad), right click switches
+Left click opens the menu (whatever HOME does on the pad), right click switches
 mode — the only thing you need when the pad cannot do it for you.
 
 To place it, add it to the bar layout in `~/.config/omarchy/shell.json`:
@@ -3531,7 +3633,7 @@ surface's own binding outranks a layer trigger.
 | ZR | **Enter, then put the keyboard away** (`osk:submit`) |
 | L / R | Previous / next layer |
 | PLUS | Enter |
-| HOME | Tap: close the keyboard · Hold: switch mode |
+| HOME | Tap: close the keyboard and open the menu · Hold: switch mode |
 | Left stick click | Caps Lock (as two Shifts — [why](#changing-the-keys-to-suit-yourself)) |
 | Right stick click | Left click — for clicking into a field |
 | MINUS | Tap: close the keyboard (the same button that opened it) · Hold: **push to talk** |

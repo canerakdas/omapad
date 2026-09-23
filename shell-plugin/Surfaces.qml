@@ -1,12 +1,12 @@
 // The plugin's panel entry point.
 //
-// A plugin gets one panel entry point, and omapad draws seven independent
-// surfaces - the on-screen keyboard, the controller menu, the bindings guide,
-// the mapping screen, the game-mode bar, the readings it leaves on screen and
-// the burst a click leaves at the pointer - each fed by its own socket.
-// Mounting them here keeps them in one hot-reloading plugin directory instead
-// of seven. The eighth draws nothing at all and is mounted here for the same
-// reason the rest are: it is a socket the daemon streams to.
+// A plugin gets one panel entry point, and omapad draws eight independent
+// surfaces - the on-screen keyboard, the controller menu, the quick menu, the
+// bindings guide, the mapping screen, the game-mode bar, the readings it
+// leaves on screen and the burst a click leaves at the pointer - each fed by
+// its own socket. Mounting them here keeps them in one hot-reloading plugin
+// directory instead of eight. The ninth draws nothing at all and is mounted
+// here for the same reason the rest are: it is a socket the daemon streams to.
 //
 // The shell's summon/hide/toggle contract lands on `open()`, `close()` and
 // `opened` below, so `omarchy-shell shell summon <id>` and an Omarchy keybind
@@ -23,6 +23,7 @@ Item {
 
   Keyboard { id: keyboard }
   Menu { id: menu }
+  QuickMenu { id: quick }
   Guide { id: guide }
   Mapping { id: mapping }
   GameBar {}
@@ -48,6 +49,7 @@ Item {
   readonly property var summonable: ({
     "osk": keyboard,
     "menu": menu,
+    "quick": quick,
     "guide": guide,
     "map": mapping
   })
@@ -59,6 +61,7 @@ Item {
     "osk": "osk",
     "keyboard": "osk",
     "menu": "menu",
+    "quick": "quick",
     "guide": "guide",
     "map": "map",
     "mapping": "map"
@@ -69,8 +72,8 @@ Item {
   readonly property string defaultSurface: "menu"
 
   // The shell reads this to decide whether a toggle should summon or hide.
-  readonly property bool opened: keyboard.opened || menu.opened || guide.opened
-    || mapping.opened
+  readonly property bool opened: keyboard.opened || menu.opened || quick.opened
+    || guide.opened || mapping.opened
 
   function ask(verb, command) {
     Quickshell.execDetached(["omapad", "ctl", verb, command])

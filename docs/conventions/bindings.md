@@ -85,8 +85,8 @@ column, and must say what it cost.
 | **L3** (left stick click) | middle click, which X also carries | **the spare.** It is deliberately a duplicate, which makes it the cheapest button on the pad to spend - three shipped profiles spend it |
 | **R3** (right stick click) | back (mouse 4) | yes |
 | MINUS | tap: the on-screen keyboard, hold: push to talk | no: `reaches_past = false` is what keeps it off a game's Back button |
-| PLUS | the controller menu | no, same reason |
-| HOME | tap: next window, hold: switch mode | no: the hold is the way back to the desktop |
+| PLUS | the quick menu, on the way down (`on_press`) - no hold, so a press is never a guess between two menus | no, same reason |
+| HOME | the controller menu on the way down (`on_press`), hold: switch mode | no: the tap is the door every page is behind, and the hold is the way back to the desktop |
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |
 | MINUS + PLUS | the menu, everywhere, past a game | no: it is the only door left over a cloud session |
 | ZL + B, ZR + B | the workspace lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |

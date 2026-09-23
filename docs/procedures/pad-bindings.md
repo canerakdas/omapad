@@ -249,7 +249,7 @@ nop                   bound to nothing, on purpose
 ```
 
 Binding keys: `tap`, `hold`, `hold_ms`, `desc`, `short`, `hold_desc`,
-`hold_short`, `on_release`, `rumble`, `confirm`, `confirm_ms`, `reaches_past`.
+`hold_short`, `on_release`, `on_press`, `rumble`, `confirm`, `confirm_ms`, `reaches_past`.
 
 The full grammar, with what each one costs, is in `config/config.toml`'s own
 header comment - that file is the manual as much as `README.md` is.

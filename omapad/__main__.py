@@ -48,6 +48,7 @@ def build_parser():
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
         "|group_prev|group_next|select N|group N|row ID|removed N>, "
+        "quick <toggle|open|close|left|right|up|down|press|back|select N>, "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
@@ -393,7 +394,7 @@ def _report_triggers(config, device, trigger_axes):
 
 def cmd_check(config):
     """Parse every binding so mistakes surface before the daemon starts."""
-    from . import actions, menu, osk
+    from . import actions, menu, osk, quick
 
     problems = 0
     for layer_name, bindings in config.bindings.items():
@@ -442,6 +443,11 @@ def cmd_check(config):
     try:
         menu.build_head(config.menu_head, columns=config.menu_columns)
     except menu.MenuError as exc:
+        problems += 1
+        print("%s" % exc, file=sys.stderr)
+    try:
+        quick.build(config.quick_items)
+    except quick.QuickError as exc:
         problems += 1
         print("%s" % exc, file=sys.stderr)
     try:
@@ -559,7 +565,7 @@ def cmd_ctl(config, words):
 
     if not words:
         print("usage: omapad ctl "
-              "<osk|menu|guide|map|pad|lock|keep|hud|ripple|sound"
+              "<osk|menu|quick|guide|map|pad|lock|keep|hud|ripple|sound"
               "|press|mode|status>"
               " [...]",
               file=sys.stderr)
@@ -751,7 +757,7 @@ def cmd_budget(config, words):
         print("daemon: %s" % why)
     else:
         pid = int(fields["pid"])
-        open_now = [name for name in ("osk", "menu", "guide", "map")
+        open_now = [name for name in ("osk", "menu", "quick", "guide", "map")
                     if fields.get(name) == "open"]
         print("daemon: pid %d, %s mode, %s"
               % (pid, fields.get("mode", "?"),

@@ -51,6 +51,7 @@ no window at all - there is no such thing as a cue being on screen.
 |---|---|
 | `Keyboard.qml` | [`osk.md`](osk.md) |
 | `Menu.qml` | [`menu.md`](menu.md) |
+| `QuickMenu.qml` | [`quick.md`](quick.md) |
 | `Guide.qml` | [`guide.md`](guide.md) |
 | `Mapping.qml` | [`mapping.md`](mapping.md) |
 | `GameBar.qml` | [`gamebar.md`](gamebar.md) |

@@ -50,6 +50,7 @@ because it is a model in the daemon and a socket the daemon streams to.
 |---|---|---|---|
 | [On-screen keyboard](osk.md) | `osk.py` | `Keyboard.qml` | `osk.sock` |
 | [Menu](menu.md) | `menu.py` | `Menu.qml` | `menu.sock` |
+| [Quick menu](quick.md) | `quick.py` | `QuickMenu.qml` | `quick.sock` |
 | [Readings](hud.md) | `hud.py`, `sysinfo.py` | `Hud.qml` | `hud.sock` |
 | [Bindings guide](guide.md) | `guide.py` | `Guide.qml` | `guide.sock` |
 | [Game bar](gamebar.md) | `gamebar.py` | `GameBar.qml` | `gamebar.sock` |

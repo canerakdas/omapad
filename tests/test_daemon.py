@@ -323,6 +323,7 @@ class DaemonTestCase(unittest.TestCase):
         self.menu_client = self.daemon.menu_client = FakeViewClient()
         self.hud_client = self.daemon.hud_client = FakeViewClient()
         self.guide_client = self.daemon.guide_client = FakeViewClient()
+        self.quick_client = self.daemon.quick_client = FakeViewClient()
         # Swapped here rather than per-test: the real clients connect to the
         # live shell's sockets, so a suite that left them in place would push
         # test payloads at whatever is running on the machine.
@@ -401,6 +402,7 @@ class ProfileTests(DaemonTestCase):
         daemon.menu_client = FakeViewClient()
         daemon.hud_client = FakeViewClient()
         daemon.guide_client = FakeViewClient()
+        daemon.quick_client = FakeViewClient()
         daemon.attach(FakeDevice(NINTENDO))
         self.assertEqual(daemon.buttons[0x130], "B")
         self.assertEqual(daemon.buttons[0x139], "ZR")
@@ -929,10 +931,12 @@ class TriggerTests(DaemonTestCase):
 
 class TapHoldTests(DaemonTestCase):
     def test_short_press_fires_the_tap_action(self):
+        # HOME says `on_press`: the menu is there as the button goes down,
+        # rather than when the thumb comes off.
         self.press("HOME")
-        self.assertEqual(self.hypr.calls, [])
+        self.assertTrue(self.daemon.menu_open)
         self.release("HOME")
-        self.assertEqual(self.hypr.calls, ["hl.dsp.window.cycle_next()"])
+        self.assertTrue(self.daemon.menu_open)
         self.assertEqual(self.daemon.mode, "desktop")
 
     def test_long_press_fires_the_hold_action(self):
@@ -942,6 +946,34 @@ class TapHoldTests(DaemonTestCase):
         self.assertEqual(self.daemon.mode, "game")
         self.release("HOME")
         self.assertEqual(self.hypr.calls, [])
+        # The toggle its tap made is taken back: the hold was what was meant.
+        self.assertFalse(self.daemon.menu_open)
+
+    def test_the_hold_takes_the_tap_back_from_the_desktop_too(self):
+        self.daemon.set_mode("game")
+        self.press("HOME")
+        self.assertTrue(self.daemon.menu_open)
+        pressed_at = self.daemon.held["HOME"].pressed_at
+        self.daemon.check_hold_timers(pressed_at + 1.0)
+        self.release("HOME")
+        self.assertEqual(self.daemon.mode, "desktop")
+        self.assertFalse(self.daemon.menu_open)
+
+    def test_a_tap_that_went_out_early_is_not_fired_again(self):
+        self.press("HOME")
+        self.release("HOME")
+        self.press("HOME")
+        self.release("HOME")
+        self.assertFalse(self.daemon.menu_open)
+
+    def test_without_on_press_the_tap_still_waits(self):
+        spec = {"tap": "menu:toggle", "hold": "mode:toggle", "hold_ms": 700}
+        self.config.bindings["base"]["HOME"] = spec
+        self.daemon.bindings.clear()
+        self.press("HOME")
+        self.assertFalse(self.daemon.menu_open)
+        self.release("HOME")
+        self.assertTrue(self.daemon.menu_open)
 
 
 class GameModeTests(DaemonTestCase):
@@ -1101,6 +1133,7 @@ class HandoverTests(DaemonTestCase):
         self.press("PLUS")
         self.release("PLUS")
         self.assertFalse(self.daemon.menu_open)
+        self.assertFalse(self.daemon.quick_open)
         self.press("MINUS")
         self.release("MINUS")
         self.assertFalse(self.daemon.osk_open)
@@ -2795,9 +2828,11 @@ class MenuTests(DaemonTestCase):
         self.daemon.set_menu(False)
         self.assertEqual(self.daemon.current_layer, "base")
 
-    def test_plus_summons_it(self):
-        self.press("PLUS")
-        self.release("PLUS")
+    def test_home_summons_it(self):
+        # HOME is the menu's button, the way the button in the middle of a
+        # console pad opens its home. PLUS is the quick menu's - QuickTests.
+        self.press("HOME")
+        self.release("HOME")
         self.assertTrue(self.daemon.menu_open)
         self.assertTrue(self.menu_client.sent[-1]["open"])
 
@@ -6076,6 +6111,231 @@ class GuideTests(DaemonTestCase):
                       self.daemon.handle_control("guide sideways"))
 
 
+class QuickTests(DaemonTestCase):
+    """PLUS opens the quick menu: one row, and the menu one press away."""
+
+    def tap(self, name):
+        self.press(name)
+        self.release(name)
+
+    def setUp(self):
+        super().setUp()
+        # A machine that answers for both values, so every shipped tile is
+        # on the row; `test_a_value_nobody_answers_is_left_off` is the other.
+        self.daemon.live.values["volume"] = 0.5
+        self.daemon.live.values["brightness"] = 1.0
+
+    def walk_to(self, ident):
+        for _ in range(len(self.daemon.quick.items)):
+            if self.daemon.quick.current["id"] == ident:
+                return
+            self.daemon.quick_command("right")
+        self.fail("no tile called %s" % ident)
+
+    def test_plus_opens_it_and_not_the_menu(self):
+        self.tap("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+        self.assertFalse(self.daemon.menu_open)
+        self.assertEqual(self.daemon.current_layer, "quick")
+        state = self.quick_client.sent[-1]
+        self.assertTrue(state["open"])
+        self.assertEqual(state["sel"], 0)
+        self.assertEqual(state["tiles"][0]["l"], "Resume")
+
+    def test_plus_opens_it_on_the_way_down(self):
+        # PLUS is half of the MINUS+PLUS chord, and a chord member waits for
+        # its release - which made a row that only appeared when the thumb
+        # came off, and read as a button that wanted holding.
+        self.press("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+        self.release("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+
+    def test_holding_plus_does_nothing_else(self):
+        self.press("PLUS")
+        pressed_at = time.monotonic()
+        self.daemon.check_hold_timers(pressed_at + 2.0)
+        self.release("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_the_chord_still_wins_with_plus_first(self):
+        self.press("PLUS")
+        self.press("MINUS")
+        self.release("MINUS")
+        self.release("PLUS")
+        self.assertTrue(self.daemon.menu_open)
+        self.assertFalse(self.daemon.quick_open)
+        self.assertFalse(self.daemon.osk_open)
+
+    def test_plus_again_puts_it_away(self):
+        self.tap("PLUS")
+        self.tap("PLUS")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertFalse(self.quick_client.sent[-1]["open"])
+
+    def test_it_takes_the_pad_while_it_is_up(self):
+        self.daemon.handed_over = True
+        self.daemon.apply_grab()
+        self.assertFalse(self.device.grabbed)
+        self.daemon.set_quick(True)
+        self.assertTrue(self.device.grabbed)
+
+    def test_the_menu_and_the_row_close_each_other(self):
+        self.tap("HOME")
+        self.assertTrue(self.daemon.menu_open)
+        # PLUS inside the menu is the way to the row.
+        self.tap("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+        self.assertFalse(self.daemon.menu_open)
+        # And HOME from the row is the way back.
+        self.tap("HOME")
+        self.assertTrue(self.daemon.menu_open)
+        self.assertFalse(self.daemon.quick_open)
+
+    def test_over_a_game_the_chord_then_plus_reaches_it(self):
+        # PLUS alone belongs to the game's pause screen, so the chord opens
+        # the menu, and the menu's PLUS goes on to the row.
+        self.daemon.handed_over = True
+        self.press("MINUS")
+        self.press("PLUS")
+        self.release("PLUS")
+        self.release("MINUS")
+        self.assertTrue(self.daemon.menu_open)
+        self.tap("PLUS")
+        self.assertTrue(self.daemon.quick_open)
+
+    def test_a_tile_runs_over_a_game(self):
+        # The row closes before the tile fires, and by then the pad looks
+        # handed over again; the press was ours, on a surface we drew.
+        self.daemon.handed_over = True
+        self.daemon.set_quick(True)
+        self.walk_to("keyboard")
+        self.tap("A")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertTrue(self.daemon.osk_open)
+
+    def test_the_next_window_is_not_on_the_row(self):
+        ids = [item["id"] for item in self.daemon.quick.items]
+        self.assertNotIn("next-window", ids)
+
+    def test_a_value_nobody_answers_is_left_off(self):
+        # A monitor with no DDC answers the brightness read with nothing,
+        # and a tile turning a number nobody can read changes nothing.
+        del self.daemon.live.values["brightness"]
+        self.daemon.set_quick(True)
+        labels = [tile["l"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertNotIn("Brightness", labels)
+        self.assertIn("Volume", labels)
+        # And the read that would bring it back is still asked.
+        self.assertIn("brightness", self.daemon.live_names())
+
+    def test_a_tile_arriving_keeps_the_selection_where_it_is(self):
+        del self.daemon.live.values["brightness"]
+        self.daemon.set_quick(True)
+        self.walk_to("screenshot")
+        self.daemon.live.values["brightness"] = 0.8
+        self.daemon.push_quick_view()
+        state = self.quick_client.sent[-1]
+        self.assertIn("Brightness", [tile["l"] for tile in state["tiles"]])
+        self.assertEqual(state["tiles"][state["sel"]]["id"], "screenshot")
+
+    def test_resume_is_the_first_press(self):
+        self.tap("PLUS")
+        self.tap("A")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertEqual(self.hypr.calls, [])
+
+    def test_the_dpad_walks_the_row_and_wraps(self):
+        self.daemon.set_quick(True)
+        self.feed((li.EV_ABS, li.ABS_HAT0X, -1))
+        self.feed((li.EV_ABS, li.ABS_HAT0X, 0))
+        self.assertEqual(self.daemon.quick.index,
+                         len(self.daemon.quick.shown) - 1)
+        self.assertEqual(self.quick_client.sent[-1]["sel"],
+                         self.daemon.quick.index)
+
+    def test_closing_the_window_takes_two_presses(self):
+        self.daemon.set_quick(True)
+        self.walk_to("close-window")
+        self.tap("A")
+        self.assertTrue(self.daemon.quick_open)
+        self.assertEqual(self.hypr.calls, [])
+        self.assertTrue(self.quick_client.sent[-1]["band"]["arm"])
+        legend = [row["n"] for row in self.quick_client.sent[-1]["keys"]]
+        self.assertIn("Confirm", legend)
+        self.assertIn("Cancel", legend)
+        self.tap("A")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
+
+    def test_b_lets_go_of_the_second_press_before_it_leaves(self):
+        self.daemon.set_quick(True)
+        self.walk_to("close-window")
+        self.tap("A")
+        self.tap("B")
+        self.assertTrue(self.daemon.quick_open)
+        self.assertIsNone(self.daemon.quick.armed)
+        self.tap("B")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertEqual(self.hypr.calls, [])
+
+    def test_up_turns_the_volume_on_its_tile(self):
+        self.daemon.set_quick(True)
+        self.walk_to("volume")
+        self.session.captured.clear()
+        self.daemon.quick_command("up")
+        self.assertAlmostEqual(self.daemon.live.value("volume"), 0.55)
+        self.assertTrue(self.session.captured)
+        band = self.quick_client.sent[-1]["band"]
+        self.assertEqual(band["w"], "55%")
+        self.assertAlmostEqual(band["v"], 0.55)
+
+    def test_up_does_nothing_on_a_tile_without_a_value(self):
+        self.daemon.set_quick(True)
+        self.assertFalse(self.daemon.quick_command("up"))
+
+    def test_the_legend_says_the_tile(self):
+        self.daemon.set_quick(True)
+        legend = self.quick_client.sent[-1]["keys"]
+        words = dict((row["b"], row["n"]) for row in legend)
+        self.assertEqual(words.get("A"), "Resume")
+        self.walk_to("volume")
+        legend = self.quick_client.sent[-1]["keys"]
+        self.assertTrue(any(row["k"] == "dpad" for row in legend))
+        self.assertNotIn("A", [row["b"] for row in legend])
+
+    def test_the_bar_stands_down_while_it_is_up(self):
+        # The row prints the bar's row of buttons in the bar's own band, so
+        # two rows of the same words must not stand in one place.
+        self.daemon.set_mode("game")
+        self.assertTrue(self.daemon.gamebar_open)
+        self.daemon.set_quick(True)
+        self.assertFalse(self.daemon.gamebar_open)
+        self.assertEqual(self.quick_client.sent[-1]["barh"],
+                         self.config.gamebar_height)
+        self.daemon.set_quick(False)
+        self.assertTrue(self.daemon.gamebar_open)
+
+    def test_the_head_names_what_is_in_front(self):
+        self.daemon.set_focus("steam_app_1", "Velvet Horizon")
+        self.daemon.set_quick(True)
+        head = self.quick_client.sent[-1]["head"]
+        self.assertEqual(head["t"], "Velvet Horizon")
+        self.assertEqual(head["k"], "Desktop")
+
+    def test_the_control_socket_drives_it(self):
+        reply = self.daemon.handle_control("quick open")
+        self.assertIn("quick=open", reply)
+        self.daemon.handle_control("quick select 2")
+        self.assertEqual(self.daemon.quick.index, 2)
+        self.assertIn("quick=closed",
+                      self.daemon.handle_control("quick close"))
+        self.assertIn("unknown quick command",
+                      self.daemon.handle_control("quick sideways"))
+        self.assertIn("quick=closed", self.daemon.handle_control("status"))
+
+
 class ChordTests(DaemonTestCase):
     """MINUS + PLUS opens the menu, whichever button lands first."""
 
@@ -6128,9 +6388,10 @@ class ChordTests(DaemonTestCase):
     def test_either_button_alone_still_does_its_own_job(self):
         self.press("PLUS")
         self.release("PLUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
+        self.assertFalse(self.daemon.menu_open)
         self.assertEqual(self.daemon.mode, "desktop")
-        self.daemon.set_menu(False)
+        self.daemon.set_quick(False)
         self.press("MINUS")
         self.release("MINUS")
         self.assertTrue(self.daemon.osk_open)

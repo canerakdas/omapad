@@ -31,8 +31,9 @@ room, not browsed. Two things disqualify a row:
   not installed is worse from a sofa than no row at all - you press it and the
   screen does not change. Battle.net is kept out of the shipped menu for
   exactly this. Either ask first (`omarchy-cmd-present`) or leave it out.
-- **It wants a keyboard.** The real Omarchy menu is a hold on PLUS precisely
-  because it is driven by typing. Do not reimplement it here.
+- **It wants a keyboard.** The real Omarchy menu is one tile under System
+  that opens it, precisely because it is driven by typing. Do not
+  reimplement it here.
 
 ## Groups: the top level is the bar
 

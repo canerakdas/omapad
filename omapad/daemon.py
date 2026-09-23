@@ -32,6 +32,7 @@ from .menu import (CHRONO, CONTROL_KINDS, ROWS, MenuError, MenuModel,
                    build as build_menu, build_head, head_sources,
                    meta_sources, listed)
 from .osk import OskModel, badge_index
+from .quick import QuickError, QuickModel, build as build_quick
 from . import paths
 from .ripple import RippleModel
 from . import sound as sound_module
@@ -382,7 +383,7 @@ def apply_curve(x, y, deadzone, exponent):
 
 class HeldAction:
     __slots__ = ("action", "binding", "pressed_at", "hold_fired", "warned",
-                 "released_at")
+                 "released_at", "tapped")
 
     def __init__(self, action, binding, pressed_at):
         self.action = action
@@ -395,6 +396,9 @@ class HeldAction:
         # `[confirm] slack_ms` says the countdown survives a slip. None is a
         # button that is still down, which is every hold on a shipped config.
         self.released_at = None
+        # Whether the tap half already went out on the way down (`on_press`),
+        # so the release has nothing left to fire.
+        self.tapped = False
 
 
 class Daemon:
@@ -627,6 +631,19 @@ class Daemon:
         self.guide_client = ViewClient("guide.sock", config.guide_socket)
         self.guide_open = False
         self._guide_next_heartbeat = 0.0
+
+        # The quick menu: one row, what PLUS opens. Built the way the menu is,
+        # and failing the same way - a tile that will not parse costs the row,
+        # not the daemon, and `omapad check` names it.
+        try:
+            quick_items = build_quick(config.quick_items)
+        except QuickError as exc:
+            log.error("quick: %s", exc)
+            quick_items = []
+        self.quick = QuickModel(quick_items)
+        self.quick_client = ViewClient("quick.sock", config.quick_socket)
+        self.quick_open = False
+        self._quick_next_heartbeat = 0.0
 
         # The bar widget's view: not a surface anyone navigates, just what the
         # daemon knows about itself, pushed the same best-effort way.
@@ -1028,7 +1045,7 @@ class Daemon:
         ours, whatever the app in front has open.
         """
         return bool(self.mapping_open or self.osk_open or self.menu_open
-                    or self.guide_open)
+                    or self.guide_open or self.quick_open)
 
     def wants_grab(self):
         """Should the pad be ours exclusively right now?
@@ -1174,6 +1191,7 @@ class Daemon:
             and self.config.gamebar_enabled
             and not self.handed_over
             and not (self.menu_open and self.config.menu_fullscreen)
+            and not self.quick_open
         )
 
     # -- mode --------------------------------------------------------------
@@ -1874,7 +1892,7 @@ class Daemon:
     # The layers that are ours rather than the game's: a surface drawn on
     # screen reads the pad even in game mode, because it was opened on purpose
     # and nothing else is looking at those buttons while it is up.
-    SURFACE_LAYERS = ("guide", "menu", "osk")
+    SURFACE_LAYERS = ("guide", "quick", "menu", "osk")
 
     @property
     def current_layer(self):
@@ -1889,6 +1907,8 @@ class Daemon:
         # menu you can open and not use.
         if self.guide_open:
             return "guide"
+        if self.quick_open:
+            return "quick"
         if self.menu_open:
             return "menu"
         if self.osk_open:
@@ -2186,6 +2206,7 @@ class Daemon:
         opened = {
             "map": self.mapping_open,
             "guide": self.guide_open,
+            "quick": self.quick_open,
             "menu": self.menu_open,
             "osk": self.osk_open,
         }
@@ -2198,6 +2219,7 @@ class Daemon:
         setter = {
             "map": self.set_mapping,
             "guide": self.set_guide,
+            "quick": self.set_quick,
             "menu": self.set_menu,
             "osk": self.set_osk,
         }.get(name)
@@ -2679,6 +2701,9 @@ class Daemon:
             # Both surfaces read the D-pad, and stacking the menu over the
             # keyboard leaves no way to tell which one a press belongs to.
             self.set_osk(False)
+            # The same for the quick menu, which is the menu's other shape:
+            # HOME from the row is the way here, and the row goes as it comes.
+            self.set_quick(False)
             # Before the menu is pushed, never after: the bar stands in the
             # band a fullscreen HUD prints its own row of hints in, and two
             # rows of words crossfading in one place is what reads as a
@@ -3098,6 +3123,21 @@ class Daemon:
     def live_names(self, selected_only=False):
         """Which live readings the page in front is showing."""
         names = []
+        if self.quick_open:
+            # The row's tiles read the machine through their actions rather
+            # than through a `reads`, so it is the actions that are asked.
+            # Every tile, hidden ones included: a tile waiting for its first
+            # answer is exactly the one that has to be asked.
+            current = self.quick.current
+            for item in self.quick.items:
+                if selected_only and item is not current:
+                    continue
+                for action in (item["up"], item["action"]):
+                    reading = getattr(action, "reading", None)
+                    if (isinstance(action, actions.LiveAction)
+                            and reading not in names):
+                        names.append(reading)
+            return names
         for tile in self.menu.tiles:
             item = tile["item"]
             if not item["reads"] or item["reads"][0] != "live":
@@ -3130,8 +3170,12 @@ class Daemon:
     def _live_took(self, name, generation):
         def took(lines):
             self._live_asking.discard(name)
-            if self.live.took(name, lines, generation) and self.menu_open:
+            if not self.live.took(name, lines, generation):
+                return
+            if self.menu_open:
                 self.push_menu_view()
+            if self.quick_open:
+                self.push_quick_view()
         return took
 
     def live_refresh(self, now):
@@ -3146,7 +3190,7 @@ class Daemon:
         nobody is at. And one a press has just written, asked once
         `[live] settle_ms` later, by which time the helper has landed.
         """
-        if not self.menu_open:
+        if not (self.menu_open or self.quick_open):
             return
         selected = self.live_names(selected_only=True)
         names = []
@@ -3210,6 +3254,8 @@ class Daemon:
             self._menu_quiet = True
         elif self.menu_open:
             self.push_menu_view()
+        if self.quick_open:
+            self.push_quick_view()
         return True
 
     def live_send(self, name, command):
@@ -4978,6 +5024,7 @@ class Daemon:
             self.guide.reset()
             # Only one surface may read the D-pad, and the guide is the one
             # being looked at.
+            self.set_quick(False)
             self.set_menu(False)
             self.set_osk(False)
         self.push_guide_view()
@@ -5013,6 +5060,243 @@ class Daemon:
             self.say("move", rumble=False)
         self.push_guide_view()
 
+    # -- the quick menu ----------------------------------------------------
+
+    def set_quick(self, opened):
+        if opened == self.quick_open:
+            return
+        self.quick_open = opened
+        if opened:
+            # The first tile, every time: see `QuickModel.reset`.
+            self.quick.reset()
+            self.quick.hide(self.quick_unanswered())
+            # One surface reads the D-pad at a time. The menu is the row's
+            # other shape and PLUS inside it is the way here, so it goes as
+            # this comes; the keyboard is under both.
+            self.set_menu(False)
+            self.set_osk(False)
+            # The edge tick is shared with the menu's controls, and a wall one
+            # of them found is not a wall on this row.
+            self._menu_edged = False
+            # The row covers the whole screen and prints its own legend in
+            # the bar's band, so the bar steps down first - before the push,
+            # for the reason `set_menu` gives.
+            self.apply_gamebar()
+        else:
+            self.quick.disarm()
+            # A level held back to coalesce is where the thumb stopped, and
+            # the row going away is not a reason to lose it.
+            self.live_flush(force=True)
+            # Nothing is asked while the row is shut - the same rule the menu
+            # keeps - so the first read after it opens again is a fresh one.
+            self._live_poll.clear()
+            self._live_due.clear()
+            self._live_pending.clear()
+            self._live_sent.clear()
+        self.push_quick_view()
+        if not opened:
+            self.apply_gamebar()
+        self.apply_grab()
+        self.relabel_gamebar()
+        log.info("quick: %s", "open" if opened else "closed")
+
+    def quick_unanswered(self):
+        """The tiles whose value this machine has never answered for.
+
+        A tile that turns a value is only worth a place on the row once the
+        machine has said what that value is. Brightness is the case that
+        forced it: a desktop monitor that speaks no DDC, or a machine with no
+        backlight, answers the read with nothing, and a tile that nudges a
+        number nobody can read changes nothing on the screen it is drawn on.
+        So the tile waits for the answer rather than for a list of machines -
+        the read is asked the moment the row opens, and a machine that can
+        answer puts the tile back a pass of the loop later.
+        """
+        ids = []
+        for item in self.quick.items:
+            action = item["up"]
+            if (isinstance(action, actions.LiveAction)
+                    and self.live.value(action.reading) is None):
+                ids.append(item["id"])
+        return ids
+
+    def push_quick_view(self):
+        self._quick_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
+        self.quick.hide(self.quick_unanswered())
+        state = self.quick.view_state(
+            self.quick_open, self.action_state, self.action_value,
+            self.quick_share, self.quick_head(), self.quick_legend(),
+        )
+        # The menu's own three, because the row is drawn from the menu's
+        # module: a tile here is a cell there, rounded and dimmed behind the
+        # same way, so the two read as one family when PLUS and HOME swap
+        # them in the same place. Settings, and the shell cannot read them.
+        state["cell"] = self.config.menu_cell
+        state["corner"] = self.config.menu_tile_corner
+        state["dim"] = self.config.menu_dim
+        # The game bar's height, because the legend stands in the bar's band
+        # the way a fullscreen menu's does - the bar steps down while the row
+        # is up (`apply_gamebar`), and the row that answers the buttons stays
+        # where it was.
+        state["barh"] = self.config.gamebar_height
+        self.quick_client.send(self.scaled(state))
+
+    def quick_head(self):
+        """The top left of the row: which mode, and what is in front.
+
+        The window's own title, because that is what the row is paused over -
+        a game names itself there. Cut and stripped on the way out: a title is
+        typed by whatever program owns the window, not by us.
+        """
+        if not self.quick_open:
+            return {}
+        title = self.focus_title or self.focus_class
+        return {
+            "k": "Game mode" if self.mode == "game" else "Desktop",
+            "t": drawable(title) if title else "",
+        }
+
+    def quick_share(self, action):
+        """Where along its travel the value an action steps is, or None.
+
+        Only a `live:` number has a travel to draw: a `pad:` setting prints
+        its words, and a bar under them would be a second scale for the one
+        the setting already says.
+        """
+        if not isinstance(action, actions.LiveAction):
+            return None
+        spec = live_module.READINGS.get(action.reading) or {}
+        if spec.get("kind") != "number":
+            return None
+        value = self.live.value(action.reading)
+        if value is None:
+            return None
+        low, high = spec.get("min", 0.0), spec.get("max", 1.0)
+        if high <= low:
+            return None
+        return (float(value) - low) / (high - low)
+
+    def quick_legend(self):
+        """What the buttons do on the tile in front, for the foot of the row.
+
+        Built from `[bindings.quick]` the way the menu's legend is built from
+        its layer, so the words and the press cannot come apart. A is asked
+        of the tile rather than of the layer: it says the tile's own name,
+        `Confirm` once the tile is waiting for a second press, and nothing on
+        a tile A does not touch. Up and down are printed only where there is
+        a value for them to turn.
+        """
+        if not self.quick_open:
+            return []
+        available = self.available_buttons()
+        layout = self.guide.layout
+        item = self.quick.current
+        rows = []
+        if item is not None and item["up"] is not None:
+            for button in ("DPAD_DOWN", "DPAD_UP"):
+                row = guide_module.button_row(
+                    button, self.config.binding_for("quick", button), layout,
+                    True)
+                if row is not None:
+                    rows.append({"b": row["b"], "k": "dpad", "n": row["d"]})
+        # X is left off: a row has no levels, so it is the same way out B
+        # already prints.
+        for button in ("A", "B", "Y"):
+            if available is not None and button not in available:
+                continue
+            row = guide_module.button_row(
+                button, self.config.binding_for("quick", button), layout,
+                True)
+            if row is None:
+                continue
+            word = row["d"]
+            if button == "A":
+                if item is None or item["action"] is None:
+                    continue
+                word = ("Confirm" if self.quick.armed == item["id"]
+                        else item["label"])
+            elif button == "B" and self.quick.armed is not None:
+                word = "Cancel"
+            if word:
+                rows.append({"b": row["b"], "k": row["k"], "n": word})
+        return rows
+
+    def quick_command(self, command, repeat=False):
+        """Drive the quick menu. True when holding the button should repeat."""
+        if command == "toggle":
+            if self.quick_open:
+                self.say("back")
+            self.set_quick(not self.quick_open)
+            return False
+        if command == "open":
+            self.set_quick(True)
+            return False
+        if command == "close":
+            if self.quick_open:
+                self.say("back")
+            self.set_quick(False)
+            return False
+        if not self.quick_open:
+            return False  # walking a row that is not there means nothing
+        model = self.quick
+        if command in ("left", "right"):
+            if model.move(-1 if command == "left" else 1):
+                self.say("move", rumble=False)
+            self.push_quick_view()
+            return True
+        if command in ("up", "down"):
+            action = model.nudge(1 if command == "up" else -1)
+            if action is None:
+                self.push_quick_view()
+                return False
+            if not repeat:
+                # A fresh push may find the end of the travel again; a held
+                # one found it once and says so once. See `menu_edge`.
+                self._menu_edged = False
+            # Tagged with this surface, so it runs while a game holds the
+            # pad: the row was opened over it on purpose.
+            self.fire_once(action, "quick")
+            self.push_quick_view()
+            return True
+        if command == "back":
+            self.say("back")
+            if model.disarm():
+                # B lets go of a tile waiting for its second press before it
+                # leaves: the first B is "not that", the second is "not this".
+                self.push_quick_view()
+                return False
+            self.set_quick(False)
+            return False
+        if command == "press":
+            kind, item = model.press()
+            if kind is None:
+                self.push_quick_view()
+                return False
+            if kind == "arm":
+                # Said with the motor as well as the band: the press did
+                # something, and what it did was not the thing on the tile.
+                self.say("tick")
+                self.push_quick_view()
+                return False
+            if item["stay"]:
+                self.fire_once(item["action"], "quick")
+                self.push_quick_view()
+                return False
+            # The row goes before the tile fires, for the menu's reason:
+            # whatever it opens must not come up behind the dimming.
+            self.set_quick(False)
+            self.fire_once(item["action"], "quick")
+            return False
+        return False
+
+    def quick_select(self, index):
+        """Name a tile outright - `omapad ctl quick select N`."""
+        if not self.quick_open:
+            return
+        if self.quick.select(index):
+            self.say("move", rumble=False)
+        self.push_quick_view()
+
     # -- the settings the pad can change -----------------------------------
 
     def set_setting(self, name, request):
@@ -5043,6 +5327,8 @@ class Daemon:
         if self.menu_open:
             # The tick moves to the row that was just picked.
             self.push_menu_view()
+        if self.quick_open:
+            self.push_quick_view()
 
     def setting_words(self, name, value):
         """What a setting now holds, in the words the menu prints.
@@ -5166,6 +5452,7 @@ class Daemon:
             # Every other surface goes away: this one reads the pad raw, so
             # nothing else can be listening to the same buttons.
             self.set_guide(False)
+            self.set_quick(False)
             self.set_menu(False)
             self.set_osk(False)
             self.release_everything()
@@ -5202,6 +5489,8 @@ class Daemon:
             self.push_osk_view()
         if self.menu_open:
             self.push_menu_view()
+        if self.quick_open:
+            self.push_quick_view()
         if self.guide_open:
             self.push_guide_view()
         if self.mapping_open:
@@ -5316,6 +5605,8 @@ class Daemon:
                 "usage: osk <toggle|open|close> "
                 "| menu <toggle|open|close|up|down|left|right|press|back"
                 "|group_prev|group_next|select N|group N|row ID> "
+                "| quick <toggle|open|close|left|right|up|down|press|back"
+                "|select N> "
                 "| guide <toggle|open|close|next|prev> "
                 "| map <toggle|open|close|skip|back|restart|save|cancel> "
                 "| surface <close|close_all|back> "
@@ -5338,8 +5629,8 @@ class Daemon:
                 # `omapad budget` has to find the process to read /proc for,
                 # and asking the daemon is better than guessing from a
                 # command line.
-                "mode=%s pad=%s lock=%s keep=%s osk=%s menu=%s guide=%s "
-                "map=%s hud=%s layer=%s pid=%d device=%s"
+                "mode=%s pad=%s lock=%s keep=%s osk=%s menu=%s quick=%s "
+                "guide=%s map=%s hud=%s layer=%s pid=%d device=%s"
                 % (
                     self.mode,
                     "app" if self.handed_over else "ours",
@@ -5347,6 +5638,7 @@ class Daemon:
                     "on" if self.keeping else "off",
                     "open" if self.osk_open else "closed",
                     "open" if self.menu_open else "closed",
+                    "open" if self.quick_open else "closed",
                     "open" if self.guide_open else "closed",
                     "open" if self.mapping_open else "closed",
                     "on" if self.hud_open else "off",
@@ -5417,6 +5709,27 @@ class Daemon:
             return "menu=%s title=%s group=%d sel=%s" % (
                 "open" if self.menu_open else "closed",
                 self.menu.title, self.menu.group, self.menu.selected or "",
+            )
+        if verb == "quick" and args:
+            from .actions import QuickAction
+
+            command = args[0]
+            if command == "select" and len(args) > 1:
+                # The tile a pointer would name, the way `menu select` does.
+                try:
+                    index = int(args[1])
+                except ValueError:
+                    return "unknown quick command: select %s" % args[1]
+                self.quick_select(index)
+            elif command in QuickAction.SIMPLE:
+                self.quick_command(command)
+            else:
+                return "unknown quick command: %s" % command
+            current = self.quick.current
+            return "quick=%s sel=%s%s" % (
+                "open" if self.quick_open else "closed",
+                current["id"] if current else "",
+                " armed" if self.quick.armed else "",
             )
         if verb == "map" and args:
             command = args[0]
@@ -5692,6 +6005,7 @@ class Daemon:
         layer trigger everywhere else.
         """
         for name, opened in (("guide", self.guide_open),
+                             ("quick", self.quick_open),
                              ("menu", self.menu_open),
                              ("osk", self.osk_open)):
             if not opened:
@@ -5778,11 +6092,11 @@ class Daemon:
 
     # Actions that still answer while the pad is the app's: the ones that put
     # something of ours on screen, and the mode switch.
-    SUMMONS = (actions.MenuAction, actions.OskAction, actions.GuideAction,
-               actions.MappingAction, actions.ModeAction)
+    SUMMONS = (actions.MenuAction, actions.QuickAction, actions.OskAction,
+               actions.GuideAction, actions.MappingAction, actions.ModeAction)
     # The layers a surface owns while it is up. A row picked on one of them
     # is allowed even once the surface has gone: see `allowed`.
-    SURFACE_LAYERS = ("osk", "menu", "guide")
+    SURFACE_LAYERS = ("osk", "menu", "quick", "guide")
 
     def allowed(self, action, layer=None, confirmed=False, reaches=None,
                 chord=False):
@@ -5856,12 +6170,29 @@ class Daemon:
         if binding is None:
             return
         now = time.monotonic()
+        # A tap/hold that says `on_press` fires its tap now and keeps the
+        # hold's clock running. The tap is what the button is pressed for
+        # nearly every time, and one that only answered when the thumb came
+        # off was a press that looked like it had done nothing - held a
+        # moment longer to make sure, it became the hold instead. See
+        # `check_hold_timers` for what reaching the hold does to the tap.
+        if binding.is_tap_hold and binding.on_press:
+            held = HeldAction(None, binding, now)
+            held.tapped = True
+            self.held[button] = held
+            self.set_holding(button, binding)
+            if (self.fire_once(binding.tap, binding.layer,
+                               reaches=binding.reaches_past)
+                    and binding.rumble):
+                self.say("tick")
+            return
         # A button a chord names cannot fire on the way down: whether this is a
         # chord or a press of its own is only known once its partner has had a
         # chance to land. So it waits for the release, the way a tap/hold
         # binding does - which also means a chord member is a poor place for a
         # drag.
-        if binding.waits_for_release or self.chord_pending(button):
+        if binding.waits_for_release or (
+                self.chord_pending(button) and not binding.on_press):
             self.held[button] = HeldAction(None, binding, now)
             self.set_holding(button, binding)
             return
@@ -5906,7 +6237,7 @@ class Daemon:
             # and now is when it fires - unless a confirming hold already
             # announced itself, in which case letting go is how you back out
             # and the tap was plainly not what you were after.
-            if not held.hold_fired and not held.warned:
+            if not held.hold_fired and not held.warned and not held.tapped:
                 if (
                     self.fire_once(held.binding.tap, held.binding.layer,
                                    reaches=held.binding.reaches_past)
@@ -6016,6 +6347,13 @@ class Daemon:
             if not binding.confirm_ms:
                 if elapsed >= binding.hold_ms:
                     held.hold_fired = True
+                    if held.tapped and getattr(binding.tap, "toggles", False):
+                        # The tap went out on the way down and the hold is
+                        # what was meant. A toggle is its own undo, so it is
+                        # pressed again: holding HOME to switch the mode must
+                        # not leave the menu its tap opened standing behind.
+                        self.fire_once(binding.tap, binding.layer,
+                                       reaches=binding.reaches_past)
                     if binding.hold.spans_hold:
                         # The press goes out now and the release waits for the
                         # finger, which is the only way this gesture can have
@@ -6904,6 +7242,14 @@ class Daemon:
                     self.push_menu_live(now)
                     if now >= self._menu_next_heartbeat:
                         self.push_menu_view()
+                if self.quick_open:
+                    if not self.menu_open:
+                        # Asked once per pass whichever surface wants it; the
+                        # two close each other, so this is the menu's call
+                        # made for the row while the menu is down.
+                        self.live_refresh(now)
+                    if now >= self._quick_next_heartbeat:
+                        self.push_quick_view()
                 if self.guide_open and now >= self._guide_next_heartbeat:
                     self.push_guide_view()
                 # Both places a reading can be drawn are asked for in one
@@ -6953,6 +7299,8 @@ class Daemon:
         self.osk_client.close()
         self.set_menu(False)
         self.menu_client.close()
+        self.set_quick(False)
+        self.quick_client.close()
         self.set_guide(False)
         self.guide_client.close()
         self.set_mapping(False)

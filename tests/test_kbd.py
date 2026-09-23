@@ -253,7 +253,7 @@ class KeyRoutingTests(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
         self.daemon = daemon_module.Daemon(self.config)
-        for name in ("osk", "menu", "guide", "mapping", "status",
+        for name in ("osk", "menu", "quick", "guide", "mapping", "status",
                      "gamebar"):
             setattr(self.daemon, "%s_client" % name, FakeViewClient())
         self.addCleanup(self.daemon.shutdown)

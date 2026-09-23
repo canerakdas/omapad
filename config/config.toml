@@ -26,7 +26,10 @@
 #   osk:layer:next|prev                    walk the keyboard's pages
 #   menu:toggle|open|close                 the controller menu
 #   menu:up|down|press|back                navigate and pick from it (up/down repeat)
-#   guide:toggle|open|close                the bindings guide - what every
+#   quick:toggle|open|close                the quick menu - one row of tiles,
+#                                          see [quick]
+#   quick:left|right|up|down|press|back    walk the row, nudge a value, pick
+#   guide:toggle|open|close               the bindings guide - what every
 #                                          button does, badged like the buttons
 #   guide:next|prev                        turn its pages
 #   map:toggle|open|close                  the controller mapping screen -
@@ -82,6 +85,19 @@
 # dispatcher:
 #   L = { tap = "hypr:hl.dsp.focus({ workspace = 'r-1' })", desc = "Previous workspace" }
 #   HOME = { tap = "...", hold = "...", desc = "Next window", hold_desc = "Game mode" }
+#
+# `on_press = true` fires the tap on the way down, where it would otherwise
+# wait for the release. Two things make a button wait: a chord naming it
+# (whether it is half of one is only known once the partner has had a chance
+# to land) and a hold on it (whether it is a tap is only known once it comes
+# up). A tap that only answers when the thumb comes off looks like a press
+# that did nothing, and held a moment longer to make sure it becomes the hold
+# instead. With this the tap acts at once. A partner landing while the button
+# is still down turns it into the chord, which takes over; and a hold still
+# fires when it is due - where the tap was a `toggle`, it is pressed again
+# first, so holding HOME to switch mode does not leave its menu open behind:
+#   PLUS = { tap = "quick:toggle", on_press = true }
+#   HOME = { tap = "menu:toggle", hold = "mode:toggle", on_press = true }
 #
 # `reaches_past` decides whether a binding still fires while the pad has been
 # handed to the app in front. Say nothing and a summon gets through and nothing
@@ -1514,10 +1530,42 @@ DPAD_DOWN = "key:DOWN"
 DPAD_LEFT = "key:LEFT"
 DPAD_RIGHT = "key:RIGHT"
 
-# The controller menu is what PLUS is for now; the real Omarchy menu is a hold
-# away, since it wants a keyboard to be driven comfortably.
-PLUS = { tap = "menu:toggle", hold = "exec:omarchy-menu toggle", hold_ms = 400, hold_desc = "Omarchy menu", reaches_past = false }
-HOME = { tap = "hypr:hl.dsp.window.cycle_next()", hold = "mode:toggle", hold_ms = 700, desc = "Next window", short = "Window" }
+# Two menus, one per button, the way a console splits them. HOME - the button
+# in the middle of the pad, the Xbox button - opens the controller menu, the
+# place with every group in it: the button a console spends on its home.
+# PLUS - Start, the Xbox pad's ☰ - opens the quick menu, one row of what
+# somebody pauses for (see [quick]): the button a game spends on pausing.
+#
+# HOME's tap used to be the next window. It is a row under Workspaces ›
+# Windows in the menu now, because the menu had nowhere better to be than the
+# button that carries its name on every console. The hold is still the mode.
+#
+# PLUS carries nothing on a hold. It carried the real Omarchy menu for a while,
+# and a button that opens one menu when tapped and another when held a beat
+# too long is a button whose press is a guess - the Omarchy menu is a tile
+# under System instead. And `on_press`: PLUS is half of the MINUS+PLUS chord,
+# so it would otherwise wait for its release to find out which it was, and a
+# menu that only opens when the thumb comes off reads as a button that wants
+# holding. It opens on the way down; MINUS landing while it is still held
+# turns the press into the chord, and the controller menu takes the row's
+# place.
+#
+# Over a game the two are not symmetrical, and that is on purpose. PLUS keeps
+# `reaches_past = false`: Start is the game's own pause button, and a quick
+# menu on top of every pause screen is the fault that setting exists for - so
+# over a game the way in is the MINUS+PLUS chord, and PLUS inside the menu it
+# opens. HOME says nothing, so both its halves reach past the way a summon
+# does: its hold is the mode switch, which has to work over a game, and a
+# binding cannot let one half through and keep the other back.
+# `reaches_past = false` here gives up both.
+#
+# `on_press` on HOME for the reason it is on PLUS, and it was worse here: the
+# hold is the mode switch, so a tap that only answered on the release, held a
+# moment longer to make sure, switched the mode instead of opening the menu.
+# The menu opens as the button goes down now; held on to the switch, the menu
+# closes again and the mode changes.
+PLUS = { tap = "quick:toggle", desc = "Quick menu", short = "Quick", on_press = true, reaches_past = false }
+HOME = { tap = "menu:toggle", hold = "mode:toggle", hold_ms = 700, desc = "Controller menu", short = "Menu", on_press = true }
 # Both halves of this one shorten to `Capture`, which on a bar of three words
 # says nothing about which half you are getting.
 CAPTURE = { tap = "exec:omarchy-capture-screenshot", hold = "exec:omarchy-capture-region", hold_ms = 500, short = "Screenshot", hold_short = "Region" }
@@ -1624,7 +1672,9 @@ ZL = "osk:hold:shift"
 ZR = "osk:submit"
 
 PLUS = "key:ENTER"
-HOME = { tap = "osk:close", hold = "mode:toggle", hold_ms = 700 }
+# HOME is the controller menu everywhere, here included: opening it puts the
+# keyboard away first, so the one press is both the way out and the way in.
+HOME = { tap = "menu:open", hold = "mode:toggle", hold_ms = 700, on_press = true }
 # L3 toggles Caps Lock as it does in item 07's base scheme. Through osk:caps
 # rather than a key: chord, so the printed letters follow the state and the
 # Caps key stays the one place that decides what gets sent.
@@ -1693,10 +1743,48 @@ X = "menu:close"
 # layer.
 Y = { tap = "menu:edit", desc = "Rearrange this page", short = "Arrange", hold = "guide:toggle", hold_ms = 700, hold_desc = "Bindings guide", hold_short = "Guide" }
 
-PLUS = "menu:close"
-HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700 }
+# PLUS is the quick menu's button, and pressing it here goes there: the menu
+# closes and the row opens in its place. It is what the MINUS+PLUS chord
+# leads on to over a game, where PLUS on its own belongs to the game's pause
+# screen - the chord opens this menu, and PLUS is then one press to the row.
+PLUS = { tap = "quick:open", on_press = true }
+HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700, on_press = true }
 RSTICK = "menu:close"
 CAPTURE = "menu:close"
+
+# ---------------------------------------------------------------------------
+# Quick menu layer - active whenever the quick menu (PLUS) is up.
+#
+# Implicit like the menu's, and above it: opening one closes the other, so
+# only one of them reads the D-pad. The row is one-dimensional, so the two
+# axes have a job each - left and right walk it, up and down nudge the value
+# on the tile in front - and the shoulders walk it too, because a row of
+# eight is walked end to end often enough to want the bigger buttons.
+# ---------------------------------------------------------------------------
+
+[bindings.quick]
+DPAD_LEFT = "quick:left"
+DPAD_RIGHT = "quick:right"
+DPAD_UP = { tap = "quick:up", desc = "Turn up", short = "More" }
+DPAD_DOWN = { tap = "quick:down", desc = "Turn down", short = "Less" }
+L = "quick:left"
+R = "quick:right"
+
+A = "quick:press"
+B = "quick:back"
+# X is the menu's "leave outright". A row has no levels, so here it is the
+# same way out as B - bound anyway, so the thumb that leaves the menu with X
+# leaves this with it too, and left off the legend so it is not printed twice.
+X = "quick:close"
+# Y reaches for what is not on the row, which is everything else: the
+# controller menu. HOME says the same thing, because HOME is that menu's
+# button everywhere.
+Y = { tap = "menu:open", desc = "Controller menu", short = "Menu" }
+
+PLUS = { tap = "quick:close", on_press = true }
+HOME = { tap = "menu:open", hold = "mode:toggle", hold_ms = 700, on_press = true }
+RSTICK = "quick:close"
+CAPTURE = "quick:close"
 
 # ---------------------------------------------------------------------------
 # Per-application profiles (item 09): a profile matches the focused window by
@@ -2243,7 +2331,91 @@ MINUS = "guide:close"
 PLUS = "guide:close"
 RSTICK = "guide:close"
 CAPTURE = "guide:close"
-HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700 }
+HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700, on_press = true }
+
+# ---------------------------------------------------------------------------
+# The quick menu - one row of tiles, what PLUS opens.
+#
+# The controller menu is a place, and HOME is its door. This is what a pause
+# button is for instead: five or six things somebody stops a game to do, in
+# one row the D-pad walks end to end, with a band under it saying what the
+# tile in front is on and what A does. Drawn after `Console Overlay` in the
+# Console OS v2 mockups.
+#
+# A tile takes the binding grammar, so it reaches anything a button can:
+#   label    required, three words at most
+#   icon     a glyph the shell's font has (`icon_font` where it is not)
+#   detail   the line in the band, about 40 characters, saying what A does
+#   action   what A runs. The quick menu closes first and the action runs
+#            after, so what it opens is not left behind the dimming; `stay`
+#            keeps it up instead, for what the row itself prints
+#   up/down  what the D-pad's up and down do on this tile - a value it nudges.
+#            Both or neither. A `live:` number draws its bar in the band
+#   arm      A has to be pressed twice. The first press says so in the band,
+#            and anything else - a step, B - lets go of it. For what nobody
+#            can take back
+#   danger   drawn in the theme's urgent colour
+#   id       what `omapad ctl quick select` and the payload call it; a slug
+#            of the label unless said
+#
+# The first tile is the one it opens on, every time: this is a pause, and the
+# first thing it offers is to stop pausing - PLUS then A is always back.
+# ---------------------------------------------------------------------------
+
+[quick]
+# socket = "/run/user/1000/omapad/quick.sock"
+
+[[quick.items]]
+icon = "󰐊"
+label = "Resume"
+detail = "Close this and carry on"
+action = "quick:close"
+
+[[quick.items]]
+icon = "󰕾"
+label = "Volume"
+detail = "Up and down turn it"
+up = "live:volume=up"
+down = "live:volume=down"
+
+# Left off the row on a machine that cannot say how bright it is - a desktop
+# monitor with no DDC, a machine with no backlight - since a tile turning a
+# number nobody can read changes nothing on screen. Any tile whose `up` is a
+# `live:` reading waits for that reading's first answer the same way.
+[[quick.items]]
+icon = "󰃠"
+label = "Brightness"
+detail = "Up and down turn it"
+up = "live:brightness=up"
+down = "live:brightness=down"
+
+[[quick.items]]
+icon = "󰄀"
+label = "Screenshot"
+detail = "Save what is on screen"
+action = "exec:omarchy-capture-screenshot"
+
+[[quick.items]]
+icon = "󰌌"
+label = "Keyboard"
+detail = "Type into what is in front"
+action = "osk:open"
+
+[[quick.items]]
+icon = "󰍜"
+label = "Menu"
+detail = "Everything else"
+action = "menu:open"
+
+# Last, drawn in the urgent colour, and pressed twice: whatever was unsaved in
+# the window goes with it.
+[[quick.items]]
+icon = "󰅖"
+label = "Close window"
+detail = "Close what is in front"
+action = "hypr:hl.dsp.window.close()"
+arm = true
+danger = true
 
 # ---------------------------------------------------------------------------
 # The controller menu - one column of rows, the way the Omarchy menu is shaped.

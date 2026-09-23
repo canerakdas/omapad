@@ -229,8 +229,8 @@ and the file is the thing that actually changed.
 
 ## Surfaces
 
-`set_osk`, `set_menu`, `set_guide`, `set_mapping`, `set_gamebar` open and
-close; `push_*_view()` pushes `model.view_state(...)` through the surface's
+`set_osk`, `set_menu`, `set_quick`, `set_guide`, `set_mapping`,
+`set_gamebar` open and close; `push_*_view()` pushes `model.view_state(...)` through the surface's
 `ViewClient`, wrapped in `scaled()` so the payload carries the scale the mode
 asks for. `push_open_views()` redraws everything on screen when something
 global changes. `surface_top()` and `surface_command()` route a press to

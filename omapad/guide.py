@@ -143,6 +143,15 @@ MENU_TEXT = {
     "group_prev": "Previous group", "group_next": "Next group",
 }
 
+QUICK_TEXT = {
+    "toggle": "Quick menu", "open": "Open the quick menu",
+    "close": "Close the quick menu", "press": "Pick", "back": "Back",
+    # A row: left and right walk it, and up and down are the value on the
+    # tile in front rather than a way along.
+    "left": "Previous tile", "right": "Next tile",
+    "up": "Turn up", "down": "Turn down",
+}
+
 GUIDE_TEXT = {
     "toggle": "This view", "open": "Open this view", "close": "Close",
     "next": "Next page", "prev": "Previous page",
@@ -254,6 +263,8 @@ BRIEF = {
         "up": "Up", "down": "Down", "left": "Left", "right": "Right",
     },
     "menu": {"toggle": "Menu", "open": "Menu", "up": "Up", "down": "Down"},
+    "quick": {"toggle": "Quick", "open": "Quick", "left": "Left",
+              "right": "Right", "up": "More", "down": "Less"},
     "guide": {"toggle": "Guide", "open": "Guide"},
     "map": {"toggle": "Mapping", "restart": "Restart"},
     "mode": {"toggle": "Mode", "desktop": "Desktop", "game": "Game"},
@@ -375,6 +386,8 @@ def describe(spec):
         return OSK_TEXT.get(argument, _sentence(argument))
     if kind == "menu":
         return MENU_TEXT.get(argument, _sentence(argument))
+    if kind == "quick":
+        return QUICK_TEXT.get(argument, _sentence(argument))
     if kind == "guide":
         return GUIDE_TEXT.get(argument, _sentence(argument))
     if kind == "map":
@@ -587,6 +600,7 @@ def _layer_titles(config, layout=DEFAULT_LAYOUT):
         ))
     titles.append(("osk", "Keyboard", "While the on-screen keyboard is up."))
     titles.append(("menu", "Menu", "While the controller menu is up."))
+    titles.append(("quick", "Quick menu", "While the quick menu is up."))
     # Empty unless [bindings.game] names something, and then it is the page
     # worth having: the short list of what still answers while a game has the
     # pad, which is exactly what you cannot work out by pressing buttons.

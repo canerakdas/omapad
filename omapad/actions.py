@@ -556,6 +556,11 @@ class MenuAction(Action):
             raise ActionError("unknown menu command: %r" % command)
         self.command = command
 
+    @property
+    def toggles(self):
+        """Whether pressing this again undoes it. See `check_hold_timers`."""
+        return self.command == "toggle"
+
     def press(self, ctx):
         # Whether a hold should keep firing depends on the row under the
         # selection, not on the command alone, so the daemon decides: walking
@@ -583,6 +588,43 @@ class MenuAction(Action):
         ctx.daemon.menu_command(self.command)
 
 
+class QuickAction(Action):
+    """Drive the quick menu - the row PLUS opens. See quick.py."""
+
+    SIMPLE = {"toggle", "open", "close", "left", "right", "up", "down",
+              "press", "back"}
+    holdable = True
+
+    def __init__(self, command):
+        command = command.strip()
+        if command not in self.SIMPLE:
+            raise ActionError("unknown quick command: %r" % command)
+        self.command = command
+
+    @property
+    def toggles(self):
+        return self.command == "toggle"
+
+    def press(self, ctx):
+        # The same shape as the menu's: walking the row and nudging a value
+        # repeat while the button is held, and nothing else does - a tile run
+        # twice because a thumb rested on A is never what was meant.
+        if ctx.daemon.quick_command(self.command):
+            ctx.daemon.repeat_start(
+                self,
+                ctx.daemon.config.menu_repeat_delay,
+                ctx.daemon.config.menu_repeat_rate,
+                ctx.daemon.config.menu_repeat_ramp,
+                ctx.daemon.config.menu_repeat_ramp_time,
+            )
+
+    def release(self, ctx):
+        ctx.daemon.repeat_stop(self)
+
+    def repeat(self, ctx):
+        ctx.daemon.quick_command(self.command, repeat=True)
+
+
 class GuideAction(Action):
     """Drive the bindings guide."""
 
@@ -593,6 +635,10 @@ class GuideAction(Action):
         if command not in self.SIMPLE:
             raise ActionError("unknown guide command: %r" % command)
         self.command = command
+
+    @property
+    def toggles(self):
+        return self.command == "toggle"
 
     def press(self, ctx):
         ctx.daemon.guide_command(self.command)
@@ -975,6 +1021,7 @@ class TerminalAction(Action):
 PARSERS = {
     "osk": OskAction,
     "menu": MenuAction,
+    "quick": QuickAction,
     "guide": GuideAction,
     "map": MappingAction,
     "click": ClickAction,
@@ -1045,6 +1092,14 @@ class Binding:
         # down. Costs nothing you can feel, and it is what lets a button carry
         # a hold later without its tap having already gone out.
         self.on_release = False
+        # Fire the tap on the way down even where a chord names the button or
+        # a hold shares it. Either would otherwise make it wait for the
+        # release, and a summon that only answers when the thumb comes off
+        # reads as a button that wants holding. The chord still takes over if
+        # the partner lands while it is down - `fire_chord` reads what is
+        # pressed, not what has fired - and the hold still fires when it is
+        # due; see `Daemon.check_hold_timers` for what that does to the tap.
+        self.on_press = False
         # A hold that announces itself before it acts: at hold_ms it warns
         # (a tick and a notification), and only confirm_ms later does it fire,
         # if the button is still down and nobody cancelled.
@@ -1059,6 +1114,7 @@ class Binding:
                 self.reaches_past = bool(spec["reaches_past"])
             self.rumble = bool(spec.get("rumble", False))
             self.on_release = bool(spec.get("on_release", False))
+            self.on_press = bool(spec.get("on_press", False))
             self.hold_desc = str(spec.get("hold_desc", "")).strip()
             self.tap = parse(spec.get("tap"))
             # A table is also how a binding says what it means - `desc`, for

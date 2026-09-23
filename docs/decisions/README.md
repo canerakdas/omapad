@@ -119,3 +119,4 @@ and is in the order it was found.
 | 82 | [Somewhere for a tile to go](82-somewhere-for-a-tile-to-go.md) | ✅ Done | M | A strip along the foot holds a tile that is on no page. |
 | 83 | [Pages that came to whole rows](83-pages-of-whole-rows.md) | ✅ Done | S | A page comes to whole rows - the arithmetic is the design, not a tidy-up. |
 | 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | ✅ Done | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |
+| 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. |
