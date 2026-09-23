@@ -1913,6 +1913,14 @@ without the room would clip. The capitals are the panel's decision and not the
 config's: `%A` returns whatever the locale's own weekday is, `id -un` whatever
 the machine calls you, and casing either is typography.
 
+**The strip ends where the grid ends.** The panel cuts it to the same whole
+columns the bar and the grid are cut to (`shownCols`) and places each cell on
+the grid's own module, so a cell reaching the last column ends on the last
+column shown rather than on the card's edge - on the fullscreen page those two
+were a hand's width apart, and the clock was the only thing standing out
+there. The shipped strip is a name and a time: the weather and the weekday
+were on it and came off, and the config keeps the weather cell as an example.
+
 `from` + `ttl` is not new - it is what a `[profile.<app>.osk]` page already
 uses, one surface along - but the two share syntax and validation, not
 internals: a submenu source turns lines into selectable tiles, a head source

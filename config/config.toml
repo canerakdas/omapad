@@ -2814,22 +2814,30 @@ list_limit = 24               # and how many of its lines reach the page
 # chosen. The first line a cell has is the one it says loudly and the rest run
 # along beside it as facts, so a cell with a name over it says the name and
 # murmurs the weather, and a cell with only a time says the time. A cell that
-# reaches the last column hangs off the right edge.
+# reaches the last column hangs off the right edge - the grid's last column,
+# not the card's.
+#
+# The shipped strip is a name and a time and nothing else. The weather and the
+# weekday were both on it, and a head that murmurs three facts before the page
+# has said anything is a status bar, which game mode took away on purpose. The
+# weather cell is the example above for anyone who wants it back:
+#
+#     from = """omarchy-weather-status | { i=$(omarchy-weather-icon); sed "s|^[^·]*·  ||; s|Temp |$i  |; s|Wind ||"; }"""
+#     ttl = 900
+#
+# and `under = "%A"` on the clock is the day.
 
-# Who this is, and what the room is doing.
+# Who this is.
 [[menu.head]]
 span = [8, 1]
-over = { from = "id -un", ttl = 0 }
-from = """omarchy-weather-status | { i=$(omarchy-weather-icon); sed "s|^[^·]*·  ||; s|Temp |$i  |; s|Wind ||"; }"""
-ttl = 900
-empty = ""
+from = "id -un"
+ttl = 0
 
 # And the time, at the far end. Game mode takes Omarchy's bar away and the pad
 # can reach no other clock, so this is the one the room has.
 [[menu.head]]
 span = [4, 1]
 format = "%H:%M"
-under = "%A"
 
 # ---------------------------------------------------------------------------
 # The bar, and the tiles under it.

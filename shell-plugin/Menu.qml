@@ -1268,21 +1268,29 @@ Item {
         // this delegate needs to know which cell is the clock.
         Item {
           id: strip
-          width: parent.width
+          // **The strip is as wide as the grid shows, not as the card is.**
+          // Measured against the card, the clock hung off an edge no tile
+          // reaches - on the fullscreen page that is a hand's width past the
+          // last column - and a time that ends where nothing else does reads
+          // as belonging to the screen rather than to the page. So it is cut
+          // to the same whole columns the bar and the grid are cut to, and
+          // the trailing cell ends on the last one of them.
+          width: root.shownCols(parent.width)
           height: root.headHeight(root.headRows)
           visible: root.headRows > 0
 
-          // **The strip is measured against the screen, not the module.** The
-          // grid below is `cols` fixed cells and scrolls when the screen is
-          // narrower than that; the head does not scroll and must not, so a
-          // cell placed on the grid's columns would run off the edge and be
-          // clipped - which is exactly where the clock went. The config still
-          // says `span` in columns, because that is the one vocabulary this
-          // surface has for "how much of the width", and here it is read as a
-          // share of what there is rather than as a number of modules.
+          // A column edge, on the grid's own module, stopped at the strip's
+          // end. The grid scrolls sideways when the screen is narrower than
+          // `cols`; the head does not scroll and must not, so a cell that
+          // would run past the last shown column is cut back to it rather
+          // than clipped - which is where the clock went once before.
           function at(n) {
-            return root.cols > 0
-              ? Math.round(strip.width * n / root.cols) : 0
+            return Math.min(strip.width,
+              Math.max(0, n * (root.cellWidth + root.cellGap)))
+          }
+          function end(n) {
+            return Math.min(strip.width,
+              Math.max(0, n * (root.cellWidth + root.cellGap) - root.cellGap))
           }
 
           Repeater {
@@ -1292,10 +1300,20 @@ Item {
               id: headCell
               required property var modelData
 
-              x: strip.at(headCell.modelData.x)
+              // A trailing cell is placed from the strip's end rather than
+              // from its own column, so on a screen showing fewer columns
+              // than the page has the clock is still the whole of its span
+              // and still ends on the last one, instead of being cut to
+              // nothing past it.
+              x: headCell.trailing
+                ? strip.width - headCell.width
+                : strip.at(headCell.modelData.x)
               y: root.headY(headCell.modelData.y)
-              width: strip.at(headCell.modelData.x + headCell.modelData.w)
-                - strip.at(headCell.modelData.x)
+              width: headCell.trailing
+                ? strip.end(headCell.modelData.w)
+                : Math.max(0,
+                    strip.end(headCell.modelData.x + headCell.modelData.w)
+                    - strip.at(headCell.modelData.x))
               height: root.headHeight(headCell.modelData.h)
 
               readonly property string over:
