@@ -184,6 +184,49 @@ Item {
   // The shapes' own canvas, so the lengths below read as the drawing does.
   readonly property real unit: clock.side / 40
 
+  // **Below this, figures rather than a face.** The dial is a line drawing
+  // whose finest lines are a quarter of one of its 40 units: under about 140
+  // pixels across, the fifths of the track run together into a grey band,
+  // a hand's outline drops below a pixel and closes up, and what is left is
+  // a clock that has to be squinted at - the one thing a tile glanced at from
+  // across a room may not be. So a face that small says the time in figures.
+  //
+  // Not a setting, because it is not a preference: it is where this drawing
+  // stops being legible, in the pixels it is drawn in, and it moves when the
+  // drawing does - a heavier face would hold out smaller. The menu's tile is
+  // above it and the HUD's corner is below it, which is the split the two
+  // sizes were always going to need.
+  readonly property real legibleFrom: 140
+  readonly property bool digital: clock.side > 0
+    && clock.side < clock.legibleFrom
+
+  // The figures' type, handed in by the surface from its own ladder (qml.md
+  // 8.2.1), since a size this file picked would be a second ladder.
+  property string family: ""
+  property int figures: 0
+
+  // The time of day in figures, from the same number the hands are.
+  readonly property string time: {
+    var pad = function (n) { return n < 10 ? "0" + n : "" + n }
+    return pad(Math.floor(clock.minutes / 60) % 24) + ":"
+      + pad(clock.minutes % 60)
+  }
+
+  // What the figures say: the measurement on a chronograph, since that is
+  // what the tile is for, and the time on a clock.
+  Text {
+    visible: clock.digital
+    anchors.centerIn: parent
+    text: clock.chrono ? clock.words : clock.time
+    textFormat: Text.PlainText
+    color: clock.ink
+    font.family: clock.family
+    font.pixelSize: clock.figures
+    // Held still: a proportional 1 replacing an 8 re-lays the line ten times
+    // a second while a stopwatch runs.
+    font.features: ({ "tnum": 1 })
+  }
+
   // Where the two big hands stand. The hour goes round twice a day - half a
   // degree a minute - and it is `% 720` rather than an hour of its own so it
   // carries the minutes with it: an hour hand standing dead on the twelve at
@@ -241,6 +284,7 @@ Item {
 
   Item {
     id: face
+    visible: !clock.digital
     width: clock.side
     height: clock.side
     anchors.centerIn: parent

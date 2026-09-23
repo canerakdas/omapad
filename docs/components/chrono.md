@@ -156,6 +156,15 @@ That is animation rather than state (qml.md 10's rule is about a `Timer`
 *polling* for what the daemon owns), and the timer sleeps whenever the surface
 is down - a panel nobody can see has nothing to animate.
 
+## Figures when the face is small
+
+`Clock.qml` draws the dial only from 140 pixels across. Below that the fifths
+of its track run together and its hands' outlines close up, so the face
+says the measurement in figures instead, and the menu's name line - which
+otherwise spells it beside the tile's name - stands down so it is not
+printed twice. The size is the drawing's legibility, not a preference, so it
+is not a setting ([88](../decisions/88-a-6139-drawn-in-lines.md)).
+
 ## Where it may be drawn
 
 The menu, and not the HUD. [`hud.md`](hud.md)'s rule is that **a tile with

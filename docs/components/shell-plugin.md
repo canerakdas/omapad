@@ -152,7 +152,11 @@ missing optional package must cost one feature rather than the keyboard.
   surface is down. The face is the Seiko 6139's in line: one register, the
   thirty minutes measured at six, large and low as the 6139's is, with a hand
   in the accent. `ShapesSitOnTheGrid` holds the dial's furniture to nothing,
-  because nothing snaps the square a clock is drawn in - the running seconds and the hours the panda dial had
+  because nothing snaps the square a clock is drawn in. **Under 140 pixels
+  across it is figures instead** - the time on a clock, the measurement on a
+  chronograph, at the size the surface hands in from its own ladder - because
+  that is where this drawing stops being legible; the menu's tile draws a
+  face and the HUD's corner draws figures - the running seconds and the hours the panda dial had
   went, and the figures beside the name say the hours. The figures
   beside the tile's name are spelled here too, which nothing else on these
   surfaces does: a number that changes ten times a second cannot come off a

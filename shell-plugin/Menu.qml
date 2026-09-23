@@ -2714,7 +2714,10 @@ Item {
                     // print one number. The words are still the daemon's -
                     // unlike the clock, a level has a unit the panel does
                     // not hold.
-                    text: tile.chrono ? clockFace.words
+                    // A face too small to draw says the measurement in its
+                    // own place instead, so this line stands down rather
+                    // than saying it twice.
+                    text: tile.chrono ? (clockFace.digital ? "" : clockFace.words)
                       : (tile.streaming && root.live.ht !== undefined
                          ? String(root.live.ht)
                          : (tile.modelData.t !== undefined
@@ -3877,6 +3880,8 @@ Item {
                     height: clockFace.width
                     anchors.horizontalCenter: parent.horizontalCenter
                     art: controlArt
+                    family: metrics.font.family
+                    figures: metrics.type.loud
                     minutes: tile.modelData.mn !== undefined
                       ? tile.modelData.mn : 0
                     // Nothing turns while the card is down: the delegates

@@ -432,6 +432,8 @@ Item {
               height: readingClock.width
               anchors.horizontalCenter: parent.horizontalCenter
               art: controlArt
+              family: metrics.font.family
+              figures: metrics.type.loud
               minutes: tile.modelData.mn !== undefined
                 ? tile.modelData.mn : 0
               ink: Color.menu.text

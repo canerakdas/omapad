@@ -51,6 +51,15 @@ which is drawn at whatever square the tile leaves it, so a whole unit there
 was never a whole pixel. The dial's ticks and its register are exempt, and
 the test says why.
 
+**And under 140 pixels it is not drawn at all** - *belirli bir px altında
+dijitale dönsün*. A track in fifths and hands in hairline outline are what
+make this face read as a 6139, and they are exactly what gives out first as
+it shrinks: the fifths run into a band and an outline closes up. Below that
+size the face says the time in figures, or the measurement on a
+chronograph, and the menu's name line stands down so the number is not
+printed twice. Not a setting: it is where this drawing stops being legible,
+and it moves when the drawing does.
+
 The time-of-day clock shares the face, batons and hands, so it is this
 drawing too - the file's whole argument, one drawing on every surface that
 draws a clock. The HUD's copy is due to be rewritten anyway.
