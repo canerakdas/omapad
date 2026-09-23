@@ -1536,7 +1536,7 @@ DPAD_RIGHT = "key:RIGHT"
 # PLUS - Start, the Xbox pad's ☰ - opens the quick menu, one row of what
 # somebody pauses for (see [quick]): the button a game spends on pausing.
 #
-# HOME's tap used to be the next window. It is a row under Workspaces ›
+# HOME's tap used to be the next window. It is a row under Spaces ›
 # Windows in the menu now, because the menu had nowhere better to be than the
 # button that carries its name on every console. The hold is still the mode.
 #
@@ -3230,9 +3230,57 @@ detail = "Steam, chat, music, video"
 
 [[menu.items]]
 icon = "󰖯"
-label = "Workspaces"
-detail = "The windows on this workspace"
+label = "Spaces"
+detail = "Sets of apps, and the window in front"
 meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", ttl = 3 }
+
+  # **A space is a workspace with a name and the apps that belong on it.**
+  # This page was one card of window verbs, named for what it had not got
+  # (decision 83); what it had not got is somewhere to go. A console calls
+  # these spaces and a desktop calls them workspaces, and the difference is
+  # that one of them knows what is meant to be open.
+  #
+  # Pressing one goes to its workspace, and **opens its apps only if the
+  # workspace is empty**. That is the whole of the saving: nothing here
+  # tracks which window is whose, so the one question it can answer honestly
+  # is whether anything is there yet. A second press goes back to what you
+  # left, rather than opening a second Spotify beside the first.
+  #
+  # These three are examples, the ones the Console OS mockup draws - rename
+  # them, point them at other workspaces, give them other apps. The action is
+  # ordinary shell; each app is started with `&` so that one that is slow to
+  # start does not hold up the next.
+  #
+  # Three cells each rather than four: three spaces at four fill the twelve
+  # columns exactly, and a screen that shows nine of them - 1080p does - cut
+  # the third in half. At three they are one row that fits.
+  [[menu.items.items]]
+  icon = "󰊗"
+  label = "Lounge"
+  span = [3, 2]
+  detail = "Steam, Spotify, Discord on workspace 1"
+  action = """exec:hyprctl dispatch "hl.dsp.focus({ workspace = '1' })" >/dev/null
+    [ "$(hyprctl activeworkspace -j | jq .windows)" -gt 0 ] && exit 0
+    steam steam://open/bigpicture & omarchy-launch-spotify &
+    $(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me) &"""
+
+  [[menu.items.items]]
+  icon = "󰖟"
+  label = "Focus"
+  span = [3, 2]
+  detail = "Browser alone on workspace 2"
+  action = """exec:hyprctl dispatch "hl.dsp.focus({ workspace = '2' })" >/dev/null
+    [ "$(hyprctl activeworkspace -j | jq .windows)" -gt 0 ] || omarchy-launch-browser"""
+
+  [[menu.items.items]]
+  icon = "󰀎"
+  label = "Co-op night"
+  span = [3, 2]
+  detail = "Steam and Discord on workspace 3"
+  action = """exec:hyprctl dispatch "hl.dsp.focus({ workspace = '3' })" >/dev/null
+    [ "$(hyprctl activeworkspace -j | jq .windows)" -gt 0 ] && exit 0
+    steam steam://open/bigpicture &
+    $(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me) &"""
 
   # **One card, not four cells.** Every one of these is a verb with nothing
   # to show but its name, and at one cell each that name was `Fullscre…`,

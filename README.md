@@ -512,7 +512,7 @@ all, so without it the screensaver arrives mid-game. Games that use a class of
 their own rather than `steam_app_*` need their own line.
 
 **And the way out with the pad in your hands**, for when it happens anyway:
-`HOME` → **Workspaces** → **Fullscreen**. The menu is the only thing that reaches
+`HOME` → **Spaces** → **Fullscreen**. The menu is the only thing that reaches
 past an app holding the pad, which is why those rows are in it and not only on
 the `ZL` window layer.
 
@@ -2086,11 +2086,11 @@ affected — `omarchy-shell ipc call omapad-sound state` says which it is.
 Press **HOME** — the button in the middle of the pad, the Xbox button. Three
 things open together, stacked down the middle of the screen:
 
-- **the head** — the day, the time, and whatever else you point a command at.
+- **the head** — your name, the time, and whatever else you point a command at.
   Game mode takes Omarchy's bar away and there is no other clock the pad can
   reach, so the menu carries one.
 - **the bar** — one card per group, walked with the shoulders. `Now`,
-  `Apps`, `Workspaces`, `Audio`, `Display`, `Controller`, `System`. A nav card is
+  `Apps`, `Spaces`, `Audio`, `Display`, `Controller`, `System`. A nav card is
   one cell of the grid below it, drawn on the same ground and standing over
   the same columns — the one you are on is filled with the accent outright.
 - **the grid** — the tiles of the group you are on, some of them wider or
@@ -2484,7 +2484,7 @@ control = "rows"
 meta = { from = "hyprctl activewindow -j | jq -r .title", ttl = 2, empty = "Windows" }
 ```
 
-That is what `Workspaces › Windows` ships with: the card is about the window in
+That is what `Spaces › Windows` ships with: the card is about the window in
 front, the menu has blurred that window, and `WINDOWS` over four verbs says
 only what the page is already called. With the title there, `Close window` is a
 row about something you can name.
@@ -3091,7 +3091,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 |---|---|
 | **Now** | the keyboard, the volume, what is playing, the stopwatch — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
-| **Workspaces** | fullscreen, next window, float / tile, close |
+| **Spaces** | three named spaces — Lounge, Focus, Co-op night — and the window in front: fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone, and where dictation puts the words |
 | **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, the resolution and refresh rate the screen in front offers, and VRR — until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below |
@@ -3334,7 +3334,15 @@ every surface at once. **System › Start in** is the one that does
 not, and that is what it is for: it names the mode the *next* start comes up
 in, so nothing on screen moves when you pick it.
 
-**Workspaces** is the window in front — fullscreen, next window, float/tile, close
+**Spaces** starts with three named spaces, the ones the Console OS mockup
+draws: *Lounge* is Steam Big Picture, Spotify and Discord on workspace 1,
+*Focus* the browser alone on 2, *Co-op night* Steam and Discord on 3. Pressing
+one goes to its workspace and opens its apps **only if the workspace is
+empty**, so a second press takes you back to what you left rather than opening
+everything twice. They are examples: each is one `exec:` row in the shipped
+config, and yours can name other workspaces and other apps.
+
+Under them is the window in front — fullscreen, next window, float/tile, close
 — and it is in the menu rather than only on the window layer (`ZL`) because the
 window layer does not reach past an app that has taken the pad, and the menu
 does. That is the way out of [a game hidden behind Steam Big

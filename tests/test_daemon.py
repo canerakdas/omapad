@@ -2888,7 +2888,7 @@ class MenuTests(DaemonTestCase):
         self.daemon.push_menu_view()
         self.assertEqual(
             [group["l"] for group in self.menu_client.sent[-1]["groups"]],
-            ["Now", "Apps", "Workspaces", "Audio", "Display", "Controller",
+            ["Now", "Apps", "Spaces", "Audio", "Display", "Controller",
              "Readings", "System"],
         )
 
@@ -2931,7 +2931,8 @@ class MenuTests(DaemonTestCase):
         # clears it - a tiled window cannot be raised over a floating one.
         self.daemon.handed_over = True
         self.open_menu()
-        self.drill("Workspaces")
+        self.drill("Spaces")
+        self.select("Windows")
         self.select("Fullscreen")
         self.press("A")
         self.release("A")

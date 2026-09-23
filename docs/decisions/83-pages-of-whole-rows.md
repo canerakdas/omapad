@@ -73,6 +73,9 @@ front to the next workspace and the one before - so a `Workspace` card of two
 or three rows beside `Windows` costs no new capability, only the wording and
 the decision that those rows belong on a sofa. That is an item, not this one.
 
+*Later:* the second card came as three named spaces rather than those rows,
+and the page is called `Spaces` now - see `config/config.toml`.
+
 **`Readings` was left alone on purpose.** Its tiles are the HUD's layout -
 where one sits in that grid is where it sits on the screen - so re-spanning
 them moves what is drawn over a game, and the surface is being replaced.
