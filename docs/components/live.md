@@ -59,6 +59,13 @@ radio, the notification service's own flag for do not disturb - so a tile
 that went round them would disagree with the indicator beside it. The night light's helper only flips, which is why its write asks
 first: a write is the value wanted, and a flip sent twice is the old value.
 
+**Why nothing long-running is a live write.** A write runs in the daemon's
+worker under `timeout_ms`, and past it only the shell is killed - whatever it
+started carries on inside omapad's own service, and a restart of the daemon
+ends it. That is harmless for a helper that sets something and exits, and
+wrong for one that keeps a process: a screen recording is an `exec:` tile in
+the quick menu for exactly this, since `exec:` gets a scope of its own.
+
 **Why brightness keeps its helper.** DDC, Apple displays and backlights are
 three code paths omapad must not reimplement, and that helper offers the flag.
 

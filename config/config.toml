@@ -2419,6 +2419,17 @@ label = "Screenshot"
 detail = "Save what is on screen"
 action = "exec:omarchy-capture-screenshot"
 
+# The whole screen and what it plays, since the picker Omarchy draws for a
+# region is aimed with a mouse. The same press stops it: the helper stops a
+# recording that is running rather than starting a second. An `exec:` and not
+# a `live:` switch, although it is one, because a live write runs inside the
+# daemon's own service and a daemon restart would end the recording with it.
+[[quick.items]]
+icon = "󰑋"
+label = "Record"
+detail = "Start or stop recording the screen"
+action = "exec:omarchy-capture-screenrecording --fullscreen --with-desktop-audio"
+
 [[quick.items]]
 icon = "󰌌"
 label = "Keyboard"
@@ -3162,6 +3173,17 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
   action = "keep:toggle"
   when = ["handed_over", "kept"]
   stay = true
+
+  # Notifications kept off the screen - over a film, over a co-op night on a
+  # call. On this page because it is a question about the session in front,
+  # the way the lock is, rather than about the machine. After the lock and
+  # its pair so it takes the strip beside the window card whether or not
+  # they are there; three wide, the width of the column it stands in.
+  [[menu.items.items]]
+  label = "Do not disturb"
+  span = [3, 1]
+  control = "toggle"
+  reads = "live:dnd"
 
 [[menu.items]]
 icon = ""

@@ -3094,7 +3094,7 @@ The bar that ships is seven cards, in the order a thumb reaches for them:
 | Group | Holds |
 |---|---|
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
-| **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — and the workspace lock and *Keep the controller* while there is anything to use them on |
+| **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — the workspace lock and *Keep the controller* while there is anything to use them on, and do not disturb |
 | **Sound** | what is playing, previous / next, the volume and mute; which speakers, which microphone, and where dictation puts the words |
 | **Display** | how bright the screen is, night light, staying awake through a film, scale and the screensaver in one card, which screens are lit when a laptop is plugged into a television, and the resolution and refresh rate the screen in front offers, and VRR — those three until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below — how much omapad's own surfaces move, how hard they round their corners and how solid a tile is drawn, and, on the first start only, `Start here` |
@@ -3390,6 +3390,7 @@ front. What ships:
 | Volume | ↑ ↓ turn it; the band draws where it is |
 | Brightness | The same, for the screen — left off where the machine cannot say how bright it is |
 | Screenshot | What the Capture button does |
+| Record | Starts recording the whole screen and its sound; the same tile stops it |
 | Keyboard | The on-screen keyboard |
 | Menu | The controller menu |
 | Close window | **Pressed twice** — the first A says so in the band, B lets go of it |
