@@ -1257,6 +1257,7 @@ restart — so every config change would close your Steam.
 | `live:mute=on\|off\|toggle` | the speakers |
 | `live:brightness=up\|down\|<0..1>` | how bright the screen in front is |
 | `live:media=playPause\|next\|previous` | what is playing |
+| `live:vrr=on\|off\|toggle` | whether the refresh rate may follow a fullscreen game |
 | `snap:left\|right\|up\|down` | move the pointer to the window that way and focus it |
 | `snap:centre` | put the pointer in the middle of the window in front |
 | `focus:next\|prev` | walk the application's own controls (Tab / Shift+Tab) |
@@ -2634,7 +2635,7 @@ control = "chrono"            # the same face with a stopwatch in it
 
 `reads` names either one of the settings the pad can change — the same names a
 `pad:` binding takes — or one of the things the machine is doing: `volume`,
-`mute`, `brightness`, `media`. The kinds have to match and `omapad check` says
+`mute`, `brightness`, `media`, `vrr`. The kinds have to match and `omapad check` says
 so: a `toggle` reads an on/off setting, a `choice` reads one with a list of
 values, a `slider` reads a number — and a `knob` reads either a number or a
 list.
@@ -3079,7 +3080,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Workspaces** | fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone, and where dictation puts the words |
-| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, and the resolution and refresh rate the screen in front offers — until Hyprland next reloads, since nothing is written to `monitors.lua` |
+| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, the resolution and refresh rate the screen in front offers, and VRR — until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
 | **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, and the way out into the Omarchy menu |

@@ -32,6 +32,7 @@ it, nothing can be written, and a tile pointed at it draws blank.
 | `mute` | bool | `pactl get-sink-mute …` | `pactl set-sink-mute … %1` |
 | `brightness` | number | `omarchy-brightness-display` | `omarchy-brightness-display --no-osd %1%` |
 | `media` | media | `omarchy-shell media status` | `omarchy-shell media %1` |
+| `vrr` | bool | `hyprctl getoption misc:vrr` | `hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"` |
 
 **Why volume bypasses `omarchy-audio-output-volume`.** That helper always ends
 in `omarchy-osd`, so every press from the HUD would raise Omarchy's own overlay
@@ -40,6 +41,12 @@ on a tile is for. `--no-osd` exists for brightness and not for volume, so
 volume talks to the sink `omarchy-audio-output-sink` resolves, which is what
 the helper itself resolves with, so a speaker tuning chain is still respected.
 Anyone who wants the OSD back puts the helper in `volume_set`.
+
+**Why VRR reads the option and not the monitor.** The monitor's `vrr` field says
+whether the rate is following a game *now*, which on Hyprland's fullscreen-only
+setting is no on the desktop the switch is drawn over - a switch that reads off
+the moment it is turned on. On is that setting, 2, rather than 1: the games are
+fullscreen, and a desktop whose rate wanders flickers on some televisions.
 
 **Why brightness keeps its helper.** DDC, Apple displays and backlights are
 three code paths omapad must not reimplement, and that helper offers the flag.

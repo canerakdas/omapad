@@ -1171,6 +1171,17 @@ brightness_set = "omarchy-brightness-display --no-osd %1%"
 media_read = "omarchy-shell media status"
 media_set = "omarchy-shell media %1"
 
+# Whether the screen's refresh may follow a game's frame rate. Read from the
+# option rather than from the monitor, which says whether it is following one
+# *now* - no, on a desktop, whatever the switch says. On is Hyprland's 2,
+# fullscreen only, because that is where the games are and a desktop whose
+# rate wanders with a cursor flickers on some televisions; put 1 in its place
+# to have it everywhere. Set while Hyprland runs and not written to its
+# config, so a reload puts back whatever that says - off, where it says
+# nothing.
+vrr_read = "hyprctl getoption misc:vrr"
+vrr_set = 'hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"'
+
 timeout_ms = 1000             # how late an answer may be before it is dropped
 poll_ms = 2000                # how often the selected tile is re-asked
 settle_ms = 250               # and how long after a press the helper is asked
@@ -3348,10 +3359,14 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
   #
   # The output name goes into a Lua string, so only a plain connector name
   # passes, and the value a row carries is matched whole before it is used.
+  #
+  # Four rows tall, a row more than the rates beside it: a television offers
+  # more sizes than it offers rates at any one of them, and the row the rates
+  # give up is the switch under them.
   [[menu.items.items]]
   label = "Resolution"
   control = "rows"
-  span = [6, 3]
+  span = [6, 4]
   detail = "Fewer pixels for a faster game"
   empty = "No screen found"
   action = '''exec:
@@ -3411,6 +3426,15 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
           + "\(. * 100 | round / 100) Hz\t\(.)"'
   '''
 
+  # Under the rates, because it is the rate's other answer: not which one,
+  # but whether it may move with the game. What on means is `[live] vrr_set`.
+  [[menu.items.items]]
+  icon = "󰍹"
+  label = "VRR"
+  detail = "Rate follows the game in fullscreen"
+  span = [6, 1]
+  control = "toggle"
+  reads = "live:vrr"
 
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and

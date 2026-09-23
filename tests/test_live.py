@@ -78,6 +78,13 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(live_module.parse_mute(["Mute: yes"]))
         self.assertFalse(live_module.parse_mute(["Mute: no"]))
 
+    def test_vrr_is_on_at_any_of_the_three_values_that_are_not_off(self):
+        # Hyprland's 1, 2 and 3 are all a rate that may follow the game; the
+        # switch only says whether one of them is in force.
+        self.assertFalse(live_module.parse_vrr(["int: 0", "set: true"]))
+        self.assertTrue(live_module.parse_vrr(["int: 2", "set: true"]))
+        self.assertIsNone(live_module.parse_vrr(["no such option"]))
+
     def test_brightness_is_one_number(self):
         self.assertAlmostEqual(live_module.parse_brightness(["95"]), 0.95)
         self.assertAlmostEqual(live_module.parse_brightness([" 5% "]), 0.05)

@@ -42,6 +42,10 @@ READINGS = {
     # short list: it is a title, an artist, whether it is running and which
     # way it may still be walked.
     "media": {"kind": "media"},
+    # Whether the compositor may let the screen's refresh follow the game's
+    # frame rate. A switch rather than Hyprland's four values: which of the
+    # "on" ones is meant is the write's business, in `[live] vrr_set`.
+    "vrr": {"kind": "bool"},
 }
 
 # What a reading may be asked to become. A number takes `up`, `down` or a
@@ -122,11 +126,30 @@ def parse_media(lines):
     return None
 
 
+def parse_vrr(lines):
+    """`hyprctl getoption misc:vrr` -> True for anything but off.
+
+    The option, not the monitor's `vrr` field: that one says whether the
+    rate is following a game *right now*, which on the fullscreen-only
+    setting is no on the desktop the switch is drawn over - a switch that
+    read off the moment it was turned on.
+    """
+    for line in lines:
+        head, separator, tail = line.partition(":")
+        if separator and head.strip() == "int":
+            try:
+                return int(tail.strip()) != 0
+            except ValueError:
+                return None
+    return None
+
+
 PARSERS = {
     "volume": parse_volume,
     "mute": parse_mute,
     "brightness": parse_brightness,
     "media": parse_media,
+    "vrr": parse_vrr,
 }
 
 
