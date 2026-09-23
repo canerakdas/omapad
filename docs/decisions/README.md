@@ -121,3 +121,4 @@ and is in the order it was found.
 | 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | ✅ Done | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |
 | 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. |
 | 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. |
+| 87 | [What the couch could not reach](87-what-the-couch-could-not-reach.md) | ✅ Done | M | Night light, stay awake, screens, Bluetooth, do not disturb, network and recording on the pad; omapad's own look moved to `Controller`. |
