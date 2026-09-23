@@ -3533,7 +3533,7 @@ class CornerTests(DaemonTestCase):
 
     def test_the_slider_is_walked_by_its_stops(self):
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, ["Display", "Corners"],
+        walk_menu(self.daemon, ["Controller", "Corners"],
                   lambda: self.daemon.menu_command("press"))
         tile = [row for row in self.menu_client.sent[-1]["items"]
                 if row["l"] == "Corners"][0]
@@ -3549,7 +3549,7 @@ class CornerTests(DaemonTestCase):
         # A ladder is six, and a held direction would cross the whole of it in
         # the first push.
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, ["Display", "Corners"], lambda: None)
+        walk_menu(self.daemon, ["Controller", "Corners"], lambda: None)
         item = self.daemon.menu.current
         for _ in range(3):
             self.daemon.menu_adjust(item, 1)

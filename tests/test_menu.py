@@ -214,8 +214,14 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(len(controller), 1)
         rows = controller[0]["items"]
         labels = [row.get("label") for row in rows]
-        self.assertEqual(labels[labels.index("Sticks"):],
+        start = labels.index("Sticks")
+        self.assertEqual(labels[start:start + 3],
                          ["Sticks", "Hide the pointer", "Button style"])
+        # And the band under them is what omapad draws rather than what the
+        # pad does - the three that were on Display reading as questions
+        # about the television.
+        self.assertEqual(labels[start + 3:],
+                         ["Motion", "Corners", "Tile fill"])
         pointer = rows[labels.index("Hide the pointer")]
         # A switch rather than two rows that both ticked: it has two states,
         # and the tile draws which one it is in.

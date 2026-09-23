@@ -3370,8 +3370,35 @@ meta.from = '''
 [[menu.items]]
 icon = "󰍹"
 label = "Display"
-detail = "How big, how bright, how it moves"
-meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refreshRate|floor) Hz\"'", ttl = 30 }
+detail = "How big, how bright, which screen"
+meta = { from = "hyprctl monitors -j | jq -r '.[] | select(.focused) | \"\\(.height)p · \\(.refreshRate|floor) Hz\"'", ttl = 30 }
+
+  # How bright first: it follows the light coming in the window rather than
+  # what you are doing with the machine, so it is the one thing on this page
+  # reached for every evening. It reads what the machine is doing rather
+  # than what omapad holds - the other half of `reads`; see [live] for the
+  # commands behind it.
+  [[menu.items.items]]
+  label = "Brightness"
+  span = [6, 1]
+  control = "slider"
+  reads = "live:brightness"
+
+  # The two switches beside it, halves of the same row: the warm screen is
+  # the evening's other answer to the light, and staying awake is what a film
+  # needs from a machine that measures idle by the pad lying still. Both are
+  # Omarchy's own switches, so its bar and its menu agree with them.
+  [[menu.items.items]]
+  label = "Night light"
+  span = [3, 1]
+  control = "toggle"
+  reads = "live:nightlight"
+
+  [[menu.items.items]]
+  label = "Stay awake"
+  span = [3, 1]
+  control = "toggle"
+  reads = "live:stay_awake"
 
   # **One card, not three cells.** Every one of these is a verb with nothing
   # to show but its name, and at a cell each the name was the half of it that
@@ -3379,20 +3406,14 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
   # nowhere at all, because a tile one row tall has no room for one. Stacked,
   # each row has the width of the card and the sentence back.
   #
-  # Two stepping rows rather than a bar, unlike the brightness on Now: a step
-  # here reconfigures the monitor and rewrites monitors.lua, which is not
-  # something to sweep a trigger through. Scale is also a thing you set once
-  # for where you are sitting, not one you push about.
+  # Two stepping rows rather than a bar: a step here reconfigures the
+  # monitor and rewrites monitors.lua, which is not something to sweep a
+  # trigger through. Scale is also a thing you set once for where you are
+  # sitting, not one you push about.
   #
-  # Half the page, with the bars stacked in halves beside and under it: six
-  # and six, three rows, and nothing left over. The card was three cells
-  # square with nine columns of white beside it and the bars in a band
-  # underneath, which is a quarter of a page doing the work of a page.
-  #
-  # Two rows rather than three. Three verbs and a heading fit a card this
-  # tall - `Power` holds five rows in three - and the row it gives back is
-  # what makes the page three rows of twelve instead of four with a hole in
-  # them.
+  # Two rows tall rather than three. Three verbs and a heading fit a card
+  # this tall - `Power` holds five rows in three - and it stands beside the
+  # card of screens at the same height, so the band is whole.
   [[menu.items.items]]
   label = "Screen"
   control = "rows"
@@ -3414,71 +3435,47 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
     detail = "Blank the screen now"
     action = "exec:omarchy-launch-screensaver force"
 
-  # How bright, beside the card that says how big: the two are the **screen**
-  # and they stand together in the first row for that reason. It reads what
-  # the machine is doing rather than what omapad holds - which is the other
-  # half of `reads`; see [live] for the commands behind it.
+  # Which screens are lit, for a laptop plugged into a television. Listed
+  # rather than written, because the three answers only exist while there is
+  # a second screen and a laptop panel to be the first: anywhere else the
+  # card says so and offers nothing to press.
   #
-  # It is here rather than on `Now` because the page's own rule decides it:
-  # how bright the screen is follows the light coming in the window rather
-  # than what you are doing with the machine, which is the same errand as
-  # the scale. How loud is the one that moves with the film, and that is the
-  # one `Now` keeps.
+  # All three go through Omarchy's own monitor switches, which write the
+  # toggles its config reads and reload Hyprland - so they survive a reload,
+  # unlike the size and the rate below, and a reload also puts those back.
+  # The laptop panel is switched off only once mirroring is: Omarchy refuses
+  # to turn off a panel another screen is copying.
   [[menu.items.items]]
-  label = "Brightness"
-  span = [6, 1]
-  control = "slider"
-  reads = "live:brightness"
-
-  # And the page's other half. The card and the bar over it are what the
-  # **desktop** is drawn at; these three are what **omapad** draws over it,
-  # and they are read in the order they are written - no break, because a
-  # break here would hold a row open under a card that is already as tall as
-  # the page needs it.
-  #
-  # Six cells a bar, the longest travel on this surface: these are the three
-  # numbers you set by looking at what they did, and the longer the travel
-  # the finer the aim.
-
-  # How fast omapad's own surfaces move, and at 0 whether they move at all.
-  # A slider rather than a switch because less is a real answer between the
-  # two: a menu that slides half as far still says a tile went away, and a
-  # screen that is hard to read while it is moving is not always one that has
-  # to be still. It is under Display because it is about the screen rather
-  # than the pad - the same place the size of everything is decided.
-  [[menu.items.items]]
-  icon = "󰓅"
-  label = "Motion"
-  span = [6, 1]
-  control = "slider"
-  reads = "pad:motion"
-
-  # And how hard a corner is rounded, against what the compositor rounds a
-  # window by. It is here for the same reason `Motion` is: you find out by
-  # looking at it, and what you are looking at while you move this is the page
-  # the slider is on - the tiles round under the thumb. 100% is the desktop's
-  # own answer and 0 is square; the stops are a sqrt(2) ladder, so six presses
-  # cross the whole range and every one of them is a corner you can tell from
-  # the last.
-  [[menu.items.items]]
-  icon = "󰄴"
-  label = "Corners"
-  span = [6, 1]
-  control = "slider"
-  reads = "pad:radius"
-
-  # And how solid a tile's ground is drawn, which is here for the reason the
-  # two above it are: you find out by looking, and what you are looking at
-  # while you move this is the page the slider is on - the tiles open up under
-  # the thumb and the desktop comes through them. At 0 a plain tile has no
-  # ground at all; the tile you are on stays solid whatever it says, so the
-  # slider is also how far the page falls back behind the selection.
-  [[menu.items.items]]
-  icon = "󱡔"
-  label = "Tile fill"
-  span = [6, 1]
-  control = "slider"
-  reads = "pad:tile_fill"
+  label = "Screens"
+  control = "rows"
+  span = [6, 2]
+  empty = "No second screen"
+  action = '''exec:
+    case %1 in
+      extend)
+        omarchy-hyprland-monitor-internal-mirror off
+        omarchy-hyprland-monitor-internal on ;;
+      mirror)
+        omarchy-hyprland-monitor-internal-mirror on ;;
+      external)
+        omarchy-hyprland-monitor-internal-mirror off
+        omarchy-hyprland-monitor-internal off ;;
+    esac
+  '''
+  from = '''
+    [ -n "$(omarchy-hyprland-monitor-laptop)" ] &&
+      omarchy-hyprland-monitor-external-active || exit 0
+    now=extend
+    omarchy-hyprland-toggle-enabled internal-monitor-mirror && now=mirror
+    omarchy-hyprland-toggle-enabled internal-monitor-disable && now=external
+    row() {
+      mark=""; [ "$1" = "$now" ] && mark="* "
+      printf '%s%s\t%s\n' "$mark" "$2" "$1"
+    }
+    row extend "Both, side by side"
+    row mirror "Both, same picture"
+    row external "Laptop screen off"
+  '''
 
   # What the screen is driven at, under the card that says how big it is
   # drawn. Lists rather than steps, because neither is a ladder anybody
@@ -3955,6 +3952,51 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   control = "choice"
   span = [3, 1]
   reads = "pad:badge_style"
+
+  # How fast omapad's own surfaces move, and at 0 whether they move at all.
+  # A slider rather than a switch because less is a real answer between the
+  # two: a menu that slides half as far still says a tile went away, and a
+  # screen that is hard to read while it is moving is not always one that has
+  # to be still.
+  #
+  # These three are what omapad draws, not what the screen is set to, so
+  # they are on the page of omapad's own settings beside `Button style`
+  # rather than on Display next to the monitor's. They were there for a
+  # while and read as three questions about the television. Their own band,
+  # a third each: the page's last row, and a whole one.
+  [[menu.items.items]]
+  icon = "󰓅"
+  label = "Motion"
+  span = [4, 1]
+  control = "slider"
+  reads = "pad:motion"
+
+  # And how hard a corner is rounded, against what the compositor rounds a
+  # window by. It is here for the same reason `Motion` is: you find out by
+  # looking at it, and what you are looking at while you move this is the page
+  # the slider is on - the tiles round under the thumb. 100% is the desktop's
+  # own answer and 0 is square; the stops are a sqrt(2) ladder, so six presses
+  # cross the whole range and every one of them is a corner you can tell from
+  # the last.
+  [[menu.items.items]]
+  icon = "󰄴"
+  label = "Corners"
+  span = [4, 1]
+  control = "slider"
+  reads = "pad:radius"
+
+  # And how solid a tile's ground is drawn, which is here for the reason the
+  # two above it are: you find out by looking, and what you are looking at
+  # while you move this is the page the slider is on - the tiles open up under
+  # the thumb and the desktop comes through them. At 0 a plain tile has no
+  # ground at all; the tile you are on stays solid whatever it says, so the
+  # slider is also how far the page falls back behind the selection.
+  [[menu.items.items]]
+  icon = "󱡔"
+  label = "Tile fill"
+  span = [4, 1]
+  control = "slider"
+  reads = "pad:tile_fill"
 
 # The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
 #

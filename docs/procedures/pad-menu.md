@@ -296,8 +296,8 @@ than a percentage. `Corners` is the one that ships. See
 
 **A bar is aimed at, so give it the width the band can spare.** Three cells
 is the default and the floor; the shipped sliders run to four and six where
-the row had the room, and the longest of them are the three on `Display` -
-the numbers you set by looking at what they did.
+the row had the room, and the longest of them is `Brightness` on `Display` -
+the number you set by looking at what it did.
 
 **A slider is how a number gets a tile.** `pad:<name>=up|down` rows are the
 shape a number had before there was one: two rows saying "faster" and

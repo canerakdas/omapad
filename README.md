@@ -2203,7 +2203,7 @@ first time the menu is opened it opens on a **`Start here`** tile at the top of
 | Hold time | [how long a hold takes](#holding-for-a-hand-that-cannot) |
 
 Every row there reads the same setting its home row does — this is not a fifth
-place to keep them — and each is on its own page too: `Display ▸ Motion`,
+place to keep them — and each is on its own page too: `Controller ▸ Motion`,
 `Controller ▸ Vibration`, `Controller ▸ Sounds`, `Controller ▸ Hold time`.
 
 **It is shown once.** Opening the menu is what answers the first start:
@@ -2325,7 +2325,7 @@ alpha: everything around it falls back and it does not.
 `[menu] dim` does the work this gives up — once the fill is low, what a label
 stands on is the scrim, so a page that reads badly over a window full of text
 is asking for a darker `dim` rather than a higher fill. It is on the pad as
-`Display > Tile fill`, beside `Corners`, and for the same reason: the page you
+`Controller > Tile fill`, beside `Corners`, and for the same reason: the page you
 are looking at while you move the slider is the page that opens up under it.
 
 **A switch you have turned on fills its whole tile** with the accent, rather
@@ -3096,8 +3096,8 @@ The bar that ships is seven cards, in the order a thumb reaches for them:
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Sound** | what is playing, previous / next, the volume and mute; which speakers, which microphone, and where dictation puts the words |
-| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, the resolution and refresh rate the screen in front offers, and VRR — until Hyprland next reloads, since nothing is written to `monitors.lua` |
-| **Controller** | everything about the pad — see below — and, on the first start only, `Start here` |
+| **Display** | how bright the screen is, night light, staying awake through a film, scale and the screensaver in one card, which screens are lit when a laptop is plugged into a television, and the resolution and refresh rate the screen in front offers, and VRR — those three until Hyprland next reloads, since nothing is written to `monitors.lua` |
+| **Controller** | everything about the pad — see below — how much omapad's own surfaces move, how hard they round their corners and how solid a tile is drawn, and, on the first start only, `Start here` |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
 | **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, the way out into the Omarchy menu, and the stopwatch |
 
@@ -3985,7 +3985,7 @@ base there. `[ui] radius` multiplies whichever of the two is in force:
 radius = 1.0       # 1.0 is exactly what the desktop rounds; 0 is square
 ```
 
-**Menu ▸ Display ▸ Corners** is the same number, and it is the one setting you
+**Menu ▸ Controller ▸ Corners** is the same number, and it is the one setting you
 can only judge by looking at the thing it sets — so it is set from the surface
 it changes, with the tiles rounding under the thumb that moves the slider.
 
@@ -4046,7 +4046,7 @@ tile that faded out has still gone. `1` is the top of the range rather than
 the middle — this asks for *less*, and every duration on these surfaces was
 kept under 150 ms because a menu slower than that reads as a menu that is
 lagging. It is on the pad as well —
-**Menu ▸ Display ▸ Motion** — because whether a moving screen is readable is
+**Menu ▸ Controller ▸ Motion** — because whether a moving screen is readable is
 something you find out by watching one, not by editing a file.
 
 **The desktop gets the first word.** Hyprland's own `animations:enabled` is
