@@ -102,7 +102,7 @@ YouTube · Video                      does not
     characters does not change with it.
 
 11. **A row that acts takes an imperative; a row that opens a place takes a
-    noun.** `Close window`, `Remap the buttons`; `Audio`, `Display`,
+    noun.** `Close window`, `Remap the buttons`; `Sound`, `Display`,
     `Shortcuts`. A submenu label MUST NOT be a verb phrase - it does not do
     anything, it goes somewhere.
 

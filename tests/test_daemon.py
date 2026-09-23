@@ -1768,17 +1768,18 @@ class WorkspaceLockTests(DaemonTestCase):
         self.assertFalse(self.daemon.locked)
 
     def menu_labels(self):
+        walk_menu(self.daemon, ["Spaces"], lambda: None)
         return [tile["item"]["label"] for tile in self.daemon.menu.tiles]
 
     def pick_the_row(self):
         # The tile is offered only while there is something to lock to, and
-        # it is on the chip the menu opens on. Walked to rather than opened
-        # on: the menu comes back where it was left, and a tile that overrode
-        # that would take that answer away - see `open_on`, which is still
-        # there for anyone who wants the other behaviour.
+        # it is on Spaces - the lock holds the pad to the game on this
+        # workspace. Walked to rather than opened on: the menu comes back
+        # where it was left, and a tile that overrode that would take that
+        # answer away - see `open_on`, which is still there for anyone who
+        # wants the other behaviour.
         self.daemon.set_menu(True)
         self.assertIn("Workspace lock", self.menu_labels())
-        self.assertEqual(self.daemon.menu.group, 0)
         self.assertTrue(self.daemon.menu.select_id("workspace-lock"))
 
     def test_the_row_is_not_offered_where_there_is_nothing_to_lock_to(self):
@@ -1879,6 +1880,7 @@ class KeepingThePadTests(DaemonTestCase):
         self.assertTrue(self.daemon.allowed(actions.NoAction(), "base"))
 
     def menu_labels(self):
+        walk_menu(self.daemon, ["Spaces"], lambda: None)
         return [item["label"] for item in self.daemon.menu.items]
 
     def test_the_row_is_offered_where_there_is_a_pad_to_keep(self):
@@ -2567,7 +2569,7 @@ class DictateClipboardTests(DaemonTestCase):
         # The shipped tree's own row, because a setting nothing reaches is a
         # setting nobody has.
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, ("Audio",),
+        walk_menu(self.daemon, ("Sound",),
                   lambda: self.daemon.menu_command("press"))
         item = next(tile["item"] for tile in self.daemon.menu.tiles
                     if tile["item"]["label"] == "Dictate to clipboard")
@@ -2809,6 +2811,9 @@ def walk_menu(daemon, labels, press):
 
 class MenuTests(DaemonTestCase):
     def open_menu(self):
+        # The first start opens on `Start here` wherever it is (FirstRunTests);
+        # everything here is about every opening after that one.
+        self.daemon.config.menu_first_run = False
         self.daemon.set_menu(True)
         self.menu_client.sent.clear()
 
@@ -2888,8 +2893,8 @@ class MenuTests(DaemonTestCase):
         self.daemon.push_menu_view()
         self.assertEqual(
             [group["l"] for group in self.menu_client.sent[-1]["groups"]],
-            ["Now", "Apps", "Spaces", "Audio", "Display", "Controller",
-             "Readings", "System"],
+            ["Apps", "Spaces", "Sound", "Display", "Controller", "Readings",
+             "System"],
         )
 
     def test_a_drills_into_a_submenu(self):
@@ -2995,6 +3000,7 @@ class MenuTests(DaemonTestCase):
     def test_the_first_time_it_opens_on_the_first_tile(self):
         # Nowhere to come back to yet, so the first chip and the first thing
         # on it.
+        self.daemon.config.menu_first_run = False
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.depth, 0)
         self.assertEqual(self.daemon.menu.group, 0)
@@ -3004,7 +3010,7 @@ class MenuTests(DaemonTestCase):
         # Most of what a HUD is for is coming back: you turn the volume down,
         # you go back to the game, and you come back to turn it down again.
         self.open_menu()
-        walk_menu(self.daemon, ["Audio"],
+        walk_menu(self.daemon, ["Sound"],
                   lambda: self.daemon.menu_select_group(0))
         here = self.daemon.menu.selected
         group = self.daemon.menu.group
@@ -3105,8 +3111,9 @@ class MenuTests(DaemonTestCase):
         # land on one tile and pick another.
         self.open_menu()
         self.drill("System")
-        self.daemon.handle_control("menu select %d"
-                                   % (len(self.daemon.menu.tiles) - 1))
+        index = [tile["item"]["id"] for tile in self.daemon.menu.tiles].index(
+            "omarchy-menu")
+        self.daemon.handle_control("menu select %d" % index)
         self.daemon.handle_control("menu press")
         self.assertEqual(self.session.spawned, ["omarchy-menu toggle"])
         self.assertFalse(self.menu_client.sent[-1]["open"])
@@ -3216,7 +3223,7 @@ class CountedRowTests(DaemonTestCase):
             self.config.menu_title, self.config.menu_clock,
             columns=self.config.menu_columns, bias=self.config.menu_bias)
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, ["Wipe it"], lambda: None)
+        walk_menu(self.daemon, ["Apps", "Wipe it"], lambda: None)
 
     def start(self):
         self.press("A")
@@ -3318,7 +3325,7 @@ class ConfirmedRowTests(DaemonTestCase):
             self.config.menu_title, self.config.menu_clock,
             columns=self.config.menu_columns, bias=self.config.menu_bias)
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, ["Wipe it"], lambda: None)
+        walk_menu(self.daemon, ["Apps", "Wipe it"], lambda: None)
 
     def waits(self):
         """The two lengths, in seconds, as the daemon counts them."""
@@ -4563,8 +4570,8 @@ class MenuLegendTests(DaemonTestCase):
     def test_a_row_that_runs_something_says_its_own_name(self):
         # The keyboard tile said `Pick`, which is the one thing about that
         # press nobody needed telling.
-        self.stand_on("keyboard")
-        self.assertEqual(self.words().get("A"), "Keyboard")
+        self.stand_on("terminal")
+        self.assertEqual(self.words().get("A"), "Terminal")
         self.stand_on("previous")
         self.assertEqual(self.words().get("A"), "Previous")
 
@@ -4654,7 +4661,7 @@ class MenuLegendTests(DaemonTestCase):
     def test_what_the_strip_prints_is_what_a_press_does(self):
         # The rule the whole row rests on: the word comes off the tile the
         # press acts on, so walking the page changes both together.
-        self.stand_on("keyboard")
+        self.stand_on("terminal")
         first = self.words().get("A")
         self.stand_on("volume")
         self.assertNotEqual(self.words().get("A"), first)
@@ -4714,7 +4721,7 @@ class ListedMenuTests(DaemonTestCase):
         # the answer a television adds is the whole reason for the card. And
         # not at a press either - nobody enters a card, so what arms it is the
         # page it stands on coming to rest.
-        self.enter("Audio")
+        self.enter("Sound")
         self.assertEqual(self.listings(), [])
         self.settle()
         self.assertEqual(len(self.listings()), 2)   # the outputs and the inputs
@@ -4724,18 +4731,18 @@ class ListedMenuTests(DaemonTestCase):
         self.assertEqual([row["on"] for row in card["rs"]], [True, False])
 
     def test_it_is_asked_again_every_time_the_page_is_entered(self):
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
-        self.enter("Now")
+        self.enter("Apps")
         self.session.lines.append("Headphones\t9\tusb-out")
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.assertEqual(len(self.card("Output")["rs"]), 3)
 
     def test_picking_a_device_runs_the_row_and_keeps_the_menu_up(self):
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
-        walk_menu(self.daemon, ["Television"],
+        walk_menu(self.daemon, ["Output", "Television"],
                   lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
@@ -4747,11 +4754,11 @@ class ListedMenuTests(DaemonTestCase):
 
     def test_a_listing_that_finds_nothing_says_so_and_runs_nothing(self):
         self.session.lines = []
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["No outputs found"])
-        walk_menu(self.daemon, ["No outputs found"],
+        walk_menu(self.daemon, ["Output", "No outputs found"],
                   lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned, [])
         self.assertTrue(self.daemon.menu_open)
@@ -4759,12 +4766,12 @@ class ListedMenuTests(DaemonTestCase):
     def test_a_card_says_its_own_words_before_the_first_answer(self):
         # A blank card on a page you are looking at reads as a drawing fault
         # rather than as a question nobody has answered yet.
-        self.enter("Audio")
+        self.enter("Sound")
         self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["No outputs found"])
 
     def test_the_microphones_are_a_card_of_their_own(self):
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.assertEqual([row["l"] for row in self.card("Microphone")["rs"]],
                          ["Speakers", "Television"])
@@ -4879,7 +4886,7 @@ class LiveTests(DaemonTestCase):
 
     def open_on(self, label):
         self.daemon.set_menu(True)
-        walk_menu(self.daemon, [label], lambda: None)
+        walk_menu(self.daemon, ["Sound", label], lambda: None)
 
     def tile(self, label):
         rows = self.menu_client.sent[-1]["items"]
@@ -4891,8 +4898,9 @@ class LiveTests(DaemonTestCase):
 
     def test_every_reading_on_the_page_is_asked_once_when_it_appears(self):
         self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Sound"], lambda: None)
         self.daemon.live_refresh(time.monotonic())
-        # The three the page the menu opens on reads. A nav card's `meta` is a
+        # The three the Sound page reads. A nav card's `meta` is a
         # command too and lands in the same queue, so it is filtered out here:
         # what this counts is what `live` asked for, not what an open menu
         # spends.
@@ -5098,12 +5106,14 @@ class LiveTests(DaemonTestCase):
     def test_closing_the_menu_forgets_when_anything_was_read(self):
         # What the machine was doing a minute ago is not what it is doing now.
         self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Sound"], lambda: None)
         self.answer(*self.VOLUME)
         self.daemon.set_menu(False)
         self.commands.submitted = []
         self.daemon.set_menu(True)
         self.daemon.live_refresh(time.monotonic())
-        self.assertEqual(len(self.asked()), 3)
+        asked = [one for one in self.asked() if one not in self.metas()]
+        self.assertEqual(len(asked), 3)
 
 
 class GaugeTests(DaemonTestCase):
@@ -5480,6 +5490,7 @@ class EditModeTests(DaemonTestCase):
         patch.start()
         self.addCleanup(patch.stop)
         self.daemon.menu.head = []
+        self.daemon.config.menu_first_run = False
         self.daemon.set_menu(True)
         walk_menu(self.daemon, ["Controller"], lambda: None)
 
@@ -5935,7 +5946,7 @@ class ListedMenuWorkerTests(DaemonTestCase):
                 if one[0] not in self.metas()]
 
     def test_the_page_is_drawn_before_the_answer_arrives(self):
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         listings = self.listings()
         self.assertEqual(len(listings), 2)
@@ -5951,25 +5962,25 @@ class ListedMenuWorkerTests(DaemonTestCase):
     def test_the_rows_land_in_the_list_the_model_is_drawing(self):
         # In place rather than bound afresh: the model holds this very list,
         # and a new one would fill a card nobody is looking at.
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.daemon.drain_commands()
         card = [item for item in self.daemon.menu.items
                 if item["label"] == "Output"][0]
         self.assertEqual([row["label"] for row in card["rows"]],
                          ["Speakers", "Television"])
-        walk_menu(self.daemon, ["Television"],
+        walk_menu(self.daemon, ["Output", "Television"],
                   lambda: self.daemon.menu_command("press"))
         self.assertEqual(self.session.spawned,
                          ["omarchy-audio-output-set-default 7 hdmi-out"])
 
     def test_a_page_entered_again_keeps_its_rows_until_the_fresh_ones_land(self):
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.daemon.drain_commands()
-        self.enter("Now")
+        self.enter("Apps")
         self.session.lines.append("Headphones\t9\tusb-out")
-        self.enter("Audio")
+        self.enter("Sound")
         self.settle()
         self.assertEqual([row["l"] for row in self.card("Output")["rs"]],
                          ["Speakers", "Television"])
@@ -8362,16 +8373,17 @@ class ChronographTests(DaemonTestCase):
 
     def stand_on_it(self):
         self.daemon.set_menu(True)
-        self.assertEqual(self.daemon.menu.group, 0)
+        walk_menu(self.daemon, ["System"], lambda: None)
         self.assertTrue(self.daemon.menu.select_id("stopwatch"))
 
     def press(self):
         self.daemon.menu_command("press")
 
     def test_the_shipped_tree_has_one(self):
-        # It is on the chip the menu opens on, which is the whole of what
-        # "on the page you are already on" means here.
+        # On System, which is the page of the machine rather than of any one
+        # errand on it.
         self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["System"], lambda: None)
         found = [tile["item"] for tile in self.daemon.menu.tiles
                  if tile["item"]["control"] == "chrono"]
         self.assertEqual(len(found), 1)
@@ -8407,7 +8419,7 @@ class ChronographTests(DaemonTestCase):
         self.stand_on_it()
         self.press()
         self.assertEqual(self.legend_word("A"), "Stop")
-        self.assertTrue(self.daemon.menu.select_id("keyboard"))
+        self.assertTrue(self.daemon.menu.select_id("update"))
         self.assertNotEqual(self.legend_word("A"), "Stop")
 
     def test_the_surface_carries_the_measurement(self):

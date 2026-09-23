@@ -2089,8 +2089,8 @@ things open together, stacked down the middle of the screen:
 - **the head** — your name, the time, and whatever else you point a command at.
   Game mode takes Omarchy's bar away and there is no other clock the pad can
   reach, so the menu carries one.
-- **the bar** — one card per group, walked with the shoulders. `Now`,
-  `Apps`, `Spaces`, `Audio`, `Display`, `Controller`, `System`. A nav card is
+- **the bar** — one card per group, walked with the shoulders. `Apps`,
+  `Spaces`, `Sound`, `Display`, `Controller`, `Readings`, `System`. A nav card is
   one cell of the grid below it, drawn on the same ground and standing over
   the same columns — the one you are on is filled with the accent outright.
 - **the grid** — the tiles of the group you are on, some of them wider or
@@ -2188,7 +2188,7 @@ guess.
 A machine driven from a sofa is the machine nobody walks to a keyboard to set
 up — so the first start offers what a first start decides, from the pad. The
 first time the menu is opened it opens on a **`Start here`** tile at the top of
-`Now`, and behind it is one page:
+`Controller`, and behind it is one page:
 
 | Row | What it is |
 |---|---|
@@ -2358,7 +2358,7 @@ says what they mean **now**, because that depends on what is in your hand:
 | **LT / RT** | — | shorter / taller | — |
 
 Both axes, because a cell is a shape rather than a width: a card of rows with
-a row too many, a reading you want to see from further away, a keyboard tile
+a row too many, a reading you want to see from further away, a media tile
 that wants two rows rather than four. On the page the readings are drawn from,
 a tile stops at the last row that page has.
 
@@ -2413,7 +2413,7 @@ It is the tile's line rather than the page's, so it changes as you walk:
 
 | On | A says |
 |---|---|
-| the keyboard tile | `Keyboard` — a row that runs something says its own name |
+| an app tile | its name — `Terminal` — a row that runs something says its own name |
 | `Previous` | `Previous` |
 | a page that opens | `Open` |
 | the volume ring, or any bar | `Adjust` — A takes hold of it |
@@ -2447,7 +2447,7 @@ ships with it — coming back where you were is the better answer for the
 workspace lock too, and a tile that overrode it would take that away.
 
 **The bar holds places, not verbs**, which is why the workspace lock is a tile
-on `Now` rather than a card of its own.
+on `Spaces` rather than a card of its own.
 
 ### Writing the menu to suit yourself
 
@@ -2715,7 +2715,7 @@ rather than coming round — a press on a `choice` tile still wraps, because
 that is one way through a list and this is a thing with a position.
 
 Neither of them is the better one, which is why the shipped tree has one of
-each: `Volume` on `Now` is a ring and `Brightness` on `Display` is a bar. A
+each: `Volume` on `Sound` is a ring and `Brightness` on `Display` is a bar. A
 length is read faster; a ring is turned better. Swap the word in either to have
 two of a kind.
 
@@ -2764,8 +2764,8 @@ rumble = true                 # tick when the sweep hand comes round
 ```
 
 There is **one stopwatch**, however many tiles draw one: start it here, walk to
-another page, and it is the same measurement still running. It ships on `Now`,
-and it is the one tile that may not be [left on
+another page, and it is the same measurement still running. It ships on
+`System`, and it is the one tile that may not be [left on
 screen](#the-readings-how-busy-how-full-how-hot) — a pusher over a game is a
 button you cannot reach.
 
@@ -2828,7 +2828,7 @@ heading's size in front of tracked capitals reads as a bullet, and the marks on
 a card of rows belong to its rows.
 
 **A card can list its rows too.** `from` on one is a command whose output
-becomes the rows — which is what `Audio` is made of, a card of outputs beside a
+becomes the rows — which is what `Sound` is made of under what is playing, a card of outputs beside a
 card of inputs. A listed card is read when the **page it stands on settles**
 rather than at a press, because nobody enters a card; until the first answer
 lands it draws its own `empty` words rather than nothing.
@@ -2971,7 +2971,7 @@ prints that page's answer, not the menu's in general.
 **Nothing in the shipped tree spends one**, which is the answer rather than an
 omission. A button is worth taking only when what it would do is not reachable
 on screen, and a page of tiles almost always has room for one more tile — which
-costs nobody a reflex. Play / pause on `Now` is the example of when not to: the
+costs nobody a reflex. Play / pause on `Sound` is the example of when not to: the
 tile is right there.
 
 ### The head: the clock, and whatever else you point at it
@@ -3085,30 +3085,30 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The bar that ships is eight cards, in the order a thumb reaches for them:
+The bar that ships is seven cards, in the order a thumb reaches for them:
 
 | Group | Holds |
 |---|---|
-| **Now** | the keyboard, the volume, what is playing, the stopwatch — and the workspace lock and *Keep the controller* while there is anything to use them on |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
-| **Spaces** | three named spaces — Lounge, Focus, Co-op night — and the window in front: fullscreen, next window, float / tile, close |
-| **Audio** | which speakers, which microphone, and where dictation puts the words |
+| **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — and the workspace lock and *Keep the controller* while there is anything to use them on |
+| **Sound** | what is playing, previous / next, the volume and mute; which speakers, which microphone, and where dictation puts the words |
 | **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, the resolution and refresh rate the screen in front offers, and VRR — until Hyprland next reloads, since nothing is written to `monitors.lua` |
-| **Controller** | everything about the pad — see below |
+| **Controller** | everything about the pad — see below — and, on the first start only, `Start here` |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
-| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, and the way out into the Omarchy menu |
+| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, the way out into the Omarchy menu, and the stopwatch |
 
-What you change now, then what you open, then what is on screen, then the room,
-then the pad, then the machine. `Now` is where the menu opens, which is why the
-things you reach for while you are sitting in the room are on it rather than at
-the top of `Audio` and `Display` — those pages keep what you set when the room
-changes instead. Brightness is the line between the two, and it is on
+What you open, then where you are, then what you hear, then what is on
+screen, then the pad, then the machine. There used to be a `Now` page in front
+of them all, holding the keyboard, the volume and what was playing; the [quick
+menu](#the-quick-menu) took the keyboard and the volume onto `PLUS`, and what
+was left was sound, so it went to the page about sound. The menu opens on
+`Apps`, which is where a console's home opens too. Brightness stays on
 `Display`: how bright the screen is follows the light coming in the window
 rather than what you are doing, which is the same errand as the scale.
 
 ### What the machine is doing
 
-`Volume` and `Music` on `Now`, and `Brightness` on `Display`, read the
+`Volume` and `Music` on `Sound`, and `Brightness` on `Display`, read the
 **machine** rather than omapad: the real percentage, and the real track. They
 were five stepping rows and a mute row before, none of which could say what the
 number was.
@@ -3849,7 +3849,7 @@ omapad ctl osk dictate      # the same thing without a pad
 
 Dictation types at the cursor, which is right when there is somewhere to type.
 A game, a terminal running something, a window that is not yours at all: the
-sentence goes nowhere and there is nothing to paste. **Audio › Dictate to
+sentence goes nowhere and there is nothing to paste. **Sound › Dictate to
 clipboard** is the switch for that — a tile on the same page as the outputs
 and the microphones, because it is the same question asked of the other end of
 the microphone.

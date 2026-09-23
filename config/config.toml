@@ -2886,268 +2886,15 @@ format = "%H:%M"
 # what you are doing with the machine.
 
 [[menu.items]]
-icon = ""
-label = "Now"
-detail = "Sound, the keyboard, what is playing"
+icon = "󰀻"
+label = "Apps"
+detail = "Steam, chat, music, video"
 # What a nav card says under its name: the state of the place it opens, in
 # the two or three words that fit. A bare word is printed as it is; a table
 # runs a command, and `ttl` is how long its answer stays fresh - the bar has
 # one of these per group, so a card without a ttl is a subprocess a second.
 # `empty` is what it says when the command prints nothing. Left out entirely,
 # a card falls back to how many tiles its page holds.
-meta = { from = "omarchy-shell media status | jq -r 'if .hasMedia and .title != \"\" then .title else \"\" end' | cut -c1-16", ttl = 5, empty = "Quiet" }
-
-  # The one tile that is only ever here once. A machine driven from a sofa is
-  # the machine nobody walks to a keyboard to set up, so the first start has
-  # to offer what a first start decides - what the buttons do, and what a
-  # press answers with - from the pad itself. `[menu] first_run` is the mark;
-  # opening the menu is what clears it, so this is shown once and then gone.
-  #
-  # Its page is not a fifth place to keep these settings: every row on it
-  # reads the same `pad:` setting its home row does, so the two say one thing
-  # and stay in step by construction.
-  [[menu.items.items]]
-  icon = "󰋗"
-  label = "Start here"
-  detail = "The buttons, and how a press answers"
-  # Half the page, at the head of the one open it is ever drawn on. Three
-  # cells left a hole beside it and pushed what follows into the shape of
-  # the hole; six is the keyboard and the ring beside it, which is a first
-  # row somebody can walk along - and **no row break under it**, because the
-  # first press anybody makes on this page is a direction, and a tile alone
-  # in its row answers only one of the four.
-  #
-  # Six is the widest span the shipped tree spends anywhere, and that is a
-  # rule rather than a coincidence: `build` refuses a span wider than the
-  # columns there are, `[menu] columns` is a setting, and six is the width
-  # below which there is nowhere to put a bar. A twelve-cell tile is a menu
-  # that will not build for somebody who narrowed their page.
-  span = [6, 1]
-  when = ["first_run"]
-  open_on = true
-
-    # A quarter of the row each, which is what `Remap the buttons` needs to
-    # be read at all and what leaves the two switches beside it standing on
-    # the same columns. The two bars under them take half the row each: six
-    # tiles, two whole rows, on the one page somebody meets before they know
-    # what any of this is.
-    [[menu.items.items.items]]
-    icon = ""
-    label = "Shortcuts"
-    detail = "What every button does"
-    span = [3, 1]
-    action = "guide:open"
-
-    [[menu.items.items.items]]
-    icon = "󰘮"
-    label = "Remap the buttons"
-    detail = "Teach it which button is which"
-    span = [3, 1]
-    action = "map:open"
-
-    [[menu.items.items.items]]
-    icon = "󰕦"
-    label = "Vibration"
-    span = [3, 1]
-    control = "toggle"
-    reads = "pad:rumble"
-
-    [[menu.items.items.items]]
-    icon = "󰕾"
-    label = "Sounds"
-    span = [3, 1]
-    control = "toggle"
-    reads = "pad:sound"
-
-    [[menu.items.items.items]]
-    icon = "󰓅"
-    label = "Motion"
-    span = [6, 1]
-    control = "slider"
-    reads = "pad:motion"
-
-    [[menu.items.items.items]]
-    label = "Hold time"
-    span = [6, 1]
-    control = "slider"
-    reads = "pad:hold_scale"
-
-  # The page's biggest tile, and the one it is opened for more than any
-  # other. A grid says what is worth looking at, and a keyboard you have to
-  # find among eight equal squares is the list this page stopped being.
-  #
-  # **Four cells rather than six**, which is what it cost to make the band it
-  # leads a whole one. Half the page was the right answer while the row under
-  # it was a bar and three small squares that reached column eight and
-  # stopped; four and four and two and two is the one tiling of twelve that
-  # holds a keyboard, a title, a ring and a dial at the heights each of them
-  # is drawn at. It is still the first tile, still twice the ring, and the
-  # eight equal squares it was written against are not what it stands among.
-  [[menu.items.items]]
-  icon = "󰌌"
-  label = "Keyboard"
-  span = [4, 2]
-  action = "osk:open"
-
-  # What is playing, in somebody else's words: a title and an artist, which
-  # are as long as they are. Four cells rather than the three a media tile
-  # takes by default - the fourth is the one a long title used to elide into
-  # - and it reads what the machine is doing rather than what omapad holds,
-  # which is the other half of `reads`; see [live] for the commands behind
-  # it.
-  [[menu.items.items]]
-  label = "Music"
-  empty = "Nothing playing"
-  span = [4, 2]
-  control = "media"
-  reads = "live:media"
-
-  # **How loud, as the one control on this pad a thumb can copy.** A slider is
-  # a length and a knob is an angle, and the stick this page is walked with is
-  # already a turn - so a held ring is turned by carrying the thumb round it
-  # rather than by pushing a direction and waiting. Volume is where that is
-  # worth a square: it is the value reached for most often from a sofa, and
-  # the one nobody wants to step towards.
-  #
-  # It does not go through `omarchy-audio-output-volume`, and that is the
-  # point of it: the helper always ends in `omarchy-osd`, so every press
-  # would raise Omarchy's own overlay over the tile showing the same number.
-  # [live] volume_set is a setting, so anyone who wants the OSD back puts the
-  # helper there.
-  #
-  # Brightness on `Display` is deliberately still a bar, and the comparison
-  # survives the page it moved to: a length is read faster and a ring is
-  # turned better, and neither drawing is the better one. What decides where
-  # a tile lives is the errand, not the picture - how loud moves with the
-  # film, how bright follows the light in the window.
-  #
-  # **The page is two bands and both of them are whole.** Four and four and
-  # two and two fills the first two rows exactly - the keyboard, the title,
-  # the ring and the dial, every one of them at the height it is drawn at -
-  # and three tiles of four fill the row under it. What it took to get there
-  # was the keyboard's last two cells and the stopwatch coming up out of the
-  # tail: a square cannot stand in a row of verbs, so the two squares belong
-  # in the band with the other two and the transport has the band under
-  # them. It was six and four and two with a bar and four stragglers under
-  # it, which reached column eight in one row, column two in the next, and
-  # left two thirds of the page's foot empty.
-  [[menu.items.items]]
-  label = "Volume"
-  control = "knob"
-  reads = "live:volume"
-
-  # A watch with a stopwatch in it, on the page you are already on. It tells
-  # the time because game mode takes Omarchy's bar away and the pad can reach
-  # no other clock; what it adds is the one thing a clock cannot do, which is
-  # measure - a turn on the sofa, a pot on the stove, how long that install has
-  # been going.
-  #
-  # **One pusher, and A is it**: start, stop, reset, round again. B leaves this
-  # surface and X closes it in every layer, so the second pusher a wrist-worn
-  # chronograph has would have to come out of the face-button contract; a
-  # monopusher is what a chronograph was before it had two, and the legend
-  # under the card says which of the three the next press is. What it costs is
-  # resuming, which the monopusher on a wrist cannot do either.
-  #
-  # No icon, and no `reads`: the control is the picture, and what it holds is
-  # a press somebody made rather than anything a table could be pointed at.
-  #
-  # It stands beside the ring rather than at the foot of the page because the
-  # two are the same drawing: a face, and a dial's own square. Two circles in
-  # a row of bars is what the tail of this page was, and a page reads as one
-  # thing when the round tiles keep company.
-  [[menu.items.items]]
-  label = "Stopwatch"
-  control = "chrono"
-
-  # Everything above is two rows tall; everything below is one. The break is
-  # what says so - the four squares are what this page holds, and the row
-  # under them is what it steps.
-  [[menu.items.items]]
-  control = "row_break"
-
-  # The three ways to walk what is playing. A on the tile above plays and
-  # pauses it - it has two states, so it needs no mode of its own - and
-  # these are the presses that cannot be made on a tile that has only two.
-  #
-  # Three tiles rather than a transport drawn inside the media one: left and
-  # right already mean "the tile that way", so the grid walks to them
-  # without a button learning a second meaning anywhere. A tile costs nobody
-  # a reflex, which is the same argument that keeps every page's X and Y
-  # unspent.
-  #
-  # A third of the row each rather than a cell each: `Previous` is a word,
-  # and a cell holds about as much of it as `Previo…`. Three tiles of four
-  # is the band under the four squares, and a transport as wide as the page
-  # is a transport a thumb lands on without aiming.
-  [[menu.items.items]]
-  icon = "󰒮"
-  label = "Previous"
-  span = [4, 1]
-  action = "live:media=previous"
-  stay = true
-
-  [[menu.items.items]]
-  icon = "󰒭"
-  label = "Next"
-  span = [4, 1]
-  action = "live:media=next"
-  stay = true
-
-  [[menu.items.items]]
-  icon = "󰝟"
-  label = "Mute"
-  span = [4, 1]
-  control = "toggle"
-  reads = "live:mute"
-
-  # The two tiles that used to sit at the top level, and why they are not
-  # there any more. Item 48 put them there because a row you have to go and
-  # find is a row that is not there - and the bar has no room for a verb.
-  # What answers it now is that the menu **comes back where it was**: use one
-  # of these once and it is what the next press opens on, which is nearer
-  # than a top-level row in a list of ten ever was and costs no rule.
-  #
-  # `open_on = true` is the other answer and is still there to be written:
-  # while the condition holds, the menu opens *on* that tile whatever it was
-  # doing last. Neither ships with it, because a menu that overrode where you
-  # left off would take the first answer away.
-  #
-  # The states a tile may wait for are `game`, `handed_over`, `locked` and
-  # `kept`; any one of those listed is enough.
-  #
-  # Half the page each, and the pair makes a row of twelve where both are
-  # offered - which is the state they are most often offered in, since a pad
-  # handed to a cloud client is a pad in game mode. Three cells apiece left
-  # the band they arrive in three quarters empty.
-  [[menu.items.items]]
-  icon = "󰌾"
-  label = "Workspace lock"
-  detail = "Every press goes to the game"
-  span = [6, 1]
-  action = "lock:toggle"
-  when = ["game", "handed_over"]
-  stay = true
-
-  # Its pair, for the case the hand-off is right about and nobody can use. A
-  # cloud client opens the pad as its page loads, so the launcher screen in
-  # front of the stream - a web page, which reads no pad at all - is handed the
-  # pointer and offers nothing to press it with; measured with GeForce NOW,
-  # whose session then never starts. This takes the pad back, and keeps it
-  # until it is given up again.
-  [[menu.items.items]]
-  icon = "󰕾"
-  label = "Keep the controller"
-  detail = "Every press drives the desktop"
-  span = [6, 1]
-  action = "keep:toggle"
-  when = ["handed_over", "kept"]
-  stay = true
-
-[[menu.items]]
-icon = "󰀻"
-label = "Apps"
-detail = "Steam, chat, music, video"
 
   # Steam first: on a sofa it is what the menu is opened for. The URL form
   # works either way - it starts Steam in Big Picture when it is closed, and
@@ -3282,6 +3029,12 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
     steam steam://open/bigpicture &
     $(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me) &"""
 
+  # The spaces are nine columns and the page is twelve, and the page is
+  # packed first fit: without a break the lock would take the hole beside
+  # them, off the edge of a screen that shows nine.
+  [[menu.items.items]]
+  control = "row_break"
+
   # **One card, not four cells.** Every one of these is a verb with nothing
   # to show but its name, and at one cell each that name was `Fullscre…`,
   # `Next win…`, `Float / …` and `Close wi…` - four words cut in half on a
@@ -3339,18 +3092,160 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
     # [terminal]), but what that asks about is a command, not the window.
     confirm = true
 
+  # Who the presses go to. On Spaces because the lock is a workspace lock -
+  # it holds the pad to the game on this one - and keeping the controller is
+  # its other side; both were on `Now` until that page was given out
+  # (decision 86).
+  #
+  # And why they are not at the top level, where they once were. Item 48 put them there because a row you have to go and
+  # find is a row that is not there - and the bar has no room for a verb.
+  # What answers it now is that the menu **comes back where it was**: use one
+  # of these once and it is what the next press opens on, which is nearer
+  # than a top-level row in a list of ten ever was and costs no rule.
+  #
+  # `open_on = true` is the other answer and is still there to be written:
+  # while the condition holds, the menu opens *on* that tile whatever it was
+  # doing last. Neither ships with it, because a menu that overrode where you
+  # left off would take the first answer away.
+  #
+  # The states a tile may wait for are `game`, `handed_over`, `locked` and
+  # `kept`; any one of those listed is enough.
+  #
+  # A quarter of the page each, beside the window card. They were half the
+  # page on `Now`, where they made a row of their own; here they stand in the
+  # three columns the card leaves, and on a screen that shows nine of the
+  # twelve the lock - the one offered in game mode - is the one that fits.
+  [[menu.items.items]]
+  icon = "󰌾"
+  label = "Workspace lock"
+  detail = "Every press goes to the game"
+  span = [3, 1]
+  action = "lock:toggle"
+  when = ["game", "handed_over"]
+  stay = true
+
+  # Its pair, for the case the hand-off is right about and nobody can use. A
+  # cloud client opens the pad as its page loads, so the launcher screen in
+  # front of the stream - a web page, which reads no pad at all - is handed the
+  # pointer and offers nothing to press it with; measured with GeForce NOW,
+  # whose session then never starts. This takes the pad back, and keeps it
+  # until it is given up again.
+  [[menu.items.items]]
+  icon = "󰕾"
+  label = "Keep the controller"
+  detail = "Every press drives the desktop"
+  span = [3, 1]
+  action = "keep:toggle"
+  when = ["handed_over", "kept"]
+  stay = true
+
 [[menu.items]]
 icon = ""
-label = "Audio"
-detail = "Where the sound goes"
-meta.ttl = 10
+label = "Sound"
+detail = "What is playing, and where it goes"
+meta.ttl = 5
+# What is playing when something is, and which speakers when nothing is -
+# the one line that says both whether and where. The title is cut to what a
+# nav card holds.
+#
 # The active *port*, not the sink: a sink is called `Built-in Audio Analog
 # Stereo` and a nav card has room for `Speakers`. Two passes because the port
 # the sink is on is printed after the list of ports it could be on.
 meta.from = '''
+  title=$(omarchy-shell media status 2>/dev/null | jq -r 'if .hasMedia and .title != "" then .title else "" end' 2>/dev/null | cut -c1-16)
+  [ -n "$title" ] && { echo "$title"; exit 0; }
   port=$(pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" '$1=="Name:"{f=($2==s)} f && $1=="Active" && $2=="Port:"{print $3; exit}')
   pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" -v p="$port:" '$1=="Name:"{f=($2==s)} f && $1==p {sub(/^[^:]*: /, ""); sub(/ \(.*/, ""); print; exit}'
 '''
+
+  # What is playing, in somebody else's words: a title and an artist, which
+  # are as long as they are. Half the page, which is what the title is given
+  # on the page that is about sound: how loud, and what. It reads what the
+  # machine is doing rather than what omapad holds, which is the other half
+  # of `reads`; see [live] for the commands behind it.
+  #
+  # These were the `Now` page, with the keyboard and the stopwatch, until the
+  # quick menu took the keyboard and the volume onto a button of their own
+  # and `Now` was left holding sound under a name that said nothing about it
+  # (decision 86). Sound is where somebody looks for what is playing.
+  [[menu.items.items]]
+  label = "Music"
+  empty = "Nothing playing"
+  span = [6, 2]
+  control = "media"
+  reads = "live:media"
+
+  # **How loud, as the one control on this pad a thumb can copy.** A slider is
+  # a length and a knob is an angle, and the stick this page is walked with is
+  # already a turn - so a held ring is turned by carrying the thumb round it
+  # rather than by pushing a direction and waiting. Volume is where that is
+  # worth a square: it is the value reached for most often from a sofa, and
+  # the one nobody wants to step towards.
+  #
+  # It does not go through `omarchy-audio-output-volume`, and that is the
+  # point of it: the helper always ends in `omarchy-osd`, so every press
+  # would raise Omarchy's own overlay over the tile showing the same number.
+  # [live] volume_set is a setting, so anyone who wants the OSD back puts the
+  # helper there.
+  #
+  # Brightness on `Display` is deliberately still a bar, and the comparison
+  # survives the page it moved to: a length is read faster and a ring is
+  # turned better, and neither drawing is the better one. What decides where
+  # a tile lives is the errand, not the picture - how loud moves with the
+  # film, how bright follows the light in the window.
+  #
+  # **Nine columns, not twelve.** The page is twelve wide and a 1080p screen
+  # shows nine of them, so a transport stacked in the last two columns was a
+  # transport off the edge. Six for the title and two for the ring is the
+  # first band; the three verbs are the band under it.
+  [[menu.items.items]]
+  label = "Volume"
+  control = "knob"
+  reads = "live:volume"
+
+  # The title and the ring are two rows tall; the transport under them is
+  # one. The break is what says so.
+  [[menu.items.items]]
+  control = "row_break"
+
+  # The three ways to walk what is playing. A on the tile above plays and
+  # pauses it - it has two states, so it needs no mode of its own - and
+  # these are the presses that cannot be made on a tile that has only two.
+  #
+  # Three tiles rather than a transport drawn inside the media one: left and
+  # right already mean "the tile that way", so the grid walks to them
+  # without a button learning a second meaning anywhere. A tile costs nobody
+  # a reflex, which is the same argument that keeps every page's X and Y
+  # unspent.
+  #
+  # Three cells each rather than one: `Previous` is a word, and a cell holds
+  # about as much of it as `Previo…`. Three of three is the nine columns the
+  # band above comes to, and a transport that wide is one a thumb lands on
+  # without aiming.
+  [[menu.items.items]]
+  icon = "󰒮"
+  label = "Previous"
+  span = [3, 1]
+  action = "live:media=previous"
+  stay = true
+
+  [[menu.items.items]]
+  icon = "󰒭"
+  label = "Next"
+  span = [3, 1]
+  action = "live:media=next"
+  stay = true
+
+  # What is playing above; where it goes below.
+  [[menu.items.items]]
+  icon = "󰝟"
+  label = "Mute"
+  span = [3, 1]
+  control = "toggle"
+  reads = "live:mute"
+
+  [[menu.items.items]]
+  control = "row_break"
 
   # **Two cards that list, rather than a page holding two pages.** It was
   # `Devices` opening on `Output` opening on the outputs - two presses in
@@ -3682,6 +3577,81 @@ icon = "󰊴"
 label = "Controller"
 detail = "Speed, vibration, labels, mapping"
 meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk '{print ($1 == 1) ? \"1 paired\" : $1 \" paired\"}'", ttl = 5, empty = "None paired" }
+
+  # The one tile that is only ever here once. A machine driven from a sofa is
+  # the machine nobody walks to a keyboard to set up, so the first start has
+  # to offer what a first start decides - what the buttons do, and what a
+  # press answers with - from the pad itself. `[menu] first_run` is the mark;
+  # opening the menu is what clears it, so this is shown once and then gone.
+  #
+  # Its page is not a fifth place to keep these settings: every row on it
+  # reads the same `pad:` setting its home row does, so the two say one thing
+  # and stay in step by construction.
+  [[menu.items.items]]
+  icon = "󰋗"
+  label = "Start here"
+  detail = "The buttons, and how a press answers"
+  # Half the page, at the head of the one open it is ever drawn on, and on
+  # `Controller` because everything it holds is about the pad - it opened
+  # the page that was called `Now` until that page was given out to the
+  # places its tiles belong (decision 86). **No row break under it**,
+  # because the first press anybody makes on this page is a direction, and
+  # a tile alone in its row answers only one of the four.
+  #
+  # Six is the widest span the shipped tree spends anywhere, and that is a
+  # rule rather than a coincidence: `build` refuses a span wider than the
+  # columns there are, `[menu] columns` is a setting, and six is the width
+  # below which there is nowhere to put a bar. A twelve-cell tile is a menu
+  # that will not build for somebody who narrowed their page.
+  span = [6, 1]
+  when = ["first_run"]
+  open_on = true
+
+    # A quarter of the row each, which is what `Remap the buttons` needs to
+    # be read at all and what leaves the two switches beside it standing on
+    # the same columns. The two bars under them take half the row each: six
+    # tiles, two whole rows, on the one page somebody meets before they know
+    # what any of this is.
+    [[menu.items.items.items]]
+    icon = ""
+    label = "Shortcuts"
+    detail = "What every button does"
+    span = [3, 1]
+    action = "guide:open"
+
+    [[menu.items.items.items]]
+    icon = "󰘮"
+    label = "Remap the buttons"
+    detail = "Teach it which button is which"
+    span = [3, 1]
+    action = "map:open"
+
+    [[menu.items.items.items]]
+    icon = "󰕦"
+    label = "Vibration"
+    span = [3, 1]
+    control = "toggle"
+    reads = "pad:rumble"
+
+    [[menu.items.items.items]]
+    icon = "󰕾"
+    label = "Sounds"
+    span = [3, 1]
+    control = "toggle"
+    reads = "pad:sound"
+
+    [[menu.items.items.items]]
+    icon = "󰓅"
+    label = "Motion"
+    span = [6, 1]
+    control = "slider"
+    reads = "pad:motion"
+
+    [[menu.items.items.items]]
+    label = "Hold time"
+    span = [6, 1]
+    control = "slider"
+    reads = "pad:hold_scale"
 
   # A switch, because there are two states and the tile draws which one it is
   # in.
@@ -4247,3 +4217,23 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
 # match = "chromium"        # a bare string is a single match
 # [profile.browser.bindings]
 # ZR = "exec:omarchy-capture-screenshot"
+
+  # A watch with a stopwatch in it. It tells the time because game mode takes
+  # Omarchy's bar away and the pad can reach no other clock; what it adds is
+  # the one thing a clock cannot do, which is measure - a turn on the sofa, a
+  # pot on the stove, how long that install has been going. It is on System
+  # because it belongs to no errand of its own, and System is the page of
+  # the machine rather than of any one thing on it.
+  #
+  # **One pusher, and A is it**: start, stop, reset, round again. B leaves this
+  # surface and X closes it in every layer, so the second pusher a wrist-worn
+  # chronograph has would have to come out of the face-button contract; a
+  # monopusher is what a chronograph was before it had two, and the legend
+  # under the card says which of the three the next press is. What it costs is
+  # resuming, which the monopusher on a wrist cannot do either.
+  #
+  # No icon, and no `reads`: the control is the picture, and what it holds is
+  # a press somebody made rather than anything a table could be pointed at.
+  [[menu.items.items]]
+  label = "Stopwatch"
+  control = "chrono"

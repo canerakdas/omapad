@@ -207,7 +207,7 @@ conditions rather than getting its own:
 - **The test is still whether it is reachable on screen.** A page of tiles
   almost always has room for one more tile, and a tile costs nothing anybody
   has to remember. Nothing in the shipped tree spends a key, and play / pause
-  on the `Now` page is the worked example of when not to: the tile is right
+  on the `Sound` page is the worked example of when not to: the tile is right
   there.
 - **X stands down where it says what B just said.** At the top of a group B
   closes the menu and so does the layer's X, and one word under two badges is

@@ -288,7 +288,7 @@ between them. `CONTROL_KINDS` is where that is written down, and it is the
 only entry with two kinds in it.
 
 **Neither of them is the better one.** A length is read faster and a ring is
-turned better, and the shipped tree has one of each: `Volume` on `Now` is a
+turned better, and the shipped tree has one of each: `Volume` on `Sound` is a
 knob and `Brightness` on `Display` is a bar. They stood on one page for a
 while to find out which gets reached for, which settled something else - the
 drawing is not what decides where a tile lives - and the ring keeps the dial's
@@ -2076,7 +2076,7 @@ one.
 
 ## Cards that list what is plugged in
 
-A `rows` card takes `from` like a submenu does, and `Audio` is made of two of
+A `rows` card takes `from` like a submenu does, and `Sound` ends in two of
 them - the outputs and the inputs, each drawn where it stands. It was `Devices`
 opening on `Output` opening on the outputs: two presses in before a name you
 could pick, and each of those pages held exactly one thing.

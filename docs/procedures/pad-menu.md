@@ -451,7 +451,7 @@ whether pressing the second row should let the first one out.
 
 ### A card that lists what is plugged in
 
-A card takes `from` like a submenu does, and that is what `Audio` is made of:
+A card takes `from` like a submenu does, and that is what `Sound` ends in:
 two cards, one of outputs and one of inputs, each a command's output drawn
 where it stands.
 
@@ -610,7 +610,7 @@ a press finding out:
 **Ask whether it is reachable on screen first.** That is
 [`bindings.md`](../conventions/bindings.md) rule 2's own test, and a page of
 tiles almost always has room for one more tile - which costs nobody a reflex.
-Nothing in the shipped tree spends a key. Play / pause on `Now` is the worked
+Nothing in the shipped tree spends a key. Play / pause on `Sound` is the worked
 example of when *not* to: the tile is right there.
 
 ## The head
