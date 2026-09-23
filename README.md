@@ -1269,6 +1269,10 @@ restart — so every config change would close your Steam.
 | `live:brightness=up\|down\|<0..1>` | how bright the screen in front is |
 | `live:media=playPause\|next\|previous` | what is playing |
 | `live:vrr=on\|off\|toggle` | whether the refresh rate may follow a fullscreen game |
+| `live:stay_awake=on\|off\|toggle` | whether the screensaver and the lock stay away |
+| `live:nightlight=on\|off\|toggle` | Omarchy's warm screen |
+| `live:bluetooth=on\|off\|toggle` | the Bluetooth radio |
+| `live:dnd=on\|off\|toggle` | Omarchy's do not disturb |
 | `snap:left\|right\|up\|down` | move the pointer to the window that way and focus it |
 | `snap:centre` | put the pointer in the middle of the window in front |
 | `focus:next\|prev` | walk the application's own controls (Tab / Shift+Tab) |
@@ -2648,7 +2652,7 @@ control = "chrono"            # the same face with a stopwatch in it
 
 `reads` names either one of the settings the pad can change — the same names a
 `pad:` binding takes — or one of the things the machine is doing: `volume`,
-`mute`, `brightness`, `media`, `vrr`. The kinds have to match and `omapad check` says
+`mute`, `brightness`, `media`, `vrr`, `stay_awake`, `nightlight`, `bluetooth`, `dnd`. The kinds have to match and `omapad check` says
 so: a `toggle` reads an on/off setting, a `choice` reads one with a list of
 values, a `slider` reads a number — and a `knob` reads either a number or a
 list.

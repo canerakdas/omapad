@@ -46,6 +46,19 @@ READINGS = {
     # frame rate. A switch rather than Hyprland's four values: which of the
     # "on" ones is meant is the write's business, in `[live] vrr_set`.
     "vrr": {"kind": "bool"},
+    # Whether the screensaver and the lock may come on by themselves. A film
+    # is watched without touching anything, and the pad being still for the
+    # length of one is exactly what idle is measured by.
+    "stay_awake": {"kind": "bool"},
+    # The warm screen for the evening. A switch, because Omarchy's own is one:
+    # the temperature it goes to is its business, not a slider's.
+    "nightlight": {"kind": "bool"},
+    # Whether the radio is on - which, on a machine whose pad is wireless, is
+    # whether the pad can come back after it has slept.
+    "bluetooth": {"kind": "bool"},
+    # Whether notifications stay off the screen. A toast over a film, or over
+    # a game somebody is streaming, is the thing this is for.
+    "dnd": {"kind": "bool"},
 }
 
 # What a reading may be asked to become. A number takes `up`, `down` or a
@@ -144,12 +157,51 @@ def parse_vrr(lines):
     return None
 
 
+def parse_enabled(lines):
+    """`{"enabled": true, ...}` -> True, the status line Omarchy's toggles print.
+
+    Only the one field: the rest of the object is a tooltip and a CSS class
+    for the bar, which say the same thing in words that are not ours.
+    """
+    for line in lines:
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            found = json.loads(line)
+        except ValueError:
+            return None
+        if not isinstance(found, dict) or not isinstance(
+                found.get("enabled"), bool):
+            return None
+        return found["enabled"]
+    return None
+
+
+def parse_word(lines):
+    """A line saying `on` or `off` -> True or False.
+
+    What Omarchy's notification service answers, and what a read command
+    makes of a helper that answers with its exit status and nothing else. An
+    empty answer has to stay unknown rather than read as off.
+    """
+    for line in lines:
+        word = line.strip().lower()
+        if word in ("on", "off"):
+            return word == "on"
+    return None
+
+
 PARSERS = {
     "volume": parse_volume,
     "mute": parse_mute,
     "brightness": parse_brightness,
     "media": parse_media,
     "vrr": parse_vrr,
+    "stay_awake": parse_enabled,
+    "nightlight": parse_enabled,
+    "bluetooth": parse_word,
+    "dnd": parse_word,
 }
 
 

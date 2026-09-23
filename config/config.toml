@@ -1198,6 +1198,30 @@ media_set = "omarchy-shell media %1"
 vrr_read = "hyprctl getoption misc:vrr"
 vrr_set = 'hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"'
 
+# Whether the screensaver and the lock stay away. Omarchy's own switch, so the
+# bar's indicator and its own menu agree with the tile: the shell watches the
+# file this writes and needs telling nothing.
+stay_awake_read = "omarchy-toggle-idle status"
+stay_awake_set = 'omarchy-toggle-idle "$([ %1 = 1 ] && echo stay-awake || echo allow-idle)"'
+
+# The warm screen. Omarchy's helper only flips, so the write asks first and
+# flips only when the answer is not already the one wanted - a press that
+# landed twice would otherwise put it back.
+nightlight_read = "omarchy-toggle-nightlight --status"
+nightlight_set = '[ "$(omarchy-toggle-nightlight --status | jq -r .enabled)" = "$([ %1 = 1 ] && echo true || echo false)" ] || omarchy-toggle-nightlight'
+
+# The radio. The helper answers with its exit status, so the read says it in
+# a word; the write goes through it rather than bluetoothctl because the off
+# it makes is an rfkill block, which is the half that survives a reboot.
+bluetooth_read = "omarchy-bluetooth-power is-on && echo on || echo off"
+bluetooth_set = 'omarchy-bluetooth-power "$([ %1 = 1 ] && echo on || echo off)"'
+
+# Do not disturb, asked of Omarchy's notification service itself, which
+# answers in the words the reading wants. Nothing answers while the shell is
+# down, and the tile stays blank rather than guessing.
+dnd_read = "omarchy-shell notifications isDnd"
+dnd_set = "omarchy-shell notifications setDnd %1"
+
 timeout_ms = 1000             # how late an answer may be before it is dropped
 poll_ms = 2000                # how often the selected tile is re-asked
 settle_ms = 250               # and how long after a press the helper is asked

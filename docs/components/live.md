@@ -33,6 +33,10 @@ it, nothing can be written, and a tile pointed at it draws blank.
 | `brightness` | number | `omarchy-brightness-display` | `omarchy-brightness-display --no-osd %1%` |
 | `media` | media | `omarchy-shell media status` | `omarchy-shell media %1` |
 | `vrr` | bool | `hyprctl getoption misc:vrr` | `hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"` |
+| `stay_awake` | bool | `omarchy-toggle-idle status` | `omarchy-toggle-idle stay-awake\|allow-idle` |
+| `nightlight` | bool | `omarchy-toggle-nightlight --status` | the same helper, run only when it is not already the value asked for |
+| `bluetooth` | bool | `omarchy-bluetooth-power is-on`, said as a word | `omarchy-bluetooth-power on\|off` |
+| `dnd` | bool | `omarchy-shell notifications isDnd` | `omarchy-shell notifications setDnd %1` |
 
 **Why volume bypasses `omarchy-audio-output-volume`.** That helper always ends
 in `omarchy-osd`, so every press from the HUD would raise Omarchy's own overlay
@@ -47,6 +51,13 @@ whether the rate is following a game *now*, which on Hyprland's fullscreen-only
 setting is no on the desktop the switch is drawn over - a switch that reads off
 the moment it is turned on. On is that setting, 2, rather than 1: the games are
 fullscreen, and a desktop whose rate wanders flickers on some televisions.
+
+**Why the four switches go through Omarchy's helpers.** Its bar, its menu
+and its shell read the same state those helpers write - a file for staying
+awake, hyprsunset's temperature for the night light, an rfkill block for the
+radio, the notification service's own flag for do not disturb - so a tile
+that went round them would disagree with the indicator beside it. The night light's helper only flips, which is why its write asks
+first: a write is the value wanted, and a flip sent twice is the old value.
 
 **Why brightness keeps its helper.** DDC, Apple displays and backlights are
 three code paths omapad must not reimplement, and that helper offers the flag.

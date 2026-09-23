@@ -85,6 +85,24 @@ class ParserTests(unittest.TestCase):
         self.assertTrue(live_module.parse_vrr(["int: 2", "set: true"]))
         self.assertIsNone(live_module.parse_vrr(["no such option"]))
 
+    def test_omarchy_s_switches_are_read_by_their_enabled_field(self):
+        # What `omarchy-toggle-idle status` and `omarchy-toggle-nightlight
+        # --status` print, word for word.
+        parse = live_module.parse_enabled
+        self.assertTrue(parse(['{"enabled":true,"class":"enabled",'
+                               '"tooltip":"Allow Idle Lock & Screensaver"}']))
+        self.assertFalse(parse(['{"enabled":false,"temperature":null}']))
+        # A field that is not a switch is no answer, not an off.
+        self.assertIsNone(parse(['{"enabled":"yes"}']))
+        self.assertIsNone(parse(["not json"]))
+        self.assertIsNone(parse([]))
+
+    def test_a_helper_that_answers_by_exit_status_is_read_as_a_word(self):
+        self.assertTrue(live_module.parse_word(["on"]))
+        self.assertFalse(live_module.parse_word(["off\n"]))
+        # Silence stays unknown: a helper that hung must not read as off.
+        self.assertIsNone(live_module.parse_word([]))
+
     def test_brightness_is_one_number(self):
         self.assertAlmostEqual(live_module.parse_brightness(["95"]), 0.95)
         self.assertAlmostEqual(live_module.parse_brightness([" 5% "]), 0.05)
