@@ -3079,7 +3079,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Workspaces** | fullscreen, next window, float / tile, close |
 | **Audio** | which speakers, which microphone, and where dictation puts the words |
-| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners |
+| **Display** | how bright the screen is, scale and the screensaver in one card, how much omapad's own surfaces move, how hard they round their corners, and the resolution and refresh rate the screen in front offers — until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
 | **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, and the way out into the Omarchy menu |

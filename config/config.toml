@@ -3322,6 +3322,96 @@ meta = { from = "hyprctl monitors -j | jq -r '.[0] | \"\\(.height)p · \\(.refre
   control = "slider"
   reads = "pad:tile_fill"
 
+  # What the screen is driven at, under the card that says how big it is
+  # drawn. Lists rather than steps, because neither is a ladder anybody
+  # climbs: a television offers 4K, 1440p, 1080p and 720p and the answer is
+  # one of them, not the next one along. Both are read from the monitor in
+  # front, the one `Scale up` works on, so what a row offers is what that
+  # screen said it can show - there is no mode here nobody asked it for.
+  #
+  # Two cards rather than one list of every mode, because a television
+  # reports each size at six rates and one list was thirty rows of the same
+  # four sizes. The pair is still one mode: picking a size keeps the rate in
+  # force where the new size has it and takes the fastest where it has not,
+  # and picking a rate keeps the size - read at the press rather than from
+  # the list, which was written before the last pick and can be a size
+  # behind until the page is entered again.
+  #
+  # Applied the way `omarchy-hyprland-monitor-scaling` applies a scale, with
+  # the position, the scale and the rotation carried over. The scale is
+  # rounded up to one the new size divides into whole pixels - Hyprland
+  # refuses any other, and the scaling script rounds the same way. Nothing
+  # is written to monitors.lua: a mode is a line there someone wrote by hand,
+  # and one the television turns out not to show is undone by reloading
+  # Hyprland rather than by finding that line from a black screen. So a
+  # reload also puts back what that file says.
+  #
+  # The output name goes into a Lua string, so only a plain connector name
+  # passes, and the value a row carries is matched whole before it is used.
+  [[menu.items.items]]
+  label = "Resolution"
+  control = "rows"
+  span = [6, 3]
+  detail = "Fewer pixels for a faster game"
+  empty = "No screen found"
+  action = '''exec:
+    lua=$(hyprctl monitors -j | jq -r --arg want %1 '
+      .[] | select(.focused) | select(.name | test("^[A-Za-z0-9._-]+$")) | . as $m
+      | ($want | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)$") | map_values(tonumber)) as $s
+      | [.availableModes[]
+         | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)Hz$") | map_values(tonumber)
+         | select(.w == $s.w and .h == $s.h) | .r] as $rates
+      | select($rates | length > 0)
+      | (first($rates[] | select((. * 100 | round) == ($m.refreshRate * 100 | round)))
+         // ($rates | max)) as $r
+      | ([$s.w * 120, $s.h * 120] | until(.[1] == 0; [.[1], .[0] % .[1]]) | .[0]) as $g
+      | ([$m.scale * 120 | round, $g] | min | until($g % . == 0; . + 1) / 120) as $scale
+      | "hl.monitor({ output = \"\(.name)\", mode = \"\($s.w)x\($s.h)@\($r)\", position = \"\(.x)x\(.y)\", scale = \($scale), transform = \(.transform) })"')
+    [ -n "$lua" ] && hyprctl eval "$lua"
+  '''
+  from = '''
+    hyprctl monitors -j |
+      jq -r '
+        .[] | select(.focused) | . as $m
+        | [.availableModes[] | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@") | map_values(tonumber)]
+        | unique | sort_by(-(.w * .h), -.w) | .[]
+        | (if .w == $m.width and .h == $m.height then "* " else "" end)
+          + "\(.w) × \(.h)\t\(.w)x\(.h)"'
+  '''
+
+  # The rates the size in force is offered at, fastest first. A rate is
+  # ticked by what it rounds to, because the mode list says `60.08Hz` and
+  # the monitor says 60.076.
+  [[menu.items.items]]
+  label = "Refresh rate"
+  control = "rows"
+  span = [6, 3]
+  detail = "Higher is smoother motion"
+  empty = "No screen found"
+  action = '''exec:
+    lua=$(hyprctl monitors -j | jq -r --arg want %1 '
+      .[] | select(.focused) | select(.name | test("^[A-Za-z0-9._-]+$")) | . as $m
+      | select($want | test("^[0-9]+([.][0-9]+)?$")) | ($want | tonumber) as $asked
+      | [.availableModes[]
+         | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)Hz$") | map_values(tonumber)
+         | select(.w == $m.width and .h == $m.height) | .r]
+      | select(length > 0) | min_by(. - $asked | fabs) as $r
+      | "hl.monitor({ output = \"\($m.name)\", mode = \"\($m.width)x\($m.height)@\($r)\", position = \"\($m.x)x\($m.y)\", scale = \($m.scale), transform = \($m.transform) })"')
+    [ -n "$lua" ] && hyprctl eval "$lua"
+  '''
+  from = '''
+    hyprctl monitors -j |
+      jq -r '
+        .[] | select(.focused) | . as $m
+        | [.availableModes[]
+           | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)@(?<r>[0-9.]+)Hz$") | map_values(tonumber)
+           | select(.w == $m.width and .h == $m.height) | .r]
+        | unique | reverse | .[]
+        | (if (. * 100 | round) == ($m.refreshRate * 100 | round) then "* " else "" end)
+          + "\(. * 100 | round / 100) Hz\t\(.)"'
+  '''
+
+
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and
 # reads as one row.
