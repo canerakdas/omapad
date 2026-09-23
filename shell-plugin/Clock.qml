@@ -16,7 +16,7 @@
 // parameterised by anything: a hand is the same baton at every hour, drawn
 // standing at twelve on the shapes' own canvas, and an angle is a transform
 // rather than a shape. What is left as geometry is what genuinely answers to
-// a number - how big a register is and where the three of them sit. Same
+// a number - how big the register is and where it sits. Same
 // split the gauge makes one control along, and the same one `BadgeArt` makes
 // between a button and the label set into it.
 //
@@ -31,16 +31,15 @@
 // is the last place to put something that twitches. Two hands say what a sofa
 // asks; the head's `%H:%M` is where the exact minute is.
 //
-// **A chronograph is the same face with three registers sunk into it, and
-// every one of them moves.** That is not the paragraph above being broken, it
+// **A chronograph is the same face with one register set into it, and
+// everything on it moves.** That is not the paragraph above being broken, it
 // is the other side of it: this face is only ever drawn in the menu, which is
 // a surface somebody opened and is looking at, and what it is drawn for is
 // measuring. A stopwatch whose hands stood still between payloads would be a
 // stopwatch that lies twice a second.
 //
 // So the daemon sends the state - how long it had measured when the line was
-// written, whether it is still going, and how far into the minute the clock
-// was - and this file counts on from there, re-stamping itself every time a
+// written, and whether it is still going - and this file counts on from there, re-stamping itself every time a
 // payload lands. It is not a `Timer` polling for state (qml.md 10): the state
 // is the daemon's and arrives on the socket; what turns here is a hand on a
 // measurement this already holds, which is animation. The timer sleeps
@@ -53,16 +52,23 @@
 // tenths it was not sent would be worse than one that spells the number it is
 // counting.
 //
-// **The registers are three, where a panda dial's are.** Running seconds at
-// nine, the chronograph's minutes at three, its hours at six - the layout a
-// three-register chronograph has worn for ninety years, and the reason to
-// follow it is that anybody who has seen one already knows which hand is the
-// one that matters. What says a register *is* a register is the ground it is
-// sunk into rather than anything drawn on it: marks inside a disc fifteen
-// pixels across are two-pixel dots among the twelve already on the dial. The
-// contrast is the theme's to decide - a step off the dial in whichever
-// direction that theme runs - so it reads as a panda on a dark one and as a
-// reverse panda on a light one, without this file naming a colour.
+// **One register, at six, counting thirty minutes - the Seiko 6139's dial.**
+// A line drawing of it with no name printed on it, taken from a reference
+// drawing checked against photographs of a 6139-6002: a double hairline
+// case, a track in fifths inside it, slim batons in outline with the twelve as
+// two bars, a small mark at six under the counter, hands in outline tapering
+// to a point, and the one counter the 6139 has, large and low at six. The
+// panda dial this replaced had three - running seconds at nine, measured
+// minutes at three and hours at six - which at a tile's size was three discs
+// crowding a face with five hands on it. What the two that went said, the
+// figures under the face say better: the hours measured are printed there,
+// and the sweep hand moving is what says the face is live. The 6139's
+// day-date window at three stays out, as 84 left it, and a baton stands
+// there instead.
+//
+// The register is an outline rather than a sunk disc. A disc was what made a
+// counter read as one on a face drawn in solids; on a face drawn in lines,
+// its own ring and its ticks do it, in the dial's own ink.
 //
 // Every measurement here is a share of the face, and none of them is on the
 // ladder (qml.md 8.2.1): a hand is a fraction of the dial it turns in, which
@@ -85,9 +91,6 @@ Item {
   // two hours by exactly how far round the minute hand has got, and two
   // fields could arrive disagreeing about that.
   property int minutes: 0
-  // And how far into the minute it was when that was written, for the one
-  // register that is not part of the stopwatch.
-  property real seconds: 0
 
   // Whether the surface this is on is up. Nothing here animates while it is
   // not: a menu that has been closed for an hour must not be turning a hand
@@ -102,11 +105,6 @@ Item {
   property color ink: "transparent"
   property color dim: "transparent"
   property color mark: "transparent"
-  // And the ground a register is sunk into. It is a **ground rather than an
-  // ink** (qml.md 8.1.2 is about the three inks and this is none of them):
-  // what makes a counter read as a counter at this size is a change of
-  // ground, which is the same kind of number the tile under it is drawn with.
-  property color wash: "transparent"
 
   // **The chronograph, or nothing.** Seconds measured when the payload was
   // written, and whether it was still running then; negative is a plain clock
@@ -121,28 +119,24 @@ Item {
   // them is never more than a heartbeat of two clocks disagreeing - and the
   // moment the stopwatch stops, the number is the daemon's exactly.
   property real shown: 0
-  property real shownSeconds: 0
   property real since: 0
 
   onElapsedChanged: clock.stamp()
-  onSecondsChanged: clock.stamp()
   onTickingChanged: clock.stamp()
 
   function stamp() {
     clock.since = Date.now()
     clock.shown = Math.max(0, clock.elapsed)
-    clock.shownSeconds = clock.seconds
   }
 
-  // **Twenty a second while it is measuring, four while it is not**, and both
-  // are trade-offs rather than settings - the same kind of number the
-  // generator's sampling constants are, because nobody configures a repaint.
-  //
-  // Measuring, the tenths digit changes every other tick and the sweep hand
+  // **Twenty a second while it is measuring, and not at all while it is
+  // not.** Twenty is a trade-off rather than a setting - the same kind of
+  // number the generator's sampling constants are, because nobody configures
+  // a repaint: the tenths digit changes every other tick and the sweep hand
   // moves a third of a degree, which is where both stop being something you
-  // can watch happen in steps. Idle, the only thing moving is the seconds
-  // hand of a register fifteen pixels across, and four a second is already
-  // finer than a pixel of it.
+  // can watch happen in steps. Stopped, nothing on the face moves - the
+  // running-seconds register that kept it at four a second went with the
+  // panda dial - so there is nothing to wake for.
   //
   // What it costs was measured rather than guessed, with the menu up on this
   // machine: about a point of a core, against one point one for the same page
@@ -153,16 +147,15 @@ Item {
   // not one this file can make again: what turns below is a property, and
   // where it came from is the surface's business.
   Timer {
-    interval: clock.ticking ? 50 : 250
+    interval: 50
     repeat: true
-    running: clock.awake && clock.chrono
+    running: clock.awake && clock.chrono && clock.ticking
     onTriggered: {
-      var gone = (Date.now() - clock.since) / 1000
-      // The stopwatch counts on only while it is running; the clock's own
-      // seconds always do. Stopped, `shown` stays exactly where the daemon
-      // left it, which is the number the tile is being read for.
-      clock.shown = Math.max(0, clock.elapsed) + (clock.ticking ? gone : 0)
-      clock.shownSeconds = clock.seconds + gone
+      // Stopped, `shown` stays exactly where the daemon left it, which is the
+      // number the tile is being read for - so a stopwatch that is not
+      // running has nothing to count and the timer sleeps.
+      clock.shown = Math.max(0, clock.elapsed)
+        + (Date.now() - clock.since) / 1000
     }
   }
 
@@ -199,27 +192,24 @@ Item {
   readonly property real hourAngle: (clock.minutes % 720) * 0.5
   readonly property real minuteAngle: (clock.minutes % 60) * 6
 
-  // The sweep hand, and the three registers under it. Seconds, measured
-  // seconds and measured minutes all turn at the big minute hand's own six
-  // degrees a step, which is why none of them needs a scale printed in it:
-  // each is the dial's own hand, one ring down. The hours register goes round
-  // twelve times slower, like the hand above it.
+  // The sweep hand, and the register under it. The register is the 6139's
+  // thirty minutes, so it goes round twice an hour - twelve degrees a minute,
+  // with a mark every five of them - and comes back to the top where a
+  // measurement's half hour does.
   readonly property real sweepAngle: (clock.shown % 60) * 6
-  readonly property real secondsAngle: (clock.shownSeconds % 60) * 6
-  readonly property real countedAngle: ((clock.shown / 60) % 60) * 6
-  readonly property real hoursAngle: ((clock.shown / 3600) % 12) * 30
+  readonly property real countedAngle: ((clock.shown / 60) % 30) * 12
 
-  // How big a register is and how far out its middle sits. 6.8 and 7.4 are
-  // one decision: the hour marks begin at 12, so this is the room between
-  // the hub and them, and a register drawn any larger lands its own edge
-  // among those marks. Both are still numbers because both are genuinely
-  // parameters - the drawing inside is the same drawing wherever the three
-  // of them are put.
-  readonly property real registerOut: clock.unit * 6.8
-  readonly property real registerSize: clock.unit * 7.4
+  // How big the register is and how far below the middle it sits, read off
+  // the reference drawing this face is taken from: a counter a little under
+  // a third of the case's radius, its middle about half the radius down, so
+  // the dial's six is only a small mark at the edge under it. Both are still
+  // numbers because both are genuinely parameters - the drawing inside is
+  // the same drawing wherever it is put.
+  readonly property real registerOut: clock.unit * 10
+  readonly property real registerSize: clock.unit * 11.5
 
-  // One counter, sunk into the dial: a disc and a hand, drawn on the
-  // register's own canvas rather than on the face's. Its 40 is this disc,
+  // The counter: a ring with its marks and a hand, drawn on the register's
+  // own canvas rather than on the face's. Its 40 is this disc,
   // so a hand here is drawn against the circle it turns in and not against a
   // face six times the size - which is what keeps the register a drawing
   // somebody can open rather than two numbers that happen to look like one.
@@ -232,13 +222,13 @@ Item {
 
     property var art: null
     property real angle: 0
-    property color ground: "transparent"
+    property color line: "transparent"
     property color hand: "transparent"
 
     BadgeArt {
       anchors.fill: parent
       drawn: register.art ? register.art.find("clock", "register") : null
-      fill: register.ground
+      fill: register.line
     }
 
     BadgeArt {
@@ -267,42 +257,9 @@ Item {
       fill: clock.dim
     }
 
-    // Running seconds at nine o'clock, which is the one register that is not
-    // the stopwatch's: what it says is that the face is live rather than
-    // stopped, which is the whole job it does on a wrist too. Its hand is
-    // drawn in the ink the big hands are, because that is what it is - the
-    // time, not a measurement.
-    Register {
-      x: face.width / 2 - clock.registerOut - width / 2
-      y: face.height / 2 - height / 2
-      width: clock.registerSize
-      height: clock.registerSize
-      visible: clock.chrono
-      art: clock.art
-      angle: clock.secondsAngle
-      ground: clock.wash
-      hand: clock.ink
-    }
-
-    // The minutes measured, at three. Sixty of them, so its hand is the
-    // minute hand's twin and comes back to the top of the register once an
-    // hour.
-    Register {
-      x: face.width / 2 + clock.registerOut - width / 2
-      y: face.height / 2 - height / 2
-      width: clock.registerSize
-      height: clock.registerSize
-      visible: clock.chrono
-      art: clock.art
-      angle: clock.countedAngle
-      ground: clock.wash
-      hand: clock.mark
-    }
-
-    // The hours measured, at six. It moves rarely and is drawn anyway: a
-    // chronograph with two registers and a gap where the third goes is a
-    // chronograph missing a part, and the whole reason to keep the layout a
-    // wrist has is that somebody who has seen one knows where to look.
+    // The minutes measured, at six: the 6139's one counter. Its ring and
+    // marks are furniture, in the dial's ink; its hand is the measurement,
+    // in the accent the sweep is drawn in.
     Register {
       x: face.width / 2 - width / 2
       y: face.height / 2 + clock.registerOut - height / 2
@@ -310,8 +267,8 @@ Item {
       height: clock.registerSize
       visible: clock.chrono
       art: clock.art
-      angle: clock.hoursAngle
-      ground: clock.wash
+      angle: clock.countedAngle
+      line: clock.dim
       hand: clock.mark
     }
 

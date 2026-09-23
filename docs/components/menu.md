@@ -2231,7 +2231,7 @@ are overwritten with the title and the artist. The surface carries `hd`
 too, as the held tile's id or empty.
 
 A `chrono` tile adds **nothing at all**, and that is the design: the stopwatch
-rides on the surface as `chrono`, `{run, el, sc}`, beside `hd` and `count`. A
+rides on the surface as `chrono`, `{run, el}`, beside `hd` and `count`. A
 value that differs on every push, carried inside `items`, makes the whole model
 differ on every push - and the panel rebuilds every delegate on the page when
 it does (qml.md 5.4). It was measured at 13% of a core for one moving hand.

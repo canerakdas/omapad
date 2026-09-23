@@ -206,26 +206,28 @@ BLANKS_TO_DRAW = (
 # The clock is the clearest case of that split, and it is drawn on the dial's
 # own 40-unit canvas so the two circles a page may hold are one circle: a
 # gauge and a clock side by side drawn to two rules read as two mistakes. What
-# differs is the rim: a hairline case with a chapter ring inside it, against
-# the dial's one band three units thick. This face has five hands and twelve
-# marks inside it, and a rim as heavy as a hand makes the whole of that read
-# as a ring with sticks in it.
+# differs is the rim: a double hairline case, against the dial's one band
+# three units thick. The face is a line drawing of the Seiko 6139's, with no
+# name on it, drawn to the proportions of a reference drawing of one
+# (`seiko_6139_dial_01`, checked against photographs of a 6139-6002).
 CONTROLS_TO_DRAW = (
     ("clock", "face", "clock-face.svg"),
-    # Twelve applied batons, and the twelve drawn as two - which is the one
-    # mark on a dial that says which way up it is without printing a number.
+    # Everything printed or applied on the dial: a track in fifths just inside
+    # the case - a longer hairline at every minute and four short ones
+    # between each two, as the 6139 counts its seconds - slim batons in outline at every hour but twelve and six, the
+    # twelve as two bars, and at six only a small mark at the edge, because
+    # the counter stands where its baton would. Three has a baton where the
+    # 6139 has its day-date window, which 84 asked out.
     #
-    # Eight of them stand at an angle no pixel grid can hold, and that is the
-    # hands' own exemption rather than a new one: `ShapesSitOnTheGrid` is
-    # about a *straight run parallel to an axis* landing on half a pixel, and
-    # a baton at 30 degrees has no such edge to land badly. The four that do
-    # are two units wide on whole units, which is what the quarters were
-    # drawn as when the other eight were dots.
+    # Held to nothing by `ShapesSitOnTheGrid`, and it says why: a clock is
+    # drawn at whatever square the tile leaves it, so nothing snaps its unit
+    # to whole pixels in the first place.
     ("clock", "ticks", "clock-ticks.svg"),
-    # What the hands meet under. It is here rather than in the panel for the
-    # dial's thumb's reason: a ring at the centre of the face is not
-    # parameterised by anything, and the join it covers is the one place five
-    # rotating batons show their corners.
+    # What the hands meet under: two hairline rings, as the reference draws
+    # it. It is here rather than in the panel for the dial's thumb's reason -
+    # rings at the centre of the face are not parameterised by anything, and
+    # the join they cover is the one place the rotating hands show their
+    # corners.
     ("clock", "hub", "clock-hub.svg"),
     # **The hands.** An angle is a number and a hand is not: what the time
     # decides is where the drawing is turned to, and the drawing itself is
@@ -236,28 +238,25 @@ CONTROLS_TO_DRAW = (
     #
     # Long and thin against short and thick, and the pair has to differ in
     # both at once: at a tile's size two hands of one weight are one hand and
-    # a shadow, and two of one length are a cross. The minute hand stops *at*
-    # the marks rather than on them - they run from 12 to 16 of the face's
-    # 20, and a hand drawn into that band crosses whichever one it is
-    # nearest. Each is a baton with a point on it and a short tail past the
-    # pivot: the taper is what separates a hand from a mark at a glance, now
-    # that all twelve marks are batons too.
+    # a shadow, and two of one length are a cross. Both are **drawn in
+    # outline**, tapering to a point, as the 6139's are - a metal edge round a
+    # lume stripe - the minute hand to the batons' outer end and the hour
+    # hand a little past their inner one, with tails short enough to stay
+    # under the hub.
     ("clock", "hour", "clock-hour.svg"),
     ("clock", "minute", "clock-minute.svg"),
     # The longest and thinnest thing on the face, and the one hand drawn
-    # *into* the marks: it is read against them one second at a time. The tail
-    # past the pivot is a counterweight, which is what says at a glance which
-    # hand this is even when it is standing under another.
+    # *into* the track: it is read against it one second at a time. Past the
+    # pivot it is a counterweight and then a hairline again, down to the
+    # register's middle, as the reference draws it.
     ("clock", "sweep", "clock-sweep.svg"),
-    # **The chronograph's three registers, which are one drawing twice.** A
-    # panda dial is three counters sunk into the face, and what makes one read
-    # as a counter at a tile's size is the change of ground rather than
-    # anything drawn on it: marks inside a register 15 pixels across are
-    # two-pixel dots among the twelve marks already on the dial, which is the
-    # fault this was drawn with before it was drawn without. So a register is
-    # a disc and a hand, both drawn on the register's own 40 - the panel
-    # decides how big one is and where the three sit, and a measurement
-    # decides the angle.
+    # **The chronograph's one register**, the 6139's thirty minutes at six: a
+    # hairline ring with a tick at every minute, heavier at every fifth, on
+    # the register's own 40 - the panel decides how big it is and where it
+    # sits, and a measurement decides the angle. Its numerals are left out:
+    # at a tile's size they are six pixels high. The hand is a stub from a
+    # dot, as drawn, and longer than drawn so a thumb's width away it still
+    # says which way it points.
     ("clock", "register", "clock-register.svg"),
     ("clock", "register-hand", "clock-register-hand.svg"),
     ("dial", "face", "dial-face.svg"),

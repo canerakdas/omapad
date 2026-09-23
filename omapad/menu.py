@@ -298,23 +298,6 @@ def minute_of_day(now=None):
     return stamp.tm_hour * 60 + stamp.tm_min
 
 
-def second_of_minute(now=None):
-    """Where a running-seconds hand stands, as seconds into the minute.
-
-    The chronograph's own face carries one and the clock does not, which is
-    the whole difference between a tile left over a game and a tile you open
-    the menu to look at. It rides beside `mn` rather than inside it: minutes
-    are what the two big hands are drawn from and are whole, and this is a
-    fraction that the panel counts on from between payloads.
-    """
-    stamp = time.localtime() if now is None else time.localtime(now)
-    # The fractional part is the machine's, not the calendar's: `localtime`
-    # throws it away and a hand that only ever stood on whole seconds would
-    # tick like a quartz watch rather than sweep like the thing this draws.
-    whole = time.time() if now is None else now
-    return stamp.tm_sec + (whole - int(whole))
-
-
 def slug(label):
     """A row's default id, from its label."""
     out = SLUG.sub("-", label.lower()).strip("-")

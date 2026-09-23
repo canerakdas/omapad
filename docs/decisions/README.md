@@ -122,3 +122,4 @@ and is in the order it was found.
 | 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. |
 | 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. |
 | 87 | [What the couch could not reach](87-what-the-couch-could-not-reach.md) | ✅ Done | M | Night light, stay awake, screens, Bluetooth, do not disturb, network and recording on the pad; omapad's own look moved to `Controller`. |
+| 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | ✅ Done | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |

@@ -12,7 +12,7 @@ from omapad import actions, config as config_module
 from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, TAKEABLE,
                          adoptions, arrange, build, build_head,
                          effective_span, head_sources, listed, minute_of_day,
-                         pages_of, place, second_of_minute, slug)
+                         pages_of, place, slug)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -1092,13 +1092,11 @@ class ChronoTileTests(unittest.TestCase):
         # delegate on the page rebuilt twice a second to move one hand. The
         # gauge's thumb is the same lesson one control along.
         state = self.page().view_state(True, chrono=lambda: {"run": True,
-                                                             "el": 12.5,
-                                                             "sc": 4.0})
+                                                             "el": 12.5})
         row = state["items"][0]
-        for field in ("run", "el", "sc"):
+        for field in ("run", "el"):
             self.assertNotIn(field, row)
-        self.assertEqual(state["chrono"], {"run": True, "el": 12.5,
-                                           "sc": 4.0})
+        self.assertEqual(state["chrono"], {"run": True, "el": 12.5})
 
     def test_the_tiles_are_the_same_twice_running(self):
         # The other half of it, and the thing that actually costs CPU: two
@@ -1106,9 +1104,9 @@ class ChronoTileTests(unittest.TestCase):
         # page is rebuilt for a hand that moved.
         model = self.page()
         first = model.view_state(True, chrono=lambda: {"run": True,
-                                                       "el": 1.0, "sc": 1.0})
+                                                       "el": 1.0})
         second = model.view_state(True, chrono=lambda: {"run": True,
-                                                        "el": 9.0, "sc": 9.0})
+                                                        "el": 9.0})
         self.assertEqual(first["items"], second["items"])
         self.assertNotEqual(first["chrono"], second["chrono"])
 
@@ -1130,21 +1128,6 @@ class ChronoTileTests(unittest.TestCase):
         state = model.view_state(True, chrono=lambda: asked.append(1) or {})
         self.assertEqual(asked, [])
         self.assertNotIn("chrono", state)
-
-
-class SecondOfMinuteTests(unittest.TestCase):
-    def test_it_is_where_a_running_seconds_hand_stands(self):
-        seconds = second_of_minute()
-        self.assertGreaterEqual(seconds, 0)
-        self.assertLess(seconds, 60)
-
-    def test_it_keeps_the_fraction_a_hand_sweeps_through(self):
-        # `localtime` throws it away, and a hand that only ever stood on whole
-        # seconds would tick like a quartz watch rather than sweep.
-        found = set()
-        for stamp in (1000.0, 1000.25, 1000.5, 1000.75):
-            found.add(round(second_of_minute(stamp), 2))
-        self.assertEqual(len(found), 4)
 
 
 class RowsTileTests(unittest.TestCase):

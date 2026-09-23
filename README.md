@@ -2740,9 +2740,9 @@ the one control besides a reading that [the HUD
 draws](#the-readings-how-busy-how-full-how-hot).
 
 **A `chrono` is that face with a stopwatch in it**, which is what a chronograph
-is: the time of day on two hands, a sweep hand that measures, and three
-registers where a three-register wristwatch has them — running seconds at nine,
-the minutes measured at three, the hours at six. The figures beside its name
+is: the time of day on two hands, a sweep hand that measures, and one
+register at six counting the minutes measured to thirty — the Seiko 6139's
+dial, drawn in lines and with no name on it. The figures beside its name
 say the measurement to a tenth, because no hand can say *three minutes and
 twelve*.
 

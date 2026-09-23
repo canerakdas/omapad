@@ -3879,8 +3879,6 @@ Item {
                     art: controlArt
                     minutes: tile.modelData.mn !== undefined
                       ? tile.modelData.mn : 0
-                    seconds: root.chronoState.sc !== undefined
-                      ? root.chronoState.sc : 0
                     // Nothing turns while the card is down: the delegates
                     // outlive the window being closed, and a hand animating
                     // behind one nobody can see is twenty wake-ups a second
@@ -3903,10 +3901,6 @@ Item {
                     // different strength is two circles rather than two
                     // tiles.
                     dim: Util.alpha(Color.menu.text, 0.3)
-                    // A ground rather than an ink, and the same kind of
-                    // number the tile's own ground is: one step off what it
-                    // is drawn on, which is all a recess has to be.
-                    wash: Util.alpha(Color.menu.text, 0.13)
                     mark: tile.mark
                   }
                 }

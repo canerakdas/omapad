@@ -8428,7 +8428,9 @@ class ChronographTests(DaemonTestCase):
         state = self.menu_client.sent[-1]
         self.assertTrue(state["chrono"]["run"])
         self.assertIn("el", state["chrono"])
-        self.assertIn("sc", state["chrono"])
+        # And nothing else: the clock's own seconds went with the register
+        # that drew them.
+        self.assertNotIn("sc", state["chrono"])
         # And the tile is a watch first: the time of day rides on it, because
         # that changes once a minute and a page is worth rebuilding for it.
         self.assertIn("mn", self.chrono_row())

@@ -131,11 +131,10 @@ missing optional package must cost one feature rather than the keyboard.
   is put on the page and the HUD is where it is looked at, and a face that
   differed between them would be the arrangement saying something it does not
   mean. Every figure on it comes out of `ControlArt.qml` - the rim, the twelve
-  marks, the hub, both hands, the sweep and a register's disc and hand - and
+  marks, the hub, both hands, the sweep and the register's ring and hand - and
   the time only turns them: a hand is drawn standing at twelve, pinned where
   the hub is, and the panel gives it the whole face to fill and a rotation.
-  What is left as geometry is where the three registers sit and how big they
-  are. **A clock has no second hand**:
+  What is left as geometry is where the register sits and how big it is. **A clock has no second hand**:
   the page arrives every `VIEW_HEARTBEAT` seconds, so one would be visibly
   wrong most of the time on a surface whose whole argument is that nothing on
   it twitches. The caller hands it `art` (the surface's `ControlArt`), the
@@ -150,10 +149,11 @@ missing optional package must cost one feature rather than the keyboard.
   and counts on from there, re-syncing on every push. Not a
   `Timer` polling for state - the state arrived on the socket; what turns here
   is a hand on a measurement it already holds - and it sleeps while the
-  surface is down. The three registers are a panda dial's: running seconds at
-  nine, the stopwatch's minutes at three, its hours at six, each a disc of
-  ground with a hand on it, because what says a register is a register at this
-  size is the change of ground rather than marks nobody can see. The figures
+  surface is down. The face is the Seiko 6139's in line: one register, the
+  thirty minutes measured at six, large and low as the 6139's is, with a hand
+  in the accent. `ShapesSitOnTheGrid` holds the dial's furniture to nothing,
+  because nothing snaps the square a clock is drawn in - the running seconds and the hours the panda dial had
+  went, and the figures beside the name say the hours. The figures
   beside the tile's name are spelled here too, which nothing else on these
   surfaces does: a number that changes ten times a second cannot come off a
   wire written twice a second.

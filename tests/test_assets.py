@@ -266,10 +266,10 @@ class EveryControlIsDrawn(unittest.TestCase):
         # anything either.
         "clock": ("clock:face", "clock:ticks", "clock:hub",
                   "clock:hour", "clock:minute"),
-        # The clock's, and everything a chronograph adds on top. A register is
-        # a disc and a hand drawn on the register's own canvas - one pair
-        # turned to three angles and set in three places, because what a panel
-        # decides about a register is where it sits and how big it is.
+        # The clock's, and everything a chronograph adds on top. The register
+        # is a ring and a hand drawn on the register's own canvas, because
+        # what a panel decides about a register is where it sits and how big
+        # it is.
         "chrono": ("clock:face", "clock:ticks", "clock:hub",
                    "clock:hour", "clock:minute", "clock:sweep",
                    "clock:register", "clock:register-hand"),
@@ -394,8 +394,9 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     RINGS = ("dial-face.svg", "clock-face.svg", "key-ring.svg")
 
     def test_a_ring_is_wound_so_the_hole_survives(self):
-        # A drawing may be more than one ring - the clock's rim is the case
-        # and the chapter ring inside it, which is two - so what has to hold
+        # A drawing may be more than one ring - the clock's rim was a case
+        # and a chapter ring inside it for a while, which is two - so what has
+        # to hold
         # is each pair on its own: an outer wound one way and its hole the
         # other, in that order. A shape that came out odd is a ring somebody
         # drew without a hole, and it would paint as a disc over everything
@@ -456,9 +457,20 @@ class ShapesSitOnTheGrid(unittest.TestCase):
     TURNS = ("clock-hour.svg", "clock-minute.svg", "clock-sweep.svg",
              "clock-register-hand.svg", "dial-pointer.svg", "dial-notch.svg")
 
+    # **And the dial's furniture, because nothing snaps the box it is drawn
+    # in.** The rule holds for a badge because `Metrics.badge` rounds the unit
+    # so a whole unit is whole pixels. A clock is drawn at whatever square the
+    # tile leaves it - `Clock.qml` takes `min(width, height)` and divides by
+    # 40 - so a whole unit there is a fraction of a pixel anyway, and holding
+    # the drawing to the grid would buy nothing while forbidding the one
+    # thing a line drawing of a dial is made of: a hairline centred on an
+    # axis, which on whole units would have to be two units wide.
+    UNSNAPPED = ("clock-ticks.svg", "clock-register.svg")
+
     def test_every_flat_edge_of_every_shape_is_on_a_whole_unit(self):
         for name in sorted(os.listdir(generate.SHAPES)):
-            if not name.endswith(".svg") or name in self.TURNS:
+            if (not name.endswith(".svg") or name in self.TURNS
+                    or name in self.UNSNAPPED):
                 continue
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
             for edge in self.flat_edges(shape.fills):

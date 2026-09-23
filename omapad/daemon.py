@@ -3028,13 +3028,10 @@ class Daemon:
         """The stopwatch, as the surface carries it.
 
         Not on the tile: `menu.view_state` says why, and the gauge's thumb is
-        the same lesson one control along. What is added here is the clock's
-        own seconds, which only a face with a running register on it has any
-        use for - the panel counts on from all three between payloads.
+        the same lesson one control along. The panel counts on from it
+        between payloads.
         """
-        fields = self.chrono.view_state(time.monotonic())
-        fields["sc"] = round(menu_module.second_of_minute(), 2)
-        return fields
+        return self.chrono.view_state(time.monotonic())
 
     def menu_control(self, item):
         """What a control tile is on, for the payload it is drawn from.

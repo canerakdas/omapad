@@ -94,16 +94,17 @@ nothing else - and **the stopwatch rides on the surface beside it**:
 
 ```json
 {"open": true, "sel": "stopwatch", "hd": "",
- "chrono": {"run": true, "el": 12.5, "sc": 15.27},
+ "chrono": {"run": true, "el": 12.5},
  "items": [{"id": "stopwatch", "l": "Stopwatch", "k": "chrono",
             "x": 3, "y": 2, "w": 2, "h": 2, "mn": 1187}]}
 ```
 
 `mn` is the minute of the day, the same field a clock carries and for the same
 reason ([`menu.md`](menu.md)). `run` and `el` are the stopwatch - whether it
-was going when the line was written and how long it had measured by then - and
-`sc` is how far into the minute the clock was, which only a face with a running
-register on it has any use for.
+was going when the line was written and how long it had measured by then.
+There was an `sc` beside them, how far into the minute the clock was, for the
+running-seconds register the panda dial had; it went with that register
+([88](../decisions/88-a-6139-drawn-in-lines.md)).
 
 **Why it is not on the tile** is the whole performance story, and it cost 13%
 of a core to learn: the panel decides whether to rebuild the page by comparing
@@ -129,7 +130,7 @@ no clock tile on it at all (1.1% of a core):
 | menu closed, stopwatch running | 1.3% | 2.8% |
 | chronograph on the page, idle | 2.0% | 4.1% |
 | chronograph on the page, measuring | 2.4% | 4.1% |
-| *the same, with `el`/`sc` on the tile* | *14.4%* | *4.1%* |
+| *the same, with the stopwatch on the tile* | *14.4%* | *4.1%* |
 
 Three things hold that down, and each is a rule rather than a tuning:
 
@@ -171,9 +172,10 @@ and simply not drawn, exactly as a switch is.
   you set - is a countdown rather than a chronograph, and it needs a face that
   says what it is counting to before it needs a motor. `SWEEP` is not the
   place to start it.
-- **The registers are not art.** Three sunk discs and three hands, all of them
-  answering to a number - see [`assets.md`](assets.md) for why that keeps them
-  out of the generator, and `Clock.qml` for the panda layout they are in.
+- **Where the register sits is not art.** One ring and one hand, the Seiko
+  6139's thirty minutes at six, drawn in the generator; how big it is and how
+  far below the middle it stands answer to the face's size - see
+  [`assets.md`](assets.md), and `Clock.qml` for the layout.
 - The tile's own shape, span and validation are the menu's:
   [`menu.md`](menu.md), and [`../procedures/pad-setting.md`](../procedures/pad-setting.md)
   if any of these numbers ever becomes a setting.
