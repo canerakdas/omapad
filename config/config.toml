@@ -4284,6 +4284,59 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
 # [profile.browser.bindings]
 # ZR = "exec:omarchy-capture-screenshot"
 
+  # What is paired, and which of it is connected. A pad that has slept, or
+  # headphones that paired with a phone in the meantime, come back from here
+  # rather than from a keyboard: a press connects the one it is on, turning
+  # the radio on first where it is off.
+  #
+  # Listed, because a config file cannot know what was paired. `*` is
+  # connected, and more than one can be - the pad and a headset at once -
+  # which is a thing a listing's tick was not made for: a press moves it onto
+  # the row pressed until the page is next entered and read again. No
+  # disconnect row: a device is let go by switching it off, and the pad is
+  # usually the thing holding the menu.
+  #
+  # Six wide, so a device's own long name fits; three tall beside the switch
+  # and the way to pair something new, so the band is whole.
+  [[menu.items.items]]
+  label = "Paired devices"
+  control = "rows"
+  span = [6, 3]
+  empty = "Nothing paired yet"
+  action = "exec:omarchy-bluetooth-device connect %1"
+  from = '''
+    on=$(timeout 1 bluetoothctl devices Connected 2>/dev/null)
+    timeout 1 bluetoothctl devices Paired 2>/dev/null |
+      while read -r _ address name; do
+        mark=""
+        case "$on" in *"$address"*) mark="* " ;; esac
+        printf '%s%s\t%s\n' "$mark" "${name:-$address}" "$address"
+      done
+  '''
+
+  # The radio itself. Through Omarchy's helper rather than bluetoothctl,
+  # because off there is an rfkill block and that is what survives a reboot.
+  [[menu.items.items]]
+  label = "Bluetooth"
+  span = [6, 1]
+  control = "toggle"
+  reads = "live:bluetooth"
+
+  # Pairing needs a search that takes longer than a listing may, and a list
+  # that fills while you watch it, so it is Omarchy's own panel rather than a
+  # second one here. That panel hangs off Omarchy's bar, which game mode
+  # takes away; where it cannot open, a notification says why instead of the
+  # press doing nothing.
+  [[menu.items.items]]
+  icon = "󰂯"
+  label = "Pair a device"
+  detail = "In Omarchy's Bluetooth panel"
+  span = [4, 2]
+  action = '''exec:
+    [ "$(omarchy-shell shell summon omarchy.bluetooth '{}' 2>/dev/null)" = ok ] ||
+      omarchy-notification-send -g 󰂯 "Bluetooth panel unavailable" "It opens from Omarchy's bar, in desktop mode"
+  '''
+
   # A watch with a stopwatch in it. It tells the time because game mode takes
   # Omarchy's bar away and the pad can reach no other clock; what it adds is
   # the one thing a clock cannot do, which is measure - a turn on the sofa, a
@@ -4303,3 +4356,22 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   [[menu.items.items]]
   label = "Stopwatch"
   control = "chrono"
+
+  # Whether the machine is online, and through what: the first thing to ask
+  # when a stream will not start. Read-only where it stands - the line is
+  # Omarchy's own answer - and a press opens Omarchy's network panel, where
+  # a Wi-Fi network is picked. Choosing one wants a password, which is a
+  # keyboard, so this page does not try to be that list.
+  #
+  # On a row of its own after the stopwatch: the band above is full, and two
+  # rows tall because a one-row tile draws no line under its name, and the
+  # line is the whole of what this tile says.
+  [[menu.items.items]]
+  icon = "󰖩"
+  label = "Network"
+  span = [6, 2]
+  meta = { from = '''omarchy-network-status | awk -F'\t' 'NR == 1 { if ($1 == "wifi") print "Wi-Fi · " $2 (($3 != "") ? " · " $3 "%" : ""); else if ($1 == "ethernet") print "Wired"; else print "Not connected" }'''', ttl = 10, empty = "Checking" }
+  action = '''exec:
+    [ "$(omarchy-shell shell summon omarchy.network '{}' 2>/dev/null)" = ok ] ||
+      omarchy-notification-send -g 󰖩 "Network panel unavailable" "It opens from Omarchy's bar, in desktop mode"
+  '''

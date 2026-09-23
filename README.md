@@ -3099,7 +3099,7 @@ The bar that ships is seven cards, in the order a thumb reaches for them:
 | **Display** | how bright the screen is, night light, staying awake through a film, scale and the screensaver in one card, which screens are lit when a laptop is plugged into a television, and the resolution and refresh rate the screen in front offers, and VRR — those three until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below — how much omapad's own surfaces move, how hard they round their corners and how solid a tile is drawn, and, on the first start only, `Start here` |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |
-| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, the way out into the Omarchy menu, and the stopwatch |
+| **System** | start in, lock, suspend, log out, restart, power off, your own scripts, whether an update is waiting, the way out into the Omarchy menu, Bluetooth — what is paired, the radio, and the way into Omarchy's panel to pair something new — the stopwatch, and which network the machine is on |
 
 What you open, then where you are, then what you hear, then what is on
 screen, then the pad, then the machine. There used to be a `Now` page in front
