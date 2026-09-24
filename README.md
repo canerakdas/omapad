@@ -3382,7 +3382,7 @@ theme's own colours.
 | Y · HOME | Go to the controller menu · Hold HOME: switch mode |
 
 It opens on **Resume** every time, so PLUS then A is always back to what was in
-front. What ships:
+front. What ships over a window:
 
 | Tile | Does |
 |---|---|
@@ -3394,6 +3394,11 @@ front. What ships:
 | Keyboard | The on-screen keyboard |
 | Menu | The controller menu |
 | Close window | **Pressed twice** — the first A says so in the band, B lets go of it |
+
+**Over an empty workspace** there is nothing to go back to, close or type into,
+so the row is a different one: **Back** first — PLUS then A is still the way
+out — and then the apps the controller menu's Apps page leads with: Steam,
+Discord, Spotify, YouTube, Browser, Terminal and All apps.
 
 **Over a game** PLUS belongs to the game's pause screen, so the way in is the
 MINUS + PLUS chord: it opens the controller menu, and PLUS inside the menu goes
@@ -3431,6 +3436,7 @@ label = "Close window"
 action = "hypr:hl.dsp.window.close()"
 arm = true                         # A twice
 danger = true                      # the theme's urgent colour
+when = "window"                    # only over a window; "empty" only over none
 ```
 
 A tile whose `up` is a `live:` reading waits for that reading's first answer

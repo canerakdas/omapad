@@ -9,7 +9,8 @@ Why it exists and what it took from the design is
 
 `build(entries)` turns `[[quick.items]]` into tiles and raises `QuickError`
 naming the one that is wrong: a missing label, nothing to do, `up` without
-`down`, `arm` with no action, an unknown key, two tiles with one id. Actions
+`down`, `arm` with no action, a `when` that is neither `window` nor `empty`, an
+unknown key, two tiles with one id. Actions
 are parsed at load with `actions.parse`, so a typo is what `omapad check`
 names rather than a press that does nothing. The daemon builds the row the
 way it builds the menu: a row that will not parse comes up empty and the
@@ -33,7 +34,14 @@ and the id of a tile pressed once that wants a second press (`armed`).
   tile whose `up` is a `live:` reading that has never answered
   (`quick_unanswered`), on opening and before every push: brightness on a
   monitor without DDC reads as nothing, and a tile turning a number nobody can
-  read changes nothing on screen.
+  read changes nothing on screen. It also hides every tile whose `when` is
+  not what is in front (`quick_elsewhere`): `"window"` tiles over an empty
+  workspace, `"empty"` tiles over a window. So the shipped row is two - a
+  pause headed by Resume over a window, and Back then the apps over nothing,
+  where there is nothing to resume, close or type into. The daemon hides
+  before it resets on opening, because a hide follows the tile in front by
+  name and would otherwise carry the last opening's tile past the first
+  place.
 
 ## The payload
 

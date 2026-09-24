@@ -29,7 +29,11 @@ from . import actions
 # What a tile may say about itself. Anything else is a typo, and a typo in a
 # file somebody edits by hand should be named rather than ignored.
 KEYS = ("id", "label", "icon", "icon_font", "detail", "action", "up", "down",
-        "stay", "arm", "danger")
+        "stay", "arm", "danger", "when")
+
+# What `when` may say: a tile for a window in front, or for an empty workspace.
+# Left out, the tile is on the row either way.
+WHEN = ("window", "empty")
 
 # What the band says under a tile that has been pressed once and wants a
 # second press. A word for the pad rather than for the button: which letter
@@ -53,7 +57,10 @@ def build(entries, where="quick.items"):
     `down` for a value the D-pad nudges - or both, for a volume that A also
     mutes. `arm` asks for a second press before the action runs, for what
     nobody can take back; `danger` draws the tile in the theme's urgent
-    colour, and says nothing about how it behaves.
+    colour, and says nothing about how it behaves. `when` puts the tile on
+    the row only while a window is in front (`window`) or only while none is
+    (`empty`), so one row can be two: a pause over something, and a way to
+    start something over nothing.
     """
     if entries is None:
         return []
@@ -91,6 +98,10 @@ def build(entries, where="quick.items"):
         arm = bool(entry.get("arm", False))
         if arm and parsed["action"] is None:
             raise QuickError("%s: arm needs an action to hold back" % path)
+        when = entry.get("when")
+        if when is not None and when not in WHEN:
+            raise QuickError("%s.when: %r (try %s)"
+                             % (path, when, ", ".join(WHEN)))
         ident = str(entry.get("id") or _slug(label)).strip()
         if ident in seen:
             raise QuickError("%s: a second tile called %r - give one an id"
@@ -108,6 +119,7 @@ def build(entries, where="quick.items"):
             "stay": bool(entry.get("stay", False)),
             "arm": arm,
             "danger": bool(entry.get("danger", False)),
+            "when": when,
         })
     return items
 

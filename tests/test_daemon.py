@@ -6136,6 +6136,9 @@ class QuickTests(DaemonTestCase):
         # on the row; `test_a_value_nobody_answers_is_left_off` is the other.
         self.daemon.live.values["volume"] = 0.5
         self.daemon.live.values["brightness"] = 1.0
+        # And a window in front, which is the row most of these are about;
+        # `test_an_empty_workspace_is_back_and_the_apps` is the other.
+        self.daemon.focus_class = "kitty"
 
     def walk_to(self, ident):
         for _ in range(len(self.daemon.quick.items)):
@@ -6251,6 +6254,45 @@ class QuickTests(DaemonTestCase):
         state = self.quick_client.sent[-1]
         self.assertIn("Brightness", [tile["l"] for tile in state["tiles"]])
         self.assertEqual(state["tiles"][state["sel"]]["id"], "screenshot")
+
+    def test_an_empty_workspace_is_back_and_the_apps(self):
+        # Nothing in front: nothing to resume, close or type into - so the
+        # row is the way out and then something to start.
+        self.daemon.focus_class = ""
+        self.daemon.set_quick(True)
+        state = self.quick_client.sent[-1]
+        ids = [tile["id"] for tile in state["tiles"]]
+        self.assertEqual(ids[0], "back")
+        self.assertEqual(state["sel"], 0)
+        self.assertIn("steam", ids)
+        for gone in ("resume", "close-window", "keyboard", "volume"):
+            self.assertNotIn(gone, ids)
+
+    def test_the_window_row_has_none_of_the_apps(self):
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertEqual(ids[0], "resume")
+        self.assertNotIn("back", ids)
+        self.assertNotIn("steam", ids)
+
+    def test_back_is_the_first_press_over_nothing(self):
+        self.daemon.focus_class = ""
+        self.tap("PLUS")
+        self.tap("A")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertEqual(self.session.spawned, [])
+
+    def test_resume_is_back_first_when_a_window_is(self):
+        # The last opening left Resume off; this one must not follow the
+        # tile it was on by name to somewhere past the first place.
+        self.daemon.focus_class = ""
+        self.daemon.set_quick(True)
+        self.daemon.set_quick(False)
+        self.daemon.focus_class = "kitty"
+        self.daemon.set_quick(True)
+        state = self.quick_client.sent[-1]
+        self.assertEqual(state["sel"], 0)
+        self.assertEqual(state["tiles"][0]["id"], "resume")
 
     def test_resume_is_the_first_press(self):
         self.tap("PLUS")

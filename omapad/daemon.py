@@ -5064,9 +5064,11 @@ class Daemon:
             return
         self.quick_open = opened
         if opened:
-            # The first tile, every time: see `QuickModel.reset`.
+            # The first tile, every time: see `QuickModel.reset`. After the
+            # hide and not before it, since a hide follows the tile in front
+            # by name - Resume coming back would leave the row on Volume.
+            self.quick.hide(self.quick_hidden())
             self.quick.reset()
-            self.quick.hide(self.quick_unanswered())
             # One surface reads the D-pad at a time. The menu is the row's
             # other shape and PLUS inside it is the way here, so it goes as
             # this comes; the keyboard is under both.
@@ -5097,6 +5099,24 @@ class Daemon:
         self.relabel_gamebar()
         log.info("quick: %s", "open" if opened else "closed")
 
+    def quick_hidden(self):
+        """The tiles left off the row as it stands: see the two below."""
+        return self.quick_unanswered() + self.quick_elsewhere()
+
+    def quick_elsewhere(self):
+        """The tiles whose `when` is not what is in front now.
+
+        Over an empty workspace the head names nothing, and a row that opens
+        on Resume there offers to go back to something that is not on screen;
+        Close window would close nothing. So the row is two rows sharing a
+        button - `when = "window"` for the pause, `when = "empty"` for what a
+        bare desktop is opened for - and the row opens on the first tile of
+        whichever one this is.
+        """
+        here = "window" if self.focus_class else "empty"
+        return [item["id"] for item in self.quick.items
+                if item["when"] not in (None, here)]
+
     def quick_unanswered(self):
         """The tiles whose value this machine has never answered for.
 
@@ -5119,7 +5139,7 @@ class Daemon:
 
     def push_quick_view(self):
         self._quick_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
-        self.quick.hide(self.quick_unanswered())
+        self.quick.hide(self.quick_hidden())
         state = self.quick.view_state(
             self.quick_open, self.action_state, self.action_value,
             self.quick_share, self.quick_head(), self.quick_legend(),

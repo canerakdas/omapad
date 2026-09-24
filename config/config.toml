@@ -2379,11 +2379,17 @@ HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700, on_press = tr
 #            and anything else - a step, B - lets go of it. For what nobody
 #            can take back
 #   danger   drawn in the theme's urgent colour
+#   when     "window" puts the tile on the row only while a window is in
+#            front, "empty" only over an empty workspace; left out, both
 #   id       what `omapad ctl quick select` and the payload call it; a slug
 #            of the label unless said
 #
-# The first tile is the one it opens on, every time: this is a pause, and the
-# first thing it offers is to stop pausing - PLUS then A is always back.
+# **Two rows on one button.** Over a window it is a pause, and the first thing
+# a pause offers is to stop pausing - PLUS then A is always back. Over an empty
+# workspace there is nothing to go back to, to close or to type into, and what
+# somebody opens it for there is something to start: so it is Back, and then
+# the apps the controller menu's Apps page leads with. Either way the first
+# tile is the one it opens on, every time.
 # ---------------------------------------------------------------------------
 
 [quick]
@@ -2394,6 +2400,7 @@ icon = "󰐊"
 label = "Resume"
 detail = "Close this and carry on"
 action = "quick:close"
+when = "window"
 
 [[quick.items]]
 icon = "󰕾"
@@ -2401,6 +2408,7 @@ label = "Volume"
 detail = "Up and down turn it"
 up = "live:volume=up"
 down = "live:volume=down"
+when = "window"
 
 # Left off the row on a machine that cannot say how bright it is - a desktop
 # monitor with no DDC, a machine with no backlight - since a tile turning a
@@ -2412,12 +2420,14 @@ label = "Brightness"
 detail = "Up and down turn it"
 up = "live:brightness=up"
 down = "live:brightness=down"
+when = "window"
 
 [[quick.items]]
 icon = "󰄀"
 label = "Screenshot"
 detail = "Save what is on screen"
 action = "exec:omarchy-capture-screenshot"
+when = "window"
 
 # The whole screen and what it plays, since the picker Omarchy draws for a
 # region is aimed with a mouse. The same press stops it: the helper stops a
@@ -2429,18 +2439,21 @@ icon = "󰑋"
 label = "Record"
 detail = "Start or stop recording the screen"
 action = "exec:omarchy-capture-screenrecording --fullscreen --with-desktop-audio"
+when = "window"
 
 [[quick.items]]
 icon = "󰌌"
 label = "Keyboard"
 detail = "Type into what is in front"
 action = "osk:open"
+when = "window"
 
 [[quick.items]]
 icon = "󰍜"
 label = "Menu"
 detail = "Everything else"
 action = "menu:open"
+when = "window"
 
 # Last, drawn in the urgent colour, and pressed twice: whatever was unsaved in
 # the window goes with it.
@@ -2451,6 +2464,65 @@ detail = "Close what is in front"
 action = "hypr:hl.dsp.window.close()"
 arm = true
 danger = true
+when = "window"
+
+# Over an empty workspace. Back first, for the same reason Resume is first
+# over a window: PLUS then A is always the way out. Then the apps, as the Apps
+# page has them and in its order - the launch lines are copied rather than
+# referred to, since a tile is a binding and a binding names its own action.
+[[quick.items]]
+icon = "󰁍"
+label = "Back"
+detail = "Close this"
+action = "quick:close"
+when = "empty"
+
+[[quick.items]]
+icon = ""
+label = "Steam"
+detail = "Big Picture"
+action = "exec:steam steam://open/bigpicture"
+when = "empty"
+
+[[quick.items]]
+icon = "󰙯"
+label = "Discord"
+detail = "Voice chat"
+action = 'exec:omarchy-launch-or-focus discord "$(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me)"'
+when = "empty"
+
+[[quick.items]]
+icon = "󰓇"
+label = "Spotify"
+detail = "Music"
+action = "exec:omarchy-launch-spotify"
+when = "empty"
+
+[[quick.items]]
+icon = "󰗃"
+label = "YouTube"
+detail = "Video"
+action = "exec:omarchy-launch-or-focus youtube 'omarchy-launch-webapp https://www.youtube.com'"
+when = "empty"
+
+[[quick.items]]
+icon = ""
+label = "Browser"
+action = "exec:omarchy-launch-browser"
+when = "empty"
+
+[[quick.items]]
+icon = ""
+label = "Terminal"
+action = "exec:omarchy-launch-terminal"
+when = "empty"
+
+[[quick.items]]
+icon = "󰀻"
+label = "All apps"
+detail = "Everything installed"
+action = "exec:omarchy-menu toggle apps"
+when = "empty"
 
 # ---------------------------------------------------------------------------
 # The controller menu - one column of rows, the way the Omarchy menu is shaped.

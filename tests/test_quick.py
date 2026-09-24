@@ -32,8 +32,12 @@ class BuildTests(unittest.TestCase):
                                      layout=missing, settings=missing)
         items = quick.build(shipped.quick_items)
         self.assertGreater(len(items), 3)
-        # PLUS then A is back to what was in front, so the first tile is.
-        self.assertEqual(items[0]["label"], "Resume")
+        # PLUS then A is back to what was in front, so the first tile of
+        # each of the two rows is the way out.
+        self.assertEqual([item["label"] for item in items
+                          if item["when"] == "window"][0], "Resume")
+        self.assertEqual([item["label"] for item in items
+                          if item["when"] == "empty"][0], "Back")
 
     def test_actions_are_parsed_at_load(self):
         items = row(RESUME, VOLUME)
@@ -67,6 +71,14 @@ class BuildTests(unittest.TestCase):
         with self.assertRaises(quick.QuickError) as caught:
             row({"label": "Resume", "action": "quick:close", "colour": "red"})
         self.assertIn("colour", str(caught.exception))
+
+    def test_a_tile_can_say_when_it_is_on_the_row(self):
+        items = row(dict(RESUME, when="window"), VOLUME)
+        self.assertEqual(items[0]["when"], "window")
+        self.assertIsNone(items[1]["when"])
+        with self.assertRaises(quick.QuickError) as caught:
+            row(dict(RESUME, when="always"))
+        self.assertIn("quick.items[0].when", str(caught.exception))
 
     def test_two_tiles_may_not_share_a_name(self):
         with self.assertRaises(quick.QuickError):
