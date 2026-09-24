@@ -180,8 +180,14 @@ class FakeViewClient:
     def __init__(self):
         self.sent = []
 
-    def send(self, payload):
+    def send(self, payload, whole=True):
         self.sent.append(payload)
+        return True
+
+    def waiting(self):
+        return False
+
+    def flush(self):
         return True
 
     def close(self):
@@ -281,6 +287,10 @@ class DaemonTestCase(unittest.TestCase):
 
         self.config = shipped_config()
         self.config.notify = False
+        # Following the layout asks the compositor and compiles a keymap in
+        # the worker, and a suite counting what a keyboard's opening runs
+        # would count that too. `LayoutLabelTests` turns it back on.
+        self.config.osk_labels_follow_layout = False
         directory = tempfile.mkdtemp(prefix="omapad-test-")
         self.addCleanup(shutil.rmtree, directory, True)
         # Never bind the real control socket: a live daemon may own it.
@@ -3041,10 +3051,13 @@ class MenuTests(DaemonTestCase):
         self.assertFalse(self.daemon.osk_open)
         self.assertEqual(self.daemon.current_layer, "menu")
 
-    def test_held_layer_still_wins_over_the_menu(self):
+    def test_the_window_layer_does_not_open_over_the_menu(self):
+        # It did until the triggers became the menu's sweep, and then it was
+        # the stutter under every pull - see the sweep's own test,
+        # `test_the_left_trigger_sweeps_and_opens_no_layer_under_the_menu`.
         self.open_menu()
         self.press("ZL")
-        self.assertEqual(self.daemon.current_layer, "window")
+        self.assertEqual(self.daemon.current_layer, "menu")
 
     def test_game_mode_puts_the_menu_away(self):
         self.open_menu()
@@ -6106,6 +6119,77 @@ class AppPageWorkerTests(DaemonTestCase):
         self.daemon.set_active_profile("chromium")
         self.daemon.drain_commands()
         self.assertIsNone(self.daemon._osk_page_cache)
+
+
+class LayoutLabelTests(DaemonTestCase):
+    """The keys print the compositor's layout, and finding out costs no press.
+
+    It was `hyprctl` and `xkbcli` on the loop at every opening of the
+    keyboard. The layout is one IPC question now, and the compile is the
+    worker's.
+    """
+
+    TURKISH = {"keyboards": [{"main": True, "layout": "tr", "variant": ""}]}
+    KEYMAP = ["<AD01> = 24;", "key <AD01> { [ scedilla, Scedilla ] };"]
+
+    def setUp(self):
+        super().setUp()
+        self.config.osk_labels_follow_layout = True
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.hypr.answers["devices"] = self.TURKISH
+        self.session.lines = list(self.KEYMAP)
+
+    def test_the_layout_is_asked_over_the_socket(self):
+        self.daemon.set_osk(True)
+        self.assertIn("devices", self.hypr.queries)
+
+    def test_the_compile_is_the_workers_and_repaints_when_it_lands(self):
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 1)
+        self.assertTrue(self.commands.submitted[0][0].endswith("--layout tr"))
+        self.assertEqual(self.daemon.osk.labels, {})
+        pushed = len(self.osk_client.sent)
+        self.daemon.drain_commands()
+        self.assertEqual(self.daemon.osk.labels[16], ("\u015f", "\u015e"))
+        self.assertGreater(len(self.osk_client.sent), pushed)
+
+    def test_a_layout_already_compiled_is_not_compiled_again(self):
+        self.daemon.set_osk(True)
+        self.daemon.drain_commands()
+        self.daemon.set_osk(False)
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 1)
+        self.assertEqual(self.daemon.osk.labels[16], ("\u015f", "\u015e"))
+
+    def test_one_compile_in_flight_per_layout(self):
+        self.daemon.set_osk(True)
+        self.daemon.set_osk(False)
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 1)
+
+    def test_a_changed_layout_is_compiled_again(self):
+        self.daemon.set_osk(True)
+        self.daemon.drain_commands()
+        self.daemon.set_osk(False)
+        self.hypr.answers["devices"] = {
+            "keyboards": [{"main": True, "layout": "de", "variant": ""}]}
+        self.daemon.set_osk(True)
+        self.assertEqual(len(self.commands.submitted), 2)
+        self.assertTrue(self.commands.submitted[1][0].endswith("--layout de"))
+
+    def test_an_answer_overtaken_by_a_newer_layout_is_dropped(self):
+        self.daemon.set_osk(True)
+        self.daemon.set_osk(False)
+        self.hypr.answers["devices"] = {
+            "keyboards": [{"main": True, "layout": "de", "variant": ""}]}
+        # FakeCommands runs at the submit: German compiles to nothing here,
+        # so the Turkish table is the only thing that could reach the keys.
+        self.session.lines = []
+        self.daemon.set_osk(True)
+        self.daemon.drain_commands()
+        # The Turkish table landed after the keyboard had moved on to German:
+        # it is not what the keys print now.
+        self.assertEqual(self.daemon.osk.labels, {})
 
 
 class GuideTests(DaemonTestCase):
@@ -9298,6 +9382,40 @@ class SettingTests(DaemonTestCase):
         self.assertEqual(item["reads"], ())
         self.feed((li.EV_ABS, li.ABS_RZ, 255))
         self.tick(1.0, steps=20)
+
+    def test_the_left_trigger_sweeps_and_opens_no_layer_under_the_menu(self):
+        # Reported from the couch as a menu that stuttered under the
+        # triggers. ZL is the window layer's trigger everywhere else, and a
+        # trigger is not a binding, so the menu's falling through to nothing
+        # never stopped it: every pull that swept a value down also opened
+        # the window layer, and while it was held the left stick resized the
+        # window behind the card and the D-pad walked its focus.
+        self.land("Controller", "Sticks", "Pointer")
+        self.daemon.config.pointer_speed = 2000.0
+        self.feed((li.EV_ABS, li.ABS_Z, 255))
+        self.assertEqual(self.daemon.active_layers, [])
+        self.assertEqual(self.daemon.current_layer, "menu")
+        self.assertEqual(self.daemon.stick_roles()[0], "menu")
+        self.tick(0.5, steps=10)
+        self.assertLess(self.daemon.config.pointer_speed, 2000.0)
+        self.feed((li.EV_ABS, li.ABS_Z, 0))
+        self.assertEqual(self.daemon.active_layers, [])
+
+    def test_the_quick_menu_keeps_the_left_trigger_too(self):
+        # Nothing to sweep there, and the same fault: a card over the
+        # desktop with the window layer opening under it, and the two sticks
+        # the row leaves idle resizing and moving the window behind.
+        self.daemon.set_menu(False)
+        self.daemon.set_quick(True)
+        self.feed((li.EV_ABS, li.ABS_Z, 255))
+        self.assertEqual(self.daemon.active_layers, [])
+        self.assertEqual(self.daemon.current_layer, "quick")
+        self.assertEqual(self.daemon.stick_roles(), ("none", "none"))
+
+    def test_the_window_layer_is_back_once_the_menu_is_down(self):
+        self.daemon.set_menu(False)
+        self.feed((li.EV_ABS, li.ABS_Z, 255))
+        self.assertEqual(self.daemon.current_layer, "window")
 
     def test_a_pad_whose_triggers_are_buttons_sweeps_all_the_way_in(self):
         # No fraction to give, so down is all the way: blunter, and it works.

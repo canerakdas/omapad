@@ -114,6 +114,11 @@ the travel the way a menu control does.
 
 The layer's sticks are `none`: nothing on a row wants steering, and a pointer
 drifting over the game behind it is worse than a stick that does nothing.
+The triggers are kept for the same reason (`TRIGGERS_KEPT`, beside the
+menu's): ZL is the window layer's trigger everywhere else, and a pull that
+opened it under the row gave the idle sticks back to the window behind -
+resizing and moving it for as long as the trigger was held. The row binds
+neither, so a pull here does nothing at all.
 
 ## The panel
 

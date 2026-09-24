@@ -103,6 +103,16 @@ IDLE_POLL_MS = 250.0
 # panel comes up empty with no way to know what it should be drawing.
 VIEW_HEARTBEAT = 2.0
 
+# Every surface's socket, by the attribute its client lives under: named
+# rather than held in a list, because the tests put recorders in their place.
+VIEWS = ("osk", "menu", "hud", "guide", "quick", "status", "ripple", "sound",
+         "gamebar", "mapping")
+
+# How long compiling a layout's keymap may take before the keyboard keeps the
+# labels it has. Not a setting: it runs in the worker, so it bounds only how
+# long one wedged `xkbcli` holds the queue up for the commands behind it.
+OSK_LABEL_TIMEOUT = 5.0
+
 # How often the keyboard's microphone key looks up what dictation is doing.
 # Not a setting: it is the trade-off between a key that lights late and a file
 # the loop opens for nothing, over one word on tmpfs that changes three times
@@ -156,10 +166,24 @@ ADJUST_WORDS = {"choice": ("Previous", "Next"), "": ("Less", "More")}
 
 # The two triggers, read as axes while the menu is open. Named here rather
 # than bound: `bindings.md` says of ZL that a layer trigger has no binding of
-# its own, in any layer or profile, and this gives it none. A surface layer
-# falls through to nothing, so both are free while the menu is up, and how far
-# one is pulled is a question no binding could have asked anyway.
+# its own, in any layer or profile, and this gives it none. How far one is
+# pulled is a question no binding could have asked anyway.
+#
+# **Free is not the same as unbound.** A surface layer falls through to
+# nothing, which kept ZR quiet, but ZL is the window layer's trigger and a
+# trigger is not a binding: every pull that swept a value down also opened
+# the window layer under the menu, and for as long as it was held the left
+# stick resized the window behind the card and the D-pad walked its focus.
+# Pulled in and out along a slider, the menu lost the pad and got it back a
+# dozen times a second. `surface_override` takes both for the menu, as it
+# already did for the two the rearranging mode borrows.
 MENU_TRIGGERS = (("ZL", -1), ("ZR", 1))
+MENU_TRIGGER_NAMES = frozenset(name for name, _ in MENU_TRIGGERS)
+# The surfaces that keep both triggers from the window layer while they are
+# up. The quick menu has nothing to sweep, but it is a card over the desktop
+# all the same: a pull opened the window layer under it, and the sticks it
+# leaves idle resized and moved the window behind the row.
+TRIGGERS_KEPT = ("menu", "quick")
 
 # What the buttons mean while a page is being rearranged, as ordinary binding
 # specs. A table rather than a branch in the press handler, because the legend
@@ -474,6 +498,9 @@ class Daemon:
         self.osk_open = False
         self._osk_label_key = None
         self._osk_labels = {}
+        # The layout whose table the worker is compiling, so a keyboard
+        # opened twice while it runs does not queue the same compile twice.
+        self._osk_label_job = None
         self._osk_next_heartbeat = 0.0
         # What the focused app's keyboard page last held, and until when:
         # (profile name, expiry, entries). Dropped whenever focus moves.
@@ -1915,7 +1942,8 @@ class Daemon:
             return self.active_layers[-1]
         # The guide, the menu and the keyboard own the face buttons and the
         # D-pad while they are up; a held modifier still wins, so window
-        # controls stay reachable. Each sits on top of the one it can be
+        # controls stay reachable - except over the menu and the quick menu,
+        # which keep the triggers (TRIGGERS_KEPT). Each sits on top of the one it can be
         # opened over, so the surface you are looking at is the one that reads
         # the pad - and that holds in game mode too, where the menu can be
         # opened from [bindings.game]. A menu whose D-pad does nothing is a
@@ -2100,21 +2128,38 @@ class Daemon:
     def refresh_osk_labels(self):
         """Follow the compositor's layout, so the printed keys tell the truth.
 
-        Asking Hyprland which layout is live is cheap; compiling it is not, so
-        the compiled table is kept until the layout actually changes.
+        Which layout is live is one IPC question, well under a millisecond.
+        Compiling it is a subprocess, so it goes to the worker and the
+        keyboard opens on the labels it had - the ones for this layout every
+        time but the first after a change - and repaints when the table
+        lands. It used to be `hyprctl` and `xkbcli` both, on the loop, on
+        every opening: eight to twenty milliseconds of a pad answering
+        nothing, and seconds of it while the compositor was busy.
         """
         if not self.config.osk_labels_follow_layout:
             return
-        try:
-            key = xkb.active_layout()
-        except Exception as exc:  # a keyboard with no labels still types
-            log.warning("could not read the active layout: %s", exc)
+        key = xkb.active_layout(self.hypr.query("devices"))
+        if key == self._osk_label_key or key == self._osk_label_job:
+            self.osk.set_labels(self._osk_labels)
             return
-        if key != self._osk_label_key:
+
+        def took(lines):
+            if self._osk_label_job != key:
+                return  # the layout changed again while this one compiled
+            self._osk_label_job = None
             self._osk_label_key = key
-            self._osk_labels = xkb.compile_labels(*key)
+            self._osk_labels = xkb.parse_keymap("\n".join(lines))
             log.info("keyboard labels follow layout %s", key[0] or "unknown")
+            self.osk.set_labels(self._osk_labels)
+            if self.osk_open:
+                self.push_osk_view()
+
+        self._osk_label_job = key
         self.osk.set_labels(self._osk_labels)
+        if not self.submit_command(xkb.compile_command(*key), took,
+                                   OSK_LABEL_TIMEOUT):
+            took(self.session.capture(xkb.compile_command(*key),
+                                      OSK_LABEL_TIMEOUT))
 
     def refresh_osk_badges(self):
         """Which pad button reaches each key, for the badges beside them.
@@ -3718,7 +3763,7 @@ class Daemon:
         self._menu_live_last = live
         self.menu_client.send(self.scaled(
             self.menu.live_state(self.menu_open, live)
-        ))
+        ), whole=False)
 
     def check_menu_stick(self, stick, dt):
         """A stick whose role is `menu`: a direction held, not a shove.
@@ -6154,6 +6199,10 @@ class Daemon:
                 continue
             if self.config.binding_for(name, button) is not None:
                 return name
+            if name in TRIGGERS_KEPT and button in MENU_TRIGGER_NAMES:
+                # The sweep's on the menu, and nobody's on the quick menu -
+                # see MENU_TRIGGERS and TRIGGERS_KEPT.
+                return name
             if name == "menu" and self.menu.edit and button in EDIT_ANY:
                 # **Rearranging spends two buttons the menu layer does not
                 # name.** ZL and ZR are a layer trigger and a modifier out
@@ -7115,6 +7164,9 @@ class Daemon:
         self.apply_idle()
         self._theme_seen = self.theme_stamp()
         self.check_pointer_hiding()
+        # Compiled now, in the worker, so the keyboard's first opening already
+        # prints this layout rather than repainting a moment after it.
+        self.refresh_osk_labels()
 
     def theme_stamp(self):
         """Something that changes when the desktop's theme does, or None.
@@ -7258,6 +7310,15 @@ class Daemon:
                 timeout_ms = max(0.0, (last + interval - now)) * 1000.0
             else:
                 timeout_ms = IDLE_POLL_MS
+            if self.views_waiting():
+                # A shell that has stopped reading is offered the newest line
+                # again at frame rate rather than at the idle poll: the stall
+                # is usually a panel being built, and what it draws the
+                # moment it is back should be now rather than a quarter of a
+                # second ago. Polled rather than watched for POLLOUT, because
+                # a view socket's number can be handed straight back out to a
+                # keyboard or a control connection that this poller watches.
+                timeout_ms = min(timeout_ms, interval * 1000.0)
 
             try:
                 events = poller.poll(timeout_ms)
@@ -7280,6 +7341,9 @@ class Daemon:
                         log.warning(
                             "Hyprland event socket closed; resubscribing"
                         )
+
+            # After the events, so what goes out is what they left behind.
+            self.flush_views()
 
             now = time.monotonic()
             if now - last >= interval:
@@ -7343,6 +7407,18 @@ class Daemon:
                 if self.gamebar_open and now >= self._gamebar_next_heartbeat:
                     self.push_gamebar_view()
                 self.tick(dt)
+
+    def views_waiting(self):
+        """Is any surface holding a line its shell has not taken yet?"""
+        return any(getattr(self, name + "_client").waiting()
+                   for name in VIEWS)
+
+    def flush_views(self):
+        """Offer every shell that stopped reading what it has missed."""
+        for name in VIEWS:
+            client = getattr(self, name + "_client")
+            if client.waiting():
+                client.flush()
 
     def shutdown(self):
         self.running = False

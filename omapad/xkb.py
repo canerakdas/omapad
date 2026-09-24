@@ -11,8 +11,8 @@ built-in US labels, which is exactly right on a US layout and no worse than
 before anywhere else.
 """
 
-import json
 import re
+import shlex
 import subprocess
 
 # Keysym names for the printable ASCII that is not simply its own character.
@@ -110,8 +110,15 @@ def parse_keymap(text):
     return labels
 
 
-def compile_labels(layout, variant="", model="", options=""):
-    """Run xkbcli for a layout and return its evdev keycode -> label map."""
+def compile_command(layout, variant="", model="", options=""):
+    """The `xkbcli` line that compiles a layout, for a shell to run.
+
+    A string rather than an argument list because the daemon never runs it
+    itself: compiling a keymap is a subprocess that takes tens of
+    milliseconds and may take seconds, so it goes to the command worker,
+    which speaks `/bin/sh`. Every part is quoted - a layout name comes out
+    of the compositor, not out of this file.
+    """
     command = ["xkbcli", "compile-keymap", "--layout", layout]
     if variant:
         command += ["--variant", variant]
@@ -119,9 +126,21 @@ def compile_labels(layout, variant="", model="", options=""):
         command += ["--model", model]
     if options:
         command += ["--options", options]
+    return " ".join(shlex.quote(part) for part in command)
+
+
+def compile_labels(layout, variant="", model="", options=""):
+    """Run xkbcli for a layout and return its evdev keycode -> label map.
+
+    Blocking, so never on the daemon's loop: it is what the tests and a
+    one-off caller use. The daemon runs `compile_command` in its worker and
+    hands what it printed to `parse_keymap`.
+    """
     try:
         result = subprocess.run(
-            command, capture_output=True, text=True, timeout=5
+            ["/bin/sh", "-c",
+             compile_command(layout, variant, model, options)],
+            capture_output=True, text=True, timeout=5
         )
     except (OSError, subprocess.SubprocessError):
         return {}
@@ -130,16 +149,18 @@ def compile_labels(layout, variant="", model="", options=""):
     return parse_keymap(result.stdout)
 
 
-def active_layout():
-    """The layout the compositor is actually using, as (layout, variant)."""
-    try:
-        result = subprocess.run(
-            ["hyprctl", "devices", "-j"],
-            capture_output=True, text=True, timeout=3,
-        )
-        keyboards = json.loads(result.stdout).get("keyboards", [])
-    except (OSError, ValueError, subprocess.SubprocessError):
-        keyboards = []
+def active_layout(devices):
+    """The layout the compositor is actually using, as (layout, variant).
+
+    `devices` is Hyprland's answer to `j/devices`, asked over its IPC socket
+    by the caller - spawning `hyprctl` for it cost the keyboard's every
+    opening eight to twenty milliseconds on the loop, and up to its timeout
+    while the compositor was busy. None, or anything that is not that answer,
+    means there is no compositor to ask.
+    """
+    keyboards = []
+    if isinstance(devices, dict):
+        keyboards = devices.get("keyboards") or []
 
     # Prefer the keyboard Hyprland treats as main; it is the one whose keymap
     # everything else is resolved against.
@@ -164,6 +185,6 @@ def active_layout():
         return "us", ""
 
 
-def labels_for_active_layout():
-    layout, variant = active_layout()
+def labels_for_active_layout(devices):
+    layout, variant = active_layout(devices)
     return compile_labels(layout, variant)

@@ -2761,7 +2761,9 @@ Item {
                     // A face too small to draw says the measurement in its
                     // own place instead, so this line stands down rather
                     // than saying it twice.
-                    text: tile.chrono ? (clockFace.digital ? "" : clockFace.words)
+                    text: tile.chrono
+                      ? (clockLoader.item && !clockLoader.item.digital
+                         ? clockLoader.item.words : "")
                       : (tile.streaming && root.live.ht !== undefined
                          ? String(root.live.ht)
                          : (tile.modelData.t !== undefined
@@ -2800,47 +2802,57 @@ Item {
                 // the whole difference between the drawings.
                 //
                 // A reading has none: it is words (see `readout`).
-                Travel {
-                  id: figureTravel
-                  visible: tile.slider && tile.modelData.v !== undefined
+                // Loaded for the knob's reason (below): built only on a
+                // slider. Anchored here and sized by what it holds - the
+                // Loader takes the line's own height.
+                Loader {
+                  id: travelLoader
+                  active: tile.slider && tile.modelData.v !== undefined
+                  visible: travelLoader.active
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.bottom: parent.bottom
                   anchors.leftMargin: tile.pad
                   anchors.rightMargin: tile.pad
                   anchors.bottomMargin: tile.pad
-                  height: figureTravel.implicitHeight
-                  ladder: metrics
-                  // The page's own, not one per slider: a `ControlArt` cannot
-                  // be a singleton, so a component that built its own would
-                  // build one per tile on the page.
-                  art: controlArt
-                  // Bindings rather than anything a signal starts, so a
-                  // delegate rebuilt mid-push is born where the value already
-                  // is - qml.md 5.5. **The short push first** while this is
-                  // the tile it names: a held direction or a pulled trigger
-                  // moves the needle on the stream, and the page is rebuilt
-                  // once, when the hand comes off (`menu_adjust`).
-                  value: tile.streaming && root.live.hv !== undefined
-                    ? Number(root.live.hv)
-                    : (tile.modelData.v !== undefined ? tile.modelData.v : 0)
-                  stops: tile.modelData.seg !== undefined
-                    ? Number(tile.modelData.seg) : 0
-                  at: tile.modelData.at !== undefined
-                    ? Number(tile.modelData.at) : 0
-                  // Where the value stood when A took it, so the line can
-                  // show what this press has done to it. Only while it is
-                  // held: the daemon leaves the field off a control nobody
-                  // is holding, and a negative here is that absence.
-                  was: tile.modelData.b !== undefined
-                    ? Number(tile.modelData.b) : -1
-                  // The line is the card's structure, the trail is how far
-                  // along the value has got, the ghost is what this press
-                  // changed, and the mark is where it is.
-                  ink: root.spineInk
-                  trail: root.trailInk
-                  ghost: root.ghostInk
-                  mark: Color.accent
+                  sourceComponent: Component {
+                    Travel {
+                      id: figureTravel
+                      height: figureTravel.implicitHeight
+                      ladder: metrics
+                      // The page's own, not one per slider: a `ControlArt`
+                      // cannot be a singleton, so a component that built its
+                      // own would build one per tile on the page.
+                      art: controlArt
+                      // Bindings rather than anything a signal starts, so a
+                      // delegate rebuilt mid-push is born where the value
+                      // already is - qml.md 5.5. **The short push first** while
+                      // this is the tile it names: a held direction or a pulled
+                      // trigger moves the needle on the stream, and the page is
+                      // rebuilt once, when the hand comes off (`menu_adjust`).
+                      value: tile.streaming && root.live.hv !== undefined
+                        ? Number(root.live.hv)
+                        : (tile.modelData.v !== undefined
+                           ? tile.modelData.v : 0)
+                      stops: tile.modelData.seg !== undefined
+                        ? Number(tile.modelData.seg) : 0
+                      at: tile.modelData.at !== undefined
+                        ? Number(tile.modelData.at) : 0
+                      // Where the value stood when A took it, so the line can
+                      // show what this press has done to it. Only while it is
+                      // held: the daemon leaves the field off a control nobody
+                      // is holding, and a negative here is that absence.
+                      was: tile.modelData.b !== undefined
+                        ? Number(tile.modelData.b) : -1
+                      // The line is the card's structure, the trail is how far
+                      // along the value has got, the ghost is what this press
+                      // changed, and the mark is where it is.
+                      ink: root.spineInk
+                      trail: root.trailInk
+                      ghost: root.ghostInk
+                      mark: Color.accent
+                    }
+                  }
                 }
 
                 // **What is playing is a named tile, not a shape of its
@@ -2922,7 +2934,10 @@ Item {
                   spacing: metrics.gap.xxs
 
                   Repeater {
-                    model: [true, false]
+                    // Two words, on the tiles that switch and on no other:
+                    // hidden, they were still built on every tile of every
+                    // page turned to.
+                    model: tile.switchable ? [true, false] : []
 
                     delegate: Text {
                       required property bool modelData
@@ -3876,48 +3891,61 @@ Item {
                   // dial and the clock to the pixel, for their own reason:
                   // three circles on one page drawn to three sizes read as a
                   // fault rather than as three tiles.
-                  Knob {
-                    id: knobFace
-                    visible: tile.knob
+                  // Behind a Loader, and only built on a knob: every tile used
+                  // to build a ring and a clock and hide them, and a page
+                  // turn is every tile built again - 110 to 215 ms of a shell
+                  // that drew nothing, longer than the slide it swallowed
+                  // (roadmap, 93). Inline, so it keeps the delegate's scope;
+                  // sized here, because an item sized off its Loader while
+                  // the Loader follows the item is a loop.
+                  Loader {
+                    id: knobLoader
+                    active: tile.knob
+                    visible: knobLoader.active
                     width: Math.min(parent.width,
                                     tile.height - metrics.gap.huge)
-                    height: knobFace.width
+                    height: knobLoader.width
                     anchors.horizontalCenter: parent.horizontalCenter
-                    art: controlArt
-                    // Bindings rather than anything a signal starts, so a
-                    // delegate rebuilt mid-turn is born where the value
-                    // already is - qml.md 5.5.
-                    // While this is the ring being turned, where round it
-                    // the value has got comes off the short push (`hv`): the
-                    // full one rebuilds every tile on the page, which at the
-                    // rate a followed dial moves is the cost `menu_gauge`
-                    // warns about, paid to move one pointer. The daemon
-                    // sends it only for a ring whose value is continuous;
-                    // a ladder and a list step rarely enough to ride the
-                    // surface, and their `seg` and `at` are only on it.
-                    value: tile.streaming && root.live.hv !== undefined
-                      ? Number(root.live.hv)
-                      : (tile.modelData.v !== undefined
-                         ? tile.modelData.v : 0)
-                    stops: tile.modelData.seg !== undefined
-                      ? Number(tile.modelData.seg) : 0
-                    at: tile.modelData.at !== undefined
-                      ? Number(tile.modelData.at) : 0
-                    // `b` - where it stood when A took it - is the travel's
-                    // and not read here: a ring draws no ghost, because a
-                    // second figure out of the same middle is a clock rather
-                    // than a value and its history. `Knob.qml` argues it.
-                    //
-                    // The rim and the scale are the card's structure, the
-                    // trail is how far round the value has got, and the mark
-                    // is where it is.
-                    // The first of them is the dial's own number rather than
-                    // one of the three inks (qml.md 8.1.2): a ring beside a
-                    // dial at a different strength is two circles rather than
-                    // two tiles.
-                    ink: Util.alpha(Color.menu.text, 0.3)
-                    trail: root.trailInk
-                    mark: tile.mark
+                    sourceComponent: Component {
+                      Knob {
+                        id: knobFace
+                        art: controlArt
+                        // Bindings rather than anything a signal starts, so a
+                        // delegate rebuilt mid-turn is born where the value
+                        // already is - qml.md 5.5. While this is the ring being
+                        // turned, where round it the value has got comes off
+                        // the short push (`hv`): the full one rebuilds every
+                        // tile on the page, which at the rate a followed dial
+                        // moves is the cost `menu_gauge` warns about, paid to
+                        // move one pointer. The daemon sends it only for a ring
+                        // whose value is continuous; a ladder and a list step
+                        // rarely enough to ride the surface, and their `seg`
+                        // and `at` are only on it.
+                        value: tile.streaming && root.live.hv !== undefined
+                          ? Number(root.live.hv)
+                          : (tile.modelData.v !== undefined
+                             ? tile.modelData.v : 0)
+                        stops: tile.modelData.seg !== undefined
+                          ? Number(tile.modelData.seg) : 0
+                        at: tile.modelData.at !== undefined
+                          ? Number(tile.modelData.at) : 0
+                        // `b` - where it stood when A took it - is the travel's
+                        // and not read here: a ring draws no ghost, because a
+                        // second figure out of the same middle is a clock
+                        // rather than a value and its history. `Knob.qml`
+                        // argues it.
+                        //
+                        // The rim and the scale are the card's structure, the
+                        // trail is how far round the value has got, and the
+                        // mark is where it is. The first of them is the dial's
+                        // own number rather than one of the three inks (qml.md
+                        // 8.1.2): a ring beside a dial at a different strength
+                        // is two circles rather than two tiles.
+                        ink: Util.alpha(Color.menu.text, 0.3)
+                        trail: root.trailInk
+                        mark: tile.mark
+                      }
+                    }
                   }
 
                   // The time, with hands on it. `Clock.qml` rather than a
@@ -3929,41 +3957,48 @@ Item {
                   // Sized off the dial above it, to the pixel: two circles on
                   // one page drawn to two sizes read as a fault rather than
                   // as two tiles.
-                  Clock {
-                    id: clockFace
-                    visible: tile.clock || tile.chrono
+                  // Loaded for the knob's reason, above.
+                  Loader {
+                    id: clockLoader
+                    active: tile.clock || tile.chrono
+                    visible: clockLoader.active
                     width: Math.min(parent.width,
                                     tile.height - metrics.gap.huge)
-                    height: clockFace.width
+                    height: clockLoader.width
                     anchors.horizontalCenter: parent.horizontalCenter
-                    art: controlArt
-                    family: metrics.font.family
-                    figures: metrics.type.loud
-                    minutes: tile.modelData.mn !== undefined
-                      ? tile.modelData.mn : 0
-                    // Nothing turns while the card is down: the delegates
-                    // outlive the window being closed, and a hand animating
-                    // behind one nobody can see is twenty wake-ups a second
-                    // spent on a drawing that is not on screen.
-                    awake: root.opened
-                    // Negative is a clock and nothing else, so a plain face
-                    // draws no complication - and a chronograph that has
-                    // never been started still draws one, standing at zero,
-                    // which is what says the tile has a stopwatch in it
-                    // before anybody presses anything.
-                    elapsed: (tile.chrono
-                              && root.chronoState.el !== undefined)
-                      ? root.chronoState.el : -1
-                    ticking: root.chronoState.run === true
-                    ink: tile.ink
-                    // The dial's own number rather than one of the three inks
-                    // (qml.md 8.1.2): what recedes here is furniture under a
-                    // drawing, not a line of type, and the gauge's face is
-                    // the thing it has to match - a clock beside a dial at a
-                    // different strength is two circles rather than two
-                    // tiles.
-                    dim: Util.alpha(Color.menu.text, 0.3)
-                    mark: tile.mark
+                    sourceComponent: Component {
+                      Clock {
+                        id: clockFace
+                        art: controlArt
+                        family: metrics.font.family
+                        figures: metrics.type.loud
+                        minutes: tile.modelData.mn !== undefined
+                          ? tile.modelData.mn : 0
+                        // Nothing turns while the card is down: the delegates
+                        // outlive the window being closed, and a hand animating
+                        // behind one nobody can see is twenty wake-ups a second
+                        // spent on a drawing that is not on screen.
+                        awake: root.opened
+                        // Negative is a clock and nothing else, so a plain face
+                        // draws no complication - and a chronograph that has
+                        // never been started still draws one, standing at zero,
+                        // which is what says the tile has a stopwatch in it
+                        // before anybody presses anything.
+                        elapsed: (tile.chrono
+                                  && root.chronoState.el !== undefined)
+                          ? root.chronoState.el : -1
+                        ticking: root.chronoState.run === true
+                        ink: tile.ink
+                        // The dial's own number rather than one of the three
+                        // inks (qml.md 8.1.2): what recedes here is furniture
+                        // under a drawing, not a line of type, and the gauge's
+                        // face is the thing it has to match - a clock beside a
+                        // dial at a different strength is two circles rather
+                        // than two tiles.
+                        dim: Util.alpha(Color.menu.text, 0.3)
+                        mark: tile.mark
+                      }
+                    }
                   }
                 }
 

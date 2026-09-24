@@ -1,6 +1,6 @@
 # View socket - `omapad/viewsock.py`
 
-69 lines, and one of the two load-bearing boundaries in the project.
+About two hundred lines, and one of the two load-bearing boundaries in the project.
 
 ## The contract
 
@@ -23,9 +23,20 @@ ripple.sock
   Python. Quickshell gives up after one failed bind, so the listening side's
   retry lives in `shell-plugin/SurfaceSocket.qml`; this side's is `connect()`
   on every `send`, plus the heartbeat.
-- **`send` never raises.** It reconnects once on `EPIPE`/`ECONNRESET`/
-  `ENOTCONN` - the shell restarting is normal, a theme change does it - and
-  otherwise returns `False`.
+- **`send` never raises, and never waits.** The socket is non-blocking,
+  connect included. It reconnects once on `EPIPE`/`ECONNRESET`/`ENOTCONN` -
+  the shell restarting is normal, a theme change does it - and otherwise
+  returns `False`.
+- **A shell that stops reading costs the loop nothing.** Quickshell is one
+  thread for every panel, and it stops reading whenever it is busy: measured
+  under `budget stress`, every omapad socket sat unread for 0.3 to 1.2 s at a
+  time around a surface opening ([93](../decisions/93-the-shell-that-stopped-reading.md)).
+  What the socket will not take waits in the client, and **only the newest of
+  it** - every line is the whole surface, so one that has been overtaken is
+  one nobody needs. A line the socket took half of is finished first, so the
+  panel never reads a torn one. The loop offers what is waiting again on every
+  pass (`Daemon.flush_views()`), at frame rate while anything is, and logs a
+  stall of `STALL_LOGGED` or more when it ends.
 - **The daemon does not wait for the view.** A keypress types through uinput
   and then the payload goes out; by the time the panel repaints, the character
   has already been typed.
@@ -48,6 +59,10 @@ a different question, asked up to sixty times a second, and it is safe for
 exactly one reason: with nothing on it that is a model, `applyState` never
 reaches `fresh()`, so no delegate is rebuilt. The heartbeat still carries the
 whole surface, so nothing here depends on the stream to be correct.
+It goes out as `send(..., whole=False)`, and that is what keeps it from
+standing in for a whole line in the client's backlog: a stalled socket holds
+the last whole line and the newest short one after it, never the short one
+alone.
 
 `sel` rides along rather than being inferred from the last full push: a stream
 has to be meaningful on its own, so the panel never correlates two of them.
@@ -98,6 +113,9 @@ notification and `menu.listed`.
 ## Do not
 
 - Make the loop depend on the plugin being up.
+- Make the loop wait on the plugin: a blocking write, a timeout, a POLLOUT
+  registration on a number the poller may already be watching for
+  something else.
 - Add a request/response round trip. There is no channel back: the plugin asks
   for things by spawning `omapad ctl`, which is a separate socket and a
   separate process, precisely so a drawing problem can never stall an input

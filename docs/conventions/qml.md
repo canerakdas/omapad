@@ -185,6 +185,21 @@ must therefore be re-enterable and entered from `Component.onCompleted` too;
 alone, a badge rebuilt mid-hold drew a dimmed, empty countdown for the rest of
 the hold.
 
+**5.6** **A delegate builds only what its kind draws.** Hidden is not free:
+`visible: false` still builds the item and every binding and Shape under it,
+and a page turn builds every tile again. The menu's tile built a ring, a
+clock, a travel and a switch plate on every tile of the page and hid what it
+was not, and LB/RB froze the shell 110 to 215 ms at every turn - longer than
+the slide it swallowed ([93](../decisions/93-the-shell-that-stopped-reading.md)).
+A kind's drawing goes behind a `Loader` whose `active` is that kind, with
+`visible` following it so a `Column` gives it no room. The component is
+**inline** (`sourceComponent: Component { … }`), which keeps the delegate's
+scope and `id`s; the Loader carries the size and anchors, because an item
+sized off its Loader while the Loader follows the item is a loop. A repeater
+that only one kind uses gets `[]` for its model everywhere else. Something
+outside that reads the drawing goes through `loader.item`, and asks it is
+there first.
+
 ## 6 Sockets
 
 **6.1** One `SurfaceSocket` per surface - `dir: root.socketDir`, `name` the

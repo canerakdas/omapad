@@ -41,12 +41,23 @@ back from a submit means there is no worker - a daemon that could not make a
 pipe - and the caller reads it on the loop instead, which is slower rather
 than broken.
 
-Two callers use it, both reading a command a *press* would otherwise wait for:
-the keyboard page a profile lends an app (`refill_osk_app_page`) and a menu row
-that lists its submenu (`menu_fill`). Both answer the press first and take the
-answer when it comes: the page opens on what it held last, and the rows land
-in the list the model is already drawing. Each still carries a timeout, which
+Three callers use it, each reading a command a *press* would otherwise wait
+for: the keyboard page a profile lends an app (`refill_osk_app_page`), a menu
+row that lists its submenu (`menu_fill`), and the keymap the keyboard's labels
+are compiled from (`refresh_osk_labels`). Each answers the press first and
+takes the answer when it comes: the page opens on what it held last, the rows
+land in the list the model is already drawing, and the keys print the labels
+they had until the new layout's table lands. Each still carries a timeout, which
 is now the floor under the *thread* rather than under the pad.
+
+**Nor may it wait on the shell.** Every view socket is non-blocking, and a
+line the shell has not taken waits in its `ViewClient`, newest only.
+`flush_views()` runs after every pass's events and `views_waiting()` holds the
+poll at frame rate while any line is waiting, so a panel that was busy being
+built draws the current state the moment it is back. `VIEWS` names the
+clients by attribute because the tests put recorders in their place. See
+[viewsock](viewsock.md) and
+[93](../decisions/93-the-shell-that-stopped-reading.md).
 
 **Talking to Hyprland is not shelling out.** `hypr.query()` goes down the IPC
 socket in well under a millisecond; spawning `hyprctl` for the same answer

@@ -262,8 +262,14 @@ class FakeViewClient:
     def __init__(self):
         self.sent = []
 
-    def send(self, payload):
+    def send(self, payload, whole=True):
         self.sent.append(payload)
+        return True
+
+    def waiting(self):
+        return False
+
+    def flush(self):
         return True
 
     def close(self):

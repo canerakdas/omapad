@@ -72,10 +72,22 @@ said twice - `bindings.md` rule 4 holds here as everywhere.
 
 **The triggers are read as axes, not bound.** `bindings.md` says of ZL that a
 layer trigger has no binding of its own, in any layer or profile, and this
-gives it none: a surface layer falls through to nothing, so both triggers are
-free while the menu is up, and how far one is pulled is a question no binding
-could have asked. It works in `browse` as well as in `taken`, which is the
-point of it - a trigger needs no mode at all.
+gives it none: how far one is pulled is a question no binding could have
+asked. It works in `browse` as well as in `taken`, which is the point of it -
+a trigger needs no mode at all.
+
+**Unbound is not free, and `surface_override` takes both.** A surface layer
+falls through to nothing, which kept ZR quiet, but ZL's button sense is the
+window layer's trigger, and a trigger is not a binding. Every pull that swept
+a value down opened the window layer under the card: the left stick resized
+the window behind it and the D-pad walked its focus for as long as it was
+held, and pulled in and out along a slider the menu lost the pad and took it
+back a dozen times a second. It read from the sofa as a menu that stuttered
+under the triggers. So the menu answers for `MENU_TRIGGERS` always, not only
+while rearranging - which is also the one place a held modifier no longer
+reaches the window layer over a surface; the card is over what it would move.
+The quick menu keeps them the same way (`TRIGGERS_KEPT`), with nothing to
+sweep: see [quick](quick.md).
 
 **Left and right are not a second way to say Back and Pick.** They were, while
 this was one column and both were free to be. A grid spends both axes on
@@ -1348,7 +1360,7 @@ table" is exactly how a legend and a press come apart.
 **A borrowed button has to outrank a layer trigger.** ZL opens the window
 layer out here and is the pointer's precision modifier, and neither may
 swallow the press: `surface_override` answers "menu" for any button in
-`EDIT_ANY` while the mode is on, because the alternative is a layer opening
+`EDIT_ANY` while the mode is on (and for the triggers always - see above), because the alternative is a layer opening
 silently while the legend says `Shorter`. `EDIT_ANY` is the **union** of the
 three tables and not the one in force: a trigger that says nothing with an
 empty hand still has to say nothing rather than open a layer under the
