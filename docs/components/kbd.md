@@ -25,7 +25,23 @@ Keep both. They are the reason this module is allowed to exist.
   that also advertise `EV_KEY`. A pad in XInput mode carries `EV_KEY` too,
   which is why the absolute-axis test is there.
 - `find_keyboards(match, ignore)` - `[keyboard] match` and
-  `[keyboard] ignore`.
+  `[keyboard] ignore`, decided from sysfs through `SysfsNode` and opened only
+  once kept. A node sysfs will not describe is opened and asked instead,
+  because a keyboard missed is a way out of a surface gone.
+
+## Why the scan never opens a node to look at it
+
+It runs on the loop, as a surface comes up. evdev waits out an RCU grace
+period on every **close** - about 6 ms a node here, while the open costs
+nothing - so opening all eighteen of this machine's nodes to ask each one and
+closing the seventeen that were not keyboards held the loop for 150-200 ms
+after every surface opened, and the first press on a menu waited that long.
+`omapad budget stress` found it: a fast median with a slow slowest tenth, the
+command *after* each open paying for it. `/sys/class/input/eventN/device`
+carries the same name, ids and capability bitmaps with nothing opened, so the
+scan now costs about a millisecond and closes nothing. `SysfsNode` answers
+`name`, `vid_pid` and `capabilities()` in the shapes `InputDevice` does, so
+`is_keyboard` asks both the same question.
 - `KeyboardWatch` - `follow(wanted)` opens the nodes when a surface goes up and
   `stop()` closes them when the last one comes down; `fds()` feeds the
   daemon's `poll()`, `read(fd)` yields events.

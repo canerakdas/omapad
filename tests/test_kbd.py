@@ -5,6 +5,7 @@ the same way the pad's events are synthesised elsewhere in this suite.
 """
 
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -65,21 +66,58 @@ def keyboard(name="Some Keyboard", vid_pid="1234:5678"):
     return FakeNode("/dev/input/event1", name, vid_pid)
 
 
+def sysfs_bitmap(codes):
+    """A capability set the way sysfs prints it: long-sized hex words, high first."""
+    value = sum(1 << code for code in codes)
+    words = []
+    while True:
+        words.append("%x" % (value & ((1 << kbd.LONG_BITS) - 1)))
+        value >>= kbd.LONG_BITS
+        if not value:
+            break
+    return " ".join(reversed(words))
+
+
 class FindTests(unittest.TestCase):
-    def scan(self, nodes, match="auto", ignore=()):
-        opened = list(nodes)
+    def scan(self, nodes, match="auto", ignore=(), described=None):
+        """Find keyboards among `nodes`; `described` are the ones sysfs knows.
+
+        Every node is in sysfs unless `described` says otherwise, which is
+        how a machine without it is posed.
+        """
         paths = ["/dev/input/event%d" % i for i in range(len(nodes))]
         by_path = dict(zip(paths, nodes))
+        root = tempfile.mkdtemp(prefix="omapad-sysfs-")
+        self.addCleanup(shutil.rmtree, root, True)
+        for path, node in by_path.items():
+            if described is not None and node not in described:
+                continue
+            base = os.path.join(root, os.path.basename(path), "device")
+            os.makedirs(os.path.join(base, "id"))
+            os.makedirs(os.path.join(base, "capabilities"))
+            vendor, product = node.vid_pid.split(":")
+            for name, text in (("name", node.name), ("id/vendor", vendor.lower()),
+                               ("id/product", product.lower()),
+                               ("capabilities/key", sysfs_bitmap(node.keys)),
+                               ("capabilities/abs", sysfs_bitmap(node.axes))):
+                with open(os.path.join(base, name), "w") as handle:
+                    handle.write(text + "\n")
+        self.opened = []
+
+        def open_node(path):
+            self.opened.append(by_path[path])
+            return by_path[path]
+
         real_open, real_glob = kbd.li.InputDevice, kbd.glob.glob
-        kbd.li.InputDevice = lambda path: by_path[path]
+        kbd.li.InputDevice = open_node
         kbd.glob.glob = lambda pattern: paths
         try:
-            found = kbd.find_keyboards(match, ignore)
+            found = kbd.find_keyboards(match, ignore, root=root)
         finally:
             kbd.li.InputDevice, kbd.glob.glob = real_open, real_glob
-        # Anything not kept must be closed: a scan that leaks descriptors runs
-        # every time a surface opens.
-        for node in opened:
+        # Anything opened and not kept must be closed: a scan that leaks
+        # descriptors runs every time a surface opens.
+        for node in self.opened:
             self.assertEqual(node.closed, node not in found, node.name)
         return found
 
@@ -117,6 +155,41 @@ class FindTests(unittest.TestCase):
         wanted = keyboard("Wanted Keyboard", "1111:2222")
         other = keyboard("Other Keyboard", "3333:4444")
         self.assertEqual(self.scan([wanted, other], match="3333:4444"), [other])
+
+    def test_a_node_that_is_not_kept_is_never_opened(self):
+        # Closing an evdev node waits out an RCU grace period, ~6 ms each,
+        # and this runs on the loop as a surface comes up: eighteen of them
+        # held the first press on a menu for 200 ms. sysfs answers instead.
+        pad = FakeNode("/dev/input/event0", "Beitong", "20BC:5127",
+                       keys=set(range(0x130, 0x140)), axes={li.ABS_X})
+        lid = FakeNode("/dev/input/event1", "Lid Switch", "0000:0005",
+                       keys={116})
+        node = keyboard()
+        self.assertEqual(self.scan([pad, lid, node]), [node])
+        self.assertEqual(self.opened, [node])
+
+    def test_a_node_sysfs_does_not_describe_is_asked_directly(self):
+        # Missed would be worse than slow: the keyboard is the way out of a
+        # surface the pad cannot close.
+        lid = FakeNode("/dev/input/event0", "Lid Switch", "0000:0005",
+                       keys={116})
+        node = keyboard()
+        self.assertEqual(self.scan([lid, node], described=[]), [node])
+        self.assertEqual(self.opened, [lid, node])
+        self.assertTrue(lid.closed)
+
+    @unittest.skipUnless(kbd.LONG_BITS == 64, "the words are 64-bit ones")
+    def test_a_real_keyboard_bitmap_reads_as_a_keyboard(self):
+        # Word for word what an AT keyboard printed under
+        # /sys/class/input/event2/device/capabilities/key: four words, high
+        # first, the letter row in the lowest.
+        bits = kbd.SysfsNode._bitmap(
+            "402000007 ff803078f800d001 feffffdfffcfffff fffffffffffffffe")
+        keys = {code for code in range(256) if bits >> code & 1}
+        self.assertIn(kbd.KEY_ESC, keys)
+        self.assertTrue(all(code in keys
+                            for code in range(kbd.KEY_Q, kbd.KEY_P + 1)))
+        self.assertNotIn(0, keys)
 
 
 class FakeConfig:

@@ -16,6 +16,8 @@ leave the desk with a dead keyboard.
 
 import glob
 import logging
+import os
+import struct
 
 from . import linux_input as li
 from . import uinput
@@ -28,6 +30,13 @@ log = logging.getLogger("omapad")
 KEY_ESC = 1
 KEY_Q = 16
 KEY_P = 25
+
+SYSFS_INPUT = "/sys/class/input"
+
+# sysfs prints a capability bitmap as one hex word per kernel `long`, the most
+# significant first. The kernel's long is the native one for a native Python,
+# so this is a fact about the build rather than a choice.
+LONG_BITS = struct.calcsize("@l") * 8
 
 
 def is_keyboard(device):
@@ -42,7 +51,65 @@ def is_keyboard(device):
     return li.ABS_X not in device.capabilities(li.EV_ABS, li.ABS_HAT0Y + 1)
 
 
-def find_keyboards(match="auto", ignore=()):
+class SysfsNode:
+    """What an event node says about itself in sysfs, without opening it.
+
+    The reason this exists is what closing one costs. evdev waits out an RCU
+    grace period on every close - about 6 ms here - so a scan that opened all
+    eighteen nodes to look at them and closed the seventeen that were not
+    keyboards held the loop for up to 200 ms after every surface came up, and
+    the first press on it waited that long. The same name, ids and capability
+    bits are readable under /sys/class/input with nothing opened, so only a
+    node that is going to be kept is ever opened, and nothing is closed.
+
+    Answers the three things `is_keyboard` and `_wanted` ask of an
+    `InputDevice`, in the same shapes.
+    """
+
+    def __init__(self, path, root=SYSFS_INPUT):
+        base = os.path.join(root, os.path.basename(path), "device")
+        self.path = path
+        self.name = self._read(base, "name")
+        self.vid_pid = "%04X:%04X" % (int(self._read(base, "id/vendor"), 16),
+                                      int(self._read(base, "id/product"), 16))
+        self._bits = {
+            li.EV_KEY: self._bitmap(self._read(base, "capabilities/key")),
+            li.EV_ABS: self._bitmap(self._read(base, "capabilities/abs")),
+        }
+
+    @staticmethod
+    def _read(base, name):
+        with open(os.path.join(base, name)) as handle:
+            return handle.read().strip()
+
+    @staticmethod
+    def _bitmap(text):
+        value = 0
+        for word in text.split():
+            value = (value << LONG_BITS) | int(word, 16)
+        return value
+
+    def capabilities(self, ev_type, max_code):
+        bits = self._bits.get(ev_type, 0)
+        return {code for code in range(max_code) if bits >> code & 1}
+
+
+def _wanted(device, wanted, ignore):
+    """Is this node one to listen on, by `[keyboard] match` and `ignore`?"""
+    name = device.name
+    keep = (
+        is_keyboard(device)
+        and device.vid_pid not in uinput.IDENTITIES
+        and not any(token.upper() in name.upper()
+                    for token in ignore if token.strip())
+    )
+    if keep and wanted != "AUTO":
+        keep = (device.vid_pid == wanted if ":" in wanted
+                else wanted in name.upper())
+    return keep
+
+
+def find_keyboards(match="auto", ignore=(), root=SYSFS_INPUT):
     """Every keyboard node worth listening to.
 
     `match` is "auto" for all of them, or one "VVVV:PPPP" / name substring,
@@ -51,26 +118,33 @@ def find_keyboards(match="auto", ignore=()):
     own virtual devices are dropped whatever is configured: reading what the
     on-screen keyboard types would feed every keystroke straight back into the
     surface that typed it.
+
+    Decided from sysfs and opened only once kept - see `SysfsNode`. A node
+    sysfs will not describe is opened and asked instead, the slow way, rather
+    than missed: a keyboard left out is a way out of a surface gone.
     """
     wanted = (match or "auto").strip().upper()
     found = []
     for path in sorted(glob.glob("/dev/input/event*")):
+        try:
+            node = SysfsNode(path, root)
+        except (OSError, ValueError):
+            node = None
+        if node is not None:
+            if not _wanted(node, wanted, ignore):
+                continue
+            try:
+                found.append(li.InputDevice(path))
+            except OSError:
+                pass
+            continue
         try:
             device = li.InputDevice(path)
         except OSError:
             continue
         keep = False
         try:
-            name = device.name
-            keep = (
-                is_keyboard(device)
-                and device.vid_pid not in uinput.IDENTITIES
-                and not any(token.upper() in name.upper()
-                            for token in ignore if token.strip())
-            )
-            if keep and wanted != "AUTO":
-                keep = (device.vid_pid == wanted if ":" in wanted
-                        else wanted in name.upper())
+            keep = _wanted(device, wanted, ignore)
         except OSError:
             keep = False
         finally:
