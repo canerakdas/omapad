@@ -436,7 +436,7 @@ into the loudest thing on the page at exactly the moment its figure and its
 travel are what the eye is on. The changed silhouette read as a tile that had
 gone wrong beside seven that had not. What says A has hold of a control is the
 press ring, the same as everywhere else, and what says what the press has done
-is the ghost on its travel.
+is the ghost needle on its scale.
 
 **What an entered card takes is the press ring**, and getting there took two
 wrong answers first.
@@ -484,7 +484,7 @@ gets one mark, and which mark got which job took five passes to settle:
 
 | | Says | Drawn as | When |
 |---|---|---|---|
-| `on` | this is the one in force | the row's length of the **spine**, lit, and a **stroke at each end of it**, to the right | always |
+| `on` | this is the one in force | the row's length of the **spine**, three weights wide in the accent | always |
 | `sel` + `row` | this is the row A would run | a faint **ground**, square down its left so it meets the spine | only while the card is entered |
 
 **The spine** is one line down the side of the list, and it is structure rather
@@ -498,26 +498,21 @@ loop. The one that happened drew a line down the whole card with no rows on it.
 It carries on a little **past the first row and the last one, and is capped
 with a cross at both**. A line that began exactly at the first row's top edge
 began nowhere: it read as the edge of the ground behind it rather than as a
-thing of its own. A travel takes the same run of bare line at each end, which
-is why a slider's range starts an arm inside the mark that ends its line.
+thing of its own.
 
-**One stroke, and both drawings have only it.** The cap here, a stop on a
-slider's travel and the place a value has got to are one figure: a bar of the
-line's own weight crossing it, reaching the same distance either side. They are
-**drawn** (`travel-*.svg`), and `Metrics.spine` reads its two reaches back off
-the drawings: a stroke is ten units across, which is the line's own weight, and
-a whole number of them tall - five at a stop (`spine.cross` either side) and
-seven at the marks that **end** a line (`crossEnd`). The card's caps take `crossEnd` too: the end of a list and
-the end of a travel are the same claim, *this is as far as it goes*, and a card
-whose ends were a stop's size ended more quietly than the slider sitting beside
-it on the same page.
+**The cap is drawn** (`travel-end-open.svg`): a stroke of the line's own
+weight, **eleven weights across**, with the line's own weight of air in the
+middle for the line to run through. A slider's end is twelve, and eleven is the
+nearest length that keeps the two arms equal round the line - so a card and a
+slider on one page end their lines at one size. It was seven, which beside a
+slider read as the smaller of two scales.
 
-It was a `T` with its own quantity for a while, and the quantity was wrong
-twice over: a silver step *per arm* made the cap two and a half times as wide
-as the line reaches - measured, 12 across against 5 along - and a cap that
-out-reaches the line it caps is a cross-piece with a line through it. What
-settled it was not a better number but the same number as the drawing next
-door.
+A slider's scale shared these strokes until
+[92](../decisions/92-a-tuning-scale.md), and the card took the slider's new
+figures for one pass - an end baton at each end, a detent per row, the row in
+force's filled. It read worse than what it replaced and went back out, and so
+did a heavier cap after it - two weights solid, then a box in outline. What was
+kept is the length.
 
 **A cross, not a corner.** Both caps turned right at first, which made the two
 of them a bracket round the rows - and a bracket is a thing that *holds* what
@@ -534,43 +529,33 @@ first row.
 surface is the theme's own at a share of itself, so a square painted twice is a
 square painted brighter, and the pixel where the bars crossed was the brightest
 thing on the card. The line takes the crossing; the arms start either side of
-it. A travel's stops are drawn the same way for the same reason - and the one
-stroke that *is* one piece is the value's own, which is the accent and opaque,
-so it covers the line rather than tinting it twice.
+it.
 
-**The row in force is a length of the line in the accent, with a stroke at
-each end of it.** What it marks is a *state*, so all three are drawn always -
-on a card nobody has selected, let alone entered - and a card of verbs shows
-none, because nothing on one is in force.
+**The row in force is its length of the line drawn three weights wide**, one
+either side of the line, solid in the accent - the slider's needle laid along
+the line. A slider says *here* with a figure heavier than anything else on its
+scale, and a card is a stepped slider stood up, so it says it the same way.
+What it marks is a *state*, so it is drawn always - on a card nobody has
+selected, let alone entered - and a card of verbs shows none, because nothing
+on one is in force.
 
-The strokes are the silhouette the colour needs beside it (qml.md 8.1.1): a
+The weight is the silhouette the colour needs beside it (qml.md 8.1.1): a
 theme whose accent sits close to its ink exists, and a state said once in
 colour is a state that theme cannot say at all.
 
-**They bracket the length rather than pointing at the middle of it**, which is
-the truer thing to say: what is in force on a card is a *length* of line, and
-these are where it starts and where it stops. They are the line's own weight
-and a stop's own reach, to the right of the line and never across it, so the
-card carries one figure and no exceptions - and the same reach a travel's stops
-take, so the two drawings mark with one mark.
+It was **a lit hairline with a stroke at each end of it**, bracketing the
+length - five weights of reach at the last, to match one arm of the cap. That
+is a `[` the eye has to assemble out of three strokes; a bar three weights wide
+is the same claim in one figure: *kalın bir `|` olsun, mevcut slider'a benzer*.
 
 It was a **wedge in the middle** for four passes. A wedge points, and pointing
 is right when the thing pointed at is beside the mark - the row is not beside
-it, the row is the length behind it. It was also the one drawing on either
-surface that was not a plain stroke, which is a thing to notice when the
-argument for everything else is that there is one figure.
-
-Before the wedge: a **tick at the far end of the row**, which says nothing - a
-mark with no second state, at the opposite end of the card from the words it is
-about. A **radio ring at the head of each row**, which says more (an empty ring
-beside every row says *these are alternatives* before it says which one) and is
-a second drawing for something the row can simply **be**, in the slot a row's
-own glyph wants. And a **pointer**, which marked the *cursor* for a pass, drawn
-dim outside the card and accent in - which reads well until you notice the
-ground was saying *in force* two pixels away from it: one line, one mark, and
-two different answers to which row matters. Giving the persistent mark the
-persistent state and the transient mark the transient one is what made the card
-readable at a glance.
+it, the row is the length behind it. Before the wedge: a **tick at the far end
+of the row**, which says nothing; a **radio ring at the head of each row**, a
+second drawing for something the row can simply **be**; and a **pointer**,
+which marked the *cursor* for a pass while the ground said *in force* two
+pixels away. Giving the persistent mark the persistent state and the transient
+mark the transient one is what made the card readable at a glance.
 
 **A card with no state draws no spine at all.** `Lock`, `Suspend`, `Logout`
 are things that happen, and none of them is a thing the machine is currently
@@ -725,177 +710,91 @@ set. Without that a card of switches could say nothing about itself, and the
 only way to write a row that both flips and answers would be two rows saying
 `On` and `Off` - the longhand this surface spent a year taking out.
 
-### The travel, which is the spine turned on its side
+### The travel, which is the knob's scale unrolled
 
-The line above is drawn a second time, along the foot of a card, and it is the
-same line: `Travel.qml` draws it for a slider, for a slider with stops, and for
-a reading, in this surface and on the HUD. What noticed it was reading the row
-card back and saying out loud that it is a vertical slider: a stack of rows
-with one row's length of line lit and marked at both ends is exactly that, and
-the thing at the foot of the card beside it was a rounded eight-pixel trough. Two drawings of one idea, and the line is the one that
-survived: a card that draws one kind of line is a card read once.
+A slider is drawn by `Travel.qml`, for a value with a distance to cover and
+for one with places to stand, and it is the knob's printed scale laid flat -
+the T 1000's tuning scale beside its bandspread knob
+([92](../decisions/92-a-tuning-scale.md)). It was the row card's spine turned
+on its side until then ([65](../decisions/65-one-line-three-drawings.md)), a
+line with crosses on it, and beside a knob it was the plainer of two drawings
+of one value. Every figure on it is now one the ring has, at whole line
+weights (`travel-*.svg`):
 
-So the five measurements are the ladder's (`metrics.spine`), not either
-surface's, and the marks are the same marks:
-
-| On a card of rows | On a slider, a stepped slider, a reading |
+| On the ring | On the line |
 |---|---|
-| the spine, down the left | the travel, along the foot |
-| a cross capping each end | the same cross at each end, out where the line ends |
-| the row in force lights its length of it | the line behind the value is lit up to it |
-| a stroke at each end of the row in force | the same cross again, in the accent, at the value |
-| - | that run is solid where the value has stops, a tint where it has none |
-| - | the same cross at each place a stepped value may stand |
+| the arc | the line, `spine.weight` |
+| a notch every five in a hundred | a graduation every five in a hundred |
+| an end, a baton in outline with its foot open for the arc | the same, its foot open for the line |
+| the index, painted on the cap | the needle, across the line and taller than an end |
+| a detent per place, on a stepped ring | the same |
+| - | the needle's tail, under the line where a press found the value, as wide as the figure it was found on |
 
 **Nothing fills.** A bar filled to the value draws a number as mass, which is a
 second answer to a question the figure at the top of the card has already
-answered in words - and on a stepped control it was mass that disagreed with
-the word, four pixels along from where the last press left it. What is drawn in
-the accent is **where the value is**: one stroke across the line at that place,
-with the run behind it saying how far it has come.
+answered in words. What is drawn in the accent is **where the value is**: the
+needle, with the run of line behind it saying how far it has come.
 
-**The mark alone does not show a press, though**, and that took a screen to
-find: a press moves it by a few pixels, which is not a change anybody sees from
-a sofa - on the plain line there was nothing else to see move. So the line
-**behind** the value is drawn in the accent at half. What changes at every
-press is then a length, read against the length ahead of it, and the full
-accent still belongs to one place: where the value is.
+**The run behind the needle is drawn, because the needle alone does not show
+a press**: a step moves it a few pixels, which is not a change anybody sees
+from a sofa. The run is read against the run ahead, and every figure the run
+has passed takes its colour.
 
-**A line with stops fills that run; a line without them tints it**, and the
-two are different claims rather than two strengths of one. A stop is a place
-the value has *stood on*, and every stop behind the mark is a place it has
-been - so the run is as solid as the mark that ends it, and the stepped control
-keeps exactly what its segments shipped for: *how far along* readable without
-arithmetic. A continuous value has been at every point behind it and stood at
-none, so its run is the accent at **half** - a tint rather than a fill (qml.md
-8.1), which leaves the full accent to the one place the value is.
+**A stepped line fills that run; a continuous one tints it**, and the two are
+different claims rather than two strengths of one. A stop is a place the value
+has *stood on*, so the run is solid and **every detent reached is filled in**,
+and so is the end it started from. A continuous value has been at every point
+behind it and stood at none, so its run and graduations are the accent at
+**half** - a tint rather than a fill (qml.md 8.1), leaving the full accent to
+the needle. Half, and not the fifth a lit ground takes: a two-pixel line has
+no area to carry a tint that faint.
 
-Half, and not the fifth a lit ground takes: a two-pixel line has no area to
-carry a tint that faint, and at a fifth it is not there at all. Nor the ink at
-its dim level, which was tried and made the run the brightest thing on the card
-- the eye then lands behind the value rather than on it.
+**A stepped line prints its places and nothing else.** One detent per stop,
+the end baton two thirds as long, and none of the fine graduations - so the
+two drawings differ by exactly what the two controls differ by. The first stop
+is the end that begins the scale, with nothing covered behind it: a value on
+`Off` drawn with a length lit behind it is a control saying it is doing
+something while it says `Off`. Nothing is reached at nought on either kind,
+`Knob.qml`'s own rule.
 
-**What a press is measured against is drawn too.** A step moves the mark a few
-pixels, so the one question a hand asks while it pushes - *what have I done to
-this* - was answered by a mark that had barely moved. So while a control is
-**held**, the line carries one more thing: a **faint mark where A took the
-value from**. The solid run still ends at the value, whichever way the press
-went; what the ghost adds is the other end of the comparison.
+**The needle is taller than an end**, and that is the fix the old cross never
+had: at nought and at a hundred the value's cross stood inside the end's and
+vanished, so the only thing that said Brightness was at 100% was the figure.
+The needle clears an end by three weights above the line and hangs five below
+it; the ends' outer walls are flush with the card's padding, so the scale
+lines up with the words above it.
 
-`b` on the payload is that place, and it is on the wire only while the tile is
-held and only while it differs from `v`. Let go with A and it goes; let go with
-B and the value goes back to exactly where it stands.
+**What a press is measured against is drawn too.** While a control is
+**held**, a faint stub the size of the needle's tail hangs under the line where
+A took the value from. It was the whole needle in outline first, and a second
+needle crosses everything the first one does - the graduations, and an end,
+where two outlines over each other read as a smudge. Under the line nothing is
+printed, so the stub has that band to itself. **It is as wide as the figure the
+value was found on**: three weights under an end or a detent, one under a
+graduation, so it reads as the foot of that very mark. `b` on the payload is that place, on the wire only while the tile is held
+and only while it differs from `v`. Let go with A and it goes; let go with B
+and the value goes back to exactly where it stands.
 
-**The ghost is the line's alone: a ring does not draw one.** It is the fourth
-place the knob parts company with the travel, and the circle's rather than a
-preference - a mark on a line has somewhere of its own to stand, while *where
-was it* on a ring can only be a second pointer out of the same middle, and two
-rectangles turned out of one hub is a clock. The tile would stop reading as a
-value and start reading as a time. What a turn has done is legible anyway, in
+**The ghost is the line's alone: a ring does not draw one.** A second needle
+under a line has somewhere of its own to stand, while *where was it* on a ring
+can only be a second pointer out of the same middle, and two rectangles
+turned out of one hub is a clock. What a turn has done is legible anyway, in
 the run lengthening behind the pointer.
 
-**The length between the two was drawn for three passes and none of them
-lived.** A dashed run on the line read as the line itself gone faint. A row of
-chevrons was a second alphabet on a drawing that has one figure. A leaning
-hatch fixed the direction and then wanted its own spacing, its own clearance
-from the line, its own rule for standing aside from a stop - four decisions to
-say a thing the two marks already say by standing where they stand. What a hand
-is asking is *where was it*; a mark answers that, and the distance is read the
-way every other distance on this line is, by looking.
-
-**The run starts where the mark that ends the travel stops**, with nothing
-between the two. It began an arm later while the line still had a tail, and
-read as a second line starting somewhere of its own; what the eye wants at that
-end is one stroke leaving the mark.
-
-**And every mark the run has passed takes the run's colour.** A stop already
-stood on, or the end the value started from, is not a place it might go - so
-the marks behind the value belong to what is covered and the marks ahead of it
-belong to the scale. It is the same two colours the run itself has: solid on a
-line with stops, the tint on a line without them.
-
-**The mark stands at the far edge of the stop it is on**, not in the middle of
-it: a stop is a length the value has reached the end of, so the mark is where
-the reaching stopped. In the middle it read as something sitting inside the
-segment rather than as the point the segment runs up to. It stands exactly
-where that stop's own stroke stands, so the accent covers the stroke instead of
-landing half a weight beside it and reading as one stroke drawn twice.
-
-**The value is marked with the same stroke as everything else on the line**,
-in the accent. It was a wedge first - the mark the row card carried then, at a
-quarter turn - and a wedge lying on a horizontal line is an arrow: an arrow
-points somewhere,
-and beside a horizontal line there is nothing to point at. Then it was the line
-thickened, which came out as a block sitting on a stroke. What it is now is the
-stop's own figure, drawn where the value is and filled with the accent, so the
-drawing has one stroke in it and three things to say with it: the ends, the
-places, and where you are.
-
-**Nothing on this drawing is painted twice.** Every ink here is the theme's own
-at a share of itself, so a bar run through the line lights the pixel where they
-meet - which is what the first pass did, seven times along a stepped control,
-and the second pass hid by hanging the stops under the line instead of across
-it. The dim strokes are two arms with the line taking the crossing between
-them; the value's own stroke is one piece, because the accent is opaque and
-covers the line rather than tinting it.
-
-**The stops are the cap repeated.** A cross at the end of a line says *the
-line ends here*; the same cross partway along says it about a place the value
-may stand. So a stepped travel and a continuous one differ by exactly what the
-two controls differ by, which is whether the line has places printed on it -
-and nothing else in the drawing has to know which kind it is. `seg` and `at` on
-the payload are unchanged.
-
-**The ends of the travel are values, and the line stops at them.** Each end
-reads as a `T`: the stroke standing across, the line leaving it inwards, and
-nothing past it. It carried on an arm past both for two passes, which is what
-the spine does above a list - and a line beside a list wants that, because the
-list simply stops and the line has to say so. A line **under a value** does
-not: its ends are values. The tail read as a drawing that had not been trimmed,
-and it put the end marks out of the value's reach, so a slider pushed the whole
-way stopped short of the mark it was reaching for.
-
-**The two that end the travel are longer than the stops between them** -
-`spine.crossEnd` against `spine.cross`, half a stop's reach again. An
-instrument of one stroke weight has only length to tell one kind of mark from
-another with, and the two kinds here are *this is as far as it goes* and *this
-is a place it can stand*. It was the whole silver step for a pass and read as
-two marks of two different sizes rather than as one scale.
-
-**And whether the line runs through a stroke is the other thing it says**,
-which is why there are four drawings and not two. Every ink here is the theme's
+**Nothing on this drawing is painted twice.** Every ink here is the theme's
 own at a share of itself, so a square painted twice is a square painted
-brighter: a stop has the line's own weight of air between its two arms and the
-line takes the crossing, where a mark at either end of the line - and the
-value's own mark, which is opaque and covers what it crosses - is drawn whole.
-It was one solid rectangle for as long as the strokes were rectangles, and the
-middle stop of a stepped slider was the pixel that showed it. The value's own mark takes the reach of whatever mark
-it is standing on, so at either end it covers that mark exactly instead of
-sitting inside it with the tips showing.
+brighter - and an end standing on the line shares a pixel with it. So
+`Travel.qml` draws `Knob.qml`'s way: one opaque layer per ink, faded once, the
+reached and the unreached meeting under the needle. The graduations and
+detents are a `Repeater` over a list the value cannot change, so pushing a
+slider never rebuilds its scale.
 
-**Every stroke owns its own pixels.** The line runs *between* the two marks
-rather than under them, and the covered run starts where the first mark stops -
-every ink here is the theme's own at a share of itself, so a square painted
-twice is a square painted brighter, and a line running under the mark that ends
-it lit exactly that square. At the far end, where nothing is lit and both are
-the dim ink, it read as the two of them interlocked.
+**A reading has no line.** A share the machine keeps answering drew one under
+itself once, on a card nothing can push, and read as a control that had lost
+its thumb; a readout tile is its heading and its figure, here and on the HUD.
 
-Every mark on the line is one series: `edge(n)` places the two ends and every
-stop between them, and the value's own mark lands on one of them. **A stepped
-value's stops *are* the marks** - five stops are five marks with four divisions
-between them, the bottom stop is the mark that begins the travel and the top
-one is the mark that ends it.
-
-It stood at the far edge of the stop it was on for a pass, on item 63's
-argument that the first stop of a ladder is still somewhere to be. What that
-drew is a control printing `Off` with a division lit behind it, which is the
-bar disagreeing with the word above it - the same fault the segments were meant
-to cure, one place along. Nothing is covered at the bottom stop now, and the
-mark sits on the mark that begins the scale.
-
-`metrics.time.fill` went with the troughs. A mark is where the value *is*
-rather than a length growing towards it, so it lands on the frame the value
-changes - qml.md 8.2.4.1, which is the rule the bar was the exception to.
+A needle is where the value *is* rather than a length growing towards it, so
+it lands on the frame the value changes - qml.md 8.2.4.1.
 
 ### What a press does, and what needs taking
 
@@ -1141,8 +1040,8 @@ a quarter of that otherwise.
 - `push_menu_view()` - the whole surface, including `items`. Unchanged.
 - `push_menu_live()` - `{open, sel, g, live: {x, y, hid, hv, ht}}` and **no
   `items` key at all**. `x`/`y` are where the watched thumb is; `hid`/`hv`/`ht`
-  are the ring being turned - which tile it is, where round it the value has
-  got, and the number in words.
+  are the ring being turned or the slider being pushed - which tile it is,
+  where along it the value has got, and the number in words.
 
 The panel's `applyState` gets past its own "same line as last time" guard,
 finds `s.items === undefined`, and so never reaches `fresh()` - the model is
@@ -1171,6 +1070,23 @@ needs `seg` and `at`, which are on the full push alone. `menu_adjust(quiet=)`
 is what stands the full push down, and `menu_settle` pays it back with one
 rebuild when the hand comes off - the tiles behind the ring were drawn from a
 payload that is by then a push old.
+
+**A slider streams too**, for the same reason arriving by another road. A held
+direction repeats every tenth of a second and faster as it ramps, and a trigger
+sweeps at frame rate; at a full push per step the panel rebuilt every tile on
+the page per step, fell behind the hand, and the needle went on climbing after
+the thumb had come off. So a continuous slider held or swept streams like a
+ring - with one difference: **the first step of a push goes out whole**,
+because that is the line carrying `b`, which puts the ghost on the scale.
+`menu_adjust` stands the full push down from the second step on, and
+`menu_settle` ends the push and pays the rebuild back.
+
+**And the whole surface restates the stream.** The panel keeps the last `live`
+it was sent, and the stream is silent once nothing turns - so a control let go
+of went on wearing its streamed number over the value the whole surface
+carried, which after a B that put the value back was the wrong number.
+`push_menu_view` carries `live` too, empty when nothing streams, which is what
+ends it.
 
 **`hid` is `sel`'s rule one field along, and it was learned the hard way.** A
 stream that carries almost nothing is still read on its own, so a value has to
@@ -1671,12 +1587,16 @@ confused with a navigation or a stepping problem.
 
 ### What the motor says
 
-`edge` on the step that first finds the end of the travel, once per arrival: a
-wall you are still pushing against is still one wall. `commit` on taking and
-on letting go. And `texture` - one continuous effect - while the value is
-actually moving, rather than a tick per step: `[snap] rumble`'s rule is that a
-step repeating under a held button would buzz all the way down a list, and a
-slider is that list with the numbers showing.
+`edge` on the step that first finds the end of the travel - a slider's, a
+card of rows' top and bottom row, the page's rim - once per press: a wall you
+are still pushing against is still one wall, so a held direction's repeats
+find it once, and a fresh press finds it again (`menu_command(repeat=)`, the
+quick menu's rule). It was forgotten only when a value moved, so a card of rows
+bumped at its top the first time and never again. `commit` on taking and on
+letting go. And `texture` on the first step of a push only, on the side it
+went, rather than a tick per step or a hum for the length of a hold: `[snap]
+rumble`'s rule is that a step repeating under a held button would buzz all the
+way down a list, and a slider is that list with the numbers showing.
 
 **What that effect says is which way you just pushed.** `menu_feel()` hands
 the motor a side rather than a level: the right motor where the value went

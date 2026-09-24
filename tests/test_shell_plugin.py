@@ -394,7 +394,7 @@ class TravelTests(unittest.TestCase):
         for name in self.files:
             with open(os.path.join(PLUGIN, name)) as handle:
                 found += len(text_blocks(handle.read(), OPENS_TRAVEL))
-        self.assertGreater(found, 1)
+        self.assertGreater(found, 0)
 
     def test_every_travel_is_handed_what_it_draws_with(self):
         for name in self.files:

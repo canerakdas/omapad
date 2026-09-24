@@ -438,7 +438,7 @@ floor_ms = 50
 #   tick     a press landed              - the three lines above
 #   edge     you cannot go further       - a control at its end, the grid's rim
 #   commit   that took                   - a switch flipped, a tile put down
-#   texture  how far you have taken it   - held while a value is being pushed
+#   texture  which way you pushed        - the first step of a push, once
 #
 # A pad with no periodic effects plays `edge` and `commit` as plain ticks.
 edge_strength = 0.35
@@ -454,12 +454,14 @@ commit_duration_ms = 90
 # ways, which is a buzz saying something moved without saying which, and that
 # is the scheme this effect was kept switched off for.
 #
-# **One level, not a scale.** It rose with the distance from where a push
-# started for a pass, which is a second reading of the number the tile is
-# already printing; what a hand pushing a control is asking is whether the
-# push landed. So this is how hard, flat, for as long as the control is
-# moving - an absolute level like `edge_strength` and `commit_strength`
-# above, rather than a share of the tick.
+# **One level, not a scale, and once per push.** It rose with the distance
+# from where a push started for a pass, which is a second reading of the
+# number the tile is already printing; and it was held for as long as the
+# control moved, which under a held direction was a buzz for the whole hold.
+# What a hand pushing a control is asking is whether the push landed, and the
+# first step answers that. So this is how hard, flat, for the first step of a
+# push - an absolute level like `edge_strength` and `commit_strength` above,
+# rather than a share of the tick. A trigger sweep is not felt at all.
 #
 # It shipped off, when it was one hum whichever way you pushed: a scheme where
 # everything buzzes says nothing. Something that says *which way* is not that,

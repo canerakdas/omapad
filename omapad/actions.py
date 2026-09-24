@@ -573,7 +573,7 @@ class MenuAction(Action):
             ctx.daemon.menu_disarm(cancelled=True)
 
     def repeat(self, ctx):
-        ctx.daemon.menu_command(self.command)
+        ctx.daemon.menu_command(self.command, repeat=True)
 
 
 class QuickAction(Action):

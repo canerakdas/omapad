@@ -475,8 +475,8 @@ Item {
 
   // What a press that has not settled is drawn in: the accent at the share a
   // line behind the value takes, which is the same tint - what tells the two
-  // apart is that this one is dashed and sits between where the value was
-  // taken from and where it is now. Loud enough to find, quiet enough that
+  // apart is that this one is a stub under the line, where the value was
+  // taken from. Loud enough to find, quiet enough that
   // what the value has *settled* on stays the thing being read.
   readonly property color ghostInk: Util.alpha(Color.accent, 0.5)
 
@@ -2466,7 +2466,10 @@ Item {
                 // as on the HUD because a page of readings has to read the same
                 // in both places it appears - this is where you turn them on,
                 // and a page that looked different once it was on screen would
-                // be a page you had to learn twice.
+                // be a page you had to learn twice. **It is words and nothing
+                // else**: a reading drew a slider's line under itself once,
+                // on a card nothing can push, and read as a control that had
+                // lost its thumb.
                 readonly property bool readout: tile.modelData.k === "readout"
                 // The other tile with nothing to press, and the only one that
                 // reads nothing at all. It is drawn here as well as on the
@@ -2500,28 +2503,15 @@ Item {
                 readonly property bool lone: tile.modelData.one === true
                 readonly property var lines: tile.modelData.rs !== undefined
                   ? tile.modelData.rs : []
-                // **The line's own measurements, and they are not this
-                // card's.** The same drawing runs along the foot of a slider,
-                // a stepped slider and a reading (`Travel.qml`), so the five
-                // of them live on the ladder - `Metrics.qml`'s `spine` - and
-                // the arguments for each are written down there. What a row
-                // uses them for is here: a segment of the line per row, a
-                // cross capping the line at both ends, and the wedge that
-                // leaves it beside the row in force.
+                // **The line's own measurements.** Its weight is the one a
+                // slider's scale is drawn in too (`Travel.qml`), so they live
+                // on the ladder - `Metrics.qml`'s `spine` - and the arguments
+                // for each are written down there. What a row uses them for
+                // is here: a segment of the line per row, a cross capping
+                // the line at both ends, and the row in force's segment
+                // drawn three weights wide.
                 readonly property int spineWeight: metrics.spine.weight
                 readonly property int spineArm: metrics.spine.arm
-                // The stroke that crosses the line at each end of it. **The
-                // same size as the marks that end a travel** - `crossEnd`,
-                // not the `cross` a stop takes - because the ends of the two
-                // drawings are the same claim: *this is as far as it goes*.
-                // A card's ends were a stop's size for a pass, which made the
-                // list end more quietly than a slider does at exactly the
-                // moment the two sit on one page.
-                readonly property int spineCap: metrics.spine.crossEnd
-                // How far the two marks on the row in force reach out of
-                // the line: a stop's own reach, so a card's marks and a
-                // travel's are one size.
-                readonly property int markReach: metrics.spine.cross
 
                 // **Whether any row on this card can be *in force*.** A card
                 // of verbs cannot: `Lock`, `Suspend`, `Logout` are things
@@ -2651,10 +2641,10 @@ Item {
                   && !tile.clock && !tile.chrono
 
                 // **A figure sits at the top of the card and its travel
-                // along the bottom.** Slider, reading and dead zone all
-                // answer the same question - where along something a number
-                // is - so they are one head and one track here rather than
-                // three stacks, and they are anchored to the two ends of the
+                // along the bottom.** Slider and dead zone both answer the
+                // same question - where along something a number is - and a
+                // reading shares the head without the track, so they are one
+                // head and one track here rather than three stacks, and they are anchored to the two ends of the
                 // card the way the design's cell is: the caption and the
                 // figure where a card is read first, the bar where it has a
                 // floor to sit on. Stacked together and centred they were a
@@ -2743,28 +2733,22 @@ Item {
                 }
 
                 // **The travel, and it is one drawing for both kinds of
-                // slider and for a reading.** A line with the value marked on
-                // it, drawn by `Travel.qml` - which is the spine off a card of
-                // rows turned on its side, because a list with the row in
-                // force lit and a wedge leaving it *is* a vertical slider.
-                // The argument for the line, and for nothing filling up to
-                // it, is written there and in menu.md.
+                // slider.** A printed scale with a needle across it, drawn by
+                // `Travel.qml` - the knob's scale unrolled, because a slider
+                // and a knob are one value drawn as a length and as an
+                // angle. The argument for the scale, and for nothing filling
+                // up to the needle, is written there and in menu.md.
                 //
                 // Which of the two it is, is `seg`: a value with places to
-                // stand has them printed on the line as crosses, and a value
-                // with a distance to cover has a bare line between its two
-                // ends. That is the whole difference between the controls, so
-                // it is the whole difference between the drawings.
+                // stand has them printed as detents, and a value with a
+                // distance to cover has a graduation every five in a hundred.
+                // That is the whole difference between the controls, so it is
+                // the whole difference between the drawings.
                 //
-                // **Only a share has one.** A thermometer's top of scale is a
-                // number somebody would have to invent, and a line drawn
-                // against an invented maximum says a different thing on every
-                // machine it is read on - so the daemon sends no `v` and there
-                // is no travel, rather than one that lies.
+                // A reading has none: it is words (see `readout`).
                 Travel {
                   id: figureTravel
-                  visible: (tile.slider || tile.readout)
-                    && tile.modelData.v !== undefined
+                  visible: tile.slider && tile.modelData.v !== undefined
                   anchors.left: parent.left
                   anchors.right: parent.right
                   anchors.bottom: parent.bottom
@@ -2779,9 +2763,13 @@ Item {
                   art: controlArt
                   // Bindings rather than anything a signal starts, so a
                   // delegate rebuilt mid-push is born where the value already
-                  // is - qml.md 5.5.
-                  value: tile.modelData.v !== undefined
-                    ? tile.modelData.v : 0
+                  // is - qml.md 5.5. **The short push first** while this is
+                  // the tile it names: a held direction or a pulled trigger
+                  // moves the needle on the stream, and the page is rebuilt
+                  // once, when the hand comes off (`menu_adjust`).
+                  value: tile.streaming && root.live.hv !== undefined
+                    ? Number(root.live.hv)
+                    : (tile.modelData.v !== undefined ? tile.modelData.v : 0)
                   stops: tile.modelData.seg !== undefined
                     ? Number(tile.modelData.seg) : 0
                   at: tile.modelData.at !== undefined
@@ -2962,9 +2950,9 @@ Item {
                 }
 
                 // **The ends of the spine**: the line carries on a little
-                // past the first row and the last one, and crosses at both. A
-                // line that began exactly at the first row's top edge began
-                // nowhere - it read as the edge of the ground behind it
+                // past the first row and the last one, and is capped at
+                // both. A line that began exactly at the first row's top edge
+                // began nowhere - it read as the edge of the ground behind it
                 // rather than as a thing of its own - and an end cap is what
                 // says *this is where the list starts* without saying
                 // anything else.
@@ -2985,8 +2973,7 @@ Item {
                 // tidiness: every ink on this surface is the theme's own at a
                 // share of itself, so a square painted twice is a square
                 // painted brighter. The line takes the crossing and the arms
-                // start either side of it - the rule a travel's stops keep
-                // as well.
+                // start either side of it.
                 Repeater {
                   model: rowStack.visible && rowStack.height > 0
                     && tile.railed ? 2 : 0
@@ -3002,16 +2989,21 @@ Item {
                       : rowStack.y + rowStack.height + tile.spineArm
                         - tile.spineWeight
 
-                    // **The cap itself: the travel's own drawing, turned a
-                    // quarter.** A card of rows is that line stood up, so the
-                    // stroke that ends it is the stroke that ends a slider -
-                    // `travel-end-open.svg`, the long one with the line's own
-                    // weight of air through the middle, because here the line
-                    // carries on past the crossing and a stroke drawn whole
-                    // over it would paint the same ink twice.
+                    // **The cap itself, a drawing turned a quarter.**
+                    // `travel-end-open.svg`, the long stroke with the line's
+                    // own weight of air through the middle, because here the
+                    // line carries on past the crossing and a stroke drawn
+                    // whole over it would paint the same ink twice.
+                    //
+                    // **Eleven weights across**, which is a slider's end
+                    // (twelve) to the nearest length that leaves the two arms
+                    // equal round the line - so a card and a slider on one
+                    // page end their lines at one size. It was seven, and
+                    // beside a slider's ends it read as the smaller of two
+                    // scales.
                     //
                     // Drawn along its own axis and rotated about its middle,
-                    // which is why the box is the figure lying down and the
+                    // which is why the box is the figure standing and the
                     // placement is its centre: a drawing positioned by its
                     // rotation as well as turned by it is arithmetic in two
                     // places, and it is the rule the clock's hands are drawn
@@ -3023,9 +3015,9 @@ Item {
                       readonly property real mid: rowStack.x
                         + tile.spineWeight / 2
                       // Standing, like the drawing: the width is the line's
-                      // own weight and the height follows the figure's aspect
-                      // - seven of them. The quarter turn then lays that
-                      // across the line, centred on the same point.
+                      // own weight and the height follows the figure's aspect.
+                      // The quarter turn then lays that across the line,
+                      // centred on the same point.
                       width: tile.spineWeight
                       height: capCross.implicitHeight
                       x: capCross.mid - capCross.width / 2
@@ -3359,11 +3351,11 @@ Item {
                         }
                       }
 
-                      // **The lit segment of the spine, and the mark on
-                      // it.** Together they say one thing: *this is the row A
-                      // would act on*. The ground says which row is in force,
-                      // which is a different question and often a different
-                      // row - `Start in` shows both at once.
+                      // **The spine, and the row in force on it.** It says
+                      // *this is the row in force*; the ground says which row
+                      // A would act on, which is a different question and
+                      // often a different row - `Start in` shows both at
+                      // once.
                       //
                       // **The spine**, one row's worth of it. Every row draws
                       // it, so a stack of words reads as a list rather than
@@ -3371,56 +3363,25 @@ Item {
                       // and the row in force lights its own length of it.
                       // Full height and no gap between rows, so the segments
                       // meet and the line is one line.
+                      //
+                      // **The row in force is the slider's needle laid along
+                      // the line**: its length of it three weights wide, one
+                      // either side of the line, solid in the accent. A
+                      // slider says *here* with a figure heavier than
+                      // anything else on its scale, and a card is a stepped
+                      // slider stood up, so it says it the same way - where
+                      // it was a lit hairline bracketed by two strokes, a
+                      // `[` the eye had to assemble. The accent is opaque, so
+                      // it covers the line under it rather than tinting it
+                      // twice.
                       Rectangle {
                         visible: tile.railed
-                        anchors.left: parent.left
+                        x: line.ticked ? -tile.spineWeight : 0
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        width: tile.spineWeight
+                        width: line.ticked
+                          ? tile.spineWeight * 3 : tile.spineWeight
                         color: line.ticked ? Color.accent : root.spineInk
-                      }
-
-                      // **The mark on the line: two strokes, at the row's
-                      // own ends.** They bracket the lit length rather than
-                      // pointing at the middle of it, which is the truer
-                      // thing to say - what is in force on a card is a
-                      // *length* of line, and these are where it starts and
-                      // stops. The line's own weight and a stop's own reach,
-                      // to the right of the line and never across it, so the
-                      // card has one figure on it and no exceptions.
-                      //
-                      // It was a wedge in the middle for four passes, and
-                      // before that a tick at the far end of the row, a radio
-                      // ring at its head, and a pointer. A wedge points, and
-                      // pointing is right when the thing pointed at is beside
-                      // the mark - but the row is not beside it, it is the
-                      // length behind it.
-                      //
-                      // Drawn whether or not the card has been entered: what
-                      // they mark is a *state*, and opaque over whatever the
-                      // row is filled with.
-                      Repeater {
-                        // With the line gone they have nothing to bracket:
-                        // a latching card says which rows are on with the
-                        // key at the head of each, and two marks against the
-                        // card's own edge would be a length measured on a
-                        // line that is not there.
-                        model: line.ticked && tile.railed ? 2 : 0
-
-                        delegate: BadgeArt {
-                          required property int index
-                          x: tile.spineWeight
-                          y: index === 0
-                            ? 0 : line.height - tile.spineWeight
-                          width: tile.markReach
-                          height: implicitHeight
-                          // The one stroke on either drawing that is not a
-                          // cross, so the one with a drawing of its own: two
-                          // units of reach by one of weight, out of one face
-                          // of the line.
-                          drawn: controlArt.find("travel", "side")
-                          fill: Color.accent
-                        }
                       }
 
                       // **The slot at the head of the row**: the row's

@@ -110,6 +110,13 @@ Item {
     id: buttonArt
   }
 
+  // The figures a value's scale is drawn with - the menu's own, because the
+  // scale here is the menu's slider (`Travel.qml`). One per surface: it
+  // cannot be a singleton.
+  ControlArt {
+    id: controlArt
+  }
+
   // The three inks over a card, as Menu.qml measures them (qml.md 8.1.2):
   // the grounds are the menu's, so the levels that read on them are too.
   readonly property real inkMuted: 0.63
@@ -122,10 +129,13 @@ Item {
   // to a solid for Menu.qml's reason - the desktop is behind it.
   readonly property color cellLit:
     Qt.tint(root.cellGround, Util.alpha(Color.accent, 0.20))
-  // The track a value's bar runs along: the cell again, one step towards
-  // the ink, the way the design draws a track under a card.
-  readonly property color track:
-    Qt.tint(root.cellGround, Util.alpha(Color.menu.text, 0.12))
+  // The scale a value is read against, and the run of it the value has
+  // covered: `Menu.qml`'s `spineInk` and `trailInk` written out. The value
+  // here is drawn by the menu's slider, so its inks are a mirrored
+  // measurement (qml.md 8.2.1) and stay off this surface's own numbers.
+  readonly property color spineInk:
+    Util.alpha(Color.menu.text, root.inkDim * 0.35)
+  readonly property color trailInk: Util.alpha(Color.accent, 0.5)
 
   // Stroke weights, which belong to the drawing: the ring is a hairline and
   // the halo round it is the design's four pixels, a rung of the gap ladder.
@@ -544,26 +554,30 @@ Item {
           anchors.verticalCenter: parent.verticalCenter
           spacing: metrics.gap.lg
 
-          // A value's bar: where along its travel it is. The mark lands on
-          // the frame the value changes rather than growing towards it
-          // (qml.md 8.2.4), so nothing here is animated.
-          Rectangle {
-            id: trackBar
+          // A value's scale: where along its travel it is, drawn by the
+          // menu's own slider. It was a rounded trough filling with the
+          // accent - the drawing the menu retired twice over (decisions 65
+          // and 92) - and beside the menu's scale it read as a different
+          // product. The needle lands on the frame the value changes rather
+          // than growing towards it (qml.md 8.2.4), so nothing here is
+          // animated.
+          //
+          // Continuous, and never taken: a `live:` number is all that draws
+          // one here (a `pad:` setting names its own scale in words), and a
+          // nudge on the row writes straight through - there is no press in
+          // progress, so nothing for the ghost to mark.
+          Travel {
+            id: bandTravel
             visible: bandCard.hasBar
             width: parent.width
-            height: metrics.gap.md
-            radius: height / 2
-            color: root.track
-
-            Rectangle {
-              anchors.left: parent.left
-              anchors.top: parent.top
-              anchors.bottom: parent.bottom
-              width: Math.round(parent.width
-                * Math.max(0, Math.min(1, Number(root.band.v) || 0)))
-              radius: parent.radius
-              color: Color.accent
-            }
+            height: bandTravel.implicitHeight
+            ladder: metrics
+            art: controlArt
+            value: Math.max(0, Math.min(1, Number(root.band.v) || 0))
+            ink: root.spineInk
+            trail: root.trailInk
+            ghost: root.trailInk
+            mark: Color.accent
           }
 
           Text {

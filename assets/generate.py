@@ -293,6 +293,16 @@ CONTROLS_TO_DRAW = (
     ("dial", "pointer", "dial-pointer.svg"),
     ("dial", "notch", "dial-notch.svg"),
     ("dial", "end", "dial-end.svg"),
+    # **A stepped ring prints its places as detents**, not as the notches a
+    # continuous one prints every five in a hundred: a place to stand is a
+    # bigger claim than a graduation, and three notches round a list of
+    # three read as a scale somebody forgot to finish. A detent is the end
+    # baton two thirds as long, open-footed the same way; one the value has
+    # stood on is filled, and so is an end, the way the index is the baton
+    # filled. The same four figures stand on a stepped travel.
+    ("dial", "end-lit", "dial-end-lit.svg"),
+    ("dial", "detent", "dial-detent.svg"),
+    ("dial", "detent-lit", "dial-detent-lit.svg"),
     ("switch", "body", "switch-body.svg"),
     ("switch", "knob", "switch-knob.svg"),
     ("chev", "left", "chev-left.svg"),
@@ -301,36 +311,40 @@ CONTROLS_TO_DRAW = (
     ("media", "pause", "media-pause.svg"),
     ("media", "next", "media-next.svg"),
     ("media", "prev", "media-prev.svg"),
-    # **The strokes on a line, and there are four because there are two
-    # questions.** How far it reaches - a stop's reach, or the longer one the
-    # two ends of a travel take - and whether the line runs *through* it.
-    #
-    # The second is the one that could not be drawn while these were
-    # rectangles, and it is not tidiness: every ink on these surfaces is the
-    # theme's own at a share of itself, so a square painted twice is a square
-    # painted brighter. A stroke the line passes under is two arms with the
-    # line's own weight of air between them; a stroke the line stops at, or
-    # one the value has taken in the accent, owns every pixel it stands on
-    # and is drawn whole. Both readings shipped as one solid bar, and the
-    # middle stops of a stepped travel were the pixel that showed it.
-    #
-    # **Drawn standing, on ten units of line weight**, so the figure is the
-    # panel's own `spine.weight` across and a whole number of them tall - 5
-    # for a stop and 7 for an end. That is where `Metrics.spine`'s `cross` and
-    # `crossEnd` come from now: the drawing owns the proportion, the ladder
-    # owns the weight, and the two cannot disagree at a scale nobody drew at.
-    # A card of rows is the same line stood up, so it turns these a quarter
-    # rather than drawing its own.
-    ("travel", "end", "travel-end.svg"),
+    # **The knob's scale, unrolled** - the T 1000's tuning scale to its
+    # bandspread knob. Each figure is one the ring already has, rounded to
+    # whole line weights because a straight figure lands on pixels where a
+    # turned one never can: a graduation is `dial-notch`, an end is
+    # `dial-end` with its foot left open for the line to close, a detent is
+    # `dial-detent`, and the needle is the index - the one solid figure,
+    # three weights across, and taller than an end so that a value at either
+    # end of its range is still drawn rather than hidden in the end's
+    # outline. The ghost is the needle's tail alone, left under the line
+    # where a press found the value: under the line nothing else is printed,
+    # so it never lands on a graduation or an end. It is as wide as the
+    # figure it was found on - three weights under an end or a detent, one
+    # under a graduation - so there are two of it.
+    # **The card of rows keeps its own cap**: one at each end, which the
+    # line carries on through, with the line's own weight of air between its
+    # two arms - every ink on these surfaces is the theme's own at a share of
+    # itself, so a bar run through the line would light that square twice.
+    # Eleven weights across: a slider's end is twelve, and eleven is the
+    # nearest length that keeps the two arms equal round the line.
     ("travel", "end-open", "travel-end-open.svg"),
-    ("travel", "mark", "travel-mark.svg"),
-    ("travel", "stop", "travel-stop.svg"),
-    # The one stroke that is not a cross: the pair that bracket the row in
-    # force on a card, out of one face of the line and never across it,
-    # because what they mark is the length *behind* them. Two units of reach
-    # by one of weight - a stop's own reach, so a card's marks and a travel's
-    # are one size.
-    ("travel", "side", "travel-side.svg"),
+    #
+    # **Drawn standing, on ten units of line weight**, so each figure is a
+    # whole number of the panel's own `spine.weight` on both sides and lands
+    # on whole pixels at every scale there is. How far the needle hangs below
+    # the line is `Travel.qml`'s, because it is where the drawing is hung
+    # rather than what it is.
+    ("travel", "notch", "travel-notch.svg"),
+    ("travel", "end", "travel-end.svg"),
+    ("travel", "end-lit", "travel-end-lit.svg"),
+    ("travel", "detent", "travel-detent.svg"),
+    ("travel", "detent-lit", "travel-detent-lit.svg"),
+    ("travel", "needle", "travel-needle.svg"),
+    ("travel", "ghost", "travel-ghost.svg"),
+    ("travel", "ghost-thin", "travel-ghost-thin.svg"),
     # **The key at the head of a latching row, and its window.** A bank of
     # switches has no one row to point at, so what says a row is on has to be
     # on the row: the slot is drawn empty and the state is a thing that is

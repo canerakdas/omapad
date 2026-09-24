@@ -67,8 +67,10 @@ and the id of a tile pressed once that wants a second press (`armed`).
   a switch.
 - `band` is the tile in front, worded: `l` its name, `w` its value, `t` the
   line under it (`quick.ARMED` while it waits for a second press), `v` where
-  a `live:` number is along its travel. A `pad:` number prints its words and
-  draws no bar - the setting already names its own scale.
+  a `live:` number is along its travel, which the panel draws with the
+  menu's own slider (`Travel.qml`) - a scale with a needle, continuous and
+  never taken, so no ghost. A `pad:` number prints its words and draws no
+  scale - the setting already names its own.
 - `head` is `k` the mode and `t` the window's title, through `drawable()`: a
   title is typed by whatever owns the window.
 - `keys` is the legend, built from `[bindings.quick]` like the menu's is from

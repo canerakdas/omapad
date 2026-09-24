@@ -598,6 +598,14 @@ class Daemon:
         # A change the short push carried, so the surface still owes itself a
         # rebuild when the hand comes off.
         self._menu_quiet = False
+        # Whether the push under way has already sent the whole surface once,
+        # and which control it is moving. The first step of a push goes out
+        # whole - it is what puts the ghost on the line - and every step after
+        # it rides the short push until the push settles. See `menu_adjust`.
+        self._menu_streaming = False
+        self._menu_stream_item = None
+        # Whether the push under way has already been felt. See `menu_feel`.
+        self._menu_felt = False
         # When the next gauge frame is due, and the last one sent. The floats
         # are quantised and compared so a thumb resting off the stick stops
         # the stream entirely rather than pushing ADC jitter at a screen
@@ -2799,6 +2807,15 @@ class Daemon:
         # same four buttons, and a row that jumped an inch up the screen would
         # read as a different row.
         state["barh"] = self.config.gamebar_height
+        # **And what the short push last said, restated.** The panel keeps the
+        # last `live` it was sent until another replaces it, and the stream
+        # goes silent when nothing is turning - so a control let go of went on
+        # wearing its streamed number over the value the whole surface now
+        # carries. After a B that put the value back, that number was wrong.
+        # Empty where nothing streams, which is what ends it.
+        live = self.menu_live()
+        state["live"] = live or {}
+        self._menu_live_last = live
         self.menu_client.send(self.scaled(state))
 
     def menu_head_refresh(self):
@@ -3642,8 +3659,20 @@ class Daemon:
         the clock: what a value is called is a wording decision, and the panel
         has no minimum, maximum or unit to spell one with.
         """
-        held = self.menu.held
-        if held is None or held["control"] != menu_module.KNOB:
+        return self.menu_stream_fields(self.menu.held or self._menu_stream_item)
+
+    def menu_stream_fields(self, held):
+        """`hid`, `hv` and `ht` for a control, or {} where it does not stream.
+
+        A continuous knob or slider. **A slider streams too**, for the knob's
+        reason arriving by another road: a held direction repeats every tenth
+        of a second and faster, a trigger sweeps at frame rate, and a full
+        push per step rebuilt every tile on the page to move one needle - the
+        panel fell behind the hand, and the value went on climbing after the
+        thumb had come off.
+        """
+        if held is None or held["control"] not in (menu_module.KNOB,
+                                                   "slider"):
             return {}
         spec, value = self.menu_reads(held)
         if spec is None or value is None:
@@ -3724,7 +3753,8 @@ class Daemon:
         else:
             way = "down" if y > 0 else "up"
         held = self._focus_held.get(("menu", stick))
-        if held is None or held[0] != way:
+        fresh = held is None or held[0] != way
+        if fresh:
             # Third slot: how long this direction has been held, which is what
             # the walk accelerates against. A reversal starts a new entry and
             # so starts it again - somebody who went too far is not somebody
@@ -3741,7 +3771,7 @@ class Daemon:
                              self.config.traverse_repeat_ramp,
                              self.config.traverse_repeat_ramp_time,
                              held[2])
-        self.menu_command(way)
+        self.menu_command(way, repeat=not fresh)
 
     def menu_take(self):
         """A on a control with a range: both axes become the tile's.
@@ -3835,26 +3865,36 @@ class Daemon:
         return max(1, int(round(1.0 + (ramp - 1.0) * share)))
 
     def menu_feel(self, direction):
-        """The motor, answering a push on the side the push was made.
+        """The motor, answering the first step of a push on the side it went.
 
         **The hand that moved it is the hand that feels it.** A pad wires its
         low-frequency motor on the left and its high-frequency one on the
         right, so a value taken to the right buzzes on the right - which is
-        the one thing the motor can say that the screen cannot say faster,
-        and the only thing a hand pushing a control is asking about.
+        the one thing the motor can say that the screen cannot say faster.
 
-        One level rather than a scale. A hum that rose with the distance from
+        **Once per push, not for the length of it.** It was held for as long
+        as the control moved, and a direction held down a slider was a buzz
+        for the whole of the hold: *titreşim çok fazla oluyor basılı tutunca*.
+        What a hand asks the motor is whether the push landed, and the first
+        step answers that; after it the screen is showing the needle move, and
+        a motor that kept saying so was the scheme `texture` shipped off for
+        in the first place. So the first step starts it, every later step of
+        the same push stops it, and `menu_settle` ends it for a tap. A trigger
+        sweep never starts it (`menu_sweep`), and the end of the travel is
+        `menu_edge`'s one bump.
+
+        One level rather than a scale: a hum that rose with the distance from
         where a push began was a second reading of a number the tile is
-        already printing, and a control being pushed wants *the push landed*
-        rather than a measurement.
+        already printing.
 
-        **A range is the only thing it answers**, which is why there is a
-        direction to take at all. A list walked up and down had this too for a
-        while, on the left motor because that is the thumb the D-pad is under
-        - but one motor for both ways is a buzz that says something moved
-        without saying which, and that is the scheme this effect shipped off
-        for. What a step of a selection gets is the sound.
+        **A range is the only thing it answers.** A list walked up and down
+        has one motor for both ways, which is a buzz that says something moved
+        without saying which; what a step of a selection gets is the sound.
         """
+        if self._menu_felt:
+            self.rumble.stop("texture")
+            return
+        self._menu_felt = True
         self.rumble.aim("texture", "right" if direction > 0 else "left")
 
     def menu_adjust(self, item, direction, steps=None, to=None, quiet=False,
@@ -3886,6 +3926,19 @@ class Daemon:
         says once.
         """
         source, name = item["reads"]
+        if not quiet and self.menu_stream_fields(item):
+            # **The first step of a push goes out whole; the rest ride the
+            # short push.** Whole, because that is the line that carries `b`
+            # and puts the ghost where the value was found. After it, a held
+            # direction or a pulled trigger steps faster than the panel can
+            # rebuild a page of tiles, and a rebuild per step left the needle
+            # climbing after the thumb had come off. `menu_settle` sends the
+            # whole surface once the push has stopped.
+            if self._menu_streaming:
+                quiet = True
+                self._menu_stream_item = item
+            else:
+                self._menu_streaming = True
         if steps is None and to is None:
             steps = self.menu_ramp((item["id"], direction))
             if source == "pad" and CHOSEN.get(name, {}).get("stops") \
@@ -3999,10 +4052,11 @@ class Daemon:
         return (float(spec["max"]) - float(spec["min"]), float(spec["step"]))
 
     def menu_edge(self):
-        """The end of a control's travel, announced once per arrival.
+        """The end of a control's travel, announced once per press.
 
         A wall you are still pushing against is still one wall, so the tick
-        fires on the step that first found it and not on the twenty after.
+        fires on the step that first found it and not on the twenty repeats
+        after. A fresh press clears it (`menu_command`).
         """
         if self._menu_edged:
             return
@@ -4063,7 +4117,10 @@ class Daemon:
             return
         self._menu_sweep -= steps * step
         direction = 1 if steps > 0 else -1
-        self.menu_adjust(item, direction, abs(steps))
+        # Unfelt: a pull is a motion held for as long as the trigger is in,
+        # and a motor running for all of it is the buzz `menu_feel` stopped
+        # answering a held direction with. The end of the travel still bumps.
+        self.menu_adjust(item, direction, abs(steps), feel=False)
 
     def menu_turning(self):
         """The knob being held, or None. What diverts the stick to an angle."""
@@ -4379,6 +4436,14 @@ class Daemon:
         self._menu_moving = 0.0
         self._menu_way = None
         self._menu_sweep = 0.0
+        # The push is over, so the next step is the first of a new one - and
+        # a control nobody holds stops streaming before the rebuild below, so
+        # that push says so (`push_menu_view` carries the stream's state).
+        self._menu_streaming = False
+        self._menu_stream_item = None
+        self._menu_felt = False
+        # Whether the push under way has already been felt. See `menu_feel`.
+        self._menu_felt = False
         # The level the hand let go on, whether or not its interval had run.
         # A coalescer that drops the last write is a dial that stops a step
         # short of where it was put.
@@ -4497,8 +4562,18 @@ class Daemon:
             self.say("move", rumble=False)
         self.push_menu_view()
 
-    def menu_command(self, command):
-        """Drive the menu. True when holding the button should keep firing."""
+    def menu_command(self, command, repeat=False):
+        """Drive the menu. True when holding the button should keep firing.
+
+        `repeat` is a held button or a held stick firing again. **A fresh
+        press may find the end of the travel again; a held one found it once
+        and says so once** - `quick_command`'s rule, and `menu_edge` is what
+        it guards. The wall was only forgotten when a value moved, so a card
+        of rows bumped at its top the first time and never again: walking a
+        list moves a selection, not a value, and nothing cleared it.
+        """
+        if not repeat:
+            self._menu_edged = False
         if command == "toggle":
             self.set_menu(not self.menu_open)
             return False

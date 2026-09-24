@@ -2001,7 +2001,7 @@ buzz at another length:
 | **tick** | a press landed | the two standing jobs above |
 | **edge** | you cannot go further | a control at the end of its range, the rim of the menu grid |
 | **commit** | that took | a switch flipped, a choice walked on |
-| **texture** | which way you just pushed | held under a thumb while a control is moving |
+| **texture** | which way you just pushed | once, on the first step of a push - not for as long as it is held |
 
 How hard and how long each one is are settings; the *waveform* is not. A square
 wave is what makes an edge feel like an edge, and turning that into a knob is
@@ -2083,9 +2083,8 @@ same place — and softer and shorter besides, because leaving is the smaller
 event. A press still ticks the hands either way; only the room is told which
 of the two it was.
 
-`texture` goes the other way and has no sound at all: a hum a motor can hold
-under a thumb for a second and a half becomes the loudest thing in the room
-coming out of a speaker.
+`texture` goes the other way and has no sound at all: a hum under a thumb
+becomes the loudest thing in the room coming out of a speaker.
 
 The five files ship beside the plugin and are **generated, not recorded** —
 `python3 assets/sounds.py` writes them from a table of about eighty lines, so

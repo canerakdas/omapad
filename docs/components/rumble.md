@@ -26,7 +26,7 @@ Four words, uploaded once at `attach()`, in `VOCABULARY`:
 | `tick` | a press landed | `FF_RUMBLE` | a binding's `rumble`, `[snap] rumble`, `[mode] rumble`, the confirmation countdown, the stopwatch's minute mark |
 | `edge` | you cannot go further | `FF_SQUARE`, two cycles | a control at its end, the grid's rim, a transport direction the player says is closed |
 | `commit` | that took | `FF_TRIANGLE`, one cycle | a switch flipped, a choice walked, a tile picked up or put down |
-| `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** while a control is being *pushed*, **stopped** when it stops |
+| `texture` | the push landed, on this side | `FF_RUMBLE`, `replay.length = 0` | **aimed** on the first step of a push, **stopped** by the next step of the same push or when the push settles |
 
 **The waveform is not a setting.** A square wave is what makes an edge feel
 like an edge, and making it configurable is offering to turn a bump into a
@@ -77,6 +77,16 @@ something happening underneath one, and because a level that cannot change
 while the thumb moves is not a level. The write is skipped where the
 magnitudes have not changed, which is most steps of a held repeat.
 
+**Once per push, not for the length of it.** It was held for as long as the
+control moved, and a direction held down a slider was a buzz for the whole of
+the hold - *titreşim çok fazla oluyor basılı tutunca*. What a hand asks the
+motor is whether the push landed, and the first step answers that; after it the
+needle on screen is saying the rest. So the first step of a push aims it, the
+next step of the same push stops it, and `menu_settle` ends it for a tap - a
+tap is felt for the length of `MENU_SCRUB_HOLD`. A trigger sweep never starts
+it: a pull is a motion held for as long as the trigger is in, the same buzz one
+road along. `edge` still bumps once at the end of the travel.
+
 **It ships on now** (`[rumble] texture = true`), where it shipped off, and it
 needs no waveform a pad might not have - so every pad that rumbles at all can
 say it. Roadmap 17's rule - *a scheme where every press buzzes says nothing* -
@@ -87,9 +97,8 @@ the pad that answers a direction.
 **Nothing buzzes on a plain move.** Not a tile to the next tile, not a chip to
 the next chip, not a row to the next row inside a card. `[snap] rumble`'s comment is the older half of the same rule -
 *a step that repeats while it is held would buzz all the way down a list* -
-which is also why a scrubbing control does not tick per step: it holds one
-continuous `texture`, aims it at how far the value has come, and stops it when
-the direction is let go. A *pointed-at* control holds none at all, for the
+which is also why a scrubbing control does not tick per step: it is felt once,
+on the first step of the push, and not again until the push has stopped. A *pointed-at* control holds none at all, for the
 reason above.
 
 **And that is one of the two places the speakers say something the motor

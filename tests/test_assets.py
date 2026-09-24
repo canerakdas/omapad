@@ -286,23 +286,25 @@ class EveryControlIsDrawn(unittest.TestCase):
         # marks there are is the panel's for the same reason: a knob reading a
         # list of three has three where one reading a ladder of six has six,
         # and a continuous one twenty-one, one every five in a hundred.
-        "knob": ("dial:cap", "dial:pointer", "dial:notch", "dial:end"),
+        "knob": ("dial:cap", "dial:pointer", "dial:notch", "dial:end",
+                 "dial:end-lit", "dial:detent", "dial:detent-lit"),
         "toggle": ("switch:body", "switch:knob"),
         "choice": ("chev:left", "chev:right"),
-        # **The strokes on the line, not the line.** The line itself is as
-        # long as the tile it sits in and a drawn shape cannot stretch - that
-        # part is still geometry, and always was. What stands *on* it is four
-        # drawings: how far a stroke reaches is two of them, and whether the
-        # line runs through it or stops at it is the other two. A stepped
-        # travel needs all three of these; the fourth (`end-open`) is the
-        # card's, below.
-        "slider": ("travel:end", "travel:stop", "travel:mark"),
+        # **The knob's scale, unrolled.** The line itself is as long as the
+        # tile it sits in and a drawn shape cannot stretch - that part is
+        # still geometry. What stands on it is the ring's figures at whole
+        # line weights: a graduation, an end and a detent, the two that are
+        # filled once the value has stood on them, the needle, and the
+        # needle's tail under the line where a press found the value - as wide
+        # as the figure it was found on, so two of it.
+        "slider": ("travel:notch", "travel:end", "travel:end-lit",
+                   "travel:detent", "travel:detent-lit", "travel:needle",
+                   "travel:ghost", "travel:ghost-thin"),
         "media": ("media:play", "media:pause", "media:next", "media:prev"),
-        # The slider's line with nothing to stand on it: a reading has no
-        # stops, because what it answers is how far along a scale it has got
-        # and the scale is the machine's rather than a list of places somebody
-        # chose. So the two ends and the mark, and no `stop`.
-        "readout": ("travel:end", "travel:mark"),
+        # Words and nothing else. A reading drew the slider's line under
+        # itself once, on a card nothing can push, and read as a control that
+        # had lost its thumb.
+        "readout": (),
         # Nothing, and it reached for art three times to get here. A tick at
         # the far end of the row said nothing - a mark with no second state,
         # at the opposite end of the card from the words it is about. A radio
@@ -319,18 +321,17 @@ class EveryControlIsDrawn(unittest.TestCase):
         # the slider's track argument one shape along: a rectangle as tall as
         # whatever it is drawn on, which no drawing can be.
         #
-        # **The card is the travel stood up**, so what stands on its line is
-        # the travel's own drawing turned a quarter: `end-open` at both ends,
-        # where the line carries on past the crossing, and `side` for the two
-        # marks that bracket the row in force - the one stroke on either
-        # drawing that leaves the line on one side, because what it marks is
-        # the length behind it.
+        # What stands on the card's line is its cap turned a quarter,
+        # `end-open` at both ends, where the line carries on past the
+        # crossing. The row in force is the line itself drawn three weights
+        # wide, which is geometry rather than a drawing: it is as long as the
+        # row.
         #
         # And the key, where the card latches: a bank of switches has no one
         # row to point at, so the state is drawn on the row. Two drawings
         # rather than a fill switched, because the ring and the window are
         # painted in two colours.
-        "rows": ("travel:end-open", "travel:side", "key:ring", "key:lit"),
+        "rows": ("travel:end-open", "key:ring", "key:lit"),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark
@@ -484,6 +485,13 @@ class DialsShareTheClocksWeights(unittest.TestCase):
         self.assertEqual(end, baton)
         pointer = self.half_widths("dial-pointer.svg", lambda y: True)
         self.assertEqual(pointer, baton[-1:])
+        # A detent is the end shortened, and a place stood on is either of
+        # them filled - the index's reason.
+        self.assertEqual(self.half_widths("dial-detent.svg", lambda y: True),
+                         baton)
+        for filled in ("dial-end-lit.svg", "dial-detent-lit.svg"):
+            self.assertEqual(self.half_widths(filled, lambda y: True),
+                             baton[-1:])
 
 
 class ShapesSitOnTheGrid(unittest.TestCase):
@@ -507,7 +515,7 @@ class ShapesSitOnTheGrid(unittest.TestCase):
     # **The figures that turn are exempt, and it is the rule rather than a
     # hole in it.** What this test is about is a straight run landing on half
     # a pixel and being painted grey instead of drawn; a hand, a sweep, a
-    # register's hand, a knob's pointer and the notch under a stop are all
+    # register's hand, a knob's pointer, its notches, ends and detents are all
     # drawn standing at twelve and then rotated to wherever a number puts
     # them, so their long edges are parallel to an axis at four angles out of
     # a full turn and antialiased at every other one. Holding them to the
@@ -517,7 +525,8 @@ class ShapesSitOnTheGrid(unittest.TestCase):
     # is the one thing two hands on one face may not be.
     TURNS = ("clock-hour.svg", "clock-minute.svg", "clock-sweep.svg",
              "clock-register-hand.svg", "dial-pointer.svg", "dial-notch.svg",
-             "dial-end.svg")
+             "dial-end.svg", "dial-end-lit.svg", "dial-detent.svg",
+             "dial-detent-lit.svg")
 
     # **And the dial's furniture, because nothing snaps the box it is drawn
     # in.** The rule holds for a badge because `Metrics.badge` rounds the unit
@@ -576,11 +585,11 @@ class ShapesFitTheBadgeGrid(unittest.TestCase):
     # twice.** What the grid is for is a box a *surface* reserves: it rounds
     # `unit * w / h` and BadgeArt then scales by that rounded width, so the
     # aspect has to survive the rounding. Nothing reserves a box for these.
-    # A travel hands the figure the line's own weight and takes the height the
-    # drawing asks for, which is that weight times a whole number - five for a
-    # stop, seven for an end - so the box is whole pixels on both sides at
-    # every scale there is, and `Metrics.spine` reads its two reaches back off
-    # these drawings rather than rounding its own.
+    # A travel hands a figure a whole number of line weights across and takes
+    # the height the drawing asks for, which is a whole number of them too -
+    # so the box is whole pixels on both sides at every scale there is, and
+    # `Metrics.spine` reads its two reaches back off these drawings rather
+    # than rounding its own.
     SIZED_BY_THE_LINE = "travel-"
 
     def test_the_grid_divides_every_shape_s_aspect(self):
@@ -594,17 +603,15 @@ class ShapesFitTheBadgeGrid(unittest.TestCase):
                 continue
             if name.startswith(self.SIZED_BY_THE_LINE):
                 # And the one thing that does have to hold: a figure sized
-                # from the line is only whole on both sides while its aspect
-                # is a whole number of line weights.
+                # from the line is only whole on both sides while both sides
+                # are a whole number of line weights - ten units each.
                 shape = generate.Shape(os.path.join(generate.SHAPES, name))
-                ratio = max(shape.width, shape.height) / min(shape.width,
-                                                             shape.height)
                 self.assertEqual(
-                    ratio, round(ratio),
-                    "%s is %g by %g: a stroke is handed the line's own weight "
-                    "and takes the height its aspect asks for, so an aspect "
-                    "that is not a whole number of them lands off its box"
-                    % (name, shape.width, shape.height))
+                    (shape.width % 10, shape.height % 10), (0, 0),
+                    "%s is %g by %g: a stroke is handed a whole number of "
+                    "line weights and takes the height its aspect asks for, "
+                    "so a side that is not a whole number of them lands off "
+                    "its box" % (name, shape.width, shape.height))
                 continue
             shape = generate.Shape(os.path.join(generate.SHAPES, name))
             self.assertEqual(

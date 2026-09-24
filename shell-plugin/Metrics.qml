@@ -158,57 +158,29 @@ QtObject {
   //
   // **One line, drawn at two rotations.** Down the side of a card of rows,
   // where the row in force lights its own length of it and two marks bracket
-  // that length; and along the foot of a slider, a stepped slider and a
-  // reading, where the value stands on one mark of its own (`Travel.qml`). They are one drawing, so the
-  // measurements in it are named once here rather than twice in two surfaces
-  // - two copies of a stroke weight is how two drawings of one thing quietly
-  // stop matching, and this one is drawn on two surfaces at once.
+  // that length; and along the foot of a slider, where it is the scale a
+  // needle runs across (`Travel.qml`). The weight is named once here rather
+  // than twice in two surfaces - two copies of a stroke weight is how two
+  // drawings of one thing quietly stop matching. What stands on the line is
+  // each drawing's own: a slider's figures are the knob's, unrolled, and a
+  // card keeps its crosses and draws its row in force three weights wide.
   //
   // **Off the size ladder, the way every stroke weight is** (qml.md 8.2.1): a
   // line is structure rather than a gap between two things. The weight is two
-  // pixels at this surface's scale, the run past the ends is that weight
-  // stepped by `silver` - the smallest amount this tree has a name for - and
-  // the two reaches are whole multiples of it, because the strokes that
-  // stand on the line are drawings and a drawing owns its own proportion.
+  // pixels at this surface's scale, and the run past a card's ends is that
+  // weight stepped by `silver` - the smallest amount this tree has a name
+  // for. How far anything standing on the line reaches is its drawing's
+  // (`travel-*.svg`, a whole number of weights on every side), because a
+  // drawing owns its own proportion.
   readonly property QtObject spine: QtObject {
     id: spine
 
     // The line itself.
     readonly property int weight: Math.max(1, metrics.space(2))
-    // How far the line carries on past what it measures, at either end - a
+    // How far a card's line carries on past its first row and its last - a
     // line that began exactly at the first row's edge began nowhere: it read
     // as the edge of the ground behind it rather than as a thing of its own.
-    // The same run of bare line goes before the first stop of a travel and
-    // after its last, so both drawings start the same way.
     readonly property int arm: Math.round(spine.weight * metrics.silver)
-    // **One stroke crosses the line, and it is the only mark either drawing
-    // has**: the cap at each end of the line, a stop a stepped value may
-    // stand on, and the place the value has got to. This is how far it
-    // reaches on **each** side, so the two halves are equal and the figure is
-    // a cross rather than a tick hanging off one face.
-    //
-    // **The drawings own these two numbers now** (`travel-*.svg`), which is
-    // the one place on this ladder a rung is read off a shape. A stroke is
-    // drawn ten units of line weight across and a whole number of them tall -
-    // five for a stop, seven for an end - so a figure handed a box of
-    // `weight` by `weight * 5` lands exactly on it at every scale there is,
-    // and the air between its two arms is exactly the line that runs through
-    // it. Rounded off the silver ladder they were 4 and 6 at this surface's
-    // own scale, which is what these say, and 5 and 7 at half as much again -
-    // a drawing scaled into that box would stand a fraction of a pixel off it
-    // and be painted grey.
-    //
-    // What that buys is the whole of why the strokes are drawings: the ladder
-    // could say how long a mark is, and it could not say whether the line
-    // runs through it.
-    readonly property int cross: spine.weight * 2
-    // And how far the two that **end** a travel reach. An instrument of one
-    // stroke weight has only length to tell one kind of mark from another,
-    // and the two kinds here are *this is as far as it goes* and *this is a
-    // place it can stand* - which is half a stop's reach again. It was the
-    // whole silver step for a pass and read as two marks of two different
-    // sizes rather than one scale.
-    readonly property int crossEnd: spine.weight * 3
   }
 
   // -- the durations --------------------------------------------------------

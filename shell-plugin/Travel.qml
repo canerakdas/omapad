@@ -1,54 +1,49 @@
-// Where along something a number is, drawn as a line.
+// Where along something a number is, drawn as a scale with a needle on it.
 //
-// Three tiles ask that question and it is one question: a slider being
-// pushed, a slider with places to stand rather than a distance to cover, and
-// a reading the machine keeps answering. The menu draws all three and the HUD
-// draws the last of them, and a page of readings has to read the same in both
-// places it appears - so this is one file rather than two drawings that look
-// alike. The menu's legend is the standing exception to that (qml.md 8.2.1)
-// and it is one because the row it mirrors belongs to another surface's
-// ladder; this belongs to the same ladder in both places it is drawn.
+// Two tiles ask that question and it is one question: a slider being pushed,
+// and a slider with places to stand rather than a distance to cover. A
+// reading asked it too, once, and was drawn here for as long as it did: a
+// number the machine keeps answering drew a control's line under itself, on
+// a page where nothing could push it, and read as a slider that had lost its
+// thumb. A reading is words now, on both surfaces that draw one.
 //
-// **It is the row card's spine, turned on its side.** A stack of rows with a
-// length of line lit beside the one in force and a mark standing on it *is* a
-// vertical slider, and for as long as there were two drawings they were drawn
-// to two rules: a two-pixel line with a mark on it down one card, a rounded
-// eight-pixel trough along the foot of the next. The line won because a card
-// that draws one kind of line is a card read once, and because the trough was
-// a container drawn round a value that is not a quantity of anything.
+// **It is the knob's scale, unrolled** - `Knob.qml` is the T 1000's
+// bandspread control, and this is the same radio's tuning scale: a printed
+// scale along a hairline and a needle that runs across it. The first drawing
+// here was the row card's spine turned on its side, a line with crosses on
+// it, and beside a knob on one page it was the plainer of two drawings of one
+// value: no scale where the ring printed one, the value's cross hidden inside
+// the end's at nought and at a hundred, and one weight for every stroke where
+// the ring's index is plainly the heaviest thing on it. So every figure on
+// this line is now one the ring already has, and what is left of the spine
+// is its weight.
 //
-// **Nothing fills, and the line behind the value is still a line.** A bar
-// filled to the value draws a number as mass, which is a second answer to
-// what the figure at the top of the card already says in words - and on a
-// stepped control it was mass that disagreed with the word, sitting four
-// pixels along from where the last press left it. What is drawn in the accent
-// is where the value *is*: one stroke across the line at that place, with the
-// run behind it saying how far it has come.
+// **What it takes from the ring**, and why the line agrees with it:
 //
-// The mark alone was not enough, though, and the screen said so: a press
-// moves it by a few pixels, and a few pixels is not a change anybody sees
-// from a sofa. So the line **behind** the value is drawn in too. A line with
-// stops fills it in the accent and a line without them tints it at half -
-// two different claims rather than two strengths of one: a stop is a place
-// the value has *stood on*, and a continuous value has been at every point
-// behind it and stood at none.
+// - **Its scale is printed.** A continuous line prints a graduation every
+//   five in a hundred, the ring's twenty-one; a stepped one prints one
+//   detent per place it can stand and nothing between them. The two differ
+//   by exactly what the two controls differ by.
+// - **An end is a baton in outline with its foot open**, and the line closes
+//   it, the way the ring's arc closes `dial-end`.
+// - **A place stood on is filled in.** A detent the value has reached, and
+//   an end, are drawn solid in the accent - a stop is a place the value has
+//   *stood on*. A continuous value has been at every point behind it and
+//   stood at none, so its run and its graduations are tinted at half.
+// - **Nothing fills; the run behind the value is still a line.** A bar filled
+//   to the value is a second answer to what the figure at the top of the
+//   card already says in words. What makes a press visible is the length of
+//   line behind the needle changing under the thumb.
 //
-// **One stroke, and everything on the line is it**: the mark at each end, a
-// stop a stepped value may stand on, and the value's own place. Four drawings
-// of it (`travel-*.svg`), because one stroke answers two questions - how far
-// it reaches, and whether the line runs through it or stops at it - and the
-// second of those is a gap the drawing owns rather than a sum here. Equal
-// reach either side of the line, so the figure is a cross and says *here*
-// rather than pointing anywhere - the row card's own mark leaves the line on
-// one side because there is a row beside it to point at, and along the foot
-// of a card there is nothing.
-// A stepped travel and a continuous one then differ by exactly what the two
-// controls differ by, which is whether the line has places printed on it.
+// **What it does not take**, because a line is not a ring:
 //
-// **The line runs on past the travel at both ends**, as it runs past the
-// first row and the last one of a card: the cap is out at the end of the
-// line and the value's range starts an arm inside it, so there is a run of
-// bare line before anything on it begins.
+// - **The needle crosses the line** rather than pointing from a middle it
+//   does not have, and it is taller than an end, so a value at nought or at
+//   a hundred is drawn rather than hidden inside the end's outline.
+// - **Where the value was taken is drawn.** A ring would need a second
+//   figure out of the same middle, and two of those are a clock; a line has
+//   room under it, where nothing else is printed, for a stub the size of the
+//   needle's tail - and the gap between the two is what the press did.
 //
 // Nothing here decides anything: the caller hands it the ladder, the value,
 // and how many places the value has.
@@ -65,10 +60,10 @@ Item {
   // reads through rather than a type it has anything to say about.
   property var ladder: null
 
-  // The generated strokes, handed in rather than built here. `ControlArt`
+  // The generated figures, handed in rather than built here. `ControlArt`
   // cannot be a `pragma Singleton` - it does not register from a plugin
   // directory - so a copy built in this file would be a copy per slider on
-  // the page, and both surfaces that draw one already have one to lend. A
+  // the page, and the surface that draws one already has one to lend. A
   // travel handed none draws its line and nothing on it.
   property var art: null
 
@@ -83,271 +78,253 @@ Item {
   // **Where the value stood when it was taken**, 0 to 1, or negative for a
   // control nobody is holding. A press moves a slider by a step and a step is
   // a few pixels, so the one question a hand asks while it pushes - *what
-  // have I done to this* - is answered by a mark that has barely moved. What
-  // answers it is a second mark, faint, left where the value was found.
+  // have I done to this* - is answered by a faint stub under the line, left
+  // where the value was found.
   property real was: -1
 
-  // The line, the part of it the value has already covered, and the mark. All
-  // three are the caller's: this file names no colour, for qml.md 8.1's
-  // reason. All three are also required - a travel drawn with any of them
+  // The scale, the part of it the value has already covered, and the needle.
+  // All of them the caller's: this file names no colour, for qml.md 8.1's
+  // reason. All of them are also required - a travel drawn with any of them
   // missing is a card with an empty foot and nothing in any log about it,
   // which is what `tests/test_shell_plugin.py` checks the call sites for.
   property color ink: "transparent"
   property color trail: "transparent"
   property color mark: "transparent"
-  // And what the length a press has just changed is drawn in - see `was`.
+  // And what the needle a press left behind is drawn in - see `was`.
   property color ghost: "transparent"
 
-  // The motif's measurements, all of them the ladder's `spine` - one
-  // definition for the line drawn down a card of rows and the line drawn
-  // along the foot of a slider, because two copies of a stroke weight is how
-  // two drawings of one thing quietly stop matching.
+  // The line's weight is the ladder's `spine`, the one number the row
+  // card's line and this one still share. Every figure is a whole number of
+  // it on both sides (`travel-*.svg`), so a figure handed a box `weight`
+  // wide times its own count lands on whole pixels at every scale.
   readonly property int weight: travel.ladder ? travel.ladder.spine.weight : 1
-  readonly property int arm: travel.ladder ? travel.ladder.spine.arm : 0
-  readonly property int cross: travel.ladder ? travel.ladder.spine.cross : 0
-  readonly property int crossEnd:
-    travel.ladder ? travel.ladder.spine.crossEnd : 0
+  // The figures that stand on the line are three weights across - an end,
+  // a detent and the needle - and a graduation is one. A wide figure is
+  // hung by its middle column, which is the column a graduation at the same
+  // place would take, so the needle lands *on* a mark rather than beside it.
+  readonly property int wide: travel.weight * 3
 
-  // A stroke reaches the same distance either side of the line, and the two
-  // that end the travel reach furthest, so the box is that twice with the
-  // line between them.
-  implicitHeight: travel.crossEnd * 2 + travel.weight
-  readonly property int lineY: travel.crossEnd
+  // **How far the needle hangs below the line.** The one proportion here
+  // that is not a drawing's, because it is where the needle is hung rather
+  // than what it is: the needle is twenty-one weights, fifteen of them
+  // above the line, which clears an end's twelve by three - enough that the
+  // needle standing on an end reads as the needle and not as a heavier end.
+  readonly property int below: travel.weight * 5
+
+  readonly property var needle: travel.art
+    ? travel.art.find("travel", "needle") : null
+  readonly property int needleHeight: travel.needle
+    ? Math.round(travel.wide * travel.needle.h / travel.needle.w) : 0
+
+  // The needle is the tallest thing here, so it is the box; the line sits
+  // where the needle crosses it.
+  implicitHeight: travel.needle
+    ? travel.needleHeight : travel.weight
+  readonly property int lineY: travel.needle
+    ? travel.needleHeight - travel.below - travel.weight : 0
 
   readonly property bool stepped: travel.stops > 1
-  // **A stepped value stands on a mark, not in a gap.** Its stops are the
-  // marks themselves, so five stops are five marks with four divisions
-  // between them - and the bottom one is the mark that *begins* the travel,
-  // with nothing covered behind it. It stood at the far edge of a segment for
-  // a pass, on the argument that the first stop of a ladder is still
-  // somewhere to be; what that drew was `Off` with a segment lit behind it,
-  // which is a control saying it is doing something while it says `Off`.
+  // **A stepped value stands on a detent, not in a gap.** Its stops are the
+  // detents themselves, so five stops are five with four divisions between
+  // them - and the first one begins the travel, with nothing covered behind
+  // it. A value on the first stop of a ladder that drew a length lit behind
+  // it was a control saying it is doing something while it says `Off`.
   readonly property int divisions: travel.stepped
     ? Math.max(1, travel.stops - 1) : 1
   readonly property real share: Math.max(0, Math.min(1, travel.value))
+  readonly property real place: travel.stepped
+    ? Math.max(0, Math.min(travel.divisions, travel.at)) / travel.divisions
+    : travel.share
 
-  // **The line is exactly as long as the travel**, and it ends where the marks
-  // that end the travel do - so each end of it reads as a `T`: the stroke
-  // standing across, the line leaving it inwards, and nothing past it.
-  //
-  // It carried on an arm past both for two passes, which is what the row
-  // card's spine does above a list. A line beside a list wants that, because
-  // the list simply stops and the line has to say so; a line **under a value**
-  // does not, because its ends are values. What the tail read as was a
-  // drawing that had not been trimmed - and it also put the end marks out of
-  // the value's reach, so a slider pushed the whole way stopped short of the
-  // mark it was reaching for.
-  readonly property int runIn: travel.arm
-  readonly property int from: travel.runIn
+  // **The travel runs between the two ends' middle columns**, and the line
+  // runs on under each end to its outer wall, which is where the end's
+  // outline closes. The outer walls are flush with the box, so the scale
+  // lines up with the words above it on the card.
+  readonly property int from: travel.weight
   readonly property int to: Math.max(
-    travel.from, travel.width - travel.runIn - travel.weight)
+    travel.from, travel.width - travel.weight * 2)
 
-  // Where a mark stands, from the first to the last: the stops a stepped
-  // value stands on **are** the marks, the first and the last of them end the
-  // travel, and the value's own mark lands on one of them. Rounded off the
-  // whole travel each time rather than stepped by a rounded unit, so the last
-  // one lands exactly on the end however badly the width divides.
-  function edge(n) {
-    return travel.from
-      + Math.round((travel.to - travel.from) * n / travel.divisions)
+  // Where a figure at `p` stands. Rounded off the whole travel each time
+  // rather than stepped by a rounded unit, so the last detent lands exactly
+  // on the end however badly the width divides.
+  function xAt(p) {
+    return travel.from + Math.round((travel.to - travel.from) * p)
+  }
+  readonly property int needleAt: travel.xAt(travel.place)
+
+  // Whether the value has got as far as `p`. Nothing is reached at nought,
+  // `Knob.qml`'s own rule: the run behind the value is empty there, and an
+  // end lit while the line beside it is not would be the one place `Off` is
+  // drawn doing something. The margin is a stop's share arriving as a float.
+  function reached(p) {
+    return travel.place > 0 && p <= travel.place + 0.0001
   }
 
-  readonly property int here: travel.stepped
-    ? Math.max(0, Math.min(travel.divisions, travel.at)) : 0
+  // Where the two layers meet. At either end the whole line goes with
+  // whichever of them is there, so an end and the line under it are one
+  // colour; anywhere else it is under the needle, which hides the join.
+  readonly property int split: travel.place <= 0 ? 0
+    : travel.place >= 1 ? travel.width
+    : travel.needleAt
 
-  // **Where the value's own stroke stands.** On a line with stops that is the
-  // **far edge of the stop being stood on**, not the middle of it: a stop is
-  // a length the value has reached the end of, so the mark is where the
-  // reaching stopped - in the middle it read as a thing sitting inside the
-  // segment rather than as the point the segment runs up to. On a line
-  // without them it is the value's own place along the travel.
-  //
-  // It stands **on** that edge rather than inside it - the same place the
-  // stop's own stroke stands, so the accent covers that stroke instead of
-  // landing half a weight beside it and reading as one stroke drawn twice.
-  readonly property int markAt: travel.stepped
-    ? travel.edge(travel.here)
-    : travel.from
-      + Math.round((travel.to - travel.from) * travel.share)
-  // How far a mark at `x` reaches: **the reach of the mark it is standing
-  // on**. At either end of the travel that is the long one, so the accent
-  // covers the end mark exactly rather than sitting inside it with its tips
-  // showing; anywhere else it is a stop's own.
-  function reachAt(x) {
-    return (x === travel.from || x === travel.to)
-      ? travel.crossEnd : travel.cross
-  }
-  readonly property int markReach: travel.reachAt(travel.markAt)
-
-  // **Which of the four strokes stands at `x`**, and the two questions are
-  // the drawings' own: how far it reaches, and whether the line runs through
-  // it. A stroke at either end of the travel is the long one and there is no
-  // line under it - the line is drawn *between* the marks - so it is drawn
-  // whole. Anywhere else the line passes under, and a stroke drawn whole over
-  // it would paint the theme's own ink twice and light that square brighter:
-  // `open` is the same figure with the line's own weight of air in it.
-  //
-  // The exception is the value's own mark, which is the one thing here drawn
-  // in the accent. That ink is opaque, so it covers the line rather than
-  // tinting it twice - and it has to, or the loudest mark on the drawing
-  // would be the one figure with a gap in it.
-  function figureAt(x, whole) {
-    if (x === travel.from || x === travel.to) return "end"
-    return whole ? "mark" : "stop"
-  }
-  function strokeAt(x, whole) {
-    return travel.art ? travel.art.find("travel", travel.figureAt(x, whole))
-                      : null
-  }
-
-  // **Where the value was taken from**, if it has been taken at all and has
-  // moved since. One mark, faint, and nothing between it and the value: the
-  // length between the two was drawn for three passes - dashed, then as
-  // chevrons, then as a leaning hatch - and every one of them put a second
-  // texture on a drawing whose whole argument is that it has one figure. What
-  // a hand is asking is *where was it*, and a mark answers that; the distance
-  // is then read the way every other distance on this line is, by looking.
-  readonly property bool changed: travel.was >= 0
-    && travel.wasAt !== travel.markAt
-  readonly property int wasAt: travel.was >= 0
-    ? travel.from + Math.round(
-        (travel.to - travel.from) * Math.max(0, Math.min(1, travel.was)))
-    : travel.markAt
-  // The solid run stops at the value, whichever way the press went: a press
-  // that raised it has raised it, and one that lowered it has lowered it.
-  // What that run is drawn in, and with it every mark the value has already
-  // passed: a line with stops fills in the accent and a line without them
-  // tints at half - see the run below.
-  readonly property color covering: travel.stepped
-    ? travel.mark : travel.trail
-
-  // Every stroke on the line that is not the value's: the two that end it,
-  // out at the ends of the line itself, and one at each place a stepped value
-  // may stand. A `var` recomputed from the width and the stop count only -
-  // the value moving must never rebuild this, or walking a slider would
-  // rebuild a Repeater per press.
-  readonly property var ticks: {
+  // The printed scale: every place a figure stands, as a share of the
+  // travel. A continuous line prints one every five in a hundred - the
+  // ring's twenty-one, and five is the step the volume and the brightness
+  // take (`live.py`), so a press moves the needle exactly one graduation. A
+  // stepped one prints its stops and nothing else. Not a setting, for the
+  // ring's reason: it is how the scale is engraved.
+  readonly property int printed: 21
+  readonly property var places: {
+    var count = travel.stepped ? travel.stops : travel.printed
     var out = []
-    if (travel.width <= 0) return out
-    out.push(travel.from)
-    for (var i = 1; travel.stepped && i < travel.divisions; i++) {
-      out.push(travel.edge(i))
-    }
-    out.push(travel.to)
+    for (var i = 0; i < count; i++) out.push(i / (count - 1))
     return out
   }
 
-  // The line itself, **between** the marks rather than under them: every
-  // stroke on this drawing owns its own pixels. Every ink here is the theme's
-  // own at a share of itself, so a square painted twice is a square painted
-  // brighter - and the line running under the mark that ends it lit exactly
-  // that square, which read as the two of them interlocked.
-  Rectangle {
-    x: travel.from + travel.weight
-    y: travel.lineY
-    width: Math.max(0, travel.to - travel.from - travel.weight)
-    height: travel.weight
-    color: travel.ink
+  readonly property color covering: travel.stepped
+    ? travel.mark : travel.trail
+
+  // Which figure stands at `p`, and whether it is the filled one. An end at
+  // either end of the scale; a detent between the stops of a stepped one; a
+  // graduation between the ends of a continuous one. Filled only on a
+  // stepped scale, and only where the value has stood.
+  function figureAt(p, lit) {
+    var name = travel.heavy(p) ? (p > 0 && p < 1 ? "detent" : "end")
+                               : "notch"
+    if (lit && travel.stepped && name !== "notch") name += "-lit"
+    return travel.art ? travel.art.find("travel", name) : null
+  }
+  // Whether the figure at `p` is one of the three-weight ones: an end, or a
+  // detent. Everything else printed on the scale - and anywhere a continuous
+  // value can be between two graduations - is one weight.
+  function heavy(p) {
+    return p <= 0 || p >= 1 || travel.stepped
   }
 
-  // **What the value has already covered**, which is what makes a press
-  // visible: the mark moves by a few pixels and a few pixels is not a change
-  // anybody sees from a sofa, but the length behind it changes by those same
-  // few pixels and is read against the length ahead of it.
-  //
-  // **It starts where the mark that ends the travel stops**, with nothing
-  // between the two - and not under it, for the line's own reason: a
-  // translucent ink painted over itself is a brighter square, and the mark is
-  // the thing that square would be taken from.
-  //
-  // **A line with stops fills it in the accent; a line without them tints
-  // it.** They are two different claims. A stop is a place the value has
-  // *stood on*, and every one behind the mark is a place it has been, so the
-  // run is as solid as the mark that ends it. A continuous value has been at
-  // every point behind it and stood at none, so the run there is the accent
-  // at half - a tint rather than a fill (qml.md 8.1), which keeps the loudest
-  // thing on the line the one place drawn in the full accent. The tint was
-  // tried at a fifth, this surface's own for a ground, and is not there at
-  // all on a two-pixel line; tried in the ink at its dim level it became the
-  // brightest thing on the card, which puts the eye behind the value rather
-  // than on it.
-  Rectangle {
-    x: travel.from + travel.weight
-    y: travel.lineY
-    width: Math.max(0, travel.markAt - travel.from - travel.weight)
-    height: travel.weight
-    color: travel.covering
-    visible: travel.markAt > travel.from + travel.weight
+  // A colour at full strength, for drawing inside a layer that is faded as a
+  // whole.
+  function solid(c) {
+    return Qt.rgba(c.r, c.g, c.b, 1)
   }
 
-  // **Where the value was taken from**, in the ghost's own ink: the mark a
-  // press is measured against, so *what was it before* is a thing on screen
-  // rather than a thing to remember. It is the only thing a held control
-  // draws that a loose one does not.
-  BadgeArt {
-    visible: travel.changed
-    x: travel.wasAt
-    y: travel.lineY - travel.reachAt(travel.wasAt)
-    width: travel.weight
-    height: implicitHeight
-    // Open where the line runs through it: the ghost is the faintest ink on
-    // the drawing, and a faint square painted over the line is a brighter
-    // line rather than a mark on it.
-    drawn: travel.strokeAt(travel.wasAt, false)
-    fill: travel.ghost
-  }
-
-  // **The strokes, and every one of them is one stroke drawn twice**: the
-  // mark at each end of the line and a stop a stepped value may stand on are
-  // the same figure at two reaches, and so is the mark below. A cross rather
-  // than a tick hanging under the line, and the same reach either side of it,
-  // so the figure says *here* rather than pointing anywhere - there is
-  // nothing beside a horizontal line to point at.
+  // **Two layers, one per ink, each drawn opaque and faded once** -
+  // `Knob.qml`'s answer, for its reason. The inks are translucent, and
+  // figures drawn one by one in a translucent ink cannot meet cleanly: an end
+  // standing on the line paints the pixel they share twice, and that pixel
+  // is brighter than either. Inside a layer the figures are opaque and
+  // overlap where they meet; the fade is applied to the finished drawing,
+  // which is one coat everywhere.
   //
-  // **Two arms at a stop, and neither of them crosses the line.** Every ink
-  // here is the theme's own at a share of itself, so a square painted twice
-  // is a square painted brighter, and a bar run through the line would light
-  // the pixel where they meet. The line takes the crossing; the arms start
-  // above and below it, and the air between them is in the drawing rather
-  // than in an arithmetic here - see `figureAt`.
-  Repeater {
-    model: travel.ticks
+  // What the value has not reached is the first, in the scale's ink.
+  Item {
+    anchors.fill: parent
+    opacity: travel.ink.a
+    layer.enabled: true
 
-    delegate: BadgeArt {
-      required property int index
-      required property int modelData
-      // **A mark the value has been past belongs to the run**, and takes its
-      // colour: a stop already stood on, or the end the value started from,
-      // is not a place it might go. Dim ahead of the mark, so what is left to
-      // cover reads as the scale and what is behind it reads as one thing.
-      readonly property bool passed: modelData <= travel.markAt
-      // The two that end the travel reach furthest - the only hierarchy an
-      // instrument of one weight has is length.
-      readonly property int reach: (index === 0
-        || index === travel.ticks.length - 1)
-        ? travel.crossEnd : travel.cross
-      x: modelData
-      y: travel.lineY - reach
-      width: travel.weight
-      height: implicitHeight
-      drawn: travel.strokeAt(modelData, false)
-      fill: passed ? travel.covering : travel.ink
+    Rectangle {
+      x: travel.split
+      y: travel.lineY
+      width: Math.max(0, travel.width - travel.split)
+      height: travel.weight
+      color: travel.solid(travel.ink)
+    }
+
+    Engraving {
+      line: travel
+      lit: false
+      fill: travel.solid(travel.ink)
     }
   }
 
-  // **Where the value is: the same stroke again, in the accent.** One piece
-  // rather than two arms, because the accent is opaque and covers the line it
-  // crosses instead of tinting it twice - so the figure closes into a cross
-  // where every other one is an arm either side of an unbroken line. That is
-  // `mark` against `stop`, and the two are drawn rather than reasoned about
-  // here.
+  // **What the value has already covered**, the second layer, which is
+  // what makes a press visible: the needle moves a few pixels, and the run
+  // behind it is read against the run ahead.
+  Item {
+    anchors.fill: parent
+    opacity: travel.covering.a
+    layer.enabled: true
+
+    Rectangle {
+      y: travel.lineY
+      width: travel.split
+      height: travel.weight
+      color: travel.solid(travel.covering)
+    }
+
+    Engraving {
+      line: travel
+      lit: true
+      fill: travel.solid(travel.covering)
+    }
+  }
+
+  // Where the value was found, while a press has it: **the needle's tail,
+  // and only that**, under the line. It was the whole needle in outline
+  // first, and a second needle crosses everything the first one does - the
+  // graduations, and an end's outline, where two outlines laid over each
+  // other read as a smudge rather than as a mark. Below the line nothing is
+  // printed, so the stub has that band to itself and the scale above it
+  // stays one drawing. Outside both layers, under the needle: the two only
+  // meet when the press has not moved the value, and then this is not
+  // drawn.
+  //
+  // **As wide as the figure it was found on.** Taken from an end or a
+  // detent, the stub is three weights, the end's own; taken from a
+  // graduation it is one, the graduation's. A stub one width everywhere
+  // said *somewhere around here*; this one hangs under the very figure the
+  // value left, so the two read as one mark with its foot showing.
   BadgeArt {
-    x: travel.markAt
-    y: travel.lineY - travel.markReach
-    width: travel.weight
+    readonly property real wasPlace: Math.max(0, Math.min(1, travel.was))
+    readonly property int wasAt: travel.xAt(wasPlace)
+    readonly property bool heavy: travel.heavy(wasPlace)
+    visible: travel.was >= 0 && wasAt !== travel.needleAt
+    x: wasAt - (heavy ? travel.weight : 0)
+    y: travel.lineY + travel.weight
+    width: heavy ? travel.wide : travel.weight
     height: implicitHeight
-    drawn: travel.strokeAt(travel.markAt, true)
-    fill: travel.mark
+    drawn: travel.art ? travel.art.find(
+      "travel", heavy ? "ghost" : "ghost-thin") : null
+    fill: travel.ghost
+  }
+
+  // The value. The loudest thing on the drawing, because it is the one
+  // thing the tile exists to say.
+  BadgeArt {
     visible: travel.width > 0
+    x: travel.needleAt - travel.weight
+    y: 0
+    width: travel.wide
+    height: implicitHeight
+    drawn: travel.needle
+    fill: travel.mark
+  }
+
+  // The printed scale, as one layer draws it: the figures it holds are the
+  // ones the value has reached or the ones it has not, and every figure is
+  // in exactly one of the two. A `Repeater` over a list the value cannot
+  // change, so pushing a slider never rebuilds its scale - only which layer
+  // shows a figure follows the value.
+  //
+  // **The travel is handed in**: an inline component does not see the ids of
+  // the file it is declared in.
+  component Engraving: Repeater {
+    id: engraving
+    required property var line
+    property bool lit: false
+    property color fill: "transparent"
+    model: engraving.line.places
+
+    BadgeArt {
+      required property real modelData
+      readonly property var line: engraving.line
+      readonly property bool slim: !line.heavy(modelData)
+      visible: line.reached(modelData) === engraving.lit
+      x: line.xAt(modelData) - (slim ? 0 : line.weight)
+      y: line.lineY - implicitHeight
+      width: slim ? line.weight : line.wide
+      height: implicitHeight
+      drawn: line.figureAt(modelData, engraving.lit)
+      fill: engraving.fill
+    }
   }
 }

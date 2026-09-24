@@ -44,7 +44,7 @@ yesterday's button and nothing else complains.
 | `shapes/stick.svg` | the **stick from above** - 56x40, one pill, wide because `L3` is two characters. No rim: every badge on the pad is a solid silhouette, and a ring among them reads as a different colour |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
 | `shapes/ground-*.svg` | **a quarter of a menu tile** - one corner per tile state, and the one drawing here that answers to a size |
-| `shapes/travel-*.svg` | **the strokes that stand on a line** - two reaches, and for each whether the line runs through it. Ten units across, which is the line's own weight, so the panel sizes them from `Metrics.spine` and they land on whole pixels |
+| `shapes/travel-*.svg` | **the figures that stand on a line** - a slider's scale (the knob's figures at whole line weights) and a card of rows' caps and marks. Every side a whole number of ten-unit line weights, so the panel sizes them from `Metrics.spine` and they land on whole pixels |
 | `shapes/key-*.svg` | **the key on a latching row and its window** - two drawings on one canvas, because the ring and what lights inside it are painted in two colours |
 | `generate.py` | the generator; `truetype.py`, `svgpath.py`, `place.py` its parts |
 
@@ -119,11 +119,11 @@ already makes between a button and the label set into it - which is why
 
 **A figure sized from a line is the one exemption from the badge grid**, and
 it earns it by being sized more strictly rather than less. A `travel-*.svg` is
-drawn ten units across - the line's own weight - and a whole number of them
-tall, so the panel hands it `spine.weight` and takes the height the drawing
-asks for: five weights at a stop, seven at an end. `Metrics.spine` reads its
-two reaches back off the drawings for that reason, and a new stroke drawn at
-any other aspect fails `ShapesFitTheBadgeGrid` with that said in the message.
+drawn a whole number of line weights on both sides - ten units each - so the
+panel hands it one or three `spine.weight` across and takes the height the
+drawing asks for. `Metrics.spine` reads the card's two reaches back off the
+drawings for that reason, and a new figure with a side off that grid fails
+`ShapesFitTheBadgeGrid` with that said in the message.
 
 **Two strokes that differ only in a gap are two drawings, not one.** Whether
 the line runs *through* a stroke or stops at it is the second question every

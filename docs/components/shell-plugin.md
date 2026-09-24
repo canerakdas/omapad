@@ -92,20 +92,19 @@ missing optional package must cost one feature rather than the keyboard.
   `menu.background` and `menu.text`, the two colours every theme is guaranteed
   to define. A third would be a console's own palette arriving through the
   back door.
-- **`Travel.qml`** - where along something a number is, drawn as a line: a
-  slider being pushed, a slider with places to stand rather than a distance to
-  cover, and a reading the machine keeps answering. One file because it is one
-  question, and because a page of readings has to read the same in the menu and
-  on the HUD. It is the row card's spine turned on its side, down to the
-  stroke: **one figure crosses the line and it is the only mark either drawing
-  has** - the cap at each end, a stop a stepped value may stand on, and the
-  place the value has got to, which is that same cross in the accent. Nothing
-  fills; what the value has covered is the line behind it - solid where it has
-  stops, a tint at half where it has none - because a mark that moves a few
-  pixels is not a press anybody sees from a sofa and a length changing is. The
-  line runs on past the travel at both ends, as the spine runs past the first
-  row and the last. The caller hands it `ladder` (the surface's `Metrics`), the
-  value, the stops and the three colours; it decides nothing.
+- **`Travel.qml`** - where along something a number is, drawn as the
+  knob's scale unrolled: a slider being pushed, and a slider with places to
+  stand rather than a distance to cover. Every figure is one the ring has, at
+  whole line weights - a graduation every five in a hundred on a continuous
+  scale, a detent per stop on a stepped one, open-footed ends, and a needle
+  across the line that is taller than an end, so a value at either end is
+  still drawn. Nothing fills; what the value has covered is the line behind
+  the needle - solid, with its detents filled, where it has stops, a tint at
+  half where it has none. Two opaque layers faded once, `Knob.qml`'s way. A
+  reading is not drawn here: it is words, on both surfaces
+  ([92](../decisions/92-a-tuning-scale.md)). The caller hands it `ladder`
+  (the surface's `Metrics`), the value, the stops and the four colours; it
+  decides nothing.
 - **`Knob.qml`** - the same question drawn as a ring, for the one control a
   thumb can copy rather than translate. It keeps the travel's whole argument -
   nothing fills, the run behind the value says how far it has come, solid
@@ -246,14 +245,11 @@ missing optional package must cost one feature rather than the keyboard.
   the rest of this file. `Menu.qml` is across; the other surfaces are not yet.
 
   **`metrics.spine` is the line motif's measurements**, named here because the
-  same line is drawn on two surfaces: down the side of a card of rows in the
-  menu, and along the foot of a slider, a stepped slider and a reading in the
-  menu and on the HUD (`Travel.qml`). A stroke weight is off the size ladder
-  like every stroke weight is, and everything else in it is that weight stepped
-  by `silver` - how far the line carries past the thing it measures (`arm`),
-  how far the stroke that crosses it reaches on each side (`cross`), and the
-  two numbers of the wedge the row card marks its own rows with. Two copies of
-  those is how one drawing quietly becomes two.
+  same weight is drawn twice: down the side of a card of rows, and along the
+  foot of a slider (`Travel.qml`). A stroke weight is off the size ladder like
+  every stroke weight is; the rest is the card's - how far its line carries
+  past its first and last rows (`arm`, that weight stepped by `silver`). Two copies of the weight is how one drawing quietly
+  becomes two.
 
   `metrics.badge(px)` is the other exception: a badge box has to be whole
   pixels on **both** sides, because BadgeArt scales the drawing by one factor

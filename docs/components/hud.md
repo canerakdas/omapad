@@ -189,18 +189,16 @@ Four things worth knowing before changing any of it:
   busy, or a helper a second late, must not be able to empty the HUD. A source
   that has *never* answered has no value, and that is how a tile knows not to
   draw itself.
-- **Only a share has a line under it.** `fraction()` answers `None` for
-  anything with no `full` in `READINGS`: a thermometer's top of scale is a
-  number somebody would have to invent, and a line drawn against an invented
-  maximum says a different thing on every machine it is read on. The daemon
-  then sends no `v` and the panel draws no travel.
+- **A reading is words.** The tile is its name and its figure on one line,
+  and the menu's readout tile is the same two things - a page of readings has
+  to read the same in both places it appears. A share drew the menu's slider
+  line under itself until [92](../decisions/92-a-tuning-scale.md), and on a
+  surface nothing can push it read as a control that had lost its thumb.
 
-  What it draws where there is one is `Travel.qml`, the menu's own - a line
-  with the reading marked on it, no bar and nothing filled. The same reading
-  is drawn on both surfaces, so it is one drawing in one file; see
-  [`menu.md`](menu.md) for the argument. The ink is the menu's `spineInk`
-  written out here, which is a mirrored measurement and stays off this
-  surface's own numbers (qml.md 8.2.1).
+  `fraction()` still answers a share for anything with a `full` in
+  `READINGS`, and the daemon still sends it as `v`: it is a fact about the
+  reading, and no panel draws it. A thermometer has none, because its top of
+  scale is a number somebody would have to invent.
 
 ## Asking, and not asking
 
@@ -235,7 +233,8 @@ the page came out. `corner` is `[menu] tile_corner`, so a tile is the same
 shape in both places - the base of `metrics.radius` where the compositor
 rounds nothing, not a radius; there is no `cell`, because a cell's height is
 this grid's to work out. They travel for the reason every geometry setting does:
-the shell cannot read the config. `v` is absent where there is no bar.
+the shell cannot read the config. `v` is a share's place along its scale, absent
+for anything that is not a share, and nothing draws it (see above).
 
 `k` is which of the two kinds of tile this is, and it rides on every one of
 them rather than on the clock alone: the panel has two drawings to choose

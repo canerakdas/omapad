@@ -3812,6 +3812,115 @@ class ControlTileTests(DaemonTestCase):
         self.assertIsNone(self.daemon.menu_control(item))
 
 
+class SliderStreamTests(DaemonTestCase):
+    """A slider pushed faster than the panel can rebuild a page.
+
+    Measured on the machine: held right, Strength and Loudness went on
+    climbing after the thumb came off. Every step was a full push, and the
+    full push rebuilds every tile on the page - so at a held direction's
+    repeat, and faster once it ramps, the panel fell behind the hand. The
+    knob had the answer already: the value rides the short push, and the
+    surface is rebuilt once when the push stops.
+    """
+
+    TREE = [{"label": "Levels", "items": [
+        {"label": "Strength", "control": "slider",
+         "reads": "pad:rumble_strength"},
+        {"label": "Corner", "control": "slider", "reads": "pad:radius"},
+    ]}]
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(self.TREE, columns=self.config.menu_columns,
+                              settings=config_module.CHOSEN),
+            columns=self.config.menu_columns,
+        )
+        self.daemon.set_menu(True)
+        self.config.set_setting("rumble_strength", ("set", 0.5))
+        self.menu_client.sent.clear()
+
+    def take(self, label):
+        for tile in self.daemon.menu.tiles:
+            if tile["item"]["label"] == label:
+                self.daemon.menu.select_id(tile["item"]["id"])
+                self.daemon.menu_command("press")
+                self.menu_client.sent.clear()
+                return tile["item"]
+        raise AssertionError("no tile labelled %r" % label)
+
+    def whole(self):
+        return [line for line in self.menu_client.sent if "items" in line]
+
+    def test_the_first_step_of_a_push_goes_out_whole(self):
+        # It is the line that carries `b`, which puts the ghost on the scale.
+        self.take("Strength")
+        self.daemon.menu_command("right")
+        self.assertEqual(len(self.whole()), 1)
+
+    def test_and_every_step_after_it_rides_the_short_push(self):
+        item = self.take("Strength")
+        self.daemon.menu_command("right")
+        self.menu_client.sent.clear()
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("right")
+        self.assertEqual(self.whole(), [])
+        live = self.daemon.menu_live()
+        self.assertEqual(live["hid"], item["id"])
+        share = self.daemon.menu_share(item)
+        self.assertAlmostEqual(live["hv"], round(share, 3))
+        self.assertTrue(live["ht"])
+
+    def test_the_surface_is_rebuilt_once_when_the_push_stops(self):
+        self.take("Strength")
+        for _ in range(3):
+            self.daemon.menu_command("right")
+        self.menu_client.sent.clear()
+        self.daemon.menu_settle(force=True)
+        self.assertEqual(len(self.whole()), 1)
+
+    def test_a_new_push_starts_whole_again(self):
+        self.take("Strength")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("right")
+        self.daemon.menu_settle(force=True)
+        self.menu_client.sent.clear()
+        self.daemon.menu_command("right")
+        self.assertEqual(len(self.whole()), 1)
+
+    def test_a_ladder_keeps_the_surface(self):
+        # `seg` and `at` are on the full push alone, so a stepped slider
+        # drawn from the stream would lose its detents.
+        self.config.set_setting("radius", ("set", 1.0))
+        self.take("Corner")
+        self.assertEqual(self.daemon.menu_held_live(), {})
+        self.daemon.menu_command("left")
+        self.menu_client.sent.clear()
+        self.daemon.menu_command("left")
+        self.assertEqual(len(self.whole()), 1)
+
+    def test_a_whole_push_restates_the_stream(self):
+        # The panel keeps the last `live` until another replaces it, and
+        # the stream is silent once nothing turns - so the whole surface
+        # has to say what the stream would, or a control let go of goes on
+        # wearing its streamed number.
+        item = self.take("Strength")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("right")
+        self.daemon.push_menu_view()
+        self.assertEqual(self.menu_client.sent[-1]["live"]["hid"], item["id"])
+
+    def test_and_a_cancel_ends_it(self):
+        # B puts the value back; the streamed number must not stay on top
+        # of it.
+        self.take("Strength")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("right")
+        self.daemon.menu_command("back")
+        self.assertEqual(self.config.setting("rumble_strength"), 0.5)
+        self.assertEqual(self.whole()[-1]["live"], {})
+
+
 class KnobHarness(DaemonTestCase):
     """A page of three rings, and a thumb to put on the stick.
 
@@ -8841,22 +8950,27 @@ class SettingTests(DaemonTestCase):
         strong, weak = self.daemon.rumble._aimed["texture"]
         self.assertEqual(strong, 0)
         self.assertGreater(weak, 0)
+        # A push of its own, so it is felt: see the test below for why the
+        # steps of one push are not.
+        self.daemon.menu_settle(force=True)
         self.nudge("left")
         strong, weak = self.daemon.rumble._aimed["texture"]
         self.assertGreater(strong, 0)
         self.assertEqual(weak, 0)
 
-    def test_a_push_feels_the_same_however_far_it_has_gone(self):
-        # One level rather than a scale: a hand pushing a control is asking
-        # whether the push landed, and the number it landed on is on screen.
+    def test_a_push_is_felt_once_rather_than_for_as_long_as_it_is_held(self):
+        # A hand pushing a control is asking whether the push landed, and the
+        # first step answers it. A held direction that buzzed for the whole of
+        # the hold was measured on the pad and was too much: the needle on
+        # screen is saying the rest.
         self.land("Controller", "Sticks", "Pointer")
         self.press("A")
         self.release("A")
         self.nudge("right")
-        one = self.daemon.rumble._aimed["texture"]
+        self.assertIn("texture", self.daemon.rumble._held)
         for _ in range(4):
             self.nudge("right")
-        self.assertEqual(self.daemon.rumble._aimed["texture"], one)
+        self.assertNotIn("texture", self.daemon.rumble._held)
 
     def test_a_list_walked_inside_a_card_is_heard_and_not_felt(self):
         # A step of a selection, which is the one thing on this surface the
@@ -9016,7 +9130,24 @@ class SettingTests(DaemonTestCase):
         self.assertNotIn("pointer_speed", self.daemon.config.chosen)
         self.assertFalse(os.path.exists(self.settings))
 
-    def test_a_control_at_its_end_says_so_once(self):
+    def test_a_control_held_against_its_end_says_so_once(self):
+        # A wall you are still pushing against is still one wall: the held
+        # direction's repeats find it once.
+        self.daemon.config.scroll_speed = 40.0
+        self.land("Controller", "Sticks", "Scroll")
+        self.press("A")
+        self.release("A")
+        self.device.played = []
+        self.daemon.menu_command("right")
+        for _ in range(3):
+            self.daemon.menu_command("right", repeat=True)
+        edge = self.daemon.rumble.effects["edge"]
+        self.assertEqual([played for played in self.device.played
+                          if played == edge], [edge])
+
+    def test_and_every_fresh_press_finds_it_again(self):
+        # `quick_command`'s rule. It was forgotten only when a value moved,
+        # so a wall found once was never felt again until something did.
         self.daemon.config.scroll_speed = 40.0
         self.land("Controller", "Sticks", "Scroll")
         self.press("A")
@@ -9026,7 +9157,24 @@ class SettingTests(DaemonTestCase):
             self.nudge()
         edge = self.daemon.rumble.effects["edge"]
         self.assertEqual([played for played in self.device.played
-                          if played == edge], [edge])
+                          if played == edge], [edge] * 3)
+
+    def test_a_card_of_rows_bumps_at_its_top_every_time_it_is_reached(self):
+        # The vertical slider: a list walked up to its first row and pushed
+        # on. It bumped the first time and never again, because walking rows
+        # moves a selection rather than a value and nothing forgot the wall.
+        self.land("Controller", "Button labels")
+        self.press("A")
+        self.release("A")
+        self.assertTrue(self.daemon.menu.entered)
+        edge = self.daemon.rumble.effects["edge"]
+        for _ in range(2):
+            self.device.played = []
+            self.daemon.menu_command("down")
+            self.daemon.menu_command("up")
+            self.daemon.menu_command("up")
+            self.assertEqual([played for played in self.device.played
+                              if played == edge], [edge])
 
     def test_a_faster_pointer_is_felt_at_once(self):
         # Read every tick rather than at startup, so there is nothing to apply
@@ -9105,14 +9253,15 @@ class SettingTests(DaemonTestCase):
         self.tick(0.4, steps=8)
         self.assertEqual(self.daemon.config.pointer_speed % 100.0, 0.0)
 
-    def test_a_trigger_hums_while_it_moves_and_stops_when_it_does_not(self):
-        # One continuous effect rather than a tick per step: a step repeating
-        # under a held control would buzz all the way down its range.
+    def test_a_trigger_sweeps_without_a_hum(self):
+        # A pull is a motion held for as long as the trigger is in, and a
+        # motor running for all of it is the buzz a held direction stopped
+        # being answered with. The end of the travel still bumps.
         self.land("Controller", "Sticks", "Pointer")
         self.daemon.config.pointer_speed = 1000.0
         self.feed((li.EV_ABS, li.ABS_RZ, 255))
         self.tick(0.3, steps=6)
-        self.assertIn("texture", self.daemon.rumble._held)
+        self.assertNotIn("texture", self.daemon.rumble._held)
         self.feed((li.EV_ABS, li.ABS_RZ, 0))
         self.tick(0.5, steps=10)
         self.assertEqual(self.daemon.rumble._held, set())

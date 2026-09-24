@@ -19,10 +19,10 @@
 //   pointer from that middle - one figure, and the one every hand already
 //   knows how to read.
 // - **The scale is printed, and a stop is one of its marks.** Hung just
-//   outside the arc, standing in it: a continuous ring prints one every five in a
-//   hundred, and a stepped one prints one mark per place it can stand, so
-//   the two differ by exactly what the two controls differ by - how many
-//   places the scale says there are.
+//   outside the arc, standing in it: a continuous ring prints a notch every
+//   five in a hundred, and a stepped one prints a detent per place it can
+//   stand, so the two differ by exactly what the two controls differ by -
+//   how many places the scale says there are, and that they are places.
 // - **Nothing is drawn where the value started.** A line has room for a
 //   second mark on it, and the gap between the two is what the press did -
 //   which is why a travel leaves one. A ring would have to answer *where was
@@ -209,6 +209,19 @@ Item {
   // decided again, because it is the same control.
   readonly property color covering: knob.stepped ? knob.mark : knob.trail
 
+  // **A stepped ring prints detents, and fills the ones stood on.** A
+  // place to stand is a bigger claim than a graduation: three notches round
+  // a list of three read as a scale somebody forgot to finish, where three
+  // detents read as three places. One the value has reached is filled in,
+  // and so is an end - the index is the end baton filled, and a stop is a
+  // place the value has *stood on*, which a continuous value never has. The
+  // same four figures stand on a stepped travel (`Travel.qml`).
+  function figure(name, lit) {
+    if (!knob.art) return null
+    var filled = lit && knob.stepped && name !== "notch"
+    return knob.art.find("dial", filled ? name + "-lit" : name)
+  }
+
   // A colour at full strength, for drawing inside a layer that is faded
   // as a whole.
   function solid(c) {
@@ -361,7 +374,8 @@ Item {
         anchors.fill: parent
         visible: engraving.dial.reached(place) === engraving.lit
         rotation: engraving.dial.turnAt(place)
-        drawn: engraving.dial.art ? engraving.dial.art.find("dial", "notch") : null
+        drawn: engraving.dial.figure(
+          engraving.dial.stepped ? "detent" : "notch", engraving.lit)
         fill: engraving.fill
       }
     }
@@ -374,7 +388,7 @@ Item {
         anchors.fill: parent
         visible: engraving.dial.reached(index) === engraving.lit
         rotation: engraving.dial.turnAt(index)
-        drawn: engraving.dial.art ? engraving.dial.art.find("dial", "end") : null
+        drawn: engraving.dial.figure("end", engraving.lit)
         fill: engraving.fill
       }
     }

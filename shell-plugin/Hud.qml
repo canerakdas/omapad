@@ -80,19 +80,6 @@ Item {
   // something in on purpose. 0 is the corner itself.
   property int margin: 16
 
-  // The ink the line under a reading is drawn in, and it is `Menu.qml`'s
-  // `spineInk` written out: the travel under a reading here is the travel
-  // under the same reading there, so it is a mirrored measurement and
-  // qml.md 8.2.1's rule for one applies - it stays off this surface's own
-  // numbers and says where it came from. The menu's dim ink at the share a
-  // line takes of it, which is a line's weight rather than a third level of
-  // text (8.1.2).
-  readonly property color spineInk: Util.alpha(Color.menu.text, 0.58 * 0.35)
-
-  // And the line behind the reading, which is the menu's `trailInk` for the
-  // same reason: the accent at half, a tint rather than a fill.
-  readonly property color trailInk: Util.alpha(Color.accent, 0.5)
-
   // What share of each screen edge is kept clear of anything that has to be
   // read (`[ui] safe_area`, game mode only). A television crops its own
   // edges; every margin below goes through `metrics.edge`, which takes this
@@ -283,11 +270,6 @@ Item {
 
           readonly property bool hasIcon: tile.modelData.i !== undefined
             && tile.modelData.i.length > 0
-          // Only where there is a travel to draw it against. A thermometer's
-          // top of scale is a number somebody would have to invent, so the
-          // daemon sends no `v` and there is no bar - rather than a bar that
-          // says a different thing on every machine it is read on.
-          readonly property bool hasBar: tile.modelData.v !== undefined
           // The other tile this surface draws, and the only one that is not a
           // reading: it has nothing to press, which is the whole of what a
           // tile needs to be allowed over a game. Game mode takes Omarchy's
@@ -342,10 +324,12 @@ Item {
             }
           }
 
-          // The name and what it says on one line, the bar under both - the
-          // slider's shape, and the readout's shape in the menu. A page of
-          // readings has to read the same in both places it appears, or it is
-          // a page you have to learn twice.
+          // The name and what it says, on one line and nothing under them.
+          // A reading drew the menu's slider line under itself once, and on
+          // a surface nothing can push it read as a control that had lost its
+          // thumb - so it is words here and on the menu's readout tile, which
+          // is what keeps a page of readings the same in both places it
+          // appears.
           Column {
             anchors.centerIn: parent
             width: parent.width - metrics.space(12)
@@ -381,35 +365,6 @@ Item {
                 font.pixelSize: metrics.font.caption
                 font.weight: Font.Medium
               }
-            }
-
-            // The travel: a line with the reading marked on it, and it is
-            // `Travel.qml` rather than a bar of this surface's own for the
-            // reason the name and the value above it are the menu's - a page
-            // of readings has to read the same in both places it appears.
-            //
-            // The value is a binding rather than anything a signal starts, so
-            // a delegate rebuilt between two readings is born where the value
-            // already is - qml.md 5.5. A reading has no stops: what it
-            // answers is how far along a scale it has got, and the scale is
-            // the machine's rather than a list of places somebody chose.
-            Travel {
-              id: readingTravel
-              visible: tile.hasBar
-              width: parent.width
-              height: readingTravel.implicitHeight
-              ladder: metrics
-              // The page's own, the way the clock below takes it: one
-              // `ControlArt` per surface, because it cannot be a singleton.
-              art: controlArt
-              value: tile.modelData.v !== undefined ? tile.modelData.v : 0
-              ink: root.spineInk
-              trail: root.trailInk
-              // A reading is never taken, so there is no press to draw the
-              // change of - the field is here so the drawing has all three
-              // of its colours and none of them is a surprise.
-              ghost: root.trailInk
-              mark: Color.accent
             }
 
             // And the one tile whose value is a drawing rather than a number.
