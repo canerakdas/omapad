@@ -41,7 +41,7 @@ the outside as an argument.
 | `test_viewsock.py` | what `drawable` lets through, for the strings a device names itself with |
 | `test_unit.py` | installing the user unit: which checkout paths can be baked into it, a symlink or a directory sitting at the destination, and a write interrupted before the rename |
 | `test_packaging.py`, `test_shell_plugin.py` | what a release and the plugin look like with nothing running: the version, the boot pin, the udev rule the installer writes from its own bytes, and that every `Text` says `textFormat: Text.PlainText` |
-| `test_cli.py` | what `omapad budget` reads out of `/proc`, and the price it puts on the shipped menu |
+| `test_cli.py` | what `omapad budget` reads out of `/proc`, the price it puts on the shipped menu, and that `budget stress` sends nothing that runs a row or moves a value |
 
 ## What costs something is tested as a count, never as a clock
 

@@ -2,11 +2,14 @@
 
 `budget` is what is covered here: it prices what the daemon costs while
 nothing is happening, and a budget that quietly stops counting a row is worse
-than no budget at all.
+than no budget at all. `budget stress` drives the daemon on the desktop in
+front of you, so what it is allowed to send is held here too.
 """
 
 import os
+import shutil
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -96,6 +99,74 @@ class MenuCommandBudgetTests(unittest.TestCase):
         # to put a number on a tree it could not build.
         self.config.menu_items = [{"label": "Broken", "meta": {}}]
         self.assertIsNone(self.rows())
+
+
+class StressCycleTests(unittest.TestCase):
+    """What `budget stress` sends to the daemon on the desktop in front of you."""
+
+    # Selection and open/close only. A verb here is safe because of what it
+    # does on every row, not on the rows the shipped menu happens to have.
+    SAFE = {
+        "menu": {"open", "close", "select", "group"},
+        "quick": {"open", "close", "select"},
+        "guide": {"open", "close", "next", "prev"},
+        "osk": {"open", "close"},
+    }
+
+    def test_nothing_it_sends_runs_a_row_or_moves_a_value(self):
+        # The first run pressed A through All apps and started a browser, and
+        # walked the quick menu's volume to nothing. Neither is a leak test.
+        for command in cli.STRESS_CYCLE:
+            surface, verb = command.split()[:2]
+            self.assertIn(verb, self.SAFE.get(surface, ()), command)
+
+    def test_every_surface_is_opened_and_closed_in_a_cycle(self):
+        # One left open would be closed by the next cycle's open of another,
+        # and the drift would be the cost of a surface up, not of a leak.
+        for surface in self.SAFE:
+            self.assertEqual(
+                cli.STRESS_CYCLE.count("%s open" % surface),
+                cli.STRESS_CYCLE.count("%s close" % surface), surface)
+            self.assertIn("%s open" % surface, cli.STRESS_CYCLE)
+
+
+class StressReadingTests(unittest.TestCase):
+    """The shell it finds and the lines it prints."""
+
+    def fake_proc(self, names):
+        root = tempfile.mkdtemp(prefix="omapad-proc-")
+        self.addCleanup(shutil.rmtree, root, True)
+        for pid, name in names.items():
+            os.makedirs(os.path.join(root, str(pid)))
+            with open(os.path.join(root, str(pid), "comm"), "w") as handle:
+                handle.write(name + "\n")
+        os.makedirs(os.path.join(root, "self"))
+        return root
+
+    def test_the_oldest_shell_is_the_one_read(self):
+        # A restarted shell leaves the old one exiting beside it for a moment.
+        proc = self.fake_proc({900: "quickshell", 400: "quickshell", 5: "bash"})
+        self.assertEqual(cli._pid_named("quickshell", proc), 400)
+
+    def test_no_shell_is_none(self):
+        proc = self.fake_proc({5: "bash"})
+        self.assertIsNone(cli._pid_named("quickshell", proc))
+
+    def test_a_process_reports_its_own_footprint(self):
+        size, fds, threads = cli._footprint(os.getpid())
+        self.assertGreater(size, 0)
+        self.assertGreater(fds, 0)
+        self.assertGreaterEqual(threads, 1)
+
+    def test_drift_is_signed(self):
+        line = cli._drift("daemon", (2048, 18, 2), (2148, 17, 2))
+        self.assertEqual(
+            line, "daemon: 2.1 MB (+100 kB), 17 descriptors (-1), "
+            "2 threads (+0)")
+
+    def test_a_process_gone_is_said(self):
+        self.assertIn("went away",
+                      cli._drift("shell", (1, 1, 1), (None, None, None)))
 
 
 if __name__ == "__main__":

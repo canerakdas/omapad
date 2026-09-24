@@ -128,6 +128,7 @@ Checking it:
 ```bash
 omapad check                    # config + the connected pad
 omapad budget                   # what it costs while nothing is happening
+omapad budget stress            # open and close every surface, see what was kept
 systemctl --user status omapad
 journalctl --user -u omapad -f
 ```

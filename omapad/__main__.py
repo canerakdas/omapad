@@ -57,7 +57,8 @@ def build_parser():
         "lock <on|off|toggle>, keep <on|off|toggle>, "
         "hud <on|off|toggle>, "
         "mode <toggle|desktop|game>, status; for unit: check; "
-        "for budget: how many seconds to sample",
+        "for budget: how many seconds to sample, or stress [cycles] "
+        "to open and close every surface and see what was kept",
     )
     return parser
 
@@ -733,6 +734,154 @@ def _menu_command_rows(config):
     return [(source["from"], source["ttl"]) for source in sources]
 
 
+# What `budget stress` sends, one cycle of it. Every command here moves a
+# selection or opens and closes a surface and does nothing else, and that is
+# the whole rule for adding one: this runs against the daemon driving the
+# desktop in front of you. `press` runs whatever the row is (the first stress
+# run launched a browser from All apps), `up` and `down` on the quick menu
+# turn the volume, and `left` / `right` on a menu control move its value -
+# none of them may be here. `tests/test_cli.py` holds the list to that.
+STRESS_CYCLE = (
+    "menu open", "menu group 1", "menu select 1", "menu select 0",
+    "menu group 0", "menu close",
+    "quick open", "quick select 1", "quick select 2", "quick select 0",
+    "quick close",
+    "guide open", "guide next", "guide next", "guide prev", "guide close",
+    "osk open", "osk close",
+)
+
+
+def _pid_named(name, proc="/proc"):
+    """The oldest process whose `comm` is `name`, or None.
+
+    Oldest, because a shell that has just been restarted leaves a second one
+    exiting beside it for a moment, and the lower pid is the one that stays.
+    """
+    found = []
+    try:
+        entries = os.listdir(proc)
+    except OSError:
+        return None
+    for entry in entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(os.path.join(proc, entry, "comm")) as handle:
+                if handle.read().strip() == name:
+                    found.append(int(entry))
+        except OSError:
+            continue
+    return min(found) if found else None
+
+
+def _fd_count(pid):
+    """How many descriptors the process holds, or None."""
+    try:
+        return len(os.listdir("/proc/%d/fd" % pid))
+    except OSError:
+        return None
+
+
+def _footprint(pid):
+    """Resident kB, descriptors and threads - the three things a leak grows."""
+    # `Threads:` is a count rather than a size, but it is one number after a
+    # colon in the same file, which is all `_proc_kb` reads.
+    return (_proc_kb(pid, "VmRSS"), _fd_count(pid),
+            _proc_kb(pid, "Threads"))
+
+
+def _drift(label, before, after):
+    """One line saying where a footprint went, or that it could not be read."""
+    if None in before or None in after:
+        return "%s: the process went away while it was being read" % label
+    return ("%s: %.1f MB (%+d kB), %d descriptors (%+d), %d threads (%+d)"
+            % (label, after[0] / 1024.0, after[0] - before[0],
+               after[1], after[1] - before[1], after[2], after[2] - before[2]))
+
+
+def _budget_stress(config, words):
+    """Open, walk and close every surface, and see what the daemon kept.
+
+    The half of a leak that `budget` cannot see: an idle daemon allocates
+    nothing, so a payload or a subscription that outlives its surface only
+    shows once the surfaces have been opened a few hundred times. Sent over
+    the control socket from here rather than through `omapad ctl`, so the
+    round trip timed is the daemon's and not a Python interpreter starting.
+    """
+    from . import control, paths
+
+    cycles = 100
+    if words:
+        try:
+            cycles = int(words[0])
+        except ValueError:
+            print("omapad: budget stress takes a number of cycles",
+                  file=sys.stderr)
+            return 2
+        if cycles <= 0:
+            print("omapad: a stress run needs at least one cycle",
+                  file=sys.stderr)
+            return 2
+
+    fields, why = _daemon_status(config)
+    if fields is None:
+        print("daemon: %s" % why)
+        return 1
+    open_now = [name for name in ("osk", "menu", "quick", "guide", "map")
+                if fields.get(name) == "open"]
+    if open_now:
+        # Every cycle ends by closing what it opened, and a surface that was
+        # open before it began would be shut from under whoever opened it.
+        print("omapad: close %s first - the run opens and closes every "
+              "surface" % ", ".join(open_now), file=sys.stderr)
+        return 1
+    pid = int(fields["pid"])
+    shell = _pid_named("quickshell")
+    daemon_was = _footprint(pid)
+    shell_was = _footprint(shell) if shell else None
+
+    print("daemon: pid %d, %d cycles of %d commands - the surfaces will "
+          "flash on screen" % (pid, cycles, len(STRESS_CYCLE)))
+    took = {}
+    try:
+        for _ in range(cycles):
+            for command in STRESS_CYCLE:
+                start = time.monotonic()
+                control.send(command, config.control_socket)
+                took.setdefault(command.split()[0], []).append(
+                    (time.monotonic() - start) * 1000.0)
+    except (paths.RuntimeDirError, OSError) as exc:
+        print("daemon: stopped answering (%s)" % exc)
+        return 1
+    finally:
+        try:
+            control.send("surface close_all", config.control_socket)
+        except (paths.RuntimeDirError, OSError):
+            pass
+
+    for surface in ("menu", "quick", "guide", "osk"):
+        times = sorted(took.get(surface, ()))
+        if not times:
+            continue
+        print("%-6s %.2f ms a command, %.2f ms at the slowest tenth, "
+              "%.2f ms at worst"
+              % (surface + ":", times[len(times) // 2],
+                 times[len(times) * 9 // 10], times[-1]))
+
+    # Long enough for a heartbeat to go by and for the shell to let go of
+    # what its panels drew, so what is left is kept rather than in flight.
+    time.sleep(3.0)
+    print(_drift("daemon", daemon_was, _footprint(pid)))
+    if shell_was is None:
+        print("shell: no quickshell running to read")
+    else:
+        # The whole shell, not the plugin: the bar and every other plugin
+        # live in the same process, so only the drift is omapad's to answer
+        # for, and even that moves with QML's own garbage collector.
+        print(_drift("shell", shell_was, _footprint(shell)))
+    return 0
+
+
 def cmd_budget(config, words):
     """What omapad costs while nothing is happening, on this machine.
 
@@ -741,6 +890,8 @@ def cmd_budget(config, words):
     come to in milliseconds and megabytes here. A count nobody has priced is
     not a budget, and a millisecond nobody has counted is not one either.
     """
+    if words and words[0] == "stress":
+        return _budget_stress(config, words[1:])
     seconds = 10.0
     if words:
         try:

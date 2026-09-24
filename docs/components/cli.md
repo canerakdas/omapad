@@ -11,7 +11,7 @@ developing - the wrapper runs straight from the tree.
 | `run` (default) | `cmd_run` | the daemon: build the `Config`, start the `Daemon`, handle signals |
 | `dump` | `cmd_dump` | print every event from the pad, for mapping a pad by hand. Says so when something else holds the pad exclusively - a running daemon makes it a partial witness, and a press caught half way reads as a stuck button |
 | `check` | `cmd_check` | parse every binding, report the pad, and say what is wrong. Names any button the kernel has down (`held_keys`), which is the one thing that can be asked about a pad the daemon has grabbed |
-| `budget [seconds]` | `cmd_budget` | what the daemon costs while nothing is happening: its memory, its share of a core over a sample, what one ask of *does the window in front hold the pad* costs here, and how many shells an open menu runs a minute |
+| `budget [seconds]` | `cmd_budget` | what the daemon costs while nothing is happening: its memory, its share of a core over a sample, what one ask of *does the window in front hold the pad* costs here, and how many shells an open menu runs a minute. `budget stress [cycles]` opens and closes every surface and says what the daemon and the shell kept |
 | `ctl <verb> <command>` | `cmd_ctl` | send a command to a running daemon |
 | `unit [check]` | `cmd_unit` | write the systemd user unit for this checkout, with the checkout's path baked into `ExecStart`; `check` answers whether that path can be baked in and writes nothing. What `install.sh` calls, at its last step and at its first. Prints the path alone, so the installer can say the sentence around it |
 
@@ -74,6 +74,40 @@ The CPU figure is read in **clock ticks** - hundredths of a second - so a
 short sample of a quiet daemon is a number with no digits in it. Under five
 ticks it says so and names a longer sample rather than printing a confident
 `0.00%`.
+
+## `budget stress` is the half an idle daemon cannot show
+
+```bash
+omapad budget stress        # 100 cycles
+omapad budget stress 500
+```
+
+An idle daemon allocates nothing, so a payload or a descriptor that outlives
+its surface only shows once the surfaces have been opened a few hundred
+times. `budget stress` sends `STRESS_CYCLE` - open, walk and close the menu,
+the quick menu, the guide and the keyboard - over the control socket that
+many times, and prints:
+
+| Line | What it is |
+|---|---|
+| `menu:` `quick:` `guide:` `osk:` | the control round trip for that surface's commands: the median, the slowest tenth, the worst. Timed over the socket from inside the process rather than through `omapad ctl`, which would time an interpreter starting |
+| `daemon:` | resident size, descriptors and threads, and how far each moved across the run |
+| `shell:` | the same for `quickshell` - the whole shell, bar and every other plugin included, so only the drift is ours to answer for, and QML's collector moves even that |
+
+It reads three seconds after the last command, so a heartbeat has gone by and
+what is left is kept rather than in flight. It refuses to start with a surface
+open, because every cycle ends by closing what it opened.
+
+**What `STRESS_CYCLE` may send is the one rule here**, because it runs against
+the desktop in front of you: open, close and selection, nothing that runs a
+row or moves a value. The first run of it pressed A through All apps and
+started a browser, and walked the quick menu's volume tile to nothing.
+`tests/test_cli.py` holds the list to that.
+
+A slow slowest tenth with a fast median is the loop waiting on something
+after it has answered - the reply goes out before the loop does the rest of
+its turn, so the command *after* the one that caused it is the one that
+pays.
 
 ## Rules
 
