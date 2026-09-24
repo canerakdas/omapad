@@ -120,9 +120,6 @@ class FakeHypr:
         self.calls = []
         self.warps = []
         self.cursors = []
-        # Lua run in the compositor's config namespace - the layer rule that
-        # asks for a blur behind our own surfaces, and nothing else.
-        self.evaluated = []
         # What `j/<command>` answers with, so a snap can be posed a whole
         # desktop without one being on screen.
         self.answers = {}
@@ -130,10 +127,6 @@ class FakeHypr:
         # be held to it.
         self.queries = []
         self.position = (0.0, 0.0)
-
-    def evaluate(self, expression):
-        self.evaluated.append(expression)
-        return "ok"
 
     def dispatch(self, expression):
         self.calls.append(expression)
@@ -5369,25 +5362,9 @@ class FullscreenTests(DaemonTestCase):
         self.assertEqual(self.menu_client.sent[-1]["cell"],
                          self.config.menu_cell)
 
-    def test_the_blur_is_asked_for_once_at_start(self):
-        # A layer rule on our own namespace and nothing else: asking for a
-        # blur behind your own panel is not reaching into somebody's setup.
-        self.hypr.evaluated = []
-        self.daemon.apply_blur()
-        self.assertEqual(len(self.hypr.evaluated), 1)
-        self.assertIn("omapad-", self.hypr.evaluated[0])
-        self.assertIn("blur = true", self.hypr.evaluated[0])
-        self.assertNotIn("decoration", self.hypr.evaluated[0])
-
-    def test_a_desktop_that_wants_no_blur_is_asked_nothing(self):
-        self.config.ui_blur = False
-        self.hypr.evaluated = []
-        self.daemon.apply_blur()
-        self.assertEqual(self.hypr.evaluated, [])
-
 
 class ThemeChangeTests(DaemonTestCase):
-    """What a `hyprctl reload` takes away, and asking for it again."""
+    """What a theme change takes away, and drawing it again."""
 
     def setUp(self):
         super().setUp()
@@ -5399,6 +5376,11 @@ class ThemeChangeTests(DaemonTestCase):
             daemon_module.cursor_theme, "theme_path", lambda: self.colors)
         patch.start()
         self.addCleanup(patch.stop)
+        # The drawn pointer is the one thing a theme change undoes, so it is
+        # what every test here counts.
+        redraw = unittest.mock.patch.object(self.daemon, "apply_cursor")
+        self.redraw = redraw.start()
+        self.addCleanup(redraw.stop)
         self.daemon._theme_seen = self.daemon.theme_stamp()
 
     def write(self, text):
@@ -5409,18 +5391,15 @@ class ThemeChangeTests(DaemonTestCase):
         return time.monotonic() + seconds
 
     def test_nothing_happens_while_the_theme_stands_still(self):
-        self.hypr.evaluated = []
         self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
+        self.assertEqual(self.redraw.call_count, 0)
 
-    def test_a_changed_theme_asks_for_the_blur_again(self):
-        # `omarchy-theme-set` ends in `hyprctl reload`, and a reload throws
-        # away every rule asked for at runtime - ours included.
+    def test_the_pointer_is_redrawn_without_a_mode_switch(self):
+        # The case that matters: the theme most often changes while somebody
+        # is already sitting in game mode looking at the pointer.
         self.write('foreground = "#445566"')
-        self.hypr.evaluated = []
         self.daemon.check_theme(self.later())
-        self.assertEqual(len(self.hypr.evaluated), 1)
-        self.assertIn("blur = true", self.hypr.evaluated[0])
+        self.assertEqual(self.redraw.call_count, 1)
 
     def test_it_is_not_asked_more_often_than_the_poll(self):
         # One `stat` on the beat the surfaces heartbeat at, not one per turn
@@ -5428,108 +5407,30 @@ class ThemeChangeTests(DaemonTestCase):
         now = self.later()
         self.daemon.check_theme(now)
         self.write('foreground = "#445566"')
-        self.hypr.evaluated = []
         self.daemon.check_theme(now + daemon_module.THEME_POLL / 2)
-        self.assertEqual(self.hypr.evaluated, [])
+        self.assertEqual(self.redraw.call_count, 0)
         self.daemon.check_theme(now + daemon_module.THEME_POLL + 0.1)
-        self.assertEqual(len(self.hypr.evaluated), 1)
+        self.assertEqual(self.redraw.call_count, 1)
 
     def test_the_first_look_is_not_a_change(self):
         # Where we came in, not something that moved under us.
         self.daemon._theme_seen = None
-        self.hypr.evaluated = []
         self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
+        self.assertEqual(self.redraw.call_count, 0)
 
     def test_a_theme_that_is_not_there_is_not_a_change_either(self):
         os.unlink(self.colors)
-        self.hypr.evaluated = []
         self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
+        self.assertEqual(self.redraw.call_count, 0)
 
-    def test_the_pointer_is_redrawn_without_a_mode_switch(self):
-        # The case that matters: the theme most often changes while somebody
-        # is already sitting in game mode looking at the pointer.
+    def test_nothing_is_asked_of_the_compositor(self):
+        # Blur is the desktop's call (decision 91): a start and a theme change
+        # send the compositor no rule of ours. The fake has no `evaluate`, so
+        # one asked for would raise here.
         self.write('foreground = "#445566"')
-        with unittest.mock.patch.object(
-                self.daemon, "apply_cursor") as redraw:
-            self.daemon.check_theme(self.later())
-        self.assertEqual(redraw.call_count, 1)
-
-
-class CompositorReloadTests(DaemonTestCase):
-    """The reloads a theme change is not the cause of.
-
-    The menu's own `Scale up` is one: it rewrites `monitors.lua` so the new
-    scale survives a reboot, Hyprland reloads on the write, and the blur
-    behind the menu that is still open goes with it.
-    """
-
-    def setUp(self):
-        super().setUp()
-        directory = tempfile.mkdtemp(prefix="omapad-hypr-")
-        self.addCleanup(shutil.rmtree, directory, True)
-        self.hypr_dir = os.path.join(directory, "hypr")
-        os.mkdir(self.hypr_dir)
-        self.write("monitors.lua", "scale = 1")
-        patch = unittest.mock.patch.dict(
-            os.environ, {"XDG_CONFIG_HOME": directory})
-        patch.start()
-        self.addCleanup(patch.stop)
-        self.daemon._compositor_seen = self.daemon.compositor_stamp()
-
-    def write(self, name, text):
-        path = os.path.join(self.hypr_dir, name)
-        with open(path, "w") as handle:
-            handle.write(text + "\n")
-        # The stamp is in nanoseconds, but two writes inside one test can
-        # still land on the same one: age the file instead of sleeping.
-        stamp = os.stat(path).st_mtime_ns + 1000000000
-        os.utime(path, ns=(stamp, stamp))
-
-    def later(self, seconds=daemon_module.THEME_POLL + 1.0):
-        return time.monotonic() + seconds
-
-    def test_a_rewritten_config_asks_for_the_blur_again(self):
-        self.write("monitors.lua", "scale = 1.25")
-        self.hypr.evaluated = []
+        self.daemon.start()
         self.daemon.check_theme(self.later())
-        self.assertEqual(len(self.hypr.evaluated), 1)
-        self.assertIn("blur = true", self.hypr.evaluated[0])
-
-    def test_any_file_beside_it_counts(self):
-        # A reload is a reload whichever file moved.
-        self.write("looknfeel.lua", "rounding = 8")
-        self.hypr.evaluated = []
-        self.daemon.check_theme(self.later())
-        self.assertEqual(len(self.hypr.evaluated), 1)
-
-    def test_a_config_that_stands_still_asks_nothing(self):
-        self.hypr.evaluated = []
-        self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
-
-    def test_the_first_look_is_not_a_change(self):
-        self.daemon._compositor_seen = None
-        self.hypr.evaluated = []
-        self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
-        self.assertIsNotNone(self.daemon._compositor_seen)
-
-    def test_no_hyprland_config_at_all_is_not_a_change(self):
-        shutil.rmtree(self.hypr_dir)
-        self.hypr.evaluated = []
-        self.daemon.check_theme(self.later())
-        self.assertEqual(self.hypr.evaluated, [])
-
-    def test_the_pointer_is_left_alone(self):
-        # A reload is not a new palette: the drawn pointer on disk is still
-        # the right one, and redrawing it would be a file read for nothing.
-        self.write("monitors.lua", "scale = 1.25")
-        with unittest.mock.patch.object(
-                self.daemon, "apply_cursor") as redraw:
-            self.daemon.check_theme(self.later())
-        self.assertEqual(redraw.call_count, 0)
+        self.assertEqual(self.hypr.calls, [])
 
 
 class EditModeTests(DaemonTestCase):

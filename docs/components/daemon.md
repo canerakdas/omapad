@@ -165,29 +165,18 @@ all of them: a stick held over an app that has the pad would drive the pointer
 across it until the thumb came off. [handover](handover.md) says why they get
 no `reaches_past` to come back on.
 
-## What a reload takes away
+## What a theme change takes away
 
-`omarchy-theme-set` ends in `hyprctl reload`, and a reload **throws away every
-rule asked for at runtime** - the blur behind omapad's own surfaces is one of
-those. The game-mode pointer is the other thing that does not survive: it is a
-file `cursor.py` drew from the palette that was in force, and a shell
-repainting itself cannot redraw a cursor theme on disk.
+The game-mode pointer is a file `cursor.py` drew from the palette that was in
+force, and a shell repainting itself cannot redraw a cursor theme on disk. So
+`check_theme(now)` looks at the theme's own colours file - the same one
+`cursor.py` reads - and when its target or its mtime moves, draws the pointer
+again. `prepare_cursor()` compares a stamp on disk, so a change that was not a
+colour change costs a file read.
 
-Neither is something the surfaces' heartbeat can fix, so `check_theme(now)`
-looks at the theme's own colours file - the same one `cursor.py` reads - and
-when its target or its mtime moves, asks for both again. `prepare_cursor()`
-compares a stamp on disk, so a change that was not a colour change costs a
-file read.
-
-**A theme is the commonest reason for a reload, not the rule.** Anything that
-writes Hyprland's config reloads it, and the blur goes whoever wrote it -
-including omapad: the menu's `Scale up` runs
-`omarchy-hyprland-monitor-scaling`, which rewrites `monitors.lua` so the new
-scale survives a reboot, and the menu that is still open loses its blur as it
-does. So `compositor_stamp()` watches `~/.config/hypr` on the same beat - the
-newest mtime in the directory, because a reload is a reload whichever file
-moved - and a change there asks for the blur again. Only the blur: a reload is
-not a new palette, so the drawn pointer on disk is still the right one.
+omapad asks the compositor for nothing a reload could throw away: there is no
+runtime rule of ours for `hyprctl reload` to take, which is why nothing
+watches `~/.config/hypr` ([91](../decisions/91-what-the-desktop-gave-up.md)).
 
 **Polled, not subscribed to.** One `stat` every `THEME_POLL` on the beat the
 surfaces already heartbeat at is cheaper than a second socket to keep alive,

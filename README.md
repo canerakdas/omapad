@@ -2248,28 +2248,18 @@ the cards are already saying where you are, and a line repeating that is the
 card telling you twice. Drilled in, it names the page instead, since the bar
 has dimmed on the card you came from.
 
-Two things decide how much of the desktop you still see:
+One setting decides how much of the desktop you still see:
 
 ```toml
 [menu]
-dim = 0.6                     # how dark behind, over the theme's own scrim
-
-[ui]
-blur = true                   # ask the compositor to blur behind our surfaces
+dim = 0.75                    # how dark behind, over the theme's own scrim
 ```
 
-`blur` is a **request**. omapad asks Hyprland for a layer rule on its own
-surfaces and nothing else; Hyprland blurs only where blur is on at all, so on
-a desktop that has turned it off the rule does nothing and `dim` is the whole
-of the contrast. Changing the Omarchy theme reloads Hyprland, which throws
-that rule away — omapad notices and asks again, along with redrawing the
-game-mode pointer in the new palette. Turning blur on globally is your call — it changes every
-window on the machine:
-
-```lua
--- ~/.config/hypr/looknfeel.lua
-hl.config({ decoration = { blur = { enabled = true, size = 8, passes = 3 } } })
-```
+omapad asks the compositor for no blur behind its surfaces: whether the
+desktop blurs anything is the desktop's call, and Omarchy ships it off for the
+GPU it costs. `dim` is the whole of the contrast, and it is on the pad as
+`Controller > Background dim` — the desktop darkens under the thumb as it
+moves, which is the only way to tell how much is too much for the room.
 
 Set `fullscreen = false` for the card, which is the better shape at a desk.
 
@@ -2301,8 +2291,8 @@ tile_fill = 1.0               # 1.0 opaque, 0 no ground at all
 ```
 
 At 1.0 the page is the opaque card this surface was drawn to, which is what it
-ships as — lower it and what comes through is the scrim, and under that
-whatever `[ui] blur` is having the compositor blur behind the whole surface.
+ships as — lower it and what comes through is the scrim, and under that the
+desktop.
 At 0 a plain tile has no ground and the page is its ink and its edges.
 
 **And the tile under the thumb is always the whole of it.** Whatever the fill
@@ -2500,7 +2490,7 @@ meta = { from = "hyprctl activewindow -j | jq -r .title", ttl = 2, empty = "Wind
 ```
 
 That is what `Spaces › Windows` ships with: the card is about the window in
-front, the menu has blurred that window, and `WINDOWS` over four verbs says
+front, the menu has dimmed that window, and `WINDOWS` over four verbs says
 only what the page is already called. With the title there, `Close window` is a
 row about something you can name.
 

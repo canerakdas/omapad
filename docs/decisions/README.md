@@ -125,3 +125,4 @@ and is in the order it was found.
 | 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | ✅ Done | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |
 | 89 | [A Braun knob, drawn in lines](89-a-braun-knob.md) | ✅ Done | S | The knob as a Braun T 1000 control: knurled cap, painted index, printed scale that lights to the value. |
 | 90 | [The chord is the pause](90-the-chord-is-the-pause.md) | ✅ Done | S | The workspace lock and its pair on the quick menu, and MINUS + PLUS opens the quick menu rather than the controller menu; the row trades brightness, screenshot and record for mic mute and deafen. |
+| 91 | [What the desktop gave up](91-what-the-desktop-gave-up.md) | ✅ Done | S | omapad asks the compositor for no blur: `[ui] blur` and the reload watcher behind it are gone, and whatever the desktop blurs is what applies. |

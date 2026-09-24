@@ -1294,17 +1294,15 @@ scrim already does. It is drawn in `Color.menu.background` rather than in
 black: darkening a themed surface towards something that is not in the theme
 is how a warm palette goes grey.
 
-`[ui] blur` asks the **compositor** to blur behind omapad's own surfaces -
-`hl.layer_rule` on the `omapad-.*` namespace, sent once at start over the same
-IPC socket the `hypr:` actions use. That is the only place in this program
-that writes to Hyprland's configuration, and it writes about windows this
-program owns: asking for a blur behind your own panel is not reaching into
-somebody's setup, and nothing here touches a global.
-
-**It is a request, not a promise.** Hyprland blurs only where blur is on at
-all, so on a desktop with `decoration.blur.enabled = false` the rule is a
-no-op and `[menu] dim` is the whole of the contrast. Turning blur on globally
-is the person's call, not ours - it changes every window on the machine.
+**No blur is asked for.** omapad used to send `hl.layer_rule` for a blur
+behind its own `omapad-.*` surfaces; it no longer talks to the compositor
+about how anything looks. Whether the desktop blurs is the desktop's call -
+Omarchy turned `decoration.blur.enabled` off for the GPU it costs - and
+[91](../decisions/91-what-the-desktop-gave-up.md) is the whole of it. `dim`
+carries the contrast, which is why it went from 0.6 to 0.75 when the blur went,
+and why it is on the pad as `Controller > Background dim` beside `Tile fill`:
+how much of the desktop is too much is a question about the room, and the
+only way to answer it is to move the slider and look.
 
 ### The bar goes first
 
@@ -2202,7 +2200,7 @@ carries it the same way.
 `{from, ttl, empty}` table a nav card's is, run by the same refresh, and what
 it says stands where the tile's *written* line stands: the heading of a card
 of rows, the detail of anything else. `Windows` is what it ships for - the
-card is about the window in front, the menu has blurred that window, and
+card is about the window in front, the menu has dimmed that window, and
 `WINDOWS` over four verbs says only what the page is already called. `System >
 Update` is the second, and it is the same argument about the machine rather
 than about a window: how many packages are waiting is a number nothing written
@@ -2525,9 +2523,7 @@ whose default is worth re-deriving rather than nudging.
 on `cellGround` and never as `opacity` on the delegate: the second one would
 take the label, the icon and every figure on the tile down with it, which is a
 page you cannot read rather than one you can see through. What shows through
-is the scrim and, under it, whatever the compositor is blurring behind the
-whole layer - there is no per-tile blur to arrange, because `apply_blur` has
-already put one behind everything.
+is the scrim and, under it, the desktop.
 
 `ground.fill` is where the state comes in: a **selected** tile is `1.0`
 whatever the setting says, so a lowered fill is also how far the page falls
@@ -2569,7 +2565,7 @@ reach unreachable. `tests/test_shell_plugin.py` holds that, because on screen
 it is a slider whose last step does nothing.
 
 Settings: `[menu] title`, `clock`, `columns`, `cell_height`, `bias`, `keys`,
-`tile_corner`, `tile_fill`, `press_ms`, `countdown`,
+`dim`, `tile_corner`, `tile_fill`, `press_ms`, `countdown`,
 `repeat_delay_ms`, `repeat_rate_ms`, `group_settle_ms`, `list_timeout_ms`,
 `list_limit`, `socket`,
 `[[menu.head]]`, `[[menu.items]]`, `[bindings.menu]`.

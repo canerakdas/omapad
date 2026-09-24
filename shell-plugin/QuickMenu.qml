@@ -85,7 +85,7 @@ Item {
   // and `dim` - for the reason the header gives.
   property int cellUnit: 128
   property real corner: 23
-  property real dim: 0.6
+  property real dim: 0.75
 
   readonly property bool stencil: root.badgeStyle === "stencil"
   readonly property int screenH: panel.screen ? panel.screen.height : 0

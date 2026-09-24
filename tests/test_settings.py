@@ -281,7 +281,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(swept, {"sound_volume", "rumble_strength",
                                  "scroll_speed", "pointer_speed",
                                  "left_deadzone", "right_deadzone",
-                                 "tile_fill"})
+                                 "tile_fill", "dim"})
 
     def test_motion_is_worded_because_off_is_the_stop_that_matters(self):
         # It exists for somebody who cannot read a moving screen, and the stop
@@ -568,6 +568,42 @@ class TileFillTests(unittest.TestCase):
         with self.assertRaises(config_module.ConfigError) as caught:
             config_module.Config({"menu": {"tile_fill": 1.4}})
         self.assertIn("menu.tile_fill", str(caught.exception))
+
+
+class DimTests(unittest.TestCase):
+    """How dark the desktop goes behind the menu, walked from the pad."""
+
+    def test_it_ships_darker_than_it_did_under_a_blur(self):
+        # With no blur behind the menu (decision 91) the scrim is the whole
+        # of the contrast, so it starts darker than the 0.6 it was.
+        self.assertEqual(config_module.Config({}).menu_dim, 0.75)
+        self.assertEqual(shipped().menu_dim, 0.75)
+
+    def test_it_steps_a_twentieth_and_stops_at_both_ends(self):
+        config = shipped()
+
+        def step(word):
+            return config.set_setting(
+                "dim", config_module.setting_request("dim", word)
+            )
+
+        self.assertAlmostEqual(step("up"), 0.8)
+        step("0.95")
+        self.assertAlmostEqual(step("up"), 1.0)
+        self.assertAlmostEqual(step("up"), 1.0)
+        step("0.05")
+        self.assertAlmostEqual(step("down"), 0.0)
+        self.assertAlmostEqual(step("down"), 0.0)
+        self.assertAlmostEqual(config.menu_dim, 0.0)
+
+    def test_it_is_on_the_page_beside_the_fill(self):
+        # A setting that is only in CHOSEN is reachable from a binding and
+        # from nowhere a thumb can find it.
+        reads = [tile.get("reads") for group in shipped().menu_items
+                 for tile in group.get("items", [])]
+        self.assertIn("pad:dim", reads)
+        self.assertEqual(reads.index("pad:dim"),
+                         reads.index("pad:tile_fill") + 1)
 
 
 if __name__ == "__main__":

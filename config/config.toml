@@ -2817,11 +2817,17 @@ live_hz = 60
 fullscreen = true
 
 # How dark the screen behind the menu goes, on top of whatever the theme's own
-# scrim already does. With the compositor blurring behind us as well this is
-# the tint over the blur; with blur off it is the whole of what stands between
-# a tile's label and a window full of text. Raise it if the desktop shows
-# through too much, lower it to see more of what is behind.
-dim = 0.6
+# scrim already does. It is the whole of what stands between a tile's label
+# and a window full of text: omapad asks the compositor for no blur behind it,
+# and leaves blur to the desktop (decision 91). Raise it if the desktop shows
+# through too much, lower it to see more of what is behind. It is on the pad
+# as `Controller > Background dim`, because whether the desktop shows through
+# too much is a question about the room, answered by looking.
+#
+# 0.75 rather than the 0.6 it was while omapad asked for a blur: without the
+# blur the desktop came through sharp, and a darker scrim is what does that
+# work now.
+dim = 0.75
 
 # How much of a tile's corner is drawing rather than edge, in unscaled pixels,
 # where the compositor has no answer of its own. Each state of a tile is drawn
@@ -2842,8 +2848,8 @@ tile_corner = 23
 
 # How solid a tile's ground is drawn, where nothing about the tile says
 # otherwise. 1.0 is the opaque card this surface was drawn to; lower it and
-# the page opens up - what comes through is the scrim, and under that whatever
-# the compositor is blurring behind the whole surface. At 0 a plain tile has
+# the page opens up - what comes through is the scrim, and under that the
+# desktop. At 0 a plain tile has
 # no ground at all and the page is its ink and its edges.
 #
 # **It is the fill, not the tile.** A label and an icon are drawn at full
@@ -2862,9 +2868,7 @@ tile_corner = 23
 #
 # **`dim` above does the work this gives up.** What a label stands on once the
 # fill is low is the scrim, so a page that reads badly over a window full of
-# text is asking for a darker `dim` rather than a higher fill. With `[ui] blur`
-# on there is a blur under that as well, and the two together are what make a
-# low fill legible at all.
+# text is asking for a darker `dim` rather than a higher fill.
 tile_fill = 1.0
 # How long a tile stays lit after A lands on it, in milliseconds. A press is
 # the one thing this surface does that has no state to show afterwards: the
@@ -3200,7 +3204,7 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
   detail = "Close window is held, not pressed"
   # **And the heading names the window rather than the page.** `Close window`
   # is the row on this surface where a written line is not enough: the menu
-  # blurs what is behind it, so the thing about to be closed is a shape you
+  # dims what is behind it, so the thing about to be closed is a shape you
   # cannot read, and `WINDOWS` over four verbs says only what the page is
   # already called. A `meta` is the one line a tile can have that knows what
   # the machine is doing, and here it answers the question the card is for.
@@ -4126,6 +4130,17 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   span = [4, 1]
   control = "slider"
   reads = "pad:tile_fill"
+
+  # And how dark the desktop goes behind the menu - `[menu] dim` - which is
+  # the other half of what `Tile fill` opens up: a low fill shows the scrim,
+  # and this is how much of the desktop the scrim lets through. Beside it for
+  # the same reason the three above are here: you move it and look.
+  [[menu.items.items]]
+  icon = "󰃟"
+  label = "Background dim"
+  span = [4, 1]
+  control = "slider"
+  reads = "pad:dim"
 
 # The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
 #

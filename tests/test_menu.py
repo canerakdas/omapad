@@ -219,9 +219,9 @@ class BuildTests(unittest.TestCase):
                          ["Sticks", "Hide the pointer", "Button style"])
         # And the band under them is what omapad draws rather than what the
         # pad does - the three that were on Display reading as questions
-        # about the television.
+        # about the television, and how dark the desktop goes behind them.
         self.assertEqual(labels[start + 3:],
-                         ["Motion", "Corners", "Tile fill"])
+                         ["Motion", "Corners", "Tile fill", "Background dim"])
         pointer = rows[labels.index("Hide the pointer")]
         # A switch rather than two rows that both ticked: it has two states,
         # and the tile draws which one it is in.
@@ -2915,7 +2915,7 @@ class ViewTests(unittest.TestCase):
     def test_a_tile_says_what_a_config_file_could_not(self):
         # `meta` on a tile is the line nobody can write down: what the machine
         # is doing right now. `Windows` is the case it ships for - what the
-        # card is about is the window in front, and the menu has blurred it.
+        # card is about is the window in front, and the menu has dimmed it.
         model = MenuModel(build([
             {"label": "Workspaces", "items": [
                 {"label": "Windows", "control": "rows",

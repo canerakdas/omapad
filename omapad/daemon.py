@@ -611,10 +611,6 @@ class Daemon:
         # again. A theme change is the one thing that undoes what omapad has
         # asked the desktop for - see `check_theme`.
         self._theme_seen = None
-        # And what Hyprland's own config looked like, for the reloads a theme
-        # change is not the cause of - the same beat, the same rule to put
-        # back.
-        self._compositor_seen = None
         self._theme_next_check = 0.0
         # Whether the compositor animates anything at all. Cached rather
         # than asked per push: it is read on the theme beat, and a payload
@@ -7040,9 +7036,7 @@ class Daemon:
         self.apply_cursor()
         self.apply_bar()
         self.apply_idle()
-        self.apply_blur()
         self._theme_seen = self.theme_stamp()
-        self._compositor_seen = self.compositor_stamp()
         self.check_pointer_hiding()
 
     def theme_stamp(self):
@@ -7057,54 +7051,14 @@ class Daemon:
         except OSError:
             return None
 
-    def compositor_stamp(self):
-        """The newest mtime under Hyprland's own config, or None.
-
-        A theme is not the only thing that reloads the compositor, and a
-        reload throws away the blur rule whoever caused it. The menu's own
-        `Scale up` is the case that found this: it runs
-        `omarchy-hyprland-monitor-scaling`, which rewrites `monitors.lua` so
-        the new scale survives a reboot - Hyprland reloads on that write, and
-        the blur behind the menu went with it while the menu was still open.
-
-        The directory rather than one file, because a reload is a reload
-        whichever of them moved; not recursive, because Hyprland's config is
-        a handful of files beside each other and a `source` of something
-        deeper is a setup this cannot promise to see anyway.
-        """
-        base = os.environ.get("XDG_CONFIG_HOME") \
-            or os.path.expanduser("~/.config")
-        newest = None
-        try:
-            with os.scandir(os.path.join(base, "hypr")) as entries:
-                for entry in entries:
-                    try:
-                        moved = entry.stat().st_mtime_ns
-                    except OSError:
-                        continue  # deleted between the listing and the stat
-                    if newest is None or moved > newest:
-                        newest = moved
-        except OSError:
-            return None  # no Hyprland config is a daemon that still works
-        return newest
-
     def check_theme(self, now):
         """Ask again for what the desktop may have changed underneath us.
 
-        `omarchy-theme-set` ends in `hyprctl reload`, and a reload throws away
-        every rule asked for at runtime - the blur behind our own surfaces is
-        one of those. The game-mode pointer is the other: it is a file omapad
-        drew from the palette that was in force, and a shell repainting itself
-        cannot put either back.
+        The game-mode pointer is a file omapad drew from the palette that was
+        in force, and a shell repainting itself cannot redraw it - so a theme
+        that moved is a pointer drawn again.
 
-        A theme is only the commonest reason for a reload, though, not the
-        rule: anything that writes Hyprland's config reloads it, and the blur
-        goes whoever wrote it - so `compositor_stamp` watches that directory
-        for the same reason. The cursor does not ride along with it, because
-        a reload is not a new palette: the pointer on disk is still the right
-        one, and redrawing it would be a file read for nothing.
-
-        The third is not a theme change at all and rides here for its beat:
+        The other is not a theme change at all and rides here for its beat:
         whether the compositor animates anything (`[ui] motion`). It is asked
         every time rather than only when the theme moved, because turning
         animations off changes no file.
@@ -7129,43 +7083,12 @@ class Daemon:
         theme_moved = _stamp_moved(self._theme_seen, theme)
         if theme is not None:
             self._theme_seen = theme
-        compositor = self.compositor_stamp()
-        config_moved = _stamp_moved(self._compositor_seen, compositor)
-        if compositor is not None:
-            self._compositor_seen = compositor
         if theme_moved:
-            log.info("the desktop theme changed; asking for ours again")
-        elif config_moved:
-            log.info("the compositor was reconfigured; asking for the blur again")
-        if theme_moved or config_moved:
-            self.apply_blur()
-        if theme_moved:
+            log.info("the desktop theme changed; drawing the pointer again")
             # Redrawn only where the colours really moved: `prepare_cursor`
             # compares a stamp on disk, so this is a file read where nothing
             # has.
             self.apply_cursor()
-
-    def apply_blur(self):
-        """Ask the compositor to blur behind our own surfaces.
-
-        A layer rule on our own namespace and nothing else - asking for a blur
-        behind your own panel is not reaching into somebody's setup. It is a
-        *request*: Hyprland blurs only where blur is on at all, so this does
-        nothing on a desktop that has turned it off, and `[menu] dim` is what
-        carries the contrast there.
-
-        Best-effort like everything else that talks to the compositor: no
-        Hyprland is a working daemon, and a rule that did not take is a menu
-        that looks plainer rather than one that does not open.
-        """
-        if not self.config.ui_blur:
-            return
-        answer = self.hypr.evaluate(
-            self.config.ui_blur_rule % self.config.ui_blur_alpha
-        )
-        if answer is None or answer.strip() != "ok":
-            log.info("the compositor did not take the blur rule: %s",
-                     (answer or "no answer").strip()[:80])
 
     def run(self):
         self.start()

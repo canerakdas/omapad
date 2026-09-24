@@ -219,6 +219,17 @@ CHOSEN = {
         "kind": "number", "step": 0.1, "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
     },
+    # How dark the desktop goes behind the menu, which is the same kind of
+    # question as `tile_fill` and is answered the same way: by looking at the
+    # room the menu stands in front of, which a config file cannot see.
+    "dim": {
+        "attr": "menu_dim", "table": "menu", "key": "dim",
+        # A twentieth per step rather than `tile_fill`'s tenth: the part of the
+        # range anybody uses is the top half, where a label stops fighting a
+        # window full of text, and a tenth there is too coarse to stop on.
+        "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
+        "unit": "%", "scale": 100,
+    },
     "rumble": {
         "attr": "rumble_enabled", "table": "rumble", "key": "enabled",
         "kind": "bool",
@@ -1491,18 +1502,6 @@ class Config:
             raise ConfigError(
                 "ui.badge_style must be one of %s" % ", ".join(BADGE_STYLES)
             )
-        # Whether omapad asks the compositor to blur behind its own surfaces.
-        # A request, not a promise: Hyprland only blurs where blur is on at
-        # all, so this does nothing on a desktop that has turned it off, and
-        # `[menu] dim` is what has to carry the contrast there.
-        self.ui_blur = bool(ui.get("blur", True))
-        self.ui_blur_rule = str(ui.get("blur_rule", "")).strip() or (
-            'hl.layer_rule({ match = { namespace = "omapad-.*" },'
-            ' blur = true, ignore_alpha = %s })'
-        )
-        self.ui_blur_alpha = float(ui.get("blur_alpha", 0.15))
-        if not 0.0 <= self.ui_blur_alpha <= 1.0:
-            raise ConfigError("ui.blur_alpha must be between 0 and 1")
 
         osk = data.get("osk", {})
         self.osk_socket = osk.get("socket") or None
@@ -1749,9 +1748,8 @@ class Config:
         # How dark the screen behind the card goes, over whatever the theme's
         # own scrim already does. A fullscreen HUD draws no panel, so this is
         # the only thing standing between a tile's label and a window full of
-        # text - and with the compositor blurring as well, it is the tint over
-        # the blur rather than the whole of the contrast.
-        self.menu_dim = float(menu.get("dim", 0.6))
+        # text. omapad asks the compositor for no blur behind it (decision 91).
+        self.menu_dim = float(menu.get("dim", 0.75))
         if not 0.0 <= self.menu_dim <= 1.0:
             raise ConfigError("menu.dim must be between 0 and 1")
         # What a corner is rounded by where the compositor rounds nothing.

@@ -70,10 +70,10 @@ Item {
   // as a page, and across a room the second one is what a HUD is for.
   property bool full: false
   // How dark the screen behind goes, over whatever the theme's own scrim
-  // already does. With the compositor blurring as well this is the tint over
-  // the blur; with blur off it is the whole of the contrast, which is why it
-  // is a setting rather than a number picked here.
-  property real dim: 0.6
+  // already does. It is the whole of the contrast - omapad asks for no blur
+  // behind the surface - which is why it is a setting rather than a number
+  // picked here.
+  property real dim: 0.75
   // What a corner is rounded by where the compositor rounds nothing, before
   // this surface's own scale. `menu.tile_corner`, and it is the *base* of
   // `metrics.radius` rather than a tile's radius: `Style.cornerRadius` is the
@@ -82,7 +82,7 @@ Item {
   property real corner: 23
   // How solid a plain tile's ground is drawn - `menu.tile_fill`. 1.0 is the
   // opaque card this surface was drawn to; below it the scrim shows through,
-  // and under that whatever the compositor is blurring behind the surface.
+  // and under that the desktop.
   // **The fill, not the tile**: every label and icon is drawn at full strength
   // whatever this is, because a page you can see through is not the same thing
   // as a page you cannot read.
