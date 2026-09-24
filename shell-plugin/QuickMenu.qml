@@ -125,10 +125,6 @@ Item {
     Qt.tint(Color.menu.background, Util.alpha(Color.menu.text, 0.08))
   readonly property color cellEdge:
     Qt.tint(root.cellGround, Util.alpha(Color.menu.text, 0.07))
-  // A tile whose switch is on: a fifth of the accent over the cell, resolved
-  // to a solid for Menu.qml's reason - the desktop is behind it.
-  readonly property color cellLit:
-    Qt.tint(root.cellGround, Util.alpha(Color.accent, 0.20))
   // The scale a value is read against, and the run of it the value has
   // covered: `Menu.qml`'s `spineInk` and `trailInk` written out. The value
   // here is drawn by the menu's slider, so its inks are a mirrored
@@ -386,6 +382,19 @@ Item {
 
             readonly property bool selected: tile.index === root.sel
             readonly property bool lit: tile.modelData.on === true
+            // How far a tile that is on has sunk into its slot - Menu.qml's
+            // `tile.sunk`, for its reason: a switch that is on is a key that
+            // has gone down, and a coloured ground was the nav card's word.
+            // No plate here: every tile on this row carries `on`, verbs
+            // included, and a tile that has a word to say already says it
+            // on its own foot.
+            property real sunk: tile.lit ? metrics.gap.md : 0
+            Behavior on sunk {
+              NumberAnimation {
+                duration: metrics.time.brisk
+                easing.type: Easing.OutCubic
+              }
+            }
             readonly property bool danger: tile.modelData.x === true
             // The ring, the halo and the mark: the accent, or the theme's
             // urgent colour on the one tile nobody can take back.
@@ -413,10 +422,24 @@ Item {
               }
             }
 
+            // The face, flush with the slot until the tile is on and `sunk`
+            // inside it after, with its own hairline so the rim reads as a
+            // gap. Its corner is the slot's less the inset: concentric, or it
+            // bulges at the corners.
+            Rectangle {
+              anchors.fill: parent
+              anchors.margins: tile.sunk
+              radius: Math.max(0, metrics.radius.tile - tile.sunk)
+              color: root.cellGround
+              border.width: tile.sunk > 0 ? root.ringWeight : 0
+              border.color: root.cellEdge
+            }
+
+            // The slot, which is the ring as well: it stays where the cell is.
             Rectangle {
               anchors.fill: parent
               radius: metrics.radius.tile
-              color: tile.lit ? root.cellLit : root.cellGround
+              color: "transparent"
               border.width: root.ringWeight
               border.color: tile.selected ? tile.mark : root.cellEdge
               Behavior on border.color {

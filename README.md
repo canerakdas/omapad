@@ -2329,10 +2329,12 @@ is asking for a darker `dim` rather than a higher fill. It is on the pad as
 `Controller > Tile fill`, beside `Corners`, and for the same reason: the page you
 are looking at while you move the slider is the page that opens up under it.
 
-**A switch you have turned on fills its whole tile** with the accent, rather
-than drawing a little pill in the middle of it — a card has room to say one
-thing with its whole face, and across a room a lit card reads where a knob
-does not. Off, it looks like any other tile: *on* is the state worth seeing.
+**A switch you have turned on goes down like a key** — its face sinks into
+the tile's outline and a rim opens round it, and the corner prints `ON` and
+`OFF` with the one in force lit — rather than drawing a little pill in the
+middle of it. A card has room to say one thing with its whole face, and a
+position reads across a room and through a low `Tile fill` where a colour
+does not. Off, the key sits flush and its plate says so.
 
 **The selected tile is lit from above** — its face carries a little more of
 the accent along its top edge, falling away down the tile and gone by a little

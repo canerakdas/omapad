@@ -117,7 +117,9 @@ drifting over the game behind it is worse than a stick that does nothing.
 `QuickMenu.qml`. Pad-only, like the guide: `WlrLayer.Overlay`, no keyboard
 focus, an empty input region, and `ExclusionMode.Ignore` always - the bar's
 strip is the legend's. Every colour is a theme role - the tiles are
-the menu's `cellGround` / `cellEdge` / `cellLit`, the destructive tile takes
+the menu's `cellGround` / `cellEdge`, a tile that is on sinks into its slot the
+way a menu switch does (`tile.sunk`, without the plate - every tile on this
+row carries `on`, verbs included), the destructive tile takes
 `Color.urgent` - and every size is off the silver ladder except the cell,
 which is the menu's module, and the legend, which is Menu.qml's fullscreen
 legend and so GameBar.qml's row: same badge, same words, same band, same edge

@@ -2305,33 +2305,46 @@ the tile that has left the page's order spends it. A selection does not, and
 neither does a control being pushed: both of those were cut back for a while,
 and a page where three tiles are three shapes is a page you read as broken.
 
-**A toggle that is on is a lit card**, not a filled one and not a pill in the
-middle of one. The pill went first: the body and the knob that slides in it is
+**A toggle that is on is a key that has gone down**, and the card is still
+the switch. The pill went first: the body and the knob that slides in it is
 how a switch looks in a *row* of settings, and the design uses one there too,
 but a cell has a whole card's worth of room to say one bit with and a pill
 floating in the middle of it is a diagram of a switch rather than a switch. So
 the card became the switch, and for a while the card filled with the accent
 outright.
 
-**The fill went second, for two halves of one reason.** A solid accent ground
+**The fill went second, and the fifth of it third.** A solid accent ground
 already means something on this surface - it is the nav card you are standing
-on, the one fill that has to carry a label rather than sit under one - and a
-page with a lit toggle on it had two of them, the larger one down in the grid.
-A bar outshouted by a tile has stopped saying which place you are in. And a
-filled tile had nothing left to be *selected* with: the ring, the halo and the
-light are all drawn in the accent, so on an accent ground all three came out in
-`Ink.on`'s answer - a border, a glow and a face within one step of each other,
-and no way to tell which of six tiles the selection was on.
+on - and a page with a lit toggle on it had two of them, the larger one down
+in the grid; a filled tile also had nothing left to be *selected* with, since
+the ring, the halo and the light are all drawn in the accent. `cellLit`, a
+fifth of the accent over the cell, answered the second half and not the
+first: on the machine it read as a faded copy of the nav card, and an off
+toggle still looked like a tile that merely does something. And any coloured
+ground is a colour the desktop shows through once `tile_fill` comes down,
+where a shadow or a gradient that might have said *pressed* turns to mud.
 
-So a toggle says on the way every state on this surface says one. `cellLit` is
-a fifth of the accent over the cell's own ground, resolved to a solid the way
-`cellGround` is, and the theme's own ink still stands on it - `qml.md` 8.1.1's
-rule rather than an exception to it. The second channel is the **mark**, which
-takes `Color.accent`: the one glyph on this surface drawn in a colour of its
-own, because it is the one that is also a state. The edge is deliberately not a
-third. A lit tile keeps the ordinary hairline, because an accent border is what
-says *which tile you are at*, and a ring already drawn round everything that is
-switched on has stopped being a ring that moves as you walk.
+So the state is said the way a latching key on a Braun front panel says it:
+**by where the key is**. `ground` is the cell's outline and stays put - it is
+the slot, and the selection's ring. `seat` is the face, and on a switch that
+is on it sinks `tile.sunk` (`gap.md`, animated) inside the slot, drawn with
+`tile.concentric(-sunk)` and a hairline of the cell's own edge ink, so the rim
+that opens between them is a gap of one corner all the way round. Nothing is
+filled that was not filled already, which is `qml.md` 8.1.1's second channel:
+a position survives a theme whose accent sits on its surface. `gap.md`
+because the rim has to clear the press ring, which is drawn in the first few
+pixels inside the slot - a press on a key that is down lands in the rim.
+
+**The light is the plate**: ON and OFF both printed in the corner opposite
+the mark, the one in force in `Color.accent` and the other at 0.3 of the ink -
+furniture on the plate rather than a line to read, the dial's face number. It
+is what lets an off toggle say *off* rather than nothing. The mark is the
+ordinary ink now: it lit as well once, which with the key and the word was the
+same bit said three times. The plate only draws where the mark would fit, and
+gives the corner up to the chevron, the countdown and a tile being carried.
+The two were chosen against a page of mock-ups over a desktop at three fills;
+a second outline for the key's height (the TE line-drawing reading) was the
+runner-up, and lost because it gives every switch a silhouette of its own.
 
 **A tile that knows a bool about itself is a switch**, however the config
 happened to say so: `control = "toggle"` is one way, and an action the daemon
@@ -2450,9 +2463,10 @@ whatever the setting says, so a lowered fill is also how far the page falls
 back behind the selection, and the ring gains a second channel that costs the
 design nothing at 1.0. That is why `fillColor` grew a `Behavior` - the fill
 now says what the ring says, and a fill that snapped while the ring faded
-would be the selection arriving twice. `cellLit` and the carried tint ignore
-the setting: each of them *is* a state, and the carried one is already
-translucent over whatever it is being carried across.
+would be the selection arriving twice. The carried tint ignores
+the setting: it *is* a state, and already translucent over whatever it is
+being carried across. A key that is down does not - its face is the same
+glass as every other, sunk into its slot.
 
 **`tile.focusLight` is the other thing it moves.** The halo's and the sheen's
 `opacity` were `tile.selected ? 1 : 0`; they are `tile.focusLight` now, which

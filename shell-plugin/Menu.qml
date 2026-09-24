@@ -430,15 +430,11 @@ Item {
   // percent of the ink, the card to its line another seven.
   readonly property color cellEdge:
     Qt.tint(root.cellGround, Util.alpha(Color.menu.text, 0.07))
-  // And the ground a tile takes when the control on it is **on**: a fifth of
-  // the accent over the cell's own colour, resolved to a solid the way
-  // `cellGround` is. Left translucent it would be the desktop showing through
-  // the one tile on the page with something to say - on a fullscreen page
-  // there is nothing behind a tile but the desktop.
-  //
-  // A fifth, and not the fill it used to be. A solid accent ground is the
-  // bar's word for the place you are standing in, and a second one down in
-  // the grid outranked it: the tile's own `lit` is the whole argument.
+  // A fifth of the accent over the cell's own colour, resolved to a solid the
+  // way `cellGround` is: the ground of the chip the focus is on, in the strip
+  // of tiles taken off every page. It was also the ground of a toggle that is
+  // on, until that read as a faded second nav card - a toggle is a key that
+  // goes down now (`tile.sunk`), and says so without a colour.
   readonly property color cellLit:
     Qt.tint(root.cellGround, Util.alpha(Color.accent, 0.20))
   // **The three inks, and they are contrast ratios rather than fades.** The
@@ -1856,32 +1852,34 @@ Item {
                 function concentric(out) {
                   return Math.max(0, metrics.radius.tile + out)
                 }
-                // **A toggle that is on is a lit card, not a filled one.**
-                // It drew a pill with a knob in it once, which is how a switch
-                // looks in a *row* of settings; a cell has a whole card's worth
-                // of room to say one bit with, so the card became the switch
-                // and filled with the accent outright. The card is still the
-                // switch. What the fill cost is the two things a state has to
-                // leave alone.
+                // **A toggle that is on is a key that has gone down**, and
+                // the card is still the switch. It drew a pill with a knob in
+                // it once, which is how a switch looks in a *row* of settings;
+                // a cell has a whole card's worth of room to say one bit with,
+                // so the card became the switch. It then filled with the
+                // accent, and then with a fifth of it - and both were a
+                // coloured ground, which is the nav card's word: a lit toggle
+                // down in the grid read as a faded second copy of the place
+                // you are standing in. And a coloured ground is a colour the
+                // desktop shows through as soon as `menu.tile_fill` comes
+                // down, where a shadow or a gradient that might have said
+                // *pressed* instead turns to mud.
                 //
-                // **A solid accent ground already means something here**, and
-                // it is the nav card you are standing on. A page with a lit
-                // toggle had two of them, the larger one down in the grid, and
-                // a bar that is outshouted by a tile has stopped saying which
-                // place you are in.
+                // So the state is said the way a latching key on a Braun
+                // front panel says it: **by where the key is**. The cell's own
+                // outline stays where it is, as the slot, and the face sinks
+                // into it by `sunk` - drawn concentric with that outline, so
+                // the rim that opens between them is a hairline of the same
+                // corner all the way round. Nothing on it is filled that was
+                // not filled already; it is geometry, which is qml.md 8.1.1's
+                // second channel and survives a theme whose accent sits on its
+                // surface.
                 //
-                // **And a filled tile had nothing left to be selected with.**
-                // The ring, the halo and the light are all drawn in the accent,
-                // so on an accent ground they came out in `onAccent` - a
-                // border, a glow and a face within one step of each other, and
-                // no way to tell which tile the selection was on.
-                //
-                // So a toggle says on the way every other state on this surface
-                // says one - a fifth of the accent, with the theme's own ink
-                // standing on it (qml.md 8.1.1) - and lights its mark rather
-                // than its ground. The fill is the bar's word and the grid does
-                // not spend it. What it costs is the same thing it always cost:
-                // an off toggle looks like a tile that merely does something.
+                // The light is the word in the corner (`plate`): ON and OFF
+                // both printed, the one in force lit. What that buys is the
+                // thing a coloured ground never could - an off toggle that
+                // looks like a switch rather than like a tile that merely
+                // does something.
                 // **A tile that knows a bool about itself is a switch**,
                 // however the config happened to say so. `control = "toggle"`
                 // is one way; an action the daemon can ask a question about is
@@ -1898,6 +1896,20 @@ Item {
                 readonly property bool switchable: tile.modelData.k === "toggle"
                   || (!tile.holds && tile.modelData.on !== undefined)
                 readonly property bool lit: tile.switchable && tile.ticked
+                // How far the face of a key that is down stands inside its
+                // slot. `gap.md` because the rim has to clear the press ring
+                // (`hit`), which is drawn in the first few pixels inside the
+                // slot: a press on a key that is down lands in the rim, as a
+                // ring round the key, rather than on the face's own edge where
+                // the two would read as one thick line. Animated, so the key
+                // is seen to go down rather than found down.
+                property real sunk: tile.lit ? metrics.gap.md : 0
+                Behavior on sunk {
+                  NumberAnimation {
+                    duration: metrics.time.brisk
+                    easing.type: Easing.OutCubic
+                  }
+                }
                 // Everything drawn on this tile, and it is the theme's own ink
                 // whatever the tile is doing: nothing in this grid is filled
                 // any more, so every string stands on the cell's own ground and
@@ -1906,9 +1918,8 @@ Item {
                 readonly property color ink: Color.menu.text
                 // And everything drawn *in* the accent - the focus ring, its
                 // halo, the light on the face, the press. Full strength on a
-                // lit tile too: a fifth of the accent is what the ring is read
-                // against, which is two states saying two things rather than
-                // one colour said twice.
+                // key that is down too: its state is a position and a word,
+                // so the accent on its edge still means one thing only.
                 readonly property color mark: Color.accent
                 readonly property bool hasIcon: tile.modelData.i !== undefined
                   && tile.modelData.i.length > 0
@@ -1989,6 +2000,59 @@ Item {
                 readonly property real focusLight:
                   tile.selected ? root.tileFill : 0
 
+                // **The face, which is what sinks.** `ground` below is the
+                // cell's outline and stays where the cell is: it is the slot,
+                // and the selection's ring. This is the key sitting in it -
+                // flush at `sunk` 0, which is every tile that is not a switch
+                // that is on, and drawn `sunk` inside the slot otherwise, with
+                // a hairline of its own so the rim between the two reads as a
+                // gap rather than as a thick border. Declared first so the
+                // ring is drawn over it where the two coincide.
+                Shape {
+                  id: seat
+                  anchors.fill: parent
+                  preferredRendererType: Shape.CurveRenderer
+
+                  ShapePath {
+                    fillColor: ground.face
+
+                    // **A fourth transitioned property, and it is the same
+                    // one.** The design fades a ring between two tiles and
+                    // switches everything else outright - which was right
+                    // while the fill said nothing about the selection. Below
+                    // 1.0 it says exactly what the ring says, so a fill that
+                    // snapped while the ring faded would be the selection
+                    // arriving twice, a tenth of a second apart. At 1.0 the
+                    // two colours are equal and this costs nothing.
+                    Behavior on fillColor {
+                      ColorAnimation { duration: metrics.time.brisk }
+                    }
+                    // The cell's own edge ink: a key and its slot are one
+                    // material, and an accent here would be the state said on
+                    // the channel the selection owns.
+                    strokeColor: root.cellEdge
+                    strokeWidth: tile.sunk > 0 && ground.weight > 0
+                      ? ground.weight : -1
+
+                    // `tile.concentric` for the reason the halo and the press
+                    // ring take it: a face with the slot's corner, drawn
+                    // inside it, bulges at the corners.
+                    PathSvg {
+                      path: tileArt.ground(tile.outline,
+                                           tile.width - ground.weight
+                                             - tile.sunk * 2,
+                                           tile.height - ground.weight
+                                             - tile.sunk * 2,
+                                           tile.concentric(-tile.sunk))
+                    }
+                  }
+
+                  transform: Translate {
+                    x: ground.weight / 2 + tile.sunk
+                    y: ground.weight / 2 + tile.sunk
+                  }
+                }
+
                 // A tile that is not selected still needs a ground. A row in a
                 // column is bounded by the rows above and below it; a tile has
                 // air on four sides, and six of them drawn on nothing read as a
@@ -2065,39 +2129,29 @@ Item {
                   // from and the page is exactly what it always was, which is
                   // what makes this safe to ship at 1.0.
                   //
-                  // The other two grounds ignore it, because each of them
-                  // *is* a state rather than the absence of one: a switch
-                  // that is on stays filled, and a tile in the hand keeps its
-                  // own tint - which is already translucent, and already
-                  // showing what it is being carried over.
+                  // A tile in the hand ignores it, because its tint *is* a
+                  // state rather than the absence of one - and is already
+                  // translucent, already showing what it is being carried
+                  // over. A key that is down does not: it is the same glass
+                  // as every other face, sunk into its slot (`seat`).
                   readonly property real fill:
                     tile.selected ? 1.0 : root.tileFill
 
                   readonly property color face: tile.lifted
                     ? Util.alpha(Color.accent, root.full ? 0.55 : 0.32)
-                    : (tile.lit ? root.cellLit
-                                : Util.alpha(root.cellGround, ground.fill))
+                    : Util.alpha(root.cellGround, ground.fill)
 
                   ShapePath {
-                    fillColor: ground.face
+                    // The face is `seat`'s, which is what lets it sink: this
+                    // path is the slot, and a slot keeps its place.
+                    fillColor: "transparent"
 
-                    // **A fourth transitioned property, and it is the same
-                    // one.** The design fades a ring between two tiles and
-                    // switches everything else outright - which was right
-                    // while the fill said nothing about the selection. Below
-                    // 1.0 it says exactly what the ring says, so a fill that
-                    // snapped while the ring faded would be the selection
-                    // arriving twice, a tenth of a second apart. At 1.0 the
-                    // two colours are equal and this costs nothing.
-                    Behavior on fillColor {
-                      ColorAnimation { duration: metrics.time.brisk }
-                    }
-                    // **The edge belongs to the selection alone.** A lit tile
-                    // is a ground and a mark and stops there: an accent border
-                    // on it would put the state back on the one channel the
-                    // focus has nothing else to use, and a tile that is *on*
-                    // would be drawn with the line that says which tile you are
-                    // *at*. A ring that is already round everything switched on
+                    // **The edge belongs to the selection alone.** A key that
+                    // is down is a position and a word and stops there: an
+                    // accent border on it would put the state back on the one
+                    // channel the focus has nothing else to use, and a tile
+                    // that is *on* would be drawn with the line that says which
+                    // tile you are *at*. A ring that is already round everything switched on
                     // has stopped being a ring that moves as you walk.
                     strokeColor: tile.selected ? tile.mark : root.cellEdge
                     strokeWidth: ground.weight > 0 ? ground.weight : -1
@@ -2819,9 +2873,10 @@ Item {
                   // other control: elsewhere the control *is* the picture and
                   // a glyph over it would be the tile saying the same thing
                   // twice. A toggle has no picture of its own - the mark is
-                  // the thing it switches on, and the one glyph on this
-                  // surface drawn in a colour of its own, because it is the
-                  // one that is also a state.
+                  // the thing it switches on. It is drawn in the ink every
+                  // other mark is: the state is the key's position and the
+                  // word in the other corner, and a glyph that lit as well
+                  // was the same bit said a third time.
                   visible: tile.hasIcon && tile.roomForIcon
                     && (!tile.holds || tile.switchable)
                   anchors.left: parent.left
@@ -2838,21 +2893,62 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     text: tile.hasIcon ? tile.modelData.i : ""
                     textFormat: Text.PlainText
-                    color: tile.lit ? Color.accent : tile.ink
+                    color: tile.ink
                     font.family: root.glyphFont(tile.modelData)
                     font.pixelSize: tile.iconSize
                   }
                 }
 
-                // **A toggle says it is on with its ground and its mark, and
-                // that is all it says it with.** A disc sat at the foot beside
-                // the name - a third channel, for a theme whose accent sits
-                // close to its surface and leaves the other two saying little.
-                // Against every theme that does not, it was a full stop nobody
-                // had asked a question in front of: the tile was already lit,
-                // and the dot repeated it in the corner the name had to be
-                // held clear of. A state drawn twice is not a state said
-                // twice as well.
+                // **The lamp plate.** Both words printed, the one in force
+                // lit - the legend on the plate behind a lever switch, where
+                // an unlit word is still there to be read. That is what lets
+                // an off toggle say *off* rather than nothing, which a lit
+                // ground could not: its absence was every other tile's
+                // ground as well.
+                //
+                // In the corner opposite the mark, so the key reads from its
+                // two top corners the way a nav card does, and only where the
+                // mark itself would fit: it is the same question of room. The
+                // corner is the chevron's and the countdown's too, and none
+                // of the three can apply at once to a tile being carried.
+                Column {
+                  id: plate
+                  visible: tile.switchable && tile.roomForIcon
+                    && !tile.counting && !tile.carried && !tile.modelData.sub
+                  anchors.right: parent.right
+                  anchors.top: parent.top
+                  anchors.rightMargin: tile.pad
+                  anchors.topMargin: tile.pad
+                  spacing: metrics.gap.xxs
+
+                  Repeater {
+                    model: [true, false]
+
+                    delegate: Text {
+                      required property bool modelData
+                      readonly property bool inForce:
+                        modelData === tile.ticked
+                      anchors.right: parent.right
+                      text: modelData ? "ON" : "OFF"
+                      textFormat: Text.PlainText
+                      // The unlit word is printed, not hidden, and recedes
+                      // past `inkDim` on purpose: it is furniture on the
+                      // plate rather than a line to read, the dial's face
+                      // number (qml.md 8.1.2), and the lit one has to stand
+                      // out from it at a glance from the sofa.
+                      color: inForce
+                        ? Color.accent : Util.alpha(Color.menu.text, 0.3)
+                      Behavior on color {
+                        ColorAnimation { duration: metrics.time.brisk }
+                      }
+                      font.family: metrics.font.family
+                      font.pixelSize: metrics.type.fine
+                      font.weight: Font.Medium
+                      font.letterSpacing: metrics.type.fine / 8
+                    }
+                  }
+                }
+
                 Text {
                   id: detailText
                   // A media tile's second line is the artist and is worth a
@@ -4019,8 +4115,8 @@ Item {
               width: chipRow.width + metrics.space(12) * 2
               radius: metrics.radius.tile
               // The grid's own two grounds, one level along: a chip is a
-              // cell that is not on the page, and the one the focus is on is
-              // lit the way a tile with something to say is.
+              // cell that is not on the page, and the one the focus is on
+              // takes a fifth of the accent under its ring.
               color: chip.here ? root.cellLit : root.cellGround
               border.width: Math.max(1, metrics.space(2))
               border.color: chip.here ? Color.accent : root.cellEdge
