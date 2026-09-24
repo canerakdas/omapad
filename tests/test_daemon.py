@@ -25,6 +25,7 @@ from omapad import linux_input as li
 from omapad import uinput
 from omapad import actions
 from omapad import menu as menu_module
+from omapad import quick as quick_module
 from omapad import chrono as chrono_module
 from omapad import guide as guide_module
 from omapad import sysinfo as sysinfo_module
@@ -1122,7 +1123,7 @@ class HandoverTests(DaemonTestCase):
         self.hand_over()
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
 
     def test_but_the_single_button_summons_stand_aside(self):
         # Back and Start are buttons every game binds. Summoning on them over
@@ -1699,13 +1700,13 @@ class WorkspaceLockTests(DaemonTestCase):
         self.release("X")
         self.assertEqual(self.mouse.buttons, [])
 
-    def test_the_menu_chord_is_the_way_back_out(self):
-        # The lock names the menu in what it says, so the menu has to answer.
+    def test_the_chord_is_the_way_back_out(self):
+        # The lock names the quick menu in what it says, so it has to answer.
         self.daemon.handed_over = True
         self.daemon.locked = True
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
 
     def test_and_the_menu_it_opens_still_drives(self):
         self.daemon.handed_over = True
@@ -4777,6 +4778,59 @@ class ListedMenuTests(DaemonTestCase):
                          ["Speakers", "Television"])
 
 
+class MuteSoundTests(DaemonTestCase):
+    """Muting falls and unmuting rises, and the speakers' cue is heard.
+
+    The cue plays through the sink a deafen mutes, so the mute waits for it
+    and the unmute goes first.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.sound_enabled = True
+        self.commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.live.values.update(mic=False, deafen=False, mute=False)
+
+    def said(self):
+        return [line["c"] for line in self.sound_client.sent]
+
+    def deafen_sent(self):
+        return [command for command, _ in self.commands.submitted
+                if "set-sink-mute" in command]
+
+    def test_the_microphone_falls_and_rises_at_the_press(self):
+        self.daemon.live_write("mic", ("toggle", None))
+        self.assertEqual(self.said(), ["back"])
+        self.assertTrue(self.commands.submitted)
+        self.daemon.live_write("mic", ("toggle", None))
+        self.assertEqual(self.said(), ["back", "commit"])
+
+    def test_deafening_waits_for_its_own_cue(self):
+        self.daemon.live_write("deafen", ("toggle", None))
+        self.assertEqual(self.said(), ["back"])
+        self.assertEqual(self.deafen_sent(), [])
+        with unittest.mock.patch.object(
+                daemon_module.time, "monotonic",
+                return_value=time.monotonic() + daemon_module.QUIET_AFTER):
+            self.daemon.live_flush()
+        self.assertEqual(len(self.deafen_sent()), 1)
+
+    def test_undeafening_is_said_once_the_speakers_are_back(self):
+        self.daemon.live.values["deafen"] = True
+        self.daemon.live_write("deafen", ("toggle", None))
+        self.assertEqual(len(self.deafen_sent()), 1)
+        self.assertEqual(self.said(), [])
+        self.daemon.drain_commands()
+        self.assertEqual(self.said(), ["commit"])
+
+    def test_undeafening_before_the_mute_went_out_sends_no_mute(self):
+        self.daemon.live_write("deafen", ("toggle", None))
+        self.daemon.live_write("deafen", ("toggle", None))
+        self.daemon.live_flush(force=True)
+        self.assertEqual(len(self.deafen_sent()), 1)
+        self.assertIn(" 0;", self.deafen_sent()[0])
+
+
 class FakeCommands:
     """The worker as a queue the test empties by hand.
 
@@ -5055,8 +5109,10 @@ class LiveTests(DaemonTestCase):
         self.assertFalse(self.tile("Mute")["on"])
         self.commands.submitted = []
         self.daemon.menu_command("press")
-        self.assertIn("set-sink-mute", self.asked()[0])
+        # Drawn on at the press; sent once its cue has had the speakers.
         self.assertTrue(self.tile("Mute")["on"])
+        self.daemon.live_flush(force=True)
+        self.assertIn("set-sink-mute", self.asked()[0])
 
     def test_the_media_tile_says_what_is_playing(self):
         self.open_on("Music")
@@ -6174,13 +6230,14 @@ class QuickTests(DaemonTestCase):
         self.assertTrue(self.daemon.quick_open)
         self.assertEqual(self.session.spawned, [])
 
-    def test_the_chord_still_wins_with_plus_first(self):
+    def test_the_chord_leaves_the_row_plus_opened(self):
+        # PLUS opens the row on the way down, before MINUS can land; the
+        # chord opening it again must not be a toggle shutting it.
         self.press("PLUS")
         self.press("MINUS")
         self.release("MINUS")
         self.release("PLUS")
-        self.assertTrue(self.daemon.menu_open)
-        self.assertFalse(self.daemon.quick_open)
+        self.assertTrue(self.daemon.quick_open)
         self.assertFalse(self.daemon.osk_open)
 
     def test_plus_again_puts_it_away(self):
@@ -6208,17 +6265,16 @@ class QuickTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu_open)
         self.assertFalse(self.daemon.quick_open)
 
-    def test_over_a_game_the_chord_then_plus_reaches_it(self):
-        # PLUS alone belongs to the game's pause screen, so the chord opens
-        # the menu, and the menu's PLUS goes on to the row.
+    def test_over_a_game_the_chord_reaches_it(self):
+        # PLUS alone belongs to the game's pause screen, so the chord is
+        # PLUS for over a game (decision 90).
         self.daemon.handed_over = True
         self.press("MINUS")
         self.press("PLUS")
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.menu_open)
-        self.tap("PLUS")
         self.assertTrue(self.daemon.quick_open)
+        self.assertFalse(self.daemon.menu_open)
 
     def test_a_tile_runs_over_a_game(self):
         # The row closes before the tile fires, and by then the pad looks
@@ -6234,9 +6290,22 @@ class QuickTests(DaemonTestCase):
         ids = [item["id"] for item in self.daemon.quick.items]
         self.assertNotIn("next-window", ids)
 
+    def with_brightness(self):
+        # Brightness is off the shipped row, and still the case the rule
+        # was written for: a monitor with no DDC answers with nothing.
+        self.daemon.quick = quick_module.QuickModel(quick_module.build([
+            {"label": "Resume", "action": "quick:close"},
+            {"label": "Brightness", "up": "live:brightness=up",
+             "down": "live:brightness=down"},
+            {"label": "Volume", "up": "live:volume=up",
+             "down": "live:volume=down"},
+            {"label": "Screenshot", "action": "exec:true"},
+        ]))
+
     def test_a_value_nobody_answers_is_left_off(self):
         # A monitor with no DDC answers the brightness read with nothing,
         # and a tile turning a number nobody can read changes nothing.
+        self.with_brightness()
         del self.daemon.live.values["brightness"]
         self.daemon.set_quick(True)
         labels = [tile["l"] for tile in self.quick_client.sent[-1]["tiles"]]
@@ -6246,6 +6315,7 @@ class QuickTests(DaemonTestCase):
         self.assertIn("brightness", self.daemon.live_names())
 
     def test_a_tile_arriving_keeps_the_selection_where_it_is(self):
+        self.with_brightness()
         del self.daemon.live.values["brightness"]
         self.daemon.set_quick(True)
         self.walk_to("screenshot")
@@ -6274,6 +6344,76 @@ class QuickTests(DaemonTestCase):
         self.assertEqual(ids[0], "resume")
         self.assertNotIn("back", ids)
         self.assertNotIn("steam", ids)
+
+    def test_the_lock_is_on_the_row_in_game_mode(self):
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertNotIn("workspace-lock", ids)
+        self.daemon.set_quick(False)
+        self.daemon.mode = "game"
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        # Second, after the way out, since it is a way back to the game too.
+        self.assertEqual(ids.index("workspace-lock"), 1)
+        # Keeping is for a pad the app has taken, and this one has not.
+        self.assertNotIn("keep-the-controller", ids)
+
+    def test_the_lock_locks_nothing_over_an_empty_workspace(self):
+        self.daemon.mode = "game"
+        self.daemon.focus_class = ""
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertNotIn("workspace-lock", ids)
+
+    def test_the_lock_tile_closes_the_row_and_locks(self):
+        self.daemon.mode = "game"
+        self.daemon.set_quick(True)
+        self.walk_to("workspace-lock")
+        self.daemon.quick_command("press")
+        self.assertFalse(self.daemon.quick_open)
+        self.assertTrue(self.daemon.locked)
+
+    def test_under_the_lock_the_chord_reaches_the_lock_tile(self):
+        # Only a chord gets past the lock, so the row it opens is the way
+        # out, and the tile turning it off has to be on it.
+        self.daemon.set_locked(True)
+        self.daemon.handed_over = True
+        self.press("MINUS")
+        self.press("PLUS")
+        self.release("PLUS")
+        self.release("MINUS")
+        self.assertTrue(self.daemon.quick_open)
+        self.walk_to("workspace-lock")
+        self.daemon.quick_command("press")
+        self.assertFalse(self.daemon.locked)
+
+    def test_keeping_stays_on_the_row_while_kept(self):
+        self.daemon.keeping = True
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertIn("keep-the-controller", ids)
+
+    def test_the_row_carries_the_call_and_not_the_camera(self):
+        self.daemon.set_quick(True)
+        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
+        self.assertIn("microphone", ids)
+        self.assertIn("deafen", ids)
+        for gone in ("brightness", "screenshot", "record"):
+            self.assertNotIn(gone, ids)
+
+    def test_deafen_stays_up_lit_and_asks_the_microphone_again(self):
+        self.daemon.live.values["deafen"] = False
+        self.daemon.live.values["mic"] = False
+        self.daemon.set_quick(True)
+        self.walk_to("deafen")
+        self.daemon.quick_command("press")
+        self.assertTrue(self.daemon.quick_open)
+        state = self.quick_client.sent[-1]
+        self.assertTrue(state["tiles"][state["sel"]]["on"])
+        # The microphone moved with it, and its tile is re-asked once the
+        # deafen has gone out - after its cue, see `live_switch`.
+        self.daemon.live_flush(force=True)
+        self.assertIn("mic", self.daemon._live_due)
 
     def test_back_is_the_first_press_over_nothing(self):
         self.daemon.focus_class = ""
@@ -6391,26 +6531,27 @@ class QuickTests(DaemonTestCase):
 
 
 class ChordTests(DaemonTestCase):
-    """MINUS + PLUS opens the menu, whichever button lands first."""
+    """MINUS + PLUS opens the quick menu, whichever button lands first."""
 
     def test_minus_first(self):
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
         # Neither button also did its own job: MINUS did not open the keyboard,
-        # and PLUS's own menu:toggle did not fire a second time and close it.
+        # and PLUS's own quick:toggle, fired on the way down, was not undone by
+        # the chord.
         self.assertFalse(self.daemon.osk_open)
 
     def test_plus_first(self):
         self.press("PLUS")
         self.press("MINUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
         self.assertFalse(self.daemon.osk_open)
 
     def test_a_chord_member_waits_for_its_release(self):
@@ -6425,19 +6566,27 @@ class ChordTests(DaemonTestCase):
     def test_it_is_the_way_in_from_inside_a_game(self):
         # PLUS and MINUS stand aside while an app holds the pad - they are
         # buttons every game binds - so the chord is the only door left, and
-        # game mode is a row behind it.
+        # the rest is a step behind it.
         self.daemon.handed_over = True
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.quick_open)
 
     def test_it_fires_once_per_press_not_once_per_button(self):
+        # `quick:open` cannot close what it opened, so what is counted is the
+        # chord firing rather than the row it leaves.
+        fired = []
+        run = self.daemon.quick_command
+        def counted(command, repeat=False):
+            fired.append(command)
+            return run(command, repeat)
+        self.daemon.quick_command = counted
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.menu_open)
         self.release("PLUS")
-        self.press("PLUS")
-        self.assertFalse(self.daemon.menu_open)
+        self.release("MINUS")
+        self.assertEqual(fired.count("open"), 1)
+        self.assertTrue(self.daemon.quick_open)
 
     def test_either_button_alone_still_does_its_own_job(self):
         self.press("PLUS")

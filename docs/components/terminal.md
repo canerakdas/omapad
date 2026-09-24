@@ -79,7 +79,7 @@ as idle, which is right: a `Ctrl+C` at that prompt would not reach it either.
 
 A window that will not close because something in it never ends is not a
 window that cannot be closed: **Close window** is a row in the
-[menu](menu.md), which is a chord away from anywhere, and it dispatches the
+[menu](menu.md), which is HOME or the chord and Y away from anywhere, and it dispatches the
 close directly.
 
 ## What it can be asked, and by whom

@@ -9,8 +9,11 @@ Why it exists and what it took from the design is
 
 `build(entries)` turns `[[quick.items]]` into tiles and raises `QuickError`
 naming the one that is wrong: a missing label, nothing to do, `up` without
-`down`, `arm` with no action, a `when` that is neither `window` nor `empty`, an
-unknown key, two tiles with one id. Actions
+`down`, `arm` with no action, a `when` naming something that is neither a
+place (`window`, `empty`) nor one of `STATES`, both places at once, an unknown
+key, two tiles with one id. `when` is split into `where` (the place or None)
+and `states` (a tuple): the states are the menu's less `first_run`, which the
+menu spends by opening and so is never true here. Actions
 are parsed at load with `actions.parse`, so a typo is what `omapad check`
 names rather than a press that does nothing. The daemon builds the row the
 way it builds the menu: a row that will not parse comes up empty and the
@@ -34,9 +37,15 @@ and the id of a tile pressed once that wants a second press (`armed`).
   tile whose `up` is a `live:` reading that has never answered
   (`quick_unanswered`), on opening and before every push: brightness on a
   monitor without DDC reads as nothing, and a tile turning a number nobody can
-  read changes nothing on screen. It also hides every tile whose `when` is
+  read changes nothing on screen. Brightness left the shipped row in
+  [90](../decisions/90-the-chord-is-the-pause.md), and the rule stays for a
+  tile somebody writes. It also hides every tile whose `when` is
   not what is in front (`quick_elsewhere`): `"window"` tiles over an empty
-  workspace, `"empty"` tiles over a window. So the shipped row is two - a
+  workspace, `"empty"` tiles over a window, and a tile listing states none of
+  which `menu_conditions()` holds - any one is enough, the menu's rule. That
+  is what puts the workspace lock and its pair straight after Resume only
+  where they can do something: the lock in game mode or over a game holding
+  the pad, keeping only while an app has the pad or it is kept. So the shipped row is two - a
   pause headed by Resume over a window, and Back then the apps over nothing,
   where there is nothing to resume, close or type into. The daemon hides
   before it resets on opening, because a hide follows the tile in front by
@@ -86,7 +95,11 @@ decides a tie that cannot happen.
 picked over a game runs even though the row has closed by the time it fires,
 the argument `allowed()` makes for the menu. `QuickAction` is a summon, so
 `quick:*` reaches past an app holding the pad unless a binding says
-otherwise; the shipped PLUS says otherwise.
+otherwise; the shipped PLUS says otherwise, and over a game - or under the
+workspace lock, which lets nothing else through - the way in is the
+`MINUS+PLUS` chord, `quick:open` rather than `toggle` so a PLUS that landed
+first and opened the row is not shut again by it
+([decision 90](../decisions/90-the-chord-is-the-pause.md)).
 
 Live readings are asked while the row is up through `live_names()`, which
 reads the `LiveAction`s on the row's tiles when the row is open, and the

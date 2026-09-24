@@ -195,8 +195,8 @@ next start, which is a reboot, a fresh login or
 start = "desktop"   # or "game", to come back up from the couch
 ```
 
-(MINUS + PLUS used to be the chord for this; it opens the **menu** now, which
-had no second way in — see below.)
+(MINUS + PLUS used to be the chord for this; it opens the **quick menu** now —
+see below.)
 
 While game mode is up the screen is the couch's, so omapad also tells Omarchy
 to **stay awake** (`omarchy toggle idle stay-awake`): the screensaver and the
@@ -289,13 +289,14 @@ does ask for.
 **What still gets through is a gesture the game does not ask for**, and there
 are two of them.
 
-First: **the MINUS + PLUS chord, which opens the controller menu.** Two buttons
-at once is not an input any game binds, and this is the door — the keyboard, the
-window controls, the guide and the app launcher are all rows behind it, and
-**PLUS inside the menu goes on to [the quick menu](#the-quick-menu)**, the row
-Start opens on the desktop. The moment either opens omapad takes the pad back
-(otherwise the D-pad would drive both the menu and the game), and lets go again
-when it closes.
+First: **the MINUS + PLUS chord, which opens [the quick menu](#the-quick-menu)**
+— the row Start opens on the desktop. Two buttons at once is not an input any
+game binds, and this is the door: the keyboard and the workspace lock are tiles
+on the row, and **Y or the Menu tile goes on to the controller menu**, where the
+window controls, the guide and the app launcher are. HOME opens the controller
+menu over a game by itself too. The moment either opens omapad takes the pad
+back (otherwise the D-pad would drive both the menu and the game), and lets go
+again when it closes.
 
 Second: **an announced hold that counts down** (`confirm_ms`).
 The app already sees that button, so the only gesture that may get through is
@@ -397,8 +398,8 @@ of omapad's fires any more. Not an announced hold, not a `reaches_past`
 binding, not a single-button summon. A hold it will not let through does not
 **announce** itself either — the tick and the notification are a promise that
 something is about to happen, and they land on top of the game. What is left is the MINUS + PLUS chord,
-which opens the menu, and **Workspace lock** is a row in it — that is the way
-back out, and the notification says so as it locks.
+which opens the quick menu, and **Workspace lock** is the tile after Resume —
+that is the way back out, and the notification says so as it locks.
 
 The chord fires **only while the app in front already has the pad**. On the
 desktop `ZL + B` closes the window and `ZR` is a left click you can drag with,
@@ -443,8 +444,8 @@ button taken away from the game.
 
 `[profile.cloud]` gives them the same shape as `[profile.steam]`: **the
 shoulders, held and confirmed, walk the workspaces** — the one thing worth doing
-without leaving the stream — and everything else is a row in the menu, which is
-the MINUS + PLUS chord away.
+without leaving the stream — and everything else is on the quick menu or behind
+it, the MINUS + PLUS chord away.
 
 ```toml
 [profile.cloud]
@@ -1036,7 +1037,7 @@ hold in every layer and every application —
 | D-pad | arrow keys | window focus (by direction) |
 | PLUS | **[the quick menu](#the-quick-menu)**, the moment it goes down | toggle split |
 | MINUS | tap: **the on-screen keyboard**, hold: **push to talk** | – |
-| MINUS + PLUS | **the controller menu** (a chord, everywhere, and the only way in over a game) | – |
+| MINUS + PLUS | **the quick menu** (a chord, everywhere, and the way in over a game or the workspace lock) | – |
 | ZL + B, ZR + B | **the workspace lock** — a chord, and only over an app that already has the pad | – |
 | HOME | press: **the controller menu**, the moment it goes down · hold: **switch mode** | centre the window |
 | Left stick click | middle click | pin the window |
@@ -1330,7 +1331,7 @@ Which button to spend on what is a question of its own —
 
 ```toml
 [chords]
-"MINUS+PLUS" = "menu:toggle"
+"MINUS+PLUS" = "quick:open"
 "ZL+B" = "lock:on"
 "ZR+B" = "lock:on"
 ```
@@ -3397,10 +3398,11 @@ front. What ships over a window:
 | Tile | Does |
 |---|---|
 | Resume | Closes the row |
+| Workspace lock | Every press goes to the game in front until it is unlocked — only in game mode, or while the game has the pad |
+| Keep the controller | Takes the pad back from an app that has opened it and is not being played — only while one has, or while kept |
 | Volume | ↑ ↓ turn it; the band draws where it is |
-| Brightness | The same, for the screen — left off where the machine cannot say how bright it is |
-| Screenshot | What the Capture button does |
-| Record | Starts recording the whole screen and its sound; the same tile stops it |
+| Microphone | Mutes or unmutes the microphone; lit while muted, and the row stays up |
+| Deafen | Mutes the microphone and all sound, as Discord's button does; lit while on. Off unmutes both |
 | Keyboard | The on-screen keyboard |
 | Menu | The controller menu |
 | Close window | **Pressed twice** — the first A says so in the band, B lets go of it |
@@ -3411,9 +3413,9 @@ out — and then the apps the controller menu's Apps page leads with: Steam,
 Discord, Spotify, YouTube, Browser, Terminal and All apps.
 
 **Over a game** PLUS belongs to the game's pause screen, so the way in is the
-MINUS + PLUS chord: it opens the controller menu, and PLUS inside the menu goes
-on to the row. Everything on it runs over the game from there, the same way a
-menu row does.
+MINUS + PLUS chord, which opens this row. Everything on it runs over the game
+from there, the same way a menu row does. It is also the way in while the
+workspace lock is on, and the lock's tile is on the row to turn it off.
 
 **HOME is the same.** Its hold switches the mode, and while the menu waited
 for the release a press held a moment too long to make sure switched the mode
@@ -3448,6 +3450,12 @@ arm = true                         # A twice
 danger = true                      # the theme's urgent colour
 when = "window"                    # only over a window; "empty" only over none
 ```
+
+`when` also takes the controller menu's states — `game`, `handed_over`,
+`locked`, `kept` — as a list, any one of them being enough; a place listed
+beside them still has to be the place. The lock tile is
+`when = ["window", "game", "handed_over"]`: a window, and either game mode or a
+game holding the pad.
 
 A tile whose `up` is a `live:` reading waits for that reading's first answer
 before it takes a place on the row: a desktop monitor that speaks no DDC answers

@@ -30,6 +30,8 @@ it, nothing can be written, and a tile pointed at it draws blank.
 |---|---|---|---|
 | `volume` | number | `pactl get-sink-volume "$(omarchy-audio-output-sink)"` | `pactl set-sink-volume … %1%` |
 | `mute` | bool | `pactl get-sink-mute …` | `pactl set-sink-mute … %1` |
+| `mic` | bool | `pactl get-source-mute @DEFAULT_SOURCE@` | `pactl set-source-mute … %1`, and the laptop's mic-mute LED |
+| `deafen` | bool | on while the sink **and** the source are muted, said as a word | both muted or both unmuted, and the LED |
 | `brightness` | number | `omarchy-brightness-display` | `omarchy-brightness-display --no-osd %1%` |
 | `media` | media | `omarchy-shell media status` | `omarchy-shell media %1` |
 | `vrr` | bool | `hyprctl getoption misc:vrr` | `hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"` |
@@ -118,7 +120,13 @@ shipped in is a gap rather than a design. Both are validated at load, so a typo
 fails `omapad check` rather than a press.
 
 `READINGS` describes each reading the way `config.CHOSEN` describes a setting -
-its `kind`, and for a number the arithmetic a bar needs. `menu.build()` takes
+its `kind`, and for a number the arithmetic a bar needs. `touches` names the
+readings a write to this one also moves - deafening mutes the microphone - and
+`live_send` arms their settle read with its own, so a tile beside the one
+pressed does not go on showing the old answer. `quiets` marks a switch whose
+on is a silence, and which end - `speakers` or `microphone`: `live_switch`
+says it with a falling and a rising cue, and plays the speakers' cue around
+the mute rather than through it ([sound](sound.md)). `menu.build()` takes
 it as `readings=` beside `settings=`, so the module that holds state and
 geometry learns about neither.
 

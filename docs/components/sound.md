@@ -56,6 +56,14 @@ a control put back with B, and either kind of countdown backed out of
 does **not** come through any of them - it has an answer of its own, and two
 sounds for one press is one of them arguing with the other.
 
+**A mute is said with the same pair.** A `live:` switch whose reading says
+`quiets` - `mute`, `mic`, `deafen` - falls as it goes on and rises as it goes
+off, `back` and `commit`, which is the shape of Discord's own mute and unmute
+and needs no voice of its own (`daemon.live_switch`). A switch that silences
+the **speakers** is the one case where the cue and the thing it announces
+share a wire: the mute is held `QUIET_AFTER` so the cue is heard first, and an
+unmute is sent first and said when the helper has answered.
+
 `texture` is the other direction and will never be here. It is the motor's one
 held effect - and the one thing a speaker could not say anyway, because what it
 says is *which way and how far*, which is two motors rather than a pitch. A

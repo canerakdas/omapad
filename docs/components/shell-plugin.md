@@ -110,22 +110,31 @@ missing optional package must cost one feature rather than the keyboard.
   thumb can copy rather than translate. It keeps the travel's whole argument -
   nothing fills, the run behind the value says how far it has come, solid
   where the value has stops and a tint where it has none - and parts company
-  with it four times, each time because a circle is not a line: **a ring
-  needs no caps**, since the quarter left open at the bottom is where the
-  scale starts and stops; **the value's mark is a pointer**, because a ring
-  has a middle and that is what a knob has always answered *where is it* with;
-  **a stop is a notch hung just outside the scale**, the same claim the
-  travel makes with a cross; and **nothing is drawn where the value started**,
-  because a second pointer out of that same middle is a clock rather than a
-  value and its ghost - so the ring takes no `ghost` and reads no `b`, and
-  what the turn has done is the run lengthening behind the pointer. The rim is the gauge's own `dial-face.svg` - a
-  page holding a knob, a dial and a clock holds one circle drawn three times -
-  and so are the two figures it turns, the pointer and the notch under a stop.
-  What is not generated is the scale: the run of it the value has covered
-  grows with the number, and a track drawn once with that run computed against
-  it would be two drawings of one ring. How many notches there are is the
-  panel's too. The caller hands it `art` (the surface's `ControlArt`), the
-  value, the stops and three colours.
+  with it four times, each time because a circle is not a line: **a ring's
+  ends are marks on its scale**, the longer ones a Braun panel prints there;
+  **the value's mark is a pointer**, the index painted on the cap; **a stop is
+  one of the scale's printed marks**, a continuous ring printing one every
+  five in a hundred;
+  and **nothing is drawn where the value started**, because a second pointer
+  out of that same middle is a clock rather than a value and its ghost - so
+  the ring takes no `ghost` and reads no `b`, and what the turn has done is
+  the run lengthening behind the pointer and the marks it has reached
+  lighting. It is a Braun T 1000 control in the clock's weights: a cap
+  whose edge is the clock's double case and never turns, the index on its
+  top, and the scale round it - `dial-cap`, `dial-pointer`, `dial-notch` and
+  `dial-end`. Every line is one the clock already draws (`assets.md`), and
+  the arc's `scaleWeight` is the clock's quarter-unit hairline.
+  What is not generated is the scale's arc: the run of it the value has
+  covered grows with the number, and a track drawn once with that run computed
+  against it would be two drawings of one ring. How many marks there are is
+  the panel's too. **It is drawn in two layers, one per ink**, each painted
+  opaque and faded once: translucent figures drawn one by one either blot
+  where they overlap or leave a faint seam where they abut, and the seam was
+  visible where the arc met an end. Inside a layer the marks stand in the
+  arc and the arc runs into each end, and nothing shows. The two layers meet
+  only at the value, where the run reaches half a mark past it so a lit
+  mark's foot is never on the unlit scale. The caller hands it `art` (the
+  surface's `ControlArt`), the value, the stops and three colours.
 - **`Clock.qml`** - the time with hands on it, and the stopwatch that shares
   its face, for the two surfaces that draw a clock tile. One file for `Travel.qml`'s reason: the menu is where the tile
   is put on the page and the HUD is where it is looked at, and a face that

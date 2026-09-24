@@ -33,7 +33,21 @@ READINGS = {
         "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
     },
-    "mute": {"kind": "bool"},
+    # `quiets` marks a switch whose on is a silence, and says which end it
+    # silences: on falls and off rises, and the speakers' own cue has to be
+    # played around the mute rather than through it. See `live_switch`.
+    "mute": {"kind": "bool", "touches": ("deafen",), "quiets": "speakers"},
+    # The pair a voice call puts under a thumb, the way Discord draws them:
+    # the microphone muted, and deafened - the microphone and every sound
+    # coming in. Readings of the machine rather than keys sent to Discord,
+    # since over a game Discord is not the window a key would reach.
+    # `touches` is what else a write moves: deafening mutes the microphone,
+    # and the microphone unmuted is no longer deafened. Those are asked again
+    # with it, or a tile beside the one pressed says the old answer until it
+    # is next selected.
+    "mic": {"kind": "bool", "touches": ("deafen",), "quiets": "microphone"},
+    "deafen": {"kind": "bool", "touches": ("mic", "mute"),
+               "quiets": "speakers"},
     "brightness": {
         "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
@@ -195,6 +209,8 @@ def parse_word(lines):
 PARSERS = {
     "volume": parse_volume,
     "mute": parse_mute,
+    "mic": parse_mute,
+    "deafen": parse_word,
     "brightness": parse_brightness,
     "media": parse_media,
     "vrr": parse_vrr,

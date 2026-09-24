@@ -31,9 +31,17 @@ from . import actions
 KEYS = ("id", "label", "icon", "icon_font", "detail", "action", "up", "down",
         "stay", "arm", "danger", "when")
 
-# What `when` may say: a tile for a window in front, or for an empty workspace.
-# Left out, the tile is on the row either way.
-WHEN = ("window", "empty")
+# What `when` may say about the place: a tile for a window in front, or for an
+# empty workspace. Left out, the tile is on the row either way.
+WHERE = ("window", "empty")
+
+# And about the pad: the controller menu's states, less `first_run`, which is
+# spent by opening the menu and would never be true here. The workspace lock
+# is what asked for them - it is somebody's most-pressed tile over a game and
+# was two pages into the menu, and on a desktop it has nothing to lock to.
+STATES = ("game", "handed_over", "locked", "kept")
+
+WHEN = WHERE + STATES
 
 # What the band says under a tile that has been pressed once and wants a
 # second press. A word for the pad rather than for the button: which letter
@@ -60,7 +68,10 @@ def build(entries, where="quick.items"):
     colour, and says nothing about how it behaves. `when` puts the tile on
     the row only while a window is in front (`window`) or only while none is
     (`empty`), so one row can be two: a pause over something, and a way to
-    start something over nothing.
+    start something over nothing. It may also list states the way a menu
+    row's does, any one of them being enough - and a place listed beside
+    them still has to be the place: `["window", "game"]` is a window, in
+    game mode.
     """
     if entries is None:
         return []
@@ -98,10 +109,7 @@ def build(entries, where="quick.items"):
         arm = bool(entry.get("arm", False))
         if arm and parsed["action"] is None:
             raise QuickError("%s: arm needs an action to hold back" % path)
-        when = entry.get("when")
-        if when is not None and when not in WHEN:
-            raise QuickError("%s.when: %r (try %s)"
-                             % (path, when, ", ".join(WHEN)))
+        place, states = _when(entry.get("when"), path)
         ident = str(entry.get("id") or _slug(label)).strip()
         if ident in seen:
             raise QuickError("%s: a second tile called %r - give one an id"
@@ -119,9 +127,39 @@ def build(entries, where="quick.items"):
             "stay": bool(entry.get("stay", False)),
             "arm": arm,
             "danger": bool(entry.get("danger", False)),
-            "when": when,
+            "where": place,
+            "states": states,
         })
     return items
+
+
+def _when(spec, path):
+    """`when` -> (the place or None, the states as a tuple).
+
+    Two questions in one key, because a tile is written by hand and one list
+    reads better than two: where it is, and what is true. Both places at once
+    is a tile for everywhere, which leaving the place out already says.
+    """
+    if spec is None:
+        return None, ()
+    names = [spec] if isinstance(spec, str) else spec
+    if not isinstance(names, list):
+        raise QuickError("%s.when is a word or a list of them" % path)
+    where = None
+    states = []
+    for name in names:
+        name = str(name).strip()
+        if name in WHERE:
+            if where not in (None, name):
+                raise QuickError("%s.when: window and empty is everywhere - "
+                                 "leave both out" % path)
+            where = name
+        elif name in STATES:
+            states.append(name)
+        else:
+            raise QuickError("%s.when: %r (try %s)"
+                             % (path, name, ", ".join(WHEN)))
+    return where, tuple(states)
 
 
 class QuickModel:

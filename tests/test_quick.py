@@ -35,9 +35,9 @@ class BuildTests(unittest.TestCase):
         # PLUS then A is back to what was in front, so the first tile of
         # each of the two rows is the way out.
         self.assertEqual([item["label"] for item in items
-                          if item["when"] == "window"][0], "Resume")
+                          if item["where"] == "window"][0], "Resume")
         self.assertEqual([item["label"] for item in items
-                          if item["when"] == "empty"][0], "Back")
+                          if item["where"] == "empty"][0], "Back")
 
     def test_actions_are_parsed_at_load(self):
         items = row(RESUME, VOLUME)
@@ -74,11 +74,22 @@ class BuildTests(unittest.TestCase):
 
     def test_a_tile_can_say_when_it_is_on_the_row(self):
         items = row(dict(RESUME, when="window"), VOLUME)
-        self.assertEqual(items[0]["when"], "window")
-        self.assertIsNone(items[1]["when"])
+        self.assertEqual(items[0]["where"], "window")
+        self.assertIsNone(items[1]["where"])
         with self.assertRaises(quick.QuickError) as caught:
             row(dict(RESUME, when="always"))
         self.assertIn("quick.items[0].when", str(caught.exception))
+
+    def test_when_takes_the_menus_states_beside_the_place(self):
+        items = row({"label": "Lock", "action": "lock:toggle",
+                     "when": ["window", "game", "handed_over"]})
+        self.assertEqual(items[0]["where"], "window")
+        self.assertEqual(items[0]["states"], ("game", "handed_over"))
+        # Spent by opening the menu, so never true while the row is up.
+        with self.assertRaises(quick.QuickError):
+            row(dict(RESUME, when=["first_run"]))
+        with self.assertRaises(quick.QuickError):
+            row(dict(RESUME, when=["window", "empty"]))
 
     def test_two_tiles_may_not_share_a_name(self):
         with self.assertRaises(quick.QuickError):

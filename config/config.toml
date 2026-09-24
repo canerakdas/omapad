@@ -1176,6 +1176,19 @@ volume_set = 'pactl set-sink-volume "$(omarchy-audio-output-sink)" %1%'
 mute_read = 'pactl get-sink-mute "$(omarchy-audio-output-sink)"'
 mute_set = 'pactl set-sink-mute "$(omarchy-audio-output-sink)" %1'
 
+# The microphone, muted. Not `omarchy-audio-input-mute`: it only flips, and
+# ends in the OSD for the reason volume does not use its helper. The mic-mute
+# LED it drives on a laptop that has one is driven here too.
+mic_read = "pactl get-source-mute @DEFAULT_SOURCE@"
+mic_set = 'pactl set-source-mute @DEFAULT_SOURCE@ %1; omarchy-brightness-keyboard-mute "$([ %1 = 1 ] && echo on || echo off)" 2>/dev/null; true'
+
+# Deafened, the way Discord means it: nothing heard and nothing sent. On
+# while both are muted, so muting the speakers alone does not light it. Off
+# unmutes both - Discord puts the microphone back to what it was, and that
+# would take a memory this reading does not keep.
+deafen_read = '[ "$(pactl get-sink-mute "$(omarchy-audio-output-sink)")" = "Mute: yes" ] && [ "$(pactl get-source-mute @DEFAULT_SOURCE@)" = "Mute: yes" ] && echo on || echo off'
+deafen_set = 'pactl set-sink-mute "$(omarchy-audio-output-sink)" %1; pactl set-source-mute @DEFAULT_SOURCE@ %1; omarchy-brightness-keyboard-mute "$([ %1 = 1 ] && echo on || echo off)" 2>/dev/null; true'
+
 # Brightness keeps its helper: DDC, Apple displays and backlights are three
 # code paths omapad must not reimplement. `--no-osd` is the same argument as
 # above, and this one the helper offers.
@@ -1446,15 +1459,19 @@ depth = 4
 # ---------------------------------------------------------------------------
 
 [chords]
-# Back + Start together opens the controller menu. Over a cloud session or a
-# game this is *the* door: everything else - the keyboard, the window ops, the
-# guide - is a row inside it.
+# Back + Start together opens the quick menu: it is PLUS for where PLUS belongs
+# to the game (decision 90). Over a cloud session, a game or the workspace lock
+# this is *the* door, and everything else - the keyboard, the lock, the
+# controller menu behind Y and the Menu tile - is one step inside it.
 #
-# This used to be `mode:toggle`, which did not need a chord: HOME held for 700ms
-# toggles the mode in every layer, in the menu and over a game alike. The menu
-# had no way in over a game, and it is the one that has to be reachable from
-# inside a game.
-"MINUS+PLUS" = "menu:toggle"
+# It opened the controller menu until 90. HOME reaches past a game on its own,
+# so over one the chord was a second way to the menu and the row had none but
+# through it; while locked, the tile somebody wanted was a page away.
+#
+# `open` rather than `toggle`: PLUS acts on the way down, so a PLUS landing
+# first has already opened the row when MINUS completes the chord, and a
+# toggle would shut it again.
+"MINUS+PLUS" = "quick:open"
 
 # A trigger and B: the workspace lock. The hand-off is automatic and asks the
 # program itself, which is right about every game whose opening of the pad
@@ -1464,8 +1481,8 @@ depth = 4
 # announced hold Steam's profile puts a workspace on is two seconds of resting
 # a thumb on a shoulder, which happens mid-fight. Locked, the pad is the
 # app's outright and only a chord gets through - which is MINUS+PLUS, the
-# menu, and so the way back out. The menu row says the same thing and ticks
-# while it is on.
+# quick menu, and so the way back out: the lock tile is on its row while the
+# game has the pad, and the menu's row under Spaces ticks while it is on.
 #
 # Both triggers, because which one a thumb is not already using is the game's
 # business, not ours. It fires **only while the app in front has the pad**: on
@@ -1527,7 +1544,7 @@ ZR = "click:left"
 # Back and Start are buttons every game binds, so over a cloud session or a
 # game they would put our keyboard and our menu on screen every time you
 # reached for the game's own pause screen. Over a game the way in is the
-# MINUS+PLUS chord, and the keyboard is a row inside the menu. Take these two
+# MINUS+PLUS chord, and the keyboard is a tile on the row it opens. Take these two
 # keys out to have Back and Start summon over a game again.
 #
 # **The hold is push to talk**, and it is the one gesture on this pad that
@@ -1577,8 +1594,8 @@ DPAD_RIGHT = "key:RIGHT"
 # Over a game the two are not symmetrical, and that is on purpose. PLUS keeps
 # `reaches_past = false`: Start is the game's own pause button, and a quick
 # menu on top of every pause screen is the fault that setting exists for - so
-# over a game the way in is the MINUS+PLUS chord, and PLUS inside the menu it
-# opens. HOME says nothing, so both its halves reach past the way a summon
+# over a game the way in is the MINUS+PLUS chord, which opens the same row.
+# HOME says nothing, so both its halves reach past the way a summon
 # does: its hold is the mode switch, which has to work over a game, and a
 # binding cannot let one half through and keep the other back.
 # `reaches_past = false` here gives up both.
@@ -1768,9 +1785,7 @@ X = "menu:close"
 Y = { tap = "menu:edit", desc = "Rearrange this page", short = "Arrange", hold = "guide:toggle", hold_ms = 700, hold_desc = "Bindings guide", hold_short = "Guide" }
 
 # PLUS is the quick menu's button, and pressing it here goes there: the menu
-# closes and the row opens in its place. It is what the MINUS+PLUS chord
-# leads on to over a game, where PLUS on its own belongs to the game's pause
-# screen - the chord opens this menu, and PLUS is then one press to the row.
+# closes and the row opens in its place.
 PLUS = { tap = "quick:open", on_press = true }
 HOME = { tap = "menu:close", hold = "mode:toggle", hold_ms = 700, on_press = true }
 RSTICK = "menu:close"
@@ -2317,7 +2332,8 @@ R = { hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next works
 # What is left is the two gestures a game does not ask for. The shoulders held
 # and confirmed walk the workspaces, which is the one thing worth doing without
 # leaving the stream; everything else - the keyboard, the window ops, game mode
-# - is a row in the menu, and the menu is the MINUS+PLUS chord.
+# - is behind the MINUS+PLUS chord: the quick menu, and the controller menu
+# one step past it.
 #
 # The classes are the applications' own: GeForce NOW's window class is plainly
 # `GeForceNOW`, and a session run in a browser instead matches
@@ -2383,7 +2399,10 @@ HOME = { tap = "guide:close", hold = "mode:toggle", hold_ms = 700, on_press = tr
 #            can take back
 #   danger   drawn in the theme's urgent colour
 #   when     "window" puts the tile on the row only while a window is in
-#            front, "empty" only over an empty workspace; left out, both
+#            front, "empty" only over an empty workspace; left out, both.
+#            A list may add the menu's states - game, handed_over, locked,
+#            kept - any one of which is enough, while the place still has
+#            to be the place
 #   id       what `omapad ctl quick select` and the payload call it; a slug
 #            of the label unless said
 #
@@ -2405,6 +2424,30 @@ detail = "Close this and carry on"
 action = "quick:close"
 when = "window"
 
+# Who the presses go to - the menu's pair of tiles under Spaces, here as well
+# because they are what somebody pauses a game for most, and two pages into
+# the menu was the long way round to them. Straight after Resume, since each
+# is a way back to the game too: the row closes and the pad goes where the
+# tile said. No `stay`, for that reason - a pause's verb ends the pause.
+#
+# `when` is the menu's, with the window added: a lock over an empty workspace
+# locks the pad to nothing. PLUS reaches the row wherever the hand-off has
+# missed the game, which is the case the lock is for; where it has not, the
+# way in is the menu's chord and PLUS inside it.
+[[quick.items]]
+icon = "󰌾"
+label = "Workspace lock"
+detail = "Every press goes to the game"
+action = "lock:toggle"
+when = ["window", "game", "handed_over"]
+
+[[quick.items]]
+icon = "󰊴"
+label = "Keep the controller"
+detail = "Every press drives the desktop"
+action = "keep:toggle"
+when = ["window", "handed_over", "kept"]
+
 [[quick.items]]
 icon = "󰕾"
 label = "Volume"
@@ -2413,35 +2456,24 @@ up = "live:volume=up"
 down = "live:volume=down"
 when = "window"
 
-# Left off the row on a machine that cannot say how bright it is - a desktop
-# monitor with no DDC, a machine with no backlight - since a tile turning a
-# number nobody can read changes nothing on screen. Any tile whose `up` is a
-# `live:` reading waits for that reading's first answer the same way.
+# The pair a voice call is muted with, as Discord has them - and the reason
+# for having them here rather than on Discord's own keys is that over a game
+# Discord is not in front. `stay`, because each lights while it is on and the
+# row is where somebody looks to see which.
 [[quick.items]]
-icon = "󰃠"
-label = "Brightness"
-detail = "Up and down turn it"
-up = "live:brightness=up"
-down = "live:brightness=down"
+icon = "󰍬"
+label = "Microphone"
+detail = "Mute or unmute the microphone"
+action = "live:mic=toggle"
+stay = true
 when = "window"
 
 [[quick.items]]
-icon = "󰄀"
-label = "Screenshot"
-detail = "Save what is on screen"
-action = "exec:omarchy-capture-screenshot"
-when = "window"
-
-# The whole screen and what it plays, since the picker Omarchy draws for a
-# region is aimed with a mouse. The same press stops it: the helper stops a
-# recording that is running rather than starting a second. An `exec:` and not
-# a `live:` switch, although it is one, because a live write runs inside the
-# daemon's own service and a daemon restart would end the recording with it.
-[[quick.items]]
-icon = "󰑋"
-label = "Record"
-detail = "Start or stop recording the screen"
-action = "exec:omarchy-capture-screenrecording --fullscreen --with-desktop-audio"
+icon = "󰋎"
+label = "Deafen"
+detail = "Mute the microphone and all sound"
+action = "live:deafen=toggle"
+stay = true
 when = "window"
 
 [[quick.items]]
@@ -3241,7 +3273,7 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
   # whose session then never starts. This takes the pad back, and keeps it
   # until it is given up again.
   [[menu.items.items]]
-  icon = "󰕾"
+  icon = "󰊴"
   label = "Keep the controller"
   detail = "Every press drives the desktop"
   span = [3, 1]

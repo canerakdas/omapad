@@ -133,7 +133,7 @@ pad open, and takes it back when it stops. `omapad ctl status` says
   controllers through `hidraw` rather than the event node - which is why the
   question is asked about the window in front, not about the machine.
 - Nothing answers over a game → that is correct. Only a summon, an announced
-  hold (`confirm = true`) and the `MINUS+PLUS` chord reach past an app holding
+  hold (`confirm = true`) and the `MINUS+PLUS` chord (the quick menu) reach past an app holding
   the pad.
 
 ### 8. Is it Hyprland's fault?

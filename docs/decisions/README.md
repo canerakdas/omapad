@@ -123,3 +123,5 @@ and is in the order it was found.
 | 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. |
 | 87 | [What the couch could not reach](87-what-the-couch-could-not-reach.md) | ✅ Done | M | Night light, stay awake, screens, Bluetooth, do not disturb, network and recording on the pad; omapad's own look moved to `Controller`. |
 | 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | ✅ Done | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |
+| 89 | [A Braun knob, drawn in lines](89-a-braun-knob.md) | ✅ Done | S | The knob as a Braun T 1000 control: knurled cap, painted index, printed scale that lights to the value. |
+| 90 | [The chord is the pause](90-the-chord-is-the-pause.md) | ✅ Done | S | The workspace lock and its pair on the quick menu, and MINUS + PLUS opens the quick menu rather than the controller menu; the row trades brightness, screenshot and record for mic mute and deafen. |

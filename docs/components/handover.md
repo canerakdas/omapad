@@ -125,9 +125,10 @@ uses (`surface_open()`): the keyboard is pointed at with a stick.
 ask for:
 
 1. **A chord.** Two buttons at once is not an input any game binds, so a chord
-   reaches past whatever it runs. `[chords] "MINUS+PLUS" = "menu:toggle"` is
-   the shipped one, and over an app holding the pad it is the only door: the
-   keyboard, the window ops, game mode and the guide are all rows behind it.
+   reaches past whatever it runs. `[chords] "MINUS+PLUS" = "quick:open"` is
+   the shipped one, and over the workspace lock it is the only door: the
+   keyboard and the lock are tiles on the row, and the controller menu - the
+   window ops, game mode, the guide - is Y away (decision 90).
 2. **An announced hold** (`confirm = true`): held for seconds, ticked,
    cancellable. Same reason at the other end of the clock. `[profile.steam]`
    and `[profile.cloud]` put the workspace switch here.
@@ -157,15 +158,16 @@ puts a workspace on is two seconds of resting a thumb on a shoulder, which
 happens mid-fight.
 
 So a person can answer it instead. `daemon.set_locked(True)` - the `ZL+B` /
-`ZR+B` chords, the **Workspace lock** menu row (offered in game mode or while
+`ZR+B` chords, the **Workspace lock** tile on the quick menu and row in the
+menu (offered in game mode or while
 the app in front has the pad; see `when` in [`menu.md`](menu.md)), `omapad ctl
 lock on` - pins
 `handed_over` on ahead of every other test in `update_handover()`, including a
 profile's `handover = false`, and `allowed()` then refuses everything but a
 chord. `check_hold_timers()` asks the same question before it *announces* a
 confirming hold, so a lock does not leave a tick and a notification counting
-down to nothing over the game. The chord is the menu and the menu is the way out, which is why the
-notification names it.
+down to nothing over the game. The chord is the quick menu and the lock is a
+tile on it, the way out, which is why the notification names it (decision 90).
 
 The chords fire only while the pad is already the app's
 (`LockAction.claims_chord`), because on the desktop `ZL + B` closes the window

@@ -88,7 +88,7 @@ column, and must say what it cost.
 | PLUS | the quick menu, on the way down (`on_press`) - no hold, so a press is never a guess between two menus | no, same reason |
 | HOME | the controller menu on the way down (`on_press`), hold: switch mode | no: the tap is the door every page is behind, and the hold is the way back to the desktop |
 | CAPTURE | screenshot / region | yes, but **NEVER as the only home for anything**: the button does not exist in XInput mode |
-| MINUS + PLUS | the menu, everywhere, past a game | no: it is the only door left over a cloud session |
+| MINUS + PLUS | the quick menu, everywhere, past a game | no: it is the only door left under the workspace lock |
 | ZL + B, ZR + B | the workspace lock, over an app that already has the pad | no: it is how the pad is given to a game outright, and the menu is the only way back |
 
 ### An axis is not a binding

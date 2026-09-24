@@ -790,6 +790,8 @@ class LiveAction(Action):
         live:volume=up             a notch louder
         live:volume=0.4            straight to four tenths
         live:mute=toggle           the speakers, on or off
+        live:mic=toggle            the microphone, muted or not
+        live:deafen=toggle         the microphone and the speakers together
         live:brightness=down       one step darker
         live:media=playPause       what is playing, or is not
 
@@ -860,8 +862,8 @@ class LockAction(Action):
     being interrupted - an announced hold is deliberate at a desk and a
     shoulder rested on for a second and a half mid-fight is not.
 
-    Locked, the only thing left is a chord, which is the menu and so the way
-    back out. See `Daemon.set_locked` and `Daemon.allowed`.
+    Locked, the only thing left is a chord, which is the quick menu - the
+    lock's tile is on it - and so the way back out. See `Daemon.set_locked` and `Daemon.allowed`.
     """
 
     SIMPLE = ("toggle", "on", "off")

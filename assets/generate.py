@@ -262,18 +262,37 @@ CONTROLS_TO_DRAW = (
     ("dial", "face", "dial-face.svg"),
     ("dial", "ticks", "dial-ticks.svg"),
     ("dial", "thumb", "dial-thumb.svg"),
-    # The knob's own two, and the same split: **a pointer is a drawing and
-    # the scale it stands in is an arc.** What the value moves is the angle of
-    # the one and the sweep of the other, and only the first of those is a
-    # shape that can be drawn once - an arc that grows with the number would
-    # be a second drawing of the ring it grows along.
+    # **The knob, a Braun T 1000 control drawn in lines**, and the same split
+    # as the clock: a pointer is a drawing and the scale it stands in is an
+    # arc. What the value moves is the angle of the one and the sweep of the
+    # other, and only the first of those is a shape that can be drawn once -
+    # an arc that grows with the number would be a second drawing of the ring
+    # it grows along.
     #
-    # `dial-notch.svg` is the mark under a stop, hung just outside the scale
-    # and touching it: it begins where the scale's stroke ends, which is a
-    # number this file cannot see. A knob drawn with a wider scale needs this
-    # redrawn with it - `Knob.qml`'s `scaleRadius` is the one that moves.
+    # **Drawn in the clock's weights, not weights of its own**, which the
+    # first drawing was - hairlines a shade under the clock's and marks one
+    # stroke wide, so beside the 6139 it was the faint one of the two. Each
+    # figure is now one the clock already has: the cap's edge is the clock's
+    # case, two quarter-unit rings the same gap apart; a mark of the scale is
+    # the sweep hand's width; an end is an hour baton in outline, its foot
+    # left open for the arc that runs on under it to close; and the index is
+    # that baton solid, the way the accent is solid on the clock.
+    # `DialsShareTheClocksWeights` holds the two to it.
+    #
+    # The cap never turns.
+    # The pointer is the index painted on that top. `dial-notch.svg` is one
+    # mark of the printed scale and `dial-end.svg` the longer one at each end,
+    # both hung outside the arc with their feet in it: a mark reaches to the
+    # arc's middle and an end, whose foot is open, to its inner edge, so the
+    # arc closes it. They overlap it because `Knob.qml` draws each ink as one
+    # opaque layer faded once, where an overlap cannot show and a shared edge
+    # would. Both are measured from the arc, which is a number this file
+    # cannot see: a knob drawn with a wider scale needs them redrawn with it -
+    # `Knob.qml`'s `scaleRadius` is the one that moves.
+    ("dial", "cap", "dial-cap.svg"),
     ("dial", "pointer", "dial-pointer.svg"),
     ("dial", "notch", "dial-notch.svg"),
+    ("dial", "end", "dial-end.svg"),
     ("switch", "body", "switch-body.svg"),
     ("switch", "knob", "switch-knob.svg"),
     ("chev", "left", "chev-left.svg"),

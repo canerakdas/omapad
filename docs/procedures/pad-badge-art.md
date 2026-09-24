@@ -111,7 +111,7 @@ drawing. Leave what a number actually redraws:
 | the strokes that stand on a line - a stop, an end, the value's own mark, the pair that bracket a row | the line itself, and how far along it anything stands |
 | the key at the head of a latching row, and what is in its window | which of the two is drawn |
 | the clock's rim, its twelve marks, the hub, both hands, the sweep, the register's ring and hand | which way each one points, and where the register sits and how big it is |
-| the knob's pointer, and the notch under one stop | the scale and the run of it the value has covered - an arc that grows with the number - and how many notches there are |
+| the knob's cap, its index, one mark of its scale and the longer mark at each end | the scale's arc and the run of it the value has covered - an arc that grows with the number - and how many marks there are |
 
 A shape parameterised by a number cannot be drawn once. Same split `BadgeArt`
 already makes between a button and the label set into it - which is why

@@ -109,6 +109,13 @@ VIEW_HEARTBEAT = 2.0
 # a sentence. A fifth of a second is inside what a press feels like.
 DICTATE_POLL = 0.2
 
+# How long a switch that silences the speakers waits for its own cue to be
+# heard first. The cue plays through the sink being muted, so muting at the
+# press cuts it off. `back` is 70 ms, and the shell's player lands tens of
+# milliseconds after the line. Not a setting: it follows the length of a
+# shipped sound, and nobody holding the pad can tell 150 ms from the press.
+QUIET_AFTER = 0.15
+
 # What that file can say, against what the key is lit for. These three are
 # voxtype's; a word neither it nor this table knows is taken as work still
 # going on rather than as nothing happening, so a tool with its own vocabulary
@@ -584,6 +591,9 @@ class Daemon:
         # A number a scrub is still moving, and when each reading last went
         # out - the pair that coalesces a swept level onto `[live] write_ms`.
         self._live_pending = {}
+        # A switch that mutes the speakers, held back until its cue has been
+        # heard: name -> (when, command). See `live_switch`.
+        self._live_held = {}
         self._live_sent = {}
         # A change the short push carried, so the surface still owes itself a
         # rebuild when the hand comes off.
@@ -1118,8 +1128,9 @@ class Daemon:
         answering it themselves, so it goes through the same door - forced,
         because it has to hold whatever the last walk of /proc decided.
 
-        The notification names the menu because the menu is the only door
-        left: a chord is the one gesture the lock lets through, and every
+        The notification names the quick menu because it is the only door
+        left: a chord is the one gesture the lock lets through, the chord
+        opens the row, and the lock is a tile on it. Every
         other way of saying "give it back" is a button this has just switched
         off.
         """
@@ -1137,7 +1148,7 @@ class Daemon:
         if self.config.notify:
             self.session.notify(
                 "omapad",
-                "Workspace lock on - unlock it from the menu" if locked
+                "Workspace lock on - unlock it from the quick menu" if locked
                 else "Workspace lock off",
             )
 
@@ -3243,6 +3254,8 @@ class Daemon:
         if spec.get("kind") == "number":
             self._live_pending[name] = command
             self.live_flush()
+        elif spec.get("quiets"):
+            self.live_switch(name, command, value, spec["quiets"])
         else:
             self.live_send(name, command)
         if quiet:
@@ -3255,13 +3268,41 @@ class Daemon:
             self.push_quick_view()
         return True
 
-    def live_send(self, name, command):
+    def live_switch(self, name, command, value, quiets):
+        """Mute or unmute, said the way a voice call says it.
+
+        Muting falls and unmuting rises - `back` and `commit`, the pair that
+        already means *went the other way* and *concluded* - which is the
+        shape of Discord's own two sounds, so the tiles copying its buttons
+        sound like them without a new voice.
+
+        What the cue plays through is the question. The microphone is not in
+        its way. The speakers are: muted at the press, the cue is cut off by
+        the thing it announces, and unmuted at the press, it plays into a sink
+        that is still muted. So a switch that silences the speakers is sent
+        `QUIET_AFTER` its cue, and one that brings them back is sent first
+        and said when the helper has answered.
+        """
+        if quiets != "speakers":
+            self.say("back" if value else "commit")
+            self.live_send(name, command)
+        elif value:
+            self.say("back")
+            self._live_held[name] = (time.monotonic() + QUIET_AFTER, command)
+        else:
+            self._live_held.pop(name, None)
+            self.live_send(name, command,
+                           lambda lines: self.say("commit"))
+
+    def live_send(self, name, command, done=None):
         """Hand one command to the worker, and arm the read that checks it."""
-        if not self.submit_command(command, _nothing,
+        if not self.submit_command(command, done or _nothing,
                                    self.config.live_timeout):
             # No worker to run it in, so it is run on the loop - a daemon that
             # could not make a pipe is slower, not broken.
-            self.session.capture(command, self.config.live_timeout)
+            lines = self.session.capture(command, self.config.live_timeout)
+            if done is not None:
+                done(lines)
         now = time.monotonic()
         self._live_sent[name] = now
         # Asked again once, after the helper has had time to land: what it
@@ -3269,6 +3310,8 @@ class Daemon:
         # moment it was *sent* rather than asked for, or a coalesced write
         # would be checked before it had gone out.
         self._live_due[name] = now + self.config.live_settle
+        for other in live_module.READINGS.get(name, {}).get("touches", ()):
+            self._live_due[other] = now + self.config.live_settle
 
     def live_flush(self, force=False):
         """Send what a scrub has been holding, once its interval is up.
@@ -3279,6 +3322,11 @@ class Daemon:
         is the one failure a coalescer must not have.
         """
         now = time.monotonic()
+        for name in list(self._live_held):
+            when, command = self._live_held[name]
+            if force or now >= when:
+                del self._live_held[name]
+                self.live_send(name, command)
         for name in list(self._live_pending):
             if force or now - self._live_sent.get(name, 0.0) >= \
                     self.config.live_write:
@@ -5104,7 +5152,7 @@ class Daemon:
         return self.quick_unanswered() + self.quick_elsewhere()
 
     def quick_elsewhere(self):
-        """The tiles whose `when` is not what is in front now.
+        """The tiles whose `when` is not what is in front now, or not true.
 
         Over an empty workspace the head names nothing, and a row that opens
         on Resume there offers to go back to something that is not on screen;
@@ -5114,8 +5162,12 @@ class Daemon:
         whichever one this is.
         """
         here = "window" if self.focus_class else "empty"
+        # The states are the menu's and are asked the menu's way: any one
+        # listed is enough. `first_run` is in the set and on no tile.
+        states = self.menu_conditions()
         return [item["id"] for item in self.quick.items
-                if item["when"] not in (None, here)]
+                if item["where"] not in (None, here)
+                or (item["states"] and not states.intersection(item["states"]))]
 
     def quick_unanswered(self):
         """The tiles whose value this machine has never answered for.
@@ -6139,8 +6191,8 @@ class Daemon:
         back.
 
         The **workspace lock** is the end of all that while it is on:
-        nothing but a chord, because the chord is the menu and the menu is the
-        only way to turn it off again. See `set_locked`.
+        nothing but a chord, because the chord is the quick menu and the lock's
+        tile on it is the only way to turn it off again. See `set_locked`.
         """
         if not self.handed_over:
             return True

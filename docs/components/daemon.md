@@ -218,7 +218,7 @@ and the file is the thing that actually changed.
   why they get no say in it.
 - `set_locked()` is the workspace lock: the pad is the app in front's whatever
   `/proc` says, and `allowed()` then lets nothing through but a chord - the
-  menu, and so the way back out. `chord_pending()` is the other half of it,
+  quick menu, with the lock's tile on it, and so the way back out. `chord_pending()` is the other half of it,
   and keeps a chord that can do nothing right now from making its buttons wait
   for their release. See [handover](handover.md).
 - `set_keeping()` is the same question answered the other way: the pad is ours
