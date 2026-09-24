@@ -560,6 +560,15 @@ it names one, the first word of its `desc` where it does not.
 X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab", hold = "key:F5", hold_desc = "Reload" }
 ```
 
+**Which three.** Face buttons, then the stick clicks, in that order, until
+three are printed. A binding that says `bar = true` is served first, and in
+Discord the context menu on the left stick does — it is where copy, paste and
+reply are — so it takes X's slot there.
+
+```toml
+LSTICK = { tap = "click:right", desc = "Context menu", bar = true }
+```
+
 `hold_short` is the same for the other half, and `[gamebar] brief = false` puts
 the guide's full phrase on the bar as well — for a bar read across a room, or a
 scheme whose bindings are hard to name in one word.
@@ -1309,6 +1318,7 @@ Everything a binding table can say:
 | `confirm` · `confirm_ms` | an **announced** hold: at `hold_ms` it ticks and says what is coming, and only `confirm_ms` later does it fire. `confirm = true` takes both numbers from `[confirm]` |
 | `desc` · `hold_desc` | what the [guide](#the-bindings-guide) prints for each half |
 | `short` · `hold_short` | what the [game bar](#game-bar) prints — one word |
+| `bar` | `true` gives it one of the game bar's three slots before the others are handed out |
 | `on_release` | fire the tap when the button comes back up, so the same button can grow a hold later without its tap having already gone out |
 | `rumble` | tick the motor when this one fires |
 | `reaches_past` | whether it still fires while the pad has been handed to an app |

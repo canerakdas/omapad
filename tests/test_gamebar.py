@@ -235,6 +235,28 @@ class ViewTests(unittest.TestCase):
         })
         self.assertEqual([row["b"] for row in state["actions"]], ["X", "Y", "R3"])
 
+    def test_a_binding_can_ask_for_a_slot(self):
+        # The shipped [profile.discord]: A, B and X fill the three slots in
+        # PREFERRED's order, and the right click on L3 - how Discord copies,
+        # pastes and replies - is the one worth seeing. It says so, and X is
+        # the one that makes room. Still drawn thumbs-first.
+        state = self.view({
+            "A": {"tap": "key:CTRL+SHIFT+M", "desc": "Mute the microphone"},
+            "B": {"tap": "key:CTRL+SHIFT+D", "desc": "Deafen"},
+            "X": {"tap": "key:CTRL+K", "desc": "Jump to a channel"},
+            "Y": {"tap": "key:CTRL+ENTER", "desc": "Answer the call"},
+            "LSTICK": {"tap": "click:right", "desc": "Context menu",
+                       "bar": True},
+        })
+        self.assertEqual([row["n"] for row in state["actions"]],
+                         ["A", "B", "LSTICK"])
+        self.assertEqual(state["actions"][2]["d"], "Context")
+
+    def test_asking_reaches_past_the_kinds(self):
+        state = self.view({"ZR": {"tap": "click:left", "bar": True},
+                           "X": "key:SUPER+SPACE"})
+        self.assertEqual([row["n"] for row in state["actions"]], ["X", "ZR"])
+
     def test_another_region_of_the_pad_is_one_setting_away(self):
         wider = gamebar.GameBarModel(build({
             "bindings": {"game": {}},

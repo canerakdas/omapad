@@ -1944,8 +1944,11 @@ B = { tap = "key:CTRL+SHIFT+D", desc = "Deafen - mic and sound", hold = "key:ESC
 X = { tap = "key:CTRL+K", desc = "Jump to a channel" }
 Y = { tap = "key:CTRL+ENTER", desc = "Answer the call" }
 # The right click Y gave up. The left stick's middle click was X's twice over,
-# so this is the cheapest button on the pad to spend here.
-LSTICK = { tap = "click:right", desc = "Context menu" }
+# so this is the cheapest button on the pad to spend here. `bar = true`
+# because the context menu is where Discord keeps copy, paste and reply, and
+# a button that is only in the guide is one nobody remembers mid-sentence.
+# It takes X's slot on the game bar; the quick switcher stays in the guide.
+LSTICK = { tap = "click:right", desc = "Context menu", bar = true }
 
 # YouTube, the couch's television (item 39).
 #

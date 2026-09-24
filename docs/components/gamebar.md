@@ -80,6 +80,12 @@ R3 are gone - and the guide is where the whole scheme is read. In a terminal
 the row comes to *Backspace*, *Paste*, *Copy*, and `Ctrl+L` is the one left to
 the guide.
 
+A binding that says `bar = true` overrides that order: it is served first, past
+`kinds` and `COMMON`, and the rest fill what is left. The row is still drawn in
+`PREFERRED`'s order, so asking changes which badges are there and not where
+they stand. `[profile.discord]`'s L3 is the shipped case - its right click is
+where Discord keeps copy, paste and reply - and X is what makes room.
+
 ## One word per hint
 
 The bar is glanced at over the top of a game with three slots; the guide is a

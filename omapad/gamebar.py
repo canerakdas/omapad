@@ -141,6 +141,11 @@ def offered_to_a_pointer(spec, row):
     return not action.strip().startswith(POINTER)
 
 
+def _asks_for_the_bar(spec):
+    """True for a binding that says `bar = true`: see `GameBar.actions`."""
+    return isinstance(spec, dict) and bool(spec.get("bar", False))
+
+
 def _spec_actions(spec):
     """Every action a binding can fire, tap and hold alike."""
     if isinstance(spec, dict):
@@ -243,33 +248,43 @@ class GameBarModel:
         return found
 
     def actions(self, resolve, available, exclude=(), omit=COMMON):
-        rows = []
         kinds = self.config.gamebar_kinds
+        wanted = []
+        rest = []
         for button in PREFERRED:
-            if len(rows) >= MAX_ACTIONS:
-                break
             if button in exclude:
                 continue
-            if guide.KINDS.get(button, "system") not in kinds:
-                continue  # not the half of the pad that changes; see HINTED
             if available is not None and button not in available:
                 continue
-            if _tap_of(resolve(button)) in omit:
-                continue  # the same everywhere: printing it says nothing
+            spec = resolve(button)
+            asked = _asks_for_the_bar(spec)
+            if not asked:
+                if guide.KINDS.get(button, "system") not in kinds:
+                    continue  # not the half of the pad that changes; see HINTED
+                if _tap_of(spec) in omit:
+                    continue  # the same everywhere: printing it says nothing
             # The guide already turns a binding into words, and a hint that
             # disagreed with the guide would be worse than no hint. It is
             # asked for the short form of them: the guide is read from a page
             # with the pad in your lap, the bar is glanced at over a game.
             row = guide.button_row(
-                button, resolve(button), self.layout, self.config.gamebar_brief
+                button, spec, self.layout, self.config.gamebar_brief
             )
-            if row is not None:
-                # Added here rather than in `button_row`: the guide prints
-                # rows to be read, and only the bar has anything to press.
-                row["n"] = button
-                row["c"] = offered_to_a_pointer(resolve(button), row)
-                rows.append(row)
-        return rows
+            if row is None:
+                continue
+            # Added here rather than in `button_row`: the guide prints rows
+            # to be read, and only the bar has anything to press.
+            row["n"] = button
+            row["c"] = offered_to_a_pointer(spec, row)
+            (wanted if asked else rest).append(row)
+        # A binding that says `bar = true` is served first and past `kinds`
+        # and `COMMON`: somebody wrote down that this is the one worth seeing
+        # here, which is more than a default order knows. The row is still
+        # drawn in PREFERRED's order, so a badge does not move along the bar
+        # for having asked.
+        chosen = wanted[:MAX_ACTIONS]
+        chosen = chosen + rest[:MAX_ACTIONS - len(chosen)]
+        return sorted(chosen, key=lambda row: PREFERRED.index(row["n"]))
 
     def view_state(self, opened, resolve, available, mode, omit=COMMON):
         """What the shell draws. `resolve` answers with the live binding."""

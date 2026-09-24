@@ -121,6 +121,7 @@ X = { tap = "key:CTRL+T", desc = "New tab", short = "Tab", hold = "key:F5", hold
 | `desc` | the guide | a phrase. **SHOULD** be written wherever `describe()` would print a dispatcher path or a script name |
 | `short` | the game bar | **one word**, and **MUST** be written when the first word of `desc` is not the meaning - "New tab" cuts to "New" |
 | `hold_desc` / `hold_short` | the same two | the same rule for the other half |
+| `bar` | the game bar | `true` takes one of its three slots ahead of the default order. **SHOULD** be spent only on what somebody needs to see mid-task and would not otherwise find - Discord's context menu, which is where copy and paste are |
 
 **This one is a rule for a person, and `omapad check` deliberately does not
 enforce it.** Whether the first word of a phrase is its meaning is a judgement
