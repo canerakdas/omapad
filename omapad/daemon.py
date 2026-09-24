@@ -5267,12 +5267,14 @@ class Daemon:
             self.quick_open, self.action_state, self.action_value,
             self.quick_share, self.quick_head(), self.quick_legend(),
         )
-        # The menu's own three, because the row is drawn from the menu's
-        # module: a tile here is a cell there, rounded and dimmed behind the
-        # same way, so the two read as one family when PLUS and HOME swap
-        # them in the same place. Settings, and the shell cannot read them.
+        # The menu's own four, because the row is drawn from the menu's
+        # module: a tile here is a cell there, rounded, filled and dimmed
+        # behind the same way, so the two read as one family when PLUS and
+        # HOME swap them in the same place. Settings, and the shell cannot
+        # read them.
         state["cell"] = self.config.menu_cell
         state["corner"] = self.config.menu_tile_corner
+        state["fill"] = self.config.menu_tile_fill
         state["dim"] = self.config.menu_dim
         # The game bar's height, because the legend stands in the bar's band
         # the way a fullscreen menu's does - the bar steps down while the row

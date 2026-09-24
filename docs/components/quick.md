@@ -56,7 +56,7 @@ and the id of a tile pressed once that wants a second press (`armed`).
 
 ```
 {open, sel, tiles:[{id, l, i, f?, m, on, x}], band:{id, l, w, t, adj, arm, x, v?},
- head:{k, t}, keys:[{b, k, n}], cell, corner, dim, barh}
+ head:{k, t}, keys:[{b, k, n}], cell, corner, fill, dim, barh}
 ```
 
 - `tiles` carries **nothing that moves with the selection**: which tile is in
@@ -78,9 +78,12 @@ and the id of a tile pressed once that wants a second press (`armed`).
   tile A does not touch), B says `Cancel` while a tile is armed, X is left
   off because a row has no levels and it is B's way out twice, and ↑ ↓
   appear only on a tile with a value.
-- `cell`, `corner` and `dim` are the menu's settings, stamped here because the
-  row is drawn from the menu's module; `barh` is the game bar's height, for
-  the band the legend stands in.
+- `cell`, `corner`, `fill` and `dim` are the menu's settings, stamped here
+  because the row is drawn from the menu's module; `barh` is the game bar's
+  height, for the band the legend stands in. `fill` is `[menu] tile_fill`,
+  read as the menu reads it - a plain tile and the band at that alpha, the
+  tile in front solid. Without it the row drew every tile opaque, and on any
+  fill below 1.0 the same theme gave the two surfaces two different greys.
 
 ## The daemon
 

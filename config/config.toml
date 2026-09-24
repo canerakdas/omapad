@@ -2852,7 +2852,8 @@ tile_corner = 23
 # otherwise. 1.0 is the opaque card this surface was drawn to; lower it and
 # the page opens up - what comes through is the scrim, and under that the
 # desktop. At 0 a plain tile has
-# no ground at all and the page is its ink and its edges.
+# no ground at all and the page is its ink and its edges. The quick row
+# (PLUS) is drawn from the same tiles and takes this too.
 #
 # **It is the fill, not the tile.** A label and an icon are drawn at full
 # strength whatever this says: a page you can see through is not the same

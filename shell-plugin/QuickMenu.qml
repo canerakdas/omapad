@@ -14,9 +14,9 @@
 // second thing to read on a screen whose job is the one row.
 // The mockup's own palette is not: every colour is a role of the theme, the
 // way every other surface here takes it (qml.md 8.1), and the tile is the
-// menu's cell - `cell`, `corner` and `dim` arrive from the same settings - so
-// PLUS and HOME swapping one for the other in the same place read as one
-// family.
+// menu's cell - `cell`, `corner`, `fill` and `dim` arrive from the same
+// settings - so PLUS and HOME swapping one for the other in the same place
+// read as one family.
 //
 // Window rules are the guide's, not the menu's: overlay layer, no keyboard
 // focus, an empty input region. The menu takes the desk as well because it is
@@ -81,10 +81,15 @@ Item {
     root.badgeUnit + metrics.space(3) * 2)
   // Whether the pad has been touched lately enough to hold the screen awake.
   property bool awake: true
-  // The menu's module, rounding and dimming - `[menu] cell`, `tile_corner`
-  // and `dim` - for the reason the header gives.
+  // The menu's module, rounding, fill and dimming - `[menu] cell`,
+  // `tile_corner`, `tile_fill` and `dim` - for the reason the header gives.
   property int cellUnit: 128
   property real corner: 23
+  // Menu.qml's `tileFill`, read the way Menu.qml reads it: a plain tile's
+  // ground at this alpha, the one under the thumb solid. Drawn solid here
+  // while the menu honoured it, the same theme gave the two surfaces two
+  // different greys.
+  property real tileFill: 1.0
   property real dim: 0.75
 
   readonly property bool stencil: root.badgeStyle === "stencil"
@@ -210,6 +215,8 @@ Item {
       if (s.cell !== undefined) root.cellUnit = Number(s.cell) || 128
       if (s.corner !== undefined) root.corner = Number(s.corner) || 0
       if (s.dim !== undefined) root.dim = Number(s.dim)
+      if (s.fill !== undefined)
+        root.tileFill = Math.max(0, Math.min(1, Number(s.fill)))
       if (s.tiles !== undefined && root.fresh("tiles", s.tiles))
         root.tiles = s.tiles
       if (s.band !== undefined && root.fresh("band", s.band))
@@ -430,7 +437,11 @@ Item {
               anchors.fill: parent
               anchors.margins: tile.sunk
               radius: Math.max(0, metrics.radius.tile - tile.sunk)
-              color: root.cellGround
+              color: Util.alpha(root.cellGround,
+                                tile.selected ? 1.0 : root.tileFill)
+              Behavior on color {
+                ColorAnimation { duration: metrics.time.brisk }
+              }
               border.width: tile.sunk > 0 ? root.ringWeight : 0
               border.color: root.cellEdge
             }
@@ -518,7 +529,9 @@ Item {
         height: root.cell
         visible: root.band.l !== undefined
         radius: metrics.radius.tile
-        color: root.cellGround
+        // A plain card, so a plain tile's fill: the menu's nav card takes it
+        // the same way.
+        color: Util.alpha(root.cellGround, root.tileFill)
         border.width: root.ringWeight
         border.color: root.cellEdge
 
