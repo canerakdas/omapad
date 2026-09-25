@@ -1373,8 +1373,22 @@ class Daemon:
         # flag and hides the bar, and `off` removes it and brings it back. Read
         # the wrong way round it does exactly the opposite of what it says.
         wanted = "off" if (restore or self.mode == "desktop") else "on"
+        command = "omarchy toggle bar %s" % wanted
+        # **Through the worker, never spawned.** Two of these can be asked
+        # for a millisecond apart - holding HOME over a game closes the menu
+        # its tap opened, which opens our bar and says `on`, and then the
+        # mode switch says `off` - and two detached processes finish in
+        # whichever order the scheduler likes. When `on` landed last the flag
+        # stayed, and the desktop came back with no bar at all. The worker
+        # runs one command at a time in the order asked, so the last word is
+        # the one that stands. With no worker - a daemon that could not make
+        # a pipe, or the shutdown path, which has already stopped it - it
+        # runs here and is waited for, which on the way out is what is
+        # wanted anyway.
+        if self.submit_command(command, _nothing):
+            return
         try:
-            self.session.spawn("omarchy toggle bar %s" % wanted)
+            self.session.capture(command)
         except OSError as exc:
             log.warning("could not turn the bar %s: %s", wanted, exc)
 

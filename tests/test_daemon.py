@@ -1978,7 +1978,9 @@ class BarInGameModeTests(DaemonTestCase):
     """Omarchy's bar, while the game has the pad."""
 
     def bar_calls(self):
-        return [c for c in self.session.spawned if "toggle bar" in c]
+        # Read, not spawned: the suite has no worker, so the daemon runs the
+        # command where it stands - see `apply_bar`.
+        return [c for c in self.session.captured if "toggle bar" in c]
 
     def test_the_two_bars_are_one_decision_defaulted_twice(self):
         # Game mode that hid Omarchy's bar and drew nothing back left a blank
@@ -2027,11 +2029,33 @@ class BarInGameModeTests(DaemonTestCase):
         self.config.hide_bar_in_game = True
         self.config.gamebar_enabled = True
         self.daemon.set_mode("game")
-        self.session.spawned.clear()
+        self.session.captured.clear()
         self.daemon.set_locked(True)      # ours goes away with the pad
         self.assertEqual(self.bar_calls(), [])
         self.daemon.set_locked(False)     # and comes back saying it again
         self.assertEqual(self.bar_calls(), ["omarchy toggle bar on"])
+
+    def test_the_last_word_on_the_bar_is_the_one_that_stands(self):
+        # Reported from the couch: out of game mode, and no bar. Holding HOME
+        # closes the menu its tap opened, our bar opens and says `on`, and
+        # the mode switch says `off` a millisecond later. Spawned, the two
+        # raced and `on` sometimes finished last. Through the worker they
+        # queue in the order they were asked.
+        self.config.hide_bar_in_game = True
+        commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        commands.submitted = []
+        self.press("HOME")
+        # The hold: the menu the tap opened is shut, then the mode switches.
+        self.daemon.check_hold_timers(time.monotonic() + 1.0)
+        self.release("HOME")
+        asked = [command for command, _ in commands.submitted
+                 if "toggle bar" in command]
+        self.assertEqual(self.daemon.mode, "desktop")
+        self.assertEqual(asked[-1], "omarchy toggle bar off")
+        self.assertEqual([c for c in self.session.spawned
+                          if "toggle bar" in c], [])
 
     def test_a_session_that_starts_in_game_mode_hides_it_too(self):
         # No switch to hang it on, and our own bar opens there regardless.
@@ -2043,10 +2067,14 @@ class BarInGameModeTests(DaemonTestCase):
     def test_a_machine_without_omarchy_is_not_a_daemon_that_stops(self):
         self.config.hide_bar_in_game = True
 
-        def refuse(command):
-            raise OSError("no such command")
+        capture = self.session.capture
 
-        self.session.spawn = refuse
+        def refuse(command, timeout=2.0):
+            if "toggle bar" in command:
+                raise OSError("no such command")
+            return capture(command, timeout)
+
+        self.session.capture = refuse
         self.daemon.set_mode("game")
         self.assertEqual(self.daemon.mode, "game")
 
@@ -2098,10 +2126,14 @@ class IdleInGameModeTests(DaemonTestCase):
     def test_a_machine_without_omarchy_is_not_a_daemon_that_stops(self):
         self.config.stay_awake_in_game = True
 
-        def refuse(command):
-            raise OSError("no such command")
+        capture = self.session.capture
 
-        self.session.spawn = refuse
+        def refuse(command, timeout=2.0):
+            if "toggle bar" in command:
+                raise OSError("no such command")
+            return capture(command, timeout)
+
+        self.session.capture = refuse
         self.daemon.set_mode("game")
         self.assertEqual(self.daemon.mode, "game")
 

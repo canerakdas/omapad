@@ -264,6 +264,13 @@ rate while a value is moving and off it the rest of the time.
 - `apply_bar()` wraps `omarchy toggle bar on|off`, which names the `bar-off`
   flag: `on` hides the bar. Read as written it does the opposite of what it
   says.
+- **And it goes through the command worker, never `spawn`.** Two of them can
+  be asked a millisecond apart: holding HOME over a game shuts the menu its
+  tap opened, our bar opens and says `on`, and the mode switch says `off`.
+  Spawned, the two raced, `on` sometimes finished last, and the desktop came
+  back with no bar. The worker runs one command at a time in the order asked,
+  so the last word stands; it can arrive a little late behind a slow reading,
+  never in the wrong order.
 - The compositor, the plugin and the control socket are each optional. Every
   call into them is wrapped and logged; none of them may become an exception
   path.
