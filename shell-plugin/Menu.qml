@@ -1535,6 +1535,11 @@ Item {
                   // card is the state said a second time in the one way that
                   // only makes that card look thicker than its neighbours.
                   readonly property real weight: metrics.gap.hairline
+                  readonly property string outline:
+                    tileArt.ground(nav.outline,
+                                   nav.width - navGround.weight,
+                                   nav.height - navGround.weight,
+                                   metrics.radius.tile)
 
                   ShapePath {
                     // **Solid, not a tint** - the one fill on this surface
@@ -1569,6 +1574,21 @@ Item {
                     fillColor: nav.here
                       ? Color.accent
                       : Util.alpha(root.cellGround, root.tileFill)
+                    strokeWidth: -1
+
+                    PathSvg { path: navGround.outline }
+                  }
+
+                  // **The line is a path of its own**, the way a tile's ring
+                  // is (`ground` against `seat`). On the fill's own path the
+                  // curve renderer stopped following the stroke's colour once
+                  // the fill had gone fully transparent - `menu.tile_fill`
+                  // at 0 - so every card walked past kept the accent edge it
+                  // had while it was the one you were on. A path that never
+                  // fills is the one the tiles have always drawn their ring
+                  // with.
+                  ShapePath {
+                    fillColor: "transparent"
                     strokeColor: nav.here ? Color.accent : root.cellEdge
                     strokeWidth: navGround.weight > 0 ? navGround.weight : -1
 
@@ -1582,12 +1602,7 @@ Item {
                       ColorAnimation { duration: metrics.time.brisk }
                     }
 
-                    PathSvg {
-                      path: tileArt.ground(nav.outline,
-                                           nav.width - navGround.weight,
-                                           nav.height - navGround.weight,
-                                           metrics.radius.tile)
-                    }
+                    PathSvg { path: navGround.outline }
                   }
 
                   transform: Translate {
