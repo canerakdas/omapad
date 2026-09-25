@@ -2,11 +2,16 @@
 
 import argparse
 import errno
+import fcntl
 import logging
 import os
 import select
 import signal
+import socket
+import struct
 import sys
+import termios
+import threading
 import time
 
 from . import __version__, config as config_module, linux_input as li
@@ -57,8 +62,9 @@ def build_parser():
         "lock <on|off|toggle>, keep <on|off|toggle>, "
         "hud <on|off|toggle>, "
         "mode <toggle|desktop|game>, status; for unit: check; "
-        "for budget: how many seconds to sample, or stress [cycles] "
-        "to open and close every surface and see what was kept",
+        "for budget: how many seconds to sample, stress [cycles] "
+        "to open and close every surface and see what was kept, or "
+        "pages [turns] to time the shell at every menu page turn",
     )
     return parser
 
@@ -799,6 +805,111 @@ def _drift(label, before, after):
                after[1], after[1] - before[1], after[2], after[2] - before[2]))
 
 
+# How long `budget pages` leaves each page on screen. Not a setting: longer
+# than the slide and the readings a page asks for on arrival, so each turn is
+# measured on a shell that has finished the one before.
+PAGE_GAP = 0.6
+
+# How often `budget` knocks on the shell while it watches it. Not a setting:
+# it is the resolution of the measurement - a stall shorter than the gap can
+# fall between two knocks - and one byte a fiftieth of a second is nothing to
+# a panel that drops a line it cannot parse.
+SHELL_KNOCK = 0.02
+
+# A stall shorter than this is the shell drawing a frame, not one it lost.
+SHELL_STALL = 0.05
+
+
+def _unread(sock):
+    """Bytes this socket has sent that the other end has not read yet."""
+    raw = fcntl.ioctl(sock.fileno(), termios.TIOCOUTQ, b"\0\0\0\0")
+    return struct.unpack("i", raw)[0]
+
+
+class ShellWatch:
+    """How long the shell goes without reading, timed from its own socket.
+
+    The control round trip `budget stress` times is the daemon's, and the
+    daemon stopped waiting on the shell (decision 93) - so a shell that froze
+    for a second no longer shows in it at all. This knocks on `status.sock`,
+    the bar widget's, with an empty line every `SHELL_KNOCK`, and asks the
+    kernel how long each knock sat unread. Quickshell is one thread for every
+    panel, so one socket unread is all of them unread; an empty line fails
+    `JSON.parse` inside `applyState`'s `try` and draws nothing.
+    """
+
+    def __init__(self, path):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            self.sock.connect(path)
+        except OSError:
+            self.sock.close()
+            raise
+        self.sock.setblocking(False)
+        # (when it stopped reading, for how long), on the monotonic clock.
+        self.stalls = []
+        self._running = True
+        self._thread = threading.Thread(target=self._watch,
+                                        name="omapad-budget-shell")
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _watch(self):
+        since = None
+        knock = 0.0
+        while self._running:
+            now = time.monotonic()
+            if now >= knock:
+                knock = now + SHELL_KNOCK
+                try:
+                    self.sock.send(b"\n")
+                except BlockingIOError:
+                    pass
+                except OSError:
+                    return
+            try:
+                waiting = _unread(self.sock) > 0
+            except OSError:
+                return
+            if waiting and since is None:
+                since = now
+            elif not waiting and since is not None:
+                self.stalls.append((since, now - since))
+                since = None
+            time.sleep(0.002)
+
+    def stop(self):
+        self._running = False
+        self._thread.join(1.0)
+        self.sock.close()
+
+    def worst(self, start, end):
+        """The longest stall that began between two moments, in seconds."""
+        return max([length for began, length in self.stalls
+                    if start <= began < end] or [0.0])
+
+    def summary(self):
+        """One line saying how the shell kept up over the whole watch."""
+        long = [length for _, length in self.stalls if length >= SHELL_STALL]
+        if not long:
+            return ("stalls: the shell never stopped reading for %d ms or "
+                    "more" % (SHELL_STALL * 1000))
+        times = "once" if len(long) == 1 else "%d times" % len(long)
+        return ("stalls: the shell stopped reading %s for %d ms or more, "
+                "the longest %.0f ms" % (times, SHELL_STALL * 1000,
+                                         max(long) * 1000.0))
+
+
+def _shell_watch():
+    """A `ShellWatch` on the bar widget's socket, or None and why not."""
+    from . import paths
+
+    try:
+        return ShellWatch(paths.socket_path("status.sock")), None
+    except (paths.RuntimeDirError, OSError) as exc:
+        return None, "no shell to watch (%s)" % exc
+
+
 def _budget_stress(config, words):
     """Open, walk and close every surface, and see what the daemon kept.
 
@@ -842,6 +953,7 @@ def _budget_stress(config, words):
 
     print("daemon: pid %d, %d cycles of %d commands - the surfaces will "
           "flash on screen" % (pid, cycles, len(STRESS_CYCLE)))
+    watch, why_not = _shell_watch()
     took = {}
     try:
         for _ in range(cycles):
@@ -858,6 +970,8 @@ def _budget_stress(config, words):
             control.send("surface close_all", config.control_socket)
         except (paths.RuntimeDirError, OSError):
             pass
+        if watch is not None:
+            watch.stop()
 
     for surface in ("menu", "quick", "guide", "osk"):
         times = sorted(took.get(surface, ()))
@@ -867,6 +981,12 @@ def _budget_stress(config, words):
               "%.2f ms at worst"
               % (surface + ":", times[len(times) // 2],
                  times[len(times) * 9 // 10], times[-1]))
+
+    # The daemon no longer waits on a shell that stopped reading, so the
+    # times above cannot see one; this is where it shows. The first second
+    # of a run is the burst no hand makes - eighteen commands back to back -
+    # and says more about the burst than about a press.
+    print(watch.summary() if watch is not None else "stalls: %s" % why_not)
 
     # Long enough for a heartbeat to go by and for the shell to let go of
     # what its panels drew, so what is left is kept rather than in flight.
@@ -882,6 +1002,68 @@ def _budget_stress(config, words):
     return 0
 
 
+def _budget_pages(config, words):
+    """Turn the menu's pages, and say how long the shell froze at each turn.
+
+    What a thumb on LB/RB feels, which neither a control round trip nor a
+    stress burst can: a page turn builds every tile on the page again
+    (qml.md 5.6), and the shell draws nothing while it does. `group_next`
+    moves the selection and nothing else, which is `STRESS_CYCLE`'s rule.
+    """
+    from . import control, paths
+
+    turns = 14
+    if words:
+        try:
+            turns = int(words[0])
+        except ValueError:
+            print("omapad: budget pages takes a number of turns",
+                  file=sys.stderr)
+            return 2
+        if turns <= 0:
+            print("omapad: a run needs at least one turn", file=sys.stderr)
+            return 2
+    fields, why = _daemon_status(config)
+    if fields is None:
+        print("daemon: %s" % why)
+        return 1
+    if fields.get("menu") == "open":
+        print("omapad: close the menu first - the run opens and closes it",
+              file=sys.stderr)
+        return 1
+    watch, why_not = _shell_watch()
+    if watch is None:
+        print("stalls: %s" % why_not)
+        return 1
+    print("menu: %d page turns, %d ms apart - the menu will be on screen"
+          % (turns, PAGE_GAP * 1000))
+    froze = []
+    try:
+        control.send("menu open", config.control_socket)
+        time.sleep(PAGE_GAP)
+        for _ in range(turns):
+            start = time.monotonic()
+            control.send("menu group_next", config.control_socket)
+            time.sleep(PAGE_GAP)
+            # Only what began at the turn: a reading landing on the new page
+            # a moment later is a line of its own, not the page being built.
+            froze.append(watch.worst(start - 0.02, start + 0.1) * 1000.0)
+    except (paths.RuntimeDirError, OSError) as exc:
+        print("daemon: stopped answering (%s)" % exc)
+        return 1
+    finally:
+        try:
+            control.send("menu close", config.control_socket)
+        except (paths.RuntimeDirError, OSError):
+            pass
+        watch.stop()
+    froze.sort()
+    print("turn: %.0f ms the shell drew nothing, %.0f ms at the slowest "
+          "tenth, %.0f ms at worst"
+          % (froze[len(froze) // 2], froze[len(froze) * 9 // 10], froze[-1]))
+    return 0
+
+
 def cmd_budget(config, words):
     """What omapad costs while nothing is happening, on this machine.
 
@@ -892,6 +1074,8 @@ def cmd_budget(config, words):
     """
     if words and words[0] == "stress":
         return _budget_stress(config, words[1:])
+    if words and words[0] == "pages":
+        return _budget_pages(config, words[1:])
     seconds = 10.0
     if words:
         try:

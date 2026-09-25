@@ -11,7 +11,7 @@ developing - the wrapper runs straight from the tree.
 | `run` (default) | `cmd_run` | the daemon: build the `Config`, start the `Daemon`, handle signals |
 | `dump` | `cmd_dump` | print every event from the pad, for mapping a pad by hand. Says so when something else holds the pad exclusively - a running daemon makes it a partial witness, and a press caught half way reads as a stuck button |
 | `check` | `cmd_check` | parse every binding, report the pad, and say what is wrong. Names any button the kernel has down (`held_keys`), which is the one thing that can be asked about a pad the daemon has grabbed |
-| `budget [seconds]` | `cmd_budget` | what the daemon costs while nothing is happening: its memory, its share of a core over a sample, what one ask of *does the window in front hold the pad* costs here, and how many shells an open menu runs a minute. `budget stress [cycles]` opens and closes every surface and says what the daemon and the shell kept |
+| `budget [seconds]` | `cmd_budget` | what the daemon costs while nothing is happening: its memory, its share of a core over a sample, what one ask of *does the window in front hold the pad* costs here, and how many shells an open menu runs a minute. `budget stress [cycles]` opens and closes every surface and says what the daemon and the shell kept; `budget pages [turns]` turns the menu's pages and times the shell at each |
 | `ctl <verb> <command>` | `cmd_ctl` | send a command to a running daemon |
 | `unit [check]` | `cmd_unit` | write the systemd user unit for this checkout, with the checkout's path baked into `ExecStart`; `check` answers whether that path can be baked in and writes nothing. What `install.sh` calls, at its last step and at its first. Prints the path alone, so the installer can say the sentence around it |
 
@@ -92,6 +92,7 @@ many times, and prints:
 |---|---|
 | `menu:` `quick:` `guide:` `osk:` | the control round trip for that surface's commands: the median, the slowest tenth, the worst. Timed over the socket from inside the process rather than through `omapad ctl`, which would time an interpreter starting |
 | `daemon:` | resident size, descriptors and threads, and how far each moved across the run |
+| `stalls:` | how often, and for how long at worst, the shell stopped reading for `SHELL_STALL` (50 ms) or more - see below |
 | `shell:` | the same for `quickshell` - the whole shell, bar and every other plugin included, so only the drift is ours to answer for, and QML's collector moves even that |
 
 It reads three seconds after the last command, so a heartbeat has gone by and
@@ -108,6 +109,36 @@ A slow slowest tenth with a fast median is the loop waiting on something
 after it has answered - the reply goes out before the loop does the rest of
 its turn, so the command *after* the one that caused it is the one that
 pays.
+
+## The shell is timed from its own socket
+
+The daemon stopped waiting on a shell that is not reading
+([93](../decisions/93-the-shell-that-stopped-reading.md)), so a control round
+trip no longer shows a shell that froze - and that freeze is most of what a
+thumb feels. `ShellWatch` knocks on `status.sock` with an empty line every
+`SHELL_KNOCK` (20 ms) and asks the kernel (`TIOCOUTQ`) how long each knock
+sat unread. Quickshell is one thread for every panel, so the bar widget's
+socket going unread is every panel going unread; an empty line fails
+`JSON.parse` inside the panel's `try` and draws nothing. `stalls:` in
+`budget stress` is the whole run through it, and the first second of a run is
+the burst - eighteen commands back to back - rather than anything a hand
+does.
+
+```bash
+omapad budget pages         # 14 turns
+omapad budget pages 30
+```
+
+`budget pages` is what LB/RB feels: it opens the menu, sends `menu
+group_next` every `PAGE_GAP` (600 ms, longer than the slide and the readings a
+page asks for on arrival) and prints how long the shell drew nothing at each
+turn - the median, the slowest tenth, the worst. `group_next` moves the
+selection and nothing else, which is `STRESS_CYCLE`'s rule. It refuses to
+start with the menu open, because it closes the menu when it is done.
+
+**The mapping screen is in neither**, on purpose: while it is up the pad's
+presses are what it records, so a thumb on the pad during a run would write
+somebody's `mapping.toml`.
 
 ## Rules
 

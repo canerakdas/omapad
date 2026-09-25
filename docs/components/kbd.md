@@ -42,9 +42,20 @@ carries the same name, ids and capability bitmaps with nothing opened, so the
 scan now costs about a millisecond and closes nothing. `SysfsNode` answers
 `name`, `vid_pid` and `capabilities()` in the shapes `InputDevice` does, so
 `is_keyboard` asks both the same question.
+
+**And the keyboards it keeps are let go of off the loop.** The same grace
+period is paid on every keyboard the watch closes when a surface comes down -
+3 to 11 ms each here - and a surface comes down on a press. `stop()` hands
+the nodes to `close_aside`, which closes them on a thread of its own: they are
+still let go of the moment the surface is, and the descriptors stay ours
+until each `close` returns, so no number is handed out again under the loop.
+A node that dies mid-surface is closed where it is found - it is already
+gone, and there is nothing left to wait for.
+
 - `KeyboardWatch` - `follow(wanted)` opens the nodes when a surface goes up and
-  `stop()` closes them when the last one comes down; `fds()` feeds the
-  daemon's `poll()`, `read(fd)` yields events.
+  `stop()` lets go of them when the last one comes down, through `closer`
+  (`close_aside`; the tests pass `close_now`); `fds()` feeds the daemon's
+  `poll()`, `read(fd)` yields events.
 
 ## What a key does
 

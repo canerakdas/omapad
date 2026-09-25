@@ -53,47 +53,38 @@ width.
 
 **[93](decisions/93-the-shell-that-stopped-reading.md) · the latency the
 daemon stopped paying for is still on screen.** The loop no longer waits on a
-stalled shell, but the shell still stalls, and four things are left:
+stalled shell, and four things were left - all four now measured, and
+the two worth a change made:
 
-- **Why the shell stops, for 0.3 to 1.2 s, around a surface opening ·
-  Buildable · M.** Measure first: a timestamp on the payload and the panel
-  logging parse-to-applied, or the QML profiler. The suspects are each panel
-  being a `PanelWindow` made and destroyed with `visible: root.opened`; the
-  game bar closing and opening under a fullscreen menu or the quick menu,
-  whose `ExclusionMode.Auto` re-tiles every window each time; and the shell
-  growing 110 MB over twenty stress cycles, which is a collector with work
-  to do. Keeping the bar's layer and zone standing and hiding only what it
-  draws is the likely first change; keeping panels mapped behind an empty
-  input mask is the larger one, and needs its own decision about focus.
-- **The rest of a page turn · Buildable · S.** It froze the shell 110 to 215
-  ms; with the ring, the clock and the travel behind `Loader`s it is 13 to 94,
-  median ~47 (qml.md 5.6). What every tile still builds, whatever its kind,
-  in the order worth trying:
-  - the **row stack** of a card of rows (`rowStack`, some five hundred lines)
-    and the spine repeater beside it, on every tile that is not a card of rows;
-  - the **`figureHead`** - the figure and its words - on every tile that is
-    not a slider, a knob or a reading;
-  - the **halo, sheen and hit** shapes, which draw only while their opacity
-    is above nought and are built on every tile regardless. These animate in,
-    so a Loader that starts them has to be born at the right point of the
-    animation (qml.md 5.5);
-  - the **choice** row and the dead zone's drawing in the tile's middle, and
-    the media and icon marks.
-  Measured one at a time on the Controller page (fifteen tiles, 94 ms, the
-  slowest), and each one checked on screen before the next.
-- **The keyboards on the desk are reopened at every surface · Buildable ·
-  S.** `kbd.follow()` scans `/dev/input` and opens and closes each keyboard
-  whenever a surface opens or closes, and every close waits in
-  `synchronize_rcu` - 10 to 17 ms on the loop, measured. Doing it off the
-  loop, or holding them a moment past a close so a quick reopen costs
-  nothing, keeps the rule that they are only ours while a surface is up.
-- **`budget stress` cannot see the shell · Buildable · S.** It times the
-  control round trip, which is the daemon's. It should also say how long each
-  view socket went unread and how often the daemon logged a stall, and cover
-  the mapping screen, so the items above have a number to beat. The page turn
-  was measured by hand: a byte every 20 ms into `status.sock`, `ss` watching
-  how long it sat unread, while the control socket turned the pages - which
-  is the shape of a `budget pages` of its own.
+- **Why the shell stopped, for 0.3 to 1.2 s, around a surface opening ·
+  measured away.** Not reproducible once the menu's tiles stopped building
+  every kind (qml.md 5.6): on a shell restarted a few seconds earlier, the
+  first opening of each surface froze it 10 to 49 ms and the second 4 to 31,
+  menu with the game bar standing down included. The second-long freezes
+  are `budget stress`'s own first second - eighteen opens and closes sent
+  back to back, which no hand makes. What is left is memory: under selection
+  churn at 30 ms a command the quick menu kept 36 MB over forty cycles and
+  the guide 16, which the menu and the keyboard do not, and at a thumb's
+  pace (150 ms) none of them kept anything. Worth watching with the tool
+  below, not worth a change yet.
+- **The rest of a page turn · measured, and left.** 110 to 215 ms before the
+  ring, the clock and the travel went behind `Loader`s (qml.md 5.6); after,
+  on a warm shell, 17 to 24 ms into most pages and a median of 33 to 37 into
+  the Controller page, the slowest at fifteen tiles - two frames. What else
+  every tile builds was tried one at a time: the row stack of a card of rows
+  builds nothing off a card (its repeater is over `rs`, empty there), the
+  `figureHead` is two `Text`s, and the halo, sheen and hit shapes left out
+  altogether bought 4 ms, inside the noise - not worth a fade they would have
+  to be born halfway through (qml.md 5.5). The rest is the tile itself.
+- **The keyboards on the desk were let go of on the loop · done.** Closing
+  an evdev node waits out an RCU grace period, 3 to 11 ms a keyboard here, at
+  every surface closing. `KeyboardWatch.stop()` hands them to `close_aside`
+  now, a thread of their own (kbd.md); the slowest tenth of `budget stress`
+  went from 8-12 ms to 2-5 on every surface.
+- **`budget stress` could not see the shell · done.** It prints `stalls:`
+  now, timed by `ShellWatch` from the bar widget's socket, and `budget
+  pages` times the shell at every menu page turn (cli.md). The mapping screen
+  stays out of both: a thumb on the pad during a run would be recorded.
 
 ## Caveats worth knowing before touching the area
 

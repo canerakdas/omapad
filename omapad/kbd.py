@@ -18,6 +18,7 @@ import glob
 import logging
 import os
 import struct
+import threading
 
 from . import linux_input as li
 from . import uinput
@@ -155,12 +156,39 @@ def find_keyboards(match="auto", ignore=(), root=SYSFS_INPUT):
     return found
 
 
+def close_now(devices):
+    """Let go of the keyboards on the thread that asks."""
+    for device in devices:
+        device.close()
+
+
+def close_aside(devices):
+    """Let go of the keyboards on a thread of their own.
+
+    Closing an evdev node waits in the kernel's `synchronize_rcu` - 3 to 11 ms
+    a keyboard on this machine, measured - and a surface closing is a press
+    the loop is still answering, at every close of every surface. The rule
+    this module keeps is unchanged: the nodes are let go of the moment the
+    surface is, only the wait is somebody else's. The descriptors stay ours
+    until each `close` returns, so no number can be handed out again under
+    the loop while the thread runs.
+    """
+    devices = list(devices)
+    if not devices:
+        return
+    thread = threading.Thread(target=close_now, args=(devices,),
+                              name="omapad-keyboards")
+    thread.daemon = True
+    thread.start()
+
+
 class KeyboardWatch:
     """The open keyboards, for exactly as long as a surface needs them."""
 
-    def __init__(self, config, finder=find_keyboards):
+    def __init__(self, config, finder=find_keyboards, closer=close_aside):
         self.config = config
         self._find = finder
+        self._close = closer
         self.devices = {}
         self.listening = False
         # A node died mid-surface and its descriptor is gone; the loop has to
@@ -210,8 +238,7 @@ class KeyboardWatch:
                 log.warning("could not grab %s: %s", device.path, exc)
 
     def stop(self):
-        for device in self.devices.values():
-            device.close()
+        self._close(self.devices.values())
         self.devices = {}
         self.listening = False
 

@@ -100,10 +100,24 @@ the same fault with nothing to sweep. What it costs is the window layer over
 those two surfaces, which a held modifier reached until now; the card is over
 what it would have moved.
 
-## What it left
+## And the four it left
 
-Why the shell stops for as long as it does is not answered here - only that
-the daemon no longer pays for it. That, the keyboards reopened at every
-surface, and a stress run that can see the shell are on the
-[roadmap](../roadmap.md). So is the rest of a page turn: forty-odd
-milliseconds is still a frame or three.
+Taken the next day, in the order the roadmap had them.
+
+- **The shell freezing for 0.3 to 1.2 s at a surface opening** did not come
+  back. With the tiles no longer building every kind, a shell restarted
+  seconds earlier froze 10 to 49 ms at the first opening of each surface and
+  4 to 31 at the second. The second-long freezes were `budget stress`'s own
+  first second, a burst no hand makes. Memory is what is left to watch:
+  selection churn at 30 ms a command left the quick menu 36 MB and the guide
+  16 over forty cycles, nothing at a thumb's pace.
+- **The rest of a page turn** was measured part by part and left at 17 to
+  37 ms: the row stack builds nothing off a card, and the halo, sheen and hit
+  shapes left out altogether bought 4 ms, inside the noise.
+- **The keyboards on the desk** are let go of on a thread (`close_aside`):
+  3 to 11 ms a node of RCU grace period that every surface closing used to
+  pay on the loop. The slowest tenth of `budget stress` fell from 8-12 ms to
+  2-5.
+- **`budget` sees the shell now**: `ShellWatch` times it from the bar
+  widget's socket (`TIOCOUTQ` on a knock every 20 ms), `budget stress` prints
+  a `stalls:` line, and `budget pages` times every menu page turn.

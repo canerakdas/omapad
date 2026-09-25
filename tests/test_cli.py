@@ -8,8 +8,10 @@ front of you, so what it is allowed to send is held here too.
 
 import os
 import shutil
+import socket
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -128,6 +130,62 @@ class StressCycleTests(unittest.TestCase):
                 cli.STRESS_CYCLE.count("%s open" % surface),
                 cli.STRESS_CYCLE.count("%s close" % surface), surface)
             self.assertIn("%s open" % surface, cli.STRESS_CYCLE)
+
+
+class ShellWatchTests(unittest.TestCase):
+    """The shell timed from its own socket, since the daemon no longer waits."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(prefix="omapad-shell-")
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        path = os.path.join(self.dir, "status.sock")
+        self.server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.server.bind(path)
+        self.server.listen(1)
+        self.addCleanup(self.server.close)
+        self.watch = cli.ShellWatch(path)
+        self.peer, _ = self.server.accept()
+        self.addCleanup(self.peer.close)
+        self.peer.setblocking(False)
+
+    def read_for(self, seconds):
+        """A shell that keeps up: everything knocked is read at once."""
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            try:
+                self.peer.recv(4096)
+            except BlockingIOError:
+                pass
+            time.sleep(0.002)
+
+    def test_a_shell_that_stops_reading_is_timed(self):
+        self.read_for(0.1)
+        froze = time.monotonic()
+        time.sleep(0.2)                     # the shell building a page
+        self.read_for(0.1)
+        self.watch.stop()
+        # The knock that landed just after it stopped waits most of the
+        # stall; one knock's gap is the resolution.
+        worst = self.watch.worst(froze - 0.05, froze + 0.05)
+        self.assertGreater(worst, 0.2 - cli.SHELL_KNOCK - 0.03)
+        self.assertLess(worst, 0.3)
+        self.assertIn("stopped reading once", self.watch.summary())
+
+    def test_a_shell_that_keeps_up_says_so(self):
+        self.read_for(0.2)
+        self.watch.stop()
+        self.assertIn("never stopped reading", self.watch.summary())
+
+    def test_a_stall_is_counted_where_it_began(self):
+        self.read_for(0.05)
+        time.sleep(0.15)
+        self.read_for(0.05)
+        self.watch.stop()
+        self.assertEqual(self.watch.worst(0.0, 1.0), 0.0)
+
+    def test_no_shell_is_said_rather_than_raised(self):
+        with self.assertRaises(OSError):
+            cli.ShellWatch(os.path.join(self.dir, "nobody.sock"))
 
 
 class StressReadingTests(unittest.TestCase):

@@ -8,6 +8,8 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
+import time
 import unittest
 import unittest.mock
 
@@ -204,7 +206,10 @@ class WatchTests(unittest.TestCase):
         self.config = FakeConfig()
         self.nodes = [keyboard()]
         self.scans = 0
-        self.watch = kbd.KeyboardWatch(self.config, finder=self.finder)
+        # On the asking thread, so a test can look at a node the moment it
+        # has been let go of; `close_aside` is tested on its own below.
+        self.watch = kbd.KeyboardWatch(self.config, finder=self.finder,
+                                       closer=kbd.close_now)
 
     def finder(self, match, ignore):
         self.scans += 1
@@ -256,6 +261,44 @@ class WatchTests(unittest.TestCase):
 
     def test_reading_an_unknown_descriptor_is_harmless(self):
         self.assertEqual(self.watch.read(12345), [])
+
+
+class CloseAsideTests(unittest.TestCase):
+    """Letting go of a keyboard costs the kernel a grace period, not the loop."""
+
+    def test_the_wait_is_not_the_callers(self):
+        slow = keyboard()
+        seen = []
+        real_close = slow.close
+
+        def close():
+            seen.append(threading.current_thread())
+            time.sleep(0.2)
+            real_close()
+
+        slow.close = close
+        start = time.monotonic()
+        kbd.close_aside([slow])
+        self.assertLess(time.monotonic() - start, 0.1)
+        for _ in range(100):
+            if slow.closed:
+                break
+            time.sleep(0.01)
+        self.assertTrue(slow.closed)
+        self.assertIsNot(seen[0], threading.current_thread())
+
+    def test_the_watch_lets_go_through_it_by_default(self):
+        config = FakeConfig()
+        node = keyboard()
+        watch = kbd.KeyboardWatch(config, finder=lambda match, ignore: [node])
+        watch.follow(True)
+        watch.follow(False)
+        self.assertEqual(watch.fds(), ())
+        for _ in range(100):
+            if node.closed:
+                break
+            time.sleep(0.01)
+        self.assertTrue(node.closed)
 
 
 class FakeViewClient:
