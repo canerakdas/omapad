@@ -67,6 +67,44 @@ jobs:
       - name: shellcheck
         run: shellcheck install.sh boot.sh bin/omapad
 
+  qml:
+    name: QML lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install qmllint
+        run: |
+          python -m venv "$RUNNER_TEMP/qt"
+          "$RUNNER_TEMP/qt/bin/pip" install --quiet --require-hashes --only-binary :all: \
+            -r .github/requirements/qmllint.txt
+      # Quickshell and Omarchy's qs.* modules exist only on a machine running
+      # the shell, so every check that has to resolve a type from them is off:
+      # without them each would fire on every line that touches one. What is
+      # left - syntax, duplicate names and bindings, and the rest of what a
+      # file can be wrong about on its own - fails the job.
+      #
+      # property-override is reported but not fatal: Mapping.qml's `state`
+      # shadows Item.state on purpose, and renaming it is a shell change.
+      - name: qmllint
+        run: |
+          "$RUNNER_TEMP/qt/bin/pyside6-qmllint" \
+            --import disable \
+            --unqualified disable \
+            --missing-property disable \
+            --unresolved-type disable \
+            --required disable \
+            --property-override info \
+            --max-warnings 0 \
+            shell-plugin/*.qml
+
   manifest:
     name: Manifest and config
     runs-on: ubuntu-24.04

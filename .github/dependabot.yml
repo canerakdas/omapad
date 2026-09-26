@@ -1,6 +1,7 @@
-# omapad has no Python dependencies to update; the workflows' actions are the
-# only third-party code the repository pulls in. They are pinned to commit
-# SHAs, and this is what moves the SHA and the tag comment beside it together.
+# omapad has no Python dependencies to update; the workflows' actions and
+# CI's qmllint are the only third-party code it pulls in. Actions are pinned
+# to commit SHAs and qmllint to hashes, and this is what moves each pin and
+# the version beside it together.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -13,6 +14,19 @@ updates:
       default-days: 7
     groups:
       actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # The one download CI takes from PyPI (qmllint); hashes move with versions.
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      qt:
         patterns: ["*"]
     commit-message:
       prefix: ci
