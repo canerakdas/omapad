@@ -3,6 +3,10 @@
 # omapad has no dependencies beyond the Python standard library, so there is
 # nothing to install: the suite runs on a stock interpreter, and the shell
 # scripts are checked with the shellcheck the runner image already carries.
+#
+# Every action is pinned to a full commit SHA, with the tag it was cut from
+# beside it; Dependabot moves both. A tag can be re-pointed by whoever holds
+# the action's repository, a commit cannot.
 name: CI
 
 on:
@@ -13,8 +17,8 @@ on:
   # release.yml runs the same checks on the tagged commit before publishing.
   workflow_call:
 
-permissions:
-  contents: read
+# Nothing by default; each job asks for what it reads.
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -23,8 +27,10 @@ concurrency:
 jobs:
   tests:
     name: Tests (Python ${{ matrix.python }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -32,8 +38,10 @@ jobs:
         # newest is what an up-to-date Arch - so Omarchy - is running.
         python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python }}
       - name: Compile
@@ -43,10 +51,14 @@ jobs:
 
   shell:
     name: Shell scripts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Syntax
         run: |
           for script in install.sh boot.sh bin/omapad; do
@@ -57,11 +69,15 @@ jobs:
 
   manifest:
     name: Manifest and config
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
       - name: Parse

@@ -1,10 +1,18 @@
 # omapad has no Python dependencies to update; the workflows' actions are the
-# only third-party code the repository pulls in.
+# only third-party code the repository pulls in. They are pinned to commit
+# SHAs, and this is what moves the SHA and the tag comment beside it together.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+    # A release that turns out to be compromised is usually pulled within
+    # days; waiting a week before proposing one lets that happen first.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
     commit-message:
       prefix: ci
