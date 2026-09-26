@@ -1,0 +1,10 @@
+# omapad has no Python dependencies to update; the workflows' actions are the
+# only third-party code the repository pulls in.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

@@ -10,6 +10,8 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # release.yml runs the same checks on the tagged commit before publishing.
+  workflow_call:
 
 permissions:
   contents: read
@@ -30,8 +32,8 @@ jobs:
         # newest is what an up-to-date Arch - so Omarchy - is running.
         python: ["3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Compile
@@ -44,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Syntax
         run: |
           for script in install.sh boot.sh bin/omapad; do
@@ -58,8 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Parse
