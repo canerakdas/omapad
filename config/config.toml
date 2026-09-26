@@ -793,6 +793,29 @@ badge_style = "filled"
 # different shape rather than a rounder corner. Wanting bigger corners than
 # that is a question about the *base*, and the base is `[menu] tile_corner`.
 radius = 1.0
+# How heavy the words on the surfaces are set, in whole steps of a hundred
+# over **the theme's own weights** - the design's, where the theme says
+# nothing (a theme can, in its `shell.toml`: `[font] omapad-weight-strong =
+# 700`, and likewise `-body`, `-name` and `-display`).
+#
+# What a step lands on is decided by the font rather than by this number. The
+# face Omarchy ships comes as a Regular and a Bold and nothing between, so on
+# it a step is either no change or the whole way to Bold; a family with a
+# Medium and a SemiBold moves a face at a time. The row the cursor is on is
+# drawn in a heavier face than the rows around it whatever this says, and a
+# family with nothing between still gets one.
+#
+#   -1  Lighter      reading text at 300, where the family has one
+#    0  The theme's
+#    1  Heavier
+#    2  Heaviest     reading text at 600 - Bold on the shipped face
+#
+# On the pad as `Controller > Text weight`. `game_weight` is the same for game
+# mode, where the page is read from across a room and a thin stroke is the
+# first thing to go; left unset it follows `weight`, so the slider on the pad
+# moves both until somebody writes one down here.
+weight = 0
+# game_weight = 1
 # How long the surfaces take to move: a multiplier over every animation on
 # them, and the whole of what they animate is a fade, a scroll catching up
 # with a selection, and a badge filling. None of it is decoration - the fade
@@ -2999,7 +3022,9 @@ format = "%H:%M"
 #
 # Inside a group, a tile is placed by how often a thumb reaches for it: the
 # order here is the order they are packed in, left to right and top to bottom,
-# and a `row_break` tile ends a row so a group of them reads as a group.
+# and a `row_break` tile ends a row so a group of them reads as a group. A
+# `control = "heading"` tile does the same with its `label` printed across the
+# row; the pad can put one on a page too, while the page is being rearranged.
 #
 # A page may also spend **X and Y** on a job of its own, and the legend along
 # the foot prints what it spent them on. Not A and B: the contract is that A
@@ -4122,6 +4147,17 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   span = [4, 1]
   control = "slider"
   reads = "pad:radius"
+
+  # And how heavy the words are set, for the reason the two above it are
+  # here: you judge it by reading the page the slider is on, and every word
+  # on it moves as the thumb does. It sits in their row, which puts `Tile
+  # fill` beside `Background dim` below - the two that are about the ground.
+  [[menu.items.items]]
+  icon = "󰛖"
+  label = "Text weight"
+  span = [4, 1]
+  control = "slider"
+  reads = "pad:weight"
 
   # And how solid a tile's ground is drawn, which is here for the reason the
   # two above it are: you find out by looking, and what you are looking at

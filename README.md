@@ -2377,7 +2377,7 @@ says what they mean **now**, because that depends on what is in your hand:
 | **X** | take a tile off the page | take it off | put it back where it came from |
 | **Y** | reset the page to the one that shipped | reset | reset |
 | **LB / RB** | previous / next page | narrower / wider | previous / next page |
-| **LT / RT** | — | shorter / taller | — |
+| **LT / RT** | RT: a heading over this tile | shorter / taller | — |
 
 Both axes, because a cell is a shape rather than a width: a card of rows with
 a row too many, a reading you want to see from further away, a media tile
@@ -2409,13 +2409,30 @@ A tile will not walk onto another one you placed — the press does nothing and
 the motor says so. One you have not placed it walks straight through, because
 that one moves out of the way.
 
+**RT puts a heading on the page**, over the tile you are standing on, and the
+keyboard comes up over the menu to type its words. The keyboard is the same
+one that types into windows and it is walked the same way; what it types goes
+into the heading instead. **B or Enter** is done, and a heading you typed
+nothing into is not kept. A heading is words across the row with nothing
+behind them: its size is its own height divided by the silver ratio squared, so make
+one taller with RT while you carry it and it gets louder. Everything after a
+heading starts under it — nothing climbs over one into a hole above.
+
+A heading is **walked past** everywhere but here: the D-pad, the stick and the
+pointer never stop on one outside this mode. Standing on one, **X deletes it**
+(it does not go to the strip — it is not a tile anybody can put somewhere
+else) and **LT types its words again**. Carried, it moves past one tile with
+left and right and past a whole row with up and down, rather than into a cell,
+because a heading pinned to a cell could have tiles flow over it. A config can
+write one too, as `control = "heading"` with a `label`.
+
 On a screen with a different `[menu] columns`, a cell off the right-hand edge
 is **pulled back onto the page** rather than lost. `omapad check --layout`
 prints the cells and says which ones that would happen to.
 
 What you do lands in `~/.config/omapad/layout.toml` — the order, what you
-took off, what each page was given, any size you changed, and the cells you
-put tiles in — and it and `config.toml` cannot break each other. A tile a new
+took off, what each page was given, any size you changed, the cells you put
+tiles in, and the words of your headings — and it and `config.toml` cannot break each other. A tile a new
 version ships appears at the end of your page rather than being invisible; a
 tile that goes away is dropped from your order rather than leaving a hole;
 and a tile you took off is off only while it still exists. Where a moved tile
@@ -2534,6 +2551,10 @@ detail = "Where the sound goes"
 
   [[menu.items.items]]
   control = "row_break"       # end the row here; draws nothing
+
+  [[menu.items.items]]
+  label = "Settings"
+  control = "heading"         # words across the row, over what follows
 
   [[menu.items.items]]
   label = "Xbox labels"
@@ -4061,6 +4082,58 @@ the silhouettes in the face shipped with omapad. A typed label — the word the
 shell sets into a blank shape for a button nothing is drawn for — takes that
 same face, so the two always match. There are two font groups here: one you
 choose, and one the drawings already decided.
+
+Where that name is empty, the face is Omarchy's **menu** face rather than its
+desktop face — the same one unless you have set `OMARCHY_MENU_FONT`, and if
+you have, you have already said what a menu is set in.
+
+### How heavy
+
+A word on these surfaces is set in one of four weights, each named for what
+it is doing rather than for a number: the text you read, a word that names
+something (a tile's label, a heading), **the one thing in force** (the row
+the cursor is on, the choice that is ticked, the key under the thumb), and
+the one large line a page is read by from across the room.
+
+**What a weight asks for is not always what the font has.** The face Omarchy
+ships comes as a Regular and a Bold and nothing between, and a Medium asked
+of it is drawn Regular — which is how the row in force used to be drawn in
+exactly the weight of the rows beside it. So the weights are checked against
+the faces the family really has, and the one in force always lands on a face
+heavier than the text around it: Bold on the shipped font, Medium on one that
+has a Medium.
+
+The theme has the first word. Omarchy keeps any key it does not know in a
+theme's `shell.toml` `[font]` table, so a theme can set these without
+Omarchy knowing omapad exists:
+
+```toml
+# ~/.config/omarchy/themes/<theme>/shell.toml
+[font]
+omapad-weight-body = 400
+omapad-weight-name = 500
+omapad-weight-strong = 700
+omapad-weight-display = 300
+```
+
+A light theme also puts half a step on the words that have to stand out,
+because dark ink on a light ground reads thinner than the same stroke
+reversed. Half a step changes nothing on a font of whole faces, and is the
+difference on a variable one.
+
+And then yours, in whole steps over all four at once:
+
+```toml
+[ui]
+weight = 0          # -1 lighter, 1 heavier, 2 heaviest
+# game_weight = 1   # game mode's own; unset, it follows `weight`
+```
+
+It is on the pad as **Menu ▸ Controller ▸ Text weight**, beside `Corners`,
+for the same reason: you judge it by reading the page the slider is on.
+`game_weight` is the file's alone — a thin stroke is the first thing to go
+from a sofa, and somebody who wants the couch heavier than the desk has said
+so once, at a keyboard.
 
 ### How much they move
 

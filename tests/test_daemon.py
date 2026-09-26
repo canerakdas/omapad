@@ -5672,6 +5672,130 @@ class ThemeChangeTests(DaemonTestCase):
         self.assertEqual(self.hypr.calls, [])
 
 
+class HeadingTests(DaemonTestCase):
+    """A heading put on a page from the pad, and its words typed on the keyboard."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.layout = os.path.join(directory, "layout.toml")
+        patch = unittest.mock.patch.object(
+            daemon_module, "layout_path", lambda: self.layout
+        )
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.daemon.menu.head = []
+        self.daemon.config.menu_first_run = False
+        self.daemon.set_menu(True)
+        walk_menu(self.daemon, ["Controller"], lambda: None)
+        self.daemon.menu_command("edit")
+
+    def tap(self, name):
+        self.press(name)
+        self.release(name)
+
+    def heading(self):
+        self.tap("ZR")
+        return self.daemon.menu.typing
+
+    def test_zr_puts_one_down_and_opens_the_keyboard_over_the_menu(self):
+        first = self.daemon.menu.selected
+        name = self.heading()
+        self.assertEqual(name, "#1")
+        self.assertTrue(self.daemon.menu_open)
+        self.assertTrue(self.daemon.osk_open)
+        self.assertEqual(self.daemon.current_layer, "osk")
+        order = [tile["item"]["id"] for tile in self.daemon.menu.tiles]
+        self.assertEqual(order.index("#1") + 1, order.index(first))
+
+    def test_what_is_typed_lands_on_it_and_never_reaches_a_window(self):
+        self.heading()
+        self.daemon.type_text("Pads")
+        self.tap("X")        # Backspace on the keyboard's layer
+        self.tap("Y")        # and Space
+        self.daemon.type_text("x")
+        self.assertEqual(self.daemon.menu.heading("#1"), "Pad x")
+        self.assertEqual(self.keyboard.chords, [])
+        row = [one for one in self.menu_client.sent[-1]["items"]
+               if one["id"] == "#1"][0]
+        self.assertEqual(row["l"], "Pad x")
+        self.assertTrue(row["ty"])
+
+    def test_putting_the_keyboard_away_keeps_the_words_and_writes_them(self):
+        self.heading()
+        self.daemon.type_text("Sticks ")
+        self.tap("B")
+        self.assertFalse(self.daemon.osk_open)
+        self.assertIsNone(self.daemon.menu.typing)
+        self.assertEqual(self.daemon.current_layer, "menu")
+        self.assertIs(self.daemon.keyboard, self.keyboard)
+        self.assertIs(self.daemon.ctx.keyboard, self.keyboard)
+        self.assertEqual(self.daemon.menu.heading("#1"), "Sticks")
+        with open(self.layout) as handle:
+            written = handle.read()
+        self.assertIn('"#1" = "Sticks"', written)
+        # And the keyboard types into windows again.
+        self.daemon.type_text("a")
+        self.assertTrue(self.keyboard.chords)
+
+    def test_enter_is_done_as_well(self):
+        self.heading()
+        self.daemon.type_text("Sound")
+        self.tap("ZR")       # the keyboard's own Enter-and-away
+        self.assertFalse(self.daemon.osk_open)
+        self.assertEqual(self.daemon.menu.heading("#1"), "Sound")
+
+    def test_one_left_with_no_words_is_not_kept(self):
+        self.heading()
+        self.tap("B")
+        self.assertIsNone(self.daemon.menu.heading("#1"))
+        self.assertNotIn("#1", [tile["item"]["id"]
+                                for tile in self.daemon.menu.tiles])
+
+    def test_the_menu_closing_under_it_ends_the_typing(self):
+        self.heading()
+        self.daemon.type_text("Later")
+        self.daemon.set_menu(False)
+        self.assertIsNone(self.daemon.menu.typing)
+        self.assertFalse(self.daemon.osk_open)
+        self.assertIs(self.daemon.keyboard, self.keyboard)
+
+    def legend(self):
+        return [row["n"] for row in self.menu_client.sent[-1]["keys"]]
+
+    def test_on_a_heading_x_deletes_and_zl_types_it_again(self):
+        self.heading()
+        self.daemon.type_text("Old")
+        self.tap("B")
+        self.assertEqual(self.daemon.menu.selected, "#1")
+        self.assertEqual(self.legend(),
+                         ["Move", "Done", "Delete", "Reset",
+                          "Previous", "Next", "Retype", "Heading"])
+        self.tap("ZL")
+        self.assertEqual(self.daemon.menu.typing, "#1")
+        self.tap("X")
+        self.tap("X")
+        self.tap("X")
+        self.daemon.type_text("New")
+        self.tap("B")
+        self.assertEqual(self.daemon.menu.heading("#1"), "New")
+        self.tap("X")
+        self.assertIsNone(self.daemon.menu.heading("#1"))
+        self.assertEqual(self.daemon.menu.removed(), [])
+
+    def test_leaving_the_mode_walks_past_it(self):
+        self.heading()
+        self.daemon.type_text("Head")
+        self.tap("B")        # the words are done
+        self.tap("B")        # and so is rearranging
+        self.assertFalse(self.daemon.menu.edit)
+        self.assertNotEqual(self.daemon.menu.selected, "#1")
+        for _ in range(8):
+            self.daemon.menu_command("up")
+            self.assertNotEqual(self.daemon.menu.selected, "#1")
+
+
 class EditModeTests(DaemonTestCase):
     """Rearranging a page from the pad, and what it writes down."""
 
@@ -5728,11 +5852,12 @@ class EditModeTests(DaemonTestCase):
     def test_the_legend_says_what_every_button_means_now(self):
         # It is the discoverability surface, and it prints the state the
         # mode is in: with an empty hand the shoulders walk the bar, because
-        # the page a tile is going to is not the page it came off.
+        # the page a tile is going to is not the page it came off - and ZR,
+        # which has nothing to size with an empty hand, puts a heading down.
         self.daemon.menu_command("edit")
         self.assertEqual(self.legend(),
                          ["Move", "Done", "Remove", "Reset",
-                          "Previous", "Next"])
+                          "Previous", "Next", "Heading"])
 
     def test_the_sizes_are_the_legend_with_a_tile_in_the_hand(self):
         # And the two triggers, which say nothing in either of the other
@@ -8764,6 +8889,60 @@ class MotionTests(DaemonTestCase):
         self.assertEqual(self.gamebar_client.sent[-1]["motion"], 0.25)
         self.assertEqual(self.menu_client.sent[-1]["motion"], 0.25)
 
+
+
+class WeightTests(DaemonTestCase):
+    """How heavy the words are set, decided once for all of them."""
+
+    def test_a_payload_carries_the_weight_step(self):
+        self.config.ui_weight = 1.0
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["weight"], 1.0)
+
+    def test_the_theme_s_own_weight_travels_as_zero(self):
+        # A missing field means "unchanged" to every panel, so a surface set
+        # heavier would stay heavier after the slider came back to the
+        # theme's - the value that has to arrive is the one that looks like
+        # nothing.
+        self.config.ui_weight = 0.0
+        self.daemon.set_menu(True)
+        self.assertIn("weight", self.menu_client.sent[-1])
+        self.assertEqual(self.menu_client.sent[-1]["weight"], 0.0)
+
+    def test_game_mode_follows_weight_until_it_has_its_own(self):
+        self.config.gamebar_enabled = True
+        self.config.ui_weight = 1.0
+        self.config.ui_game_weight = None
+        self.daemon.set_mode("game")
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["weight"], 1.0)
+        self.assertEqual(self.gamebar_client.sent[-1]["weight"], 1.0)
+        self.config.ui_game_weight = 2.0
+        self.daemon.set_menu(False)
+        self.daemon.set_menu(True)
+        self.assertEqual(self.menu_client.sent[-1]["weight"], 2.0)
+        self.daemon.set_mode("desktop")
+        self.assertEqual(self.menu_client.sent[-1]["weight"], 1.0)
+
+
+class WeightConfigTests(unittest.TestCase):
+    def test_the_shipped_weight_is_the_theme_s(self):
+        config = shipped_config()
+        self.assertEqual(config.ui_weight, 0.0)
+        self.assertIsNone(config.ui_game_weight)
+
+    def test_a_weight_off_the_ladder_is_named(self):
+        for line in ("weight = 3", "game_weight = -2"):
+            with tempfile.NamedTemporaryFile("w", suffix=".toml",
+                                             delete=False) as f:
+                f.write("[ui]\n%s\n" % line)
+                path = f.name
+            try:
+                with self.assertRaises(config_module.ConfigError) as caught:
+                    only(path)
+                self.assertIn("ui.", str(caught.exception))
+            finally:
+                os.unlink(path)
 
 class ChronographTests(DaemonTestCase):
     """The one press on this surface that measures something.

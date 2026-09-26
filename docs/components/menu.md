@@ -54,10 +54,10 @@ from it.
 | D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place | walk the strip |
 | D-pad up/down | the same | - | the same, and **down at the bottom enters the strip** | carry it a row | up leaves the strip |
 | **Left stick** | the same as the D-pad, held rather than flicked | the same - or, on a **knob**, its angle turns the value | the same | the same | the same |
-| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | - | shorter / taller | - |
+| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | **ZR** a heading over this tile; **ZL** on a heading, type it again | shorter / taller | - |
 | **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** | **put it on this page**, in the hand |
 | **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save | leave edit, and save |
-| **X**, Escape | close outright, from any depth - or the page's own verb | close | **remove it** - off the page and into the strip | remove it | put it back on the page it came from |
+| **X**, Escape | close outright, from any depth - or the page's own verb | close | **remove it** - off the page and into the strip; a heading made here is deleted | remove it | put it back on the page it came from |
 | **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page | reset the page |
 | **L / R**, Tab | previous / next group | - | previous / next page | narrower / wider | previous / next page |
 
@@ -1486,6 +1486,78 @@ the whole of what hiding one ever was. That is also what makes a *submenu*
 reachable - A picks up rather than drills in while editing, so a tile bound
 for a page two levels down is taken off, B, walked to, Y, and placed.
 
+### Headings, and the keyboard over the menu
+
+A **heading** (`control = "heading"`, `HEADING`) is words across a run of
+tiles, saying what the run is. Two ways to have one, for the rule that
+anything the pad can make the config can write: a tile in `config.toml` whose
+`label` is the words, and one put on a page from the pad while it is being
+rearranged. Decision [95](../decisions/95-words-over-a-run.md) is why.
+
+**It is a paragraph mark with a name on it.** `place` starts a heading on a
+row of its own, the way a `row_break` starts one, and raises the floor under
+it as well - so nothing written after it backfills a hole above it. A heading
+a tile could climb over is a heading over the wrong tiles. It is the whole
+width of the page unless something says otherwise, and not through `SPANS`,
+because how wide the whole width is is the page's to say.
+
+**Walked past, except while arranging.** Nothing happens at a heading, so
+`selectable()` answers no for one outside edit mode, and every door the
+selection has - `step`, `select` from the pointer, `select_id` from `go`, the
+first tile `_show` settles on - asks it. Leaving the mode with the selection
+on one hands it to the tile it heads (`_nearest`). Inside the mode it is a tile
+like any other, with two exceptions:
+
+- **It is carried through the order, not into a cell.** `_carry_heading` moves
+  it past one tile with left and right and past the run on the next row with
+  up and down, and writes `order` rather than `at`. A heading pinned to a cell
+  would have the tiles under it flow around the pin and up past it - which is
+  the one thing a heading is there to stop. It is the reorder decision 52
+  replaced, kept for the one tile it was right for.
+- **X deletes one made from the pad** rather than putting it in the strip. The
+  strip holds what the config has so it can be put somewhere else; a heading
+  made on a page is words and a place, and both go with it. So there is a
+  fourth table, `EDIT_HEADING_KEYS`, and `edit_state` answers `edit-heading`
+  while the selection is on one: X says `Delete`, and ZL - which says nothing
+  with an empty hand - says `Retype`. A heading the config wrote is removed
+  into the strip like any tile and has no ZL: its words are the config's.
+
+**ZR puts one down**, in `EDIT_KEYS`, for the reason ZL retypes: the triggers
+are the one pair the empty-handed state had left. `add_heading` inserts it into
+`order` just before the tile in front and selects it; it is not picked up,
+because the next press is typing and carrying it is A after that.
+
+**The words are typed on the keyboard, over the menu, into the menu.**
+`menu_type_start` opens the keyboard without closing the menu - the one time
+the two are up together - and while `menu.typing` names a heading the menu
+stands down in `current_layer`, `surface_top` and `surface_override`, so the
+pad is the keyboard's. What the keyboard types is taken rather than sent:
+`HeadingKeys` stands where the uinput keyboard stands, on the daemon and on
+the action context both, and hands every chord to `menu_type_key`, which asks
+`OskModel.char_for` what the active layout would have made of it -
+`text_chords` read backwards, from the same table. So the keyboard's own keys,
+its app page's strings and a `key:` binding (X is Backspace and Y is Space on
+that layer) all land in the heading with nothing of theirs knowing. Caps Lock
+goes through, since the keyboard keeps its own idea of whether Caps is on.
+
+Enter, the keyboard put away (B, the ▼ key) and the menu closing all end it
+(`menu_type_end`): the keyboard goes back to typing into windows, a heading
+left with no words is dropped, and the arrangement is written there and then.
+A control-socket command arriving mid-heading ends it first.
+
+**No ground, sized by the silver ratio.** `Menu.qml` draws headings with a
+second Repeater over the same model, and the tile's delegate stands down on
+one (`visible`): a heading shares nothing with a tile but the cell, and a card
+behind it would make it one more tile - the thing it names a run *of*. Its
+type is its own height over `metrics.silver` squared - over the ratio once it
+was twice the size of anything else on the card, and read as the page's title
+rather than a section of it - set at the book weight, and the air under it is
+what is left over the ratio twice, so it sits nearer the tiles it heads. The ladder is
+for type that sits beside other type; a heading answers to the box it was
+given, and a taller one is a louder one. While arranging it gets an outline
+and nothing inside it - the accent where the selection or the hand is - and
+only then does the pointer find it.
+
 ### The arrangement, and the tree
 
 `MenuModel.layout` is the arrangement page by page, and **the tree is never
@@ -1537,7 +1609,7 @@ structure: a layout that will not parse must not take the settings down with
 it. See [`../conventions/data.md`](../conventions/data.md) for how it is read,
 and `omapad check --layout` for what a saved one still resolves to.
 
-Five parts per page, and `read_layout` reads each one on its own so a mistake
+Six parts per page, and `read_layout` reads each one on its own so a mistake
 in one costs only that one:
 
 ```toml
@@ -1551,7 +1623,18 @@ processor = [3, 1]                        # cells across, cells down
 
 [layout.hud.at]
 memory = [3, 3]                           # the cell somebody put it in
+
+[layout.hud.headings]
+"#1" = "Heat"                             # made from the pad; placed by `order`
 ```
+
+`headings` is read only where it has something in it, so a page without any
+reads back exactly as it always did, and an id without the `#` is dropped - it
+would be a name a tile the config has could answer to. `build` refuses a
+written `id` starting with `#` for the same reason. The HUD reads the same
+arrangement and never draws one: `headings_of` is asked by the menu's `_show`
+and nowhere else, so the id sits in the HUD page's `order` resolving to
+nothing, which rule 4 already drops.
 
 `at` is the only part whose meaning depends on how wide the page is drawn, so
 it is the only part `read_layout` does not fully validate: a negative cell is
@@ -2119,7 +2202,8 @@ answered the same question twice is one that can disagree with itself. `head` is
 same three letters a badge takes on `gamebar.sock` - and `cols`, `rows` and
 `headrows` are the grids' shapes. On a tile, `l` label, `i` icon, `d` detail,
 `sub` whether it drills in, `x`/`y`/`w`/`h` its cells, and `k` its control
-where it has one.
+where it has one. `ty` is on the one heading the keyboard is typing into, and
+off the wire everywhere else; the panel draws the caret after its words.
 
 `f` rides beside `i` where a glyph is somebody else's: a glyph only exists in
 the font that drew it, and Omarchy's own mark is at U+E900 in `omarchy.ttf` and

@@ -589,6 +589,11 @@ QtObject {
   }
   readonly property string family: loader.status === FontLoader.Ready
     ? loader.name : "monospace"
+  // The one weight that file holds. Not a decision and not on
+  // `Metrics.weight`: it is a fact about the face shipped, and a typed label
+  // that asked this family for anything else would be asking for a face the
+  // loader never loaded.
+  readonly property int weight: Font.Medium
 
   // What to set a *typed* label at so it stands as tall as a drawn one:
   // `CAP_RATIO` over this font's own cap height, in ems. Multiply by the

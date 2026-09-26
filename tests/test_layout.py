@@ -145,6 +145,30 @@ class RoundTripTests(unittest.TestCase):
             handle.write(render_layout(layout))
         self.assertEqual(read_layout(path), layout)
 
+    def test_a_heading_survives_the_trip(self):
+        # Typed from a pad, so the words are whatever a thumb made of them.
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        path = os.path.join(directory, "layout.toml")
+        layout = {
+            "apps": {"order": ["#1", "steam"], "removed": [], "span": {},
+                     "at": {}, "adopted": [],
+                     "headings": {"#1": 'Oyunlar "şimdi"'}},
+        }
+        with open(path, "w") as handle:
+            handle.write(render_layout(layout))
+        self.assertEqual(read_layout(path), layout)
+
+    def test_a_heading_without_the_mark_is_not_read(self):
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        path = os.path.join(directory, "layout.toml")
+        with open(path, "w") as handle:
+            handle.write('[layout.apps.headings]\n"steam" = "Games"\n'
+                         '"#2" = "Kept"\n')
+        self.assertEqual(read_layout(path)["apps"]["headings"],
+                         {"#2": "Kept"})
+
     def test_a_page_with_nothing_in_it_is_not_written(self):
         text = render_layout({"empty": {"order": [], "removed": [],
                                         "span": {}, "at": {},

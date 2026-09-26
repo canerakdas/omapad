@@ -49,6 +49,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
   // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
@@ -88,6 +91,7 @@ Item {
     id: metrics
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
     safeArea: root.safeArea
   }
@@ -100,9 +104,11 @@ Item {
     id: buttonArt
   }
 
+  // A key's own height is the key's, off the ladder the way a card's width
+  // is (qml.md 8.2.1); the air between keys and round the board is on it.
   readonly property int keyHeight: metrics.space(48)
-  readonly property int keyGap: metrics.space(6)
-  readonly property int pad: metrics.space(12)
+  readonly property int keyGap: metrics.gap.sm
+  readonly property int pad: metrics.gap.lg
   // Twelve columns stretched across a wide monitor gives very flat keys and a
   // lot of pointless travel between them, so the panel stops growing past this
   // and centres instead. Widened with the grid so a key keeps its old size.
@@ -126,7 +132,7 @@ Item {
     textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.max(6, Math.round(root.badgeUnit * buttonArt.capSize))
-    font.weight: Font.Medium
+    font.weight: buttonArt.weight
   }
   TextMetrics {
     id: capInk
@@ -201,7 +207,7 @@ Item {
       font.pixelSize: Math.max(6, Math.round(badge.unit * buttonArt.capSize))
       fontSizeMode: Text.HorizontalFit
       minimumPixelSize: 6
-      font.weight: Font.Medium
+      font.weight: buttonArt.weight
     }
   }
 
@@ -234,6 +240,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)
@@ -404,7 +412,7 @@ Item {
                   // label may not grow into, beside the label it is what sits
                   // next to it.
                   readonly property int hintSpace:
-                    hint.visible ? hint.implicitWidth + metrics.space(8) : 0
+                    hint.visible ? hint.implicitWidth + metrics.gap.md : 0
 
                   // The label and the badge share one line rather than a
                   // word in the middle of the key with something loose in a
@@ -430,8 +438,9 @@ Item {
                     textFormat: Text.PlainText
                     font.family: metrics.font.family
                     font.pixelSize: (modelData.s && !modelData.g)
-                      ? metrics.font.bodySmall : metrics.font.title
-                    font.bold: selected
+                      ? metrics.type.fine : metrics.type.body
+                    font.weight: selected
+                      ? metrics.weight.strong : metrics.weight.body
                     color: selected ? Color.menu.background
                       : (lit || working) ? Color.accent
                       : parent.swapped
@@ -444,13 +453,14 @@ Item {
                   Text {
                     anchors.top: parent.top
                     anchors.right: parent.right
-                    anchors.topMargin: metrics.space(3)
-                    anchors.rightMargin: metrics.space(4)
+                    anchors.topMargin: metrics.gap.xxs
+                    anchors.rightMargin: metrics.gap.xs
                     visible: parent.alt !== "" && parent.width > metrics.space(28)
                     text: parent.alt
                     textFormat: Text.PlainText
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.caption
+                    font.weight: metrics.weight.body
+                    font.pixelSize: metrics.type.fine
                     color: selected
                       ? Util.alpha(Color.menu.background, 0.60)
                       : Util.alpha(Color.menu.text, 0.38)

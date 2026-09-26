@@ -65,6 +65,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
   // How solid the readings are over what is behind them (`[hud] opacity`). A
   // HUD is read while something else is being watched, so the thing it is
   // over has to stay watchable - and how much is not this panel's to decide.
@@ -108,6 +111,7 @@ Item {
     radiusScale: root.radiusScale
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
     safeArea: root.safeArea
     cornerBase: root.corner
@@ -151,7 +155,7 @@ Item {
     root.screenH, metrics.space(root.margin))
   readonly property int contentMarginX: metrics.edge(
     root.screenW, metrics.space(root.margin))
-  readonly property int cellGap: metrics.spacing.xs
+  readonly property int cellGap: metrics.gap.xxs
   readonly property int cellWidth: {
     var inner = panel.width - root.contentMarginX * 2
     return Math.max(1, Math.floor(
@@ -192,6 +196,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.radius !== undefined)
         root.radiusScale = Math.max(0, Number(s.radius))
       if (s.motion !== undefined)
@@ -295,7 +301,7 @@ Item {
             // theme is free to move. Drawn a hairline in from the tile's own
             // box and shifted back out by half of it below, because a stroke
             // straddles the path it follows.
-            readonly property real weight: metrics.spacing.hairline
+            readonly property real weight: metrics.gap.hairline
 
             ShapePath {
               // One step lighter than the page, the same ground the menu's
@@ -349,8 +355,8 @@ Item {
                 textFormat: Text.PlainText
                 color: Color.menu.text
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.bodySmall
-                font.weight: Font.Medium
+                font.pixelSize: metrics.type.fine
+                font.weight: metrics.weight.name
                 elide: Text.ElideRight
               }
 
@@ -362,8 +368,8 @@ Item {
                 textFormat: Text.PlainText
                 color: Color.accent
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.caption
-                font.weight: Font.Medium
+                font.pixelSize: metrics.type.fine
+                font.weight: metrics.weight.name
               }
             }
 

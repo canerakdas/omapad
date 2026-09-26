@@ -201,9 +201,11 @@ Item {
     && clock.side < clock.legibleFrom
 
   // The figures' type, handed in by the surface from its own ladder (qml.md
-  // 8.2.1), since a size this file picked would be a second ladder.
+  // 8.2.1), since a size this file picked would be a second ladder - and the
+  // weight from `metrics.weight` for the same reason.
   property string family: ""
   property int figures: 0
+  property int weight: Font.Normal
 
   // The time of day in figures, from the same number the hands are.
   readonly property string time: {
@@ -222,6 +224,7 @@ Item {
     color: clock.ink
     font.family: clock.family
     font.pixelSize: clock.figures
+    font.weight: clock.weight
     // Held still: a proportional 1 replacing an 8 re-lays the line ten times
     // a second while a stopwatch runs.
     font.features: ({ "tnum": 1 })

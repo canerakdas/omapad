@@ -858,6 +858,29 @@ class OskModel:
             out.append((mods, code))
         return out
 
+    def char_for(self, mods, code):
+        """The character a chord types, or "" for one that types none.
+
+        `text_chords` read backwards, from the same table, so a key typed
+        into something of ours rather than into a window lands as the
+        character the active layout would have made of it. A chord holding
+        Ctrl or Alt types a command rather than a character, so it is "".
+        """
+        mods = list(mods)
+        if any(code_ != SHIFT_CODE for code_ in mods):
+            return ""
+        shifted = SHIFT_CODE in mods
+        for char, (want, key) in self._chords.items():
+            if key == code and (SHIFT_CODE in want) == shifted:
+                break
+        else:
+            return ""
+        if self.caps and char.isalpha():
+            # Caps is on in the compositor too, so a letter it would have
+            # raised is raised here, and one Shift lowered again is lowered.
+            char = char.lower() if char.isupper() else char.upper()
+        return char
+
     def press(self):
         """Resolve the selected key.
 

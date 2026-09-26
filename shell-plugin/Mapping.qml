@@ -59,6 +59,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
 
   // Whether omapad's own bar is holding a strip of the screen under this.
   // The scrim dims the desktop, and the bar is not the desktop: it prints
@@ -83,14 +86,15 @@ Item {
     id: metrics
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
   }
 
   // Same measurements as the menu and the guide, so all four read as one.
-  readonly property int contentMargin: metrics.spacing.panelPadding
-  readonly property int contentSpacing: metrics.spacing.md
+  readonly property int contentMargin: metrics.gap.xl
+  readonly property int contentSpacing: metrics.gap.sm
   readonly property int chipUnit: metrics.badge(
-    Math.max(metrics.space(26), metrics.font.body + metrics.space(10)))
+    Math.max(metrics.space(26), metrics.type.body + metrics.gap.lg))
 
   // What the pad prints on one of the three buttons the confirmation takes,
   // falling back to the logical name until the daemon has said.
@@ -127,6 +131,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       // Whether the pad has been touched lately enough to go on holding
@@ -226,8 +232,8 @@ Item {
       font.family: buttonArt.family
       font.pixelSize: Math.round(badge.unit * 0.4)
       fontSizeMode: Text.HorizontalFit
-      minimumPixelSize: Math.max(8, metrics.font.caption)
-      font.weight: Font.Medium
+      minimumPixelSize: Math.max(8, metrics.type.fine)
+      font.weight: buttonArt.weight
       horizontalAlignment: Text.AlignHCenter
     }
   }
@@ -246,7 +252,7 @@ Item {
     readonly property bool skipped: state === "skipped"
 
     implicitWidth: Math.ceil(Math.max(root.chipUnit,
-                                      label.implicitWidth + metrics.space(14)))
+                                      label.implicitWidth + metrics.gap.xl))
     implicitHeight: root.chipUnit
     radius: height / 2
     color: chip.done ? Util.alpha(Color.accent, 0.18) : "transparent"
@@ -263,8 +269,9 @@ Item {
       color: chip.asking ? Color.accent : Color.menu.text
       opacity: chip.skipped ? 0.3 : (chip.done ? 0.85 : 0.45)
       font.family: metrics.font.family
-      font.pixelSize: metrics.font.caption
-      font.weight: chip.asking ? Font.Medium : Font.Normal
+      font.pixelSize: metrics.type.fine
+      font.weight: chip.asking
+        ? metrics.weight.strong : metrics.weight.body
       font.strikeout: chip.skipped
     }
   }
@@ -326,8 +333,8 @@ Item {
             textFormat: Text.PlainText
             color: Color.menu.text
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.heading
-            font.weight: Font.Medium
+            font.pixelSize: metrics.type.lead
+            font.weight: metrics.weight.name
           }
 
           Text {
@@ -339,7 +346,8 @@ Item {
             color: Color.menu.text
             opacity: 0.5
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.bodySmall
+            font.weight: metrics.weight.body
+            font.pixelSize: metrics.type.fine
           }
         }
 
@@ -351,16 +359,17 @@ Item {
           color: Color.menu.text
           opacity: 0.45
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.caption
+          font.weight: metrics.weight.body
+          font.pixelSize: metrics.type.fine
           elide: Text.ElideRight
         }
 
-        Item { width: 1; height: metrics.space(6) }
+        Item { width: 1; height: metrics.gap.sm }
 
         // The whole point of the screen, and sized like it.
         Column {
           width: parent.width
-          spacing: metrics.space(6)
+          spacing: metrics.gap.sm
 
           Text {
             width: parent.width
@@ -369,7 +378,8 @@ Item {
             color: Color.menu.text
             opacity: 0.55
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.body
+            font.weight: metrics.weight.body
+            font.pixelSize: metrics.type.body
             horizontalAlignment: Text.AlignHCenter
           }
 
@@ -386,7 +396,7 @@ Item {
               // it is read out of the corner of an eye that is on the pad. A
               // face button is the narrowest shape here, so the height is
               // what it is sized by and a shoulder simply comes out wider.
-              unit: metrics.badge(metrics.font.title * 4)
+              unit: metrics.badge(metrics.type.body * 4)
               x: Math.round((parent.width - width) / 2)
             }
           }
@@ -399,7 +409,8 @@ Item {
             color: Color.menu.text
             opacity: 0.6
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.bodySmall
+            font.weight: metrics.weight.body
+            font.pixelSize: metrics.type.fine
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
           }
@@ -420,7 +431,8 @@ Item {
             color: Color.menu.text
             opacity: 0.7
             font.family: metrics.font.family
-            font.pixelSize: metrics.font.body
+            font.weight: metrics.weight.body
+            font.pixelSize: metrics.type.body
             horizontalAlignment: Text.AlignHCenter
             wrapMode: Text.WordWrap
           }
@@ -434,16 +446,17 @@ Item {
           color: Color.accent
           opacity: 0.8
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.caption
+          font.weight: metrics.weight.body
+          font.pixelSize: metrics.type.fine
           horizontalAlignment: Text.AlignHCenter
           elide: Text.ElideRight
         }
 
-        Item { width: 1; height: metrics.space(4) }
+        Item { width: 1; height: metrics.gap.xs }
 
         Flow {
           width: parent.width
-          spacing: metrics.space(6)
+          spacing: metrics.gap.sm
 
           Repeater {
             model: root.rows
@@ -456,7 +469,7 @@ Item {
           }
         }
 
-        Item { width: 1; height: metrics.space(6) }
+        Item { width: 1; height: metrics.gap.sm }
 
         Rectangle {
           width: parent.width
@@ -475,7 +488,8 @@ Item {
           color: Color.menu.text
           opacity: 0.5
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.caption
+          font.weight: metrics.weight.body
+          font.pixelSize: metrics.type.fine
           wrapMode: Text.WordWrap
         }
       }

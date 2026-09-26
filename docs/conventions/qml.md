@@ -299,12 +299,19 @@ name.
 
 **8.2.1** A surface takes its sizes from **one** ladder. `metrics.type` (five
 sizes: 10, 12, 16, 24, 47) and `metrics.gap` (nine: 3, 4, 6, 8, 11, 16, 23,
-32, 45) are omapad's, both hung off the shell's smallest values; `metrics.font`
-and `metrics.spacing` are the shell's own. NEVER mix the two in one file: the
-whole point of the ladder is that a surface read from a sofa has few sizes and
-they are far apart, and one call site left on the shell's scale puts a 13 next
-to a 16 where the difference reads as a mistake. `Menu.qml` is across and says
-so in its header; the rest are not.
+32, 45) are omapad's, both hung off the shell's smallest values. The shell's
+own list - `font.caption`, `spacing.md` and the rest - is **gone from
+`Metrics`**: it stayed while the surfaces crossed one at a time, and went when
+the last one did, because one call site left on it puts a 13 next to a 16
+where the difference reads as a mistake. `metrics.font` is the family and
+nothing else, and `tests/test_shell_plugin.py` fails on a size read off it -
+QML would not: a property that is not there is `undefined`, a pixel size of
+nothing, and a word that does not draw.
+
+Moving a surface across is nearest rung, and the rungs the shell had between
+them collapse: `caption` and `bodySmall` are both `fine`, `body` and `title`
+are both `body`, `heading` is `lead`. A difference of a pixel was never one
+anybody read from a sofa.
 
 A number that belongs to something else stays off the ladder and says in a
 comment which: a stroke weight, a card's own width, a letterform's own
@@ -390,6 +397,38 @@ never from arithmetic on a rung.
 nothing; `metrics.rung(metrics.type.fine, -1)` says it is a step down the same
 ladder. `metrics.silver` (1 + √2) is the proportion for one line set over
 another.
+
+**8.2.7** **A weight comes from `metrics.weight`, never from `Font.Medium` at
+the call site.** Four are named, for the job rather than the number: `body`
+for the words a surface is read in, `name` for a word that names something (a
+tile's label, a heading, a caption over a value), `strong` for the one thing
+in force (the row the cursor is on, the choice that is ticked, the key under
+the thumb) and `display` for the one line set at `loud` or `vast`. Every
+`Text` in the surface's family sets one - unset is Normal, which neither the
+theme nor the slider on the pad can reach.
+
+The reason it is a MUST: **a weight asked for is not a weight drawn.** The
+face Omarchy ships has a Regular and a Bold and nothing between, Qt answers
+500 from the Regular, and for as long as the surfaces asked for `Font.Medium`
+the row in force was drawn in exactly the weight of the rows around it.
+`fontInfo.weight` hands back the number asked for, so nothing said so;
+`fontInfo.styleName` is what names the face, and `Metrics` sets one probe
+per half step in the surface's family to read it. `strong` climbs until the
+face changes - Bold on the shipped font, Medium on one that has a Medium -
+and the other three take whatever face Qt finds, because a name is already
+set apart by its size and its place.
+
+Each job's number is the design's, then the theme's (`[font]
+omapad-weight-<job>` in its `shell.toml`, which Omarchy keeps in
+`Style.fontOverrides` without knowing what it is), then half a step on
+`name` and `strong` on a light ground, then `[ui] weight` in whole steps
+from the payload. The badges are not on it: their labels are Fira Code
+Medium, the only face `ButtonArt` loads, and `buttonArt.weight` says so.
+
+Tracking is the same kind of thing and has the same rule:
+`metrics.tracking.caps(size)` for capitals set small, `masthead(size)` for the
+menu's one spaced line, and figures that must hold still take
+`metrics.figures` rather than a `tnum` table of their own.
 
 **8.3** Controller glyphs come from `ButtonArt.qml`, and the parts a menu
 control tile is drawn from come from `ControlArt.qml`. Both are painted by

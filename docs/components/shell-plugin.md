@@ -180,14 +180,36 @@ missing optional package must cost one feature rather than the keyboard.
 
   **`metrics.font` is the same idea about type**, and it is the second of two
   font groups. The family comes off the payload (`[ui] font`) and falls back
-  to the session's where that is empty, so a face can be chosen for surfaces
+  to Omarchy's menu face (`OMARCHY_MENU_FONT`, the session's where that is
+  unset) where it is empty, so a face can be chosen for surfaces
   read from a sofa without changing the one the desktop is read at. The first
   group is the badges' - `ButtonArt.family`, the face `assets/generate.py`
   punched the drawn labels out of - and it does not follow this one, because a
   typed label in another family would stand beside a drawn one that did not
   match. A surface asks `buttonArt.family` for a button and `metrics.font` for
   every other word; reaching past the group for `Style.font.family` is what
-  `FontTests` in `tests/test_shell_plugin.py` fails on.
+  `FontTests` in `tests/test_shell_plugin.py` fails on. The family is all
+  `metrics.font` holds now: the shell's list of sizes went when the last
+  surface crossed to the ladder below.
+
+  **`metrics.weight` is four jobs, and each is checked against the faces the
+  family has.** `body`, `name`, `strong` and `display` - the words read, a
+  word that names something, the one thing in force, the line read from
+  across the room. A weight asked for is not a weight drawn: the shipped face
+  is a Regular and a Bold, Qt draws 500 from the Regular, and for as long as
+  the surfaces asked for `Font.Medium` the row in force was drawn exactly like
+  the rows beside it. Seventeen probe `Text`s - one per half step, in the
+  surface's family - report `fontInfo.styleName`, which is the only thing Qt
+  hands back that names the face it drew; `strong` climbs until that
+  changes. Each job's number is the design's, overridden by the theme's
+  `shell.toml` (`[font] omapad-weight-<job>`, read through
+  `Style.fontOverrides`), moved half a step on `name` and `strong` when the
+  theme's text is darker than its ground, then moved in whole steps by `[ui]
+  weight` / `game_weight` off the payload (`weightStep`). A badge's label is
+  not on it - `buttonArt.weight`, the one face `ButtonArt` loads.
+  `metrics.tracking` (`caps`, `masthead`) and `metrics.figures` are the same
+  rule for letter-spacing and held figures. `WeightTests` fails on a weight,
+  a tracking or a `font.bold` written at the call site.
 
   **`metrics.time` is the same idea about time.** Three named durations, all
   multiplied by `[ui] motion` from the payload, so turning motion off is one
@@ -210,10 +232,11 @@ missing optional package must cost one feature rather than the keyboard.
   and a tile is not a window. Anything between the two named rungs comes from
   `metrics.rung`; a pill stays `height / 2`.
 
-  **`metrics.type` and `metrics.gap` are the silver ladder**, and a surface
-  uses them or it uses `metrics.font` and `metrics.spacing` - never a mixture,
-  because half a surface on one scale and half on another is what the ladder
-  is here to end. The shell's own sizes are a list of near neighbours (10, 11,
+  **`metrics.type` and `metrics.gap` are the silver ladder**, and every
+  surface is on it. The shell's own `font.caption`, `spacing.md` and the rest
+  were kept beside it while the surfaces crossed one at a time and went when
+  the last one did, because half a surface on one scale and half on another
+  is what the ladder is here to end. The shell's own sizes are a list of near neighbours (10, 11,
   12, 13, 14, 16) and five of the six landed on one card here: five sizes at a
   keyboard and one size from a sofa, because a pixel of difference is not a
   difference across a room.
@@ -242,7 +265,10 @@ missing optional package must cost one feature rather than the keyboard.
   the type one, for the places that need a size between the named ones - a
   shrink-to-fit floor. `metrics.silver` is 1 + √2, the proportion to split one
   line over another by. Everything goes through the surface's own scale like
-  the rest of this file. `Menu.qml` is across; the other surfaces are not yet.
+  the rest of this file. Every surface is across: the menu first, the guide,
+  the mapping screen, the keyboard, the bar and the HUD after it, each at the
+  nearest rung - `caption` and `bodySmall` both `fine`, `body` and `title`
+  both `body`, `heading` `lead`.
 
   **`metrics.spine` is the line motif's measurements**, named here because the
   same weight is drawn twice: down the side of a card of rows, and along the

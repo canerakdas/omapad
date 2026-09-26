@@ -104,9 +104,11 @@ QtObject {
   // that must not shrink, and a ladder hung from the middle has nowhere
   // legible to put a detail line.
   //
-  // A surface uses this ladder **or** `font` and `spacing` above, never a
-  // mixture: half a surface on one scale and half on another is what this is
-  // here to end. The menu is the first surface across.
+  // Every surface is on it. The shell's own list of sizes was kept here as
+  // `font.caption` and `spacing.md` and the like while the surfaces moved
+  // across one at a time, and went when the last one did: a surface with one
+  // size on each scale is what this is here to end, and a scale nobody reads
+  // cannot be mixed in by accident.
   readonly property real silver: 1 + Math.sqrt(2)
 
   // `base` scaled by `n` space rungs, before rounding. Negative goes down.
@@ -325,54 +327,206 @@ QtObject {
   property string fontFamily: ""
 
   readonly property QtObject font: QtObject {
-    // The family, at any size: what the payload asked for, or the session's
-    // where it asked for nothing.
+    // The family, at any size: what the payload asked for, or the one the
+    // desktop sets its own menus in where it asked for nothing. That is
+    // `menuFamily` rather than `family` because these surfaces are menus -
+    // somebody who has given Omarchy's menus a face of their own with
+    // `OMARCHY_MENU_FONT` has said what a menu is set in, and ours are the
+    // same kind of thing. Unset, the two are the same name.
     readonly property string family: metrics.fontFamily !== ""
-      ? metrics.fontFamily : Style.font.family
-    readonly property string resolvedFamily: Style.font.resolvedFamily
-    readonly property string menuFamily: Style.font.menuFamily
-    readonly property int baseSize: metrics.px(Style.font.baseSize)
-
-    readonly property int caption: metrics.px(Style.font.caption)
-    readonly property int bodySmall: metrics.px(Style.font.bodySmall)
-    readonly property int body: metrics.px(Style.font.body)
-    readonly property int subtitle: metrics.px(Style.font.subtitle)
-    readonly property int title: metrics.px(Style.font.title)
-    readonly property int heading: metrics.px(Style.font.heading)
-    readonly property int display: metrics.px(Style.font.display)
-    readonly property int displayLarge: metrics.px(Style.font.displayLarge)
-
-    readonly property int iconSmall: metrics.px(Style.font.iconSmall)
-    readonly property int icon: metrics.px(Style.font.icon)
-    readonly property int iconLarge: metrics.px(Style.font.iconLarge)
+      ? metrics.fontFamily : Style.font.menuFamily
   }
 
-  readonly property QtObject spacing: QtObject {
-    readonly property real scale: Style.spacing.scale * metrics.factor
+  // -- the weights ----------------------------------------------------------
+  //
+  // **A weight asked for is not a weight drawn.** Every one of these surfaces
+  // asked for `Font.Medium` wherever it meant a word to stand out, and the
+  // face Omarchy ships - JetBrainsMono Nerd Font - comes as a Regular and a
+  // Bold and nothing between. Qt answers 500 with the nearest face at or
+  // below it, so the row in force, the tab you are on and the choice that is
+  // ticked were all drawn in exactly the weight of the rows beside them, and
+  // said so in colour alone. Nothing warned: `fontInfo.weight` hands back the
+  // number asked for. `fontInfo.styleName` is the one thing that says which
+  // face was drawn, and it is what this reads.
+  //
+  // So a weight here is a **job**, named like the type ladder, and each job
+  // says what happens when the family has no face at the weight it names:
+  //
+  //   body     the words a surface is read in. 400.
+  //   name     a word that names something - a tile's label, a heading, a
+  //            caption over a value. 500, and where the family has no 500
+  //            it is drawn in whatever Qt finds: a name is already set apart
+  //            by its size and its place, and climbing to Bold would put
+  //            every label on a page in the weight meant for one of them.
+  //   strong   the one thing in force: the row the cursor is on, the choice
+  //            that is ticked, the key under the thumb. 500, **and it must
+  //            not be drawn in the face `body` is**, because being different
+  //            is the whole of what it says. Where the family has nothing
+  //            between it climbs to the next face that is - on the shipped
+  //            one that is Bold.
+  //   display  the one line on a surface read from the far side of the room,
+  //            set at `loud` or `vast`. 400: the size already says it is a
+  //            heading, and a heavy stroke on top of it was the loudest thing
+  //            on the page.
+  //
+  // The badges are not on this list and cannot be: their labels are Fira
+  // Code Medium, punched into the drawings, and `buttonArt.weight` says so.
 
-    // A hairline is one device pixel by definition; scaling it would make
-    // it a rule.
-    readonly property int hairline: Style.spacing.hairline
-    readonly property int xxs: metrics.px(Style.spacing.xxs)
-    readonly property int xs: metrics.px(Style.spacing.xs)
-    readonly property int sm: metrics.px(Style.spacing.sm)
-    readonly property int md: metrics.px(Style.spacing.md)
-    readonly property int lg: metrics.px(Style.spacing.lg)
-    readonly property int xl: metrics.px(Style.spacing.xl)
-    readonly property int xxl: metrics.px(Style.spacing.xxl)
-    readonly property int xxxl: metrics.px(Style.spacing.xxxl)
-    readonly property int huge: metrics.px(Style.spacing.huge)
+  // What each job starts from, before the theme and the ground have had
+  // their say. Wire values rather than settings: these are the design's own
+  // answer to what each job is, and the two ways to move them are below.
+  readonly property var weightDefaults: ({
+    "body": 400, "name": 500, "strong": 500, "display": 400
+  })
 
-    readonly property int controlGap: metrics.px(Style.spacing.controlGap)
-    readonly property int controlPaddingX: metrics.px(Style.spacing.controlPaddingX)
-    readonly property int controlPaddingY: metrics.px(Style.spacing.controlPaddingY)
-    readonly property int inputPaddingY: metrics.px(Style.spacing.inputPaddingY)
-    readonly property int controlHeight: metrics.px(Style.spacing.controlHeight)
-    readonly property int rowGap: metrics.px(Style.spacing.rowGap)
-    readonly property int rowPaddingX: metrics.px(Style.spacing.rowPaddingX)
-    readonly property int labelGap: metrics.px(Style.spacing.labelGap)
-    readonly property int panelGap: metrics.px(Style.spacing.panelGap)
-    readonly property int panelPadding: metrics.px(Style.spacing.panelPadding)
-    readonly property int popupPadding: metrics.px(Style.spacing.popupPadding)
+  // **The theme's word first.** Omarchy reads every key of a theme's
+  // `shell.toml` `[font]` table as a number and keeps the ones it has no use
+  // for in `Style.fontOverrides`, so a theme can say what these surfaces are
+  // set in without Omarchy knowing they exist:
+  //
+  //   [font]
+  //   omapad-weight-strong = 700
+  //
+  // Prefixed, because the table is Omarchy's and a bare `weight-body` is a
+  // name it could one day want for itself.
+  function themeWeight(job) {
+    var v = Style.fontOverrides["omapad-weight-" + job]
+    return (v !== undefined && isFinite(v) && v > 0)
+      ? v : metrics.weightDefaults[job]
   }
+
+  // **Then the ground.** The design was drawn light on dark, which is also
+  // what Omarchy ships, so a dark ground takes the weights as they are. Dark
+  // ink on a light ground reads thinner than the same stroke reversed - the
+  // eye spreads a bright stroke and swallows a dark one - and what that costs
+  // is the difference between a word that is meant to stand out and the
+  // words around it. So a light ground puts half a step on `name` and
+  // `strong`, and leaves `body` and `display` alone: reading text is not
+  // meant to stand out, and a heading already does by its size.
+  //
+  // Half a step, because a whole one is a different face on most families -
+  // Noto answers 450 from its Medium - and a light theme is not a reason to
+  // set a page of labels in the weight meant for the one row in force. On a
+  // family of whole faces the probes below find the same face either side of
+  // it and nothing changes; on a variable one it is the difference and no
+  // more.
+  //
+  // Which is which is measured rather than read from the theme's name: a
+  // theme is light when its text is darker than the ground it is drawn on.
+  // `ground` and `ink` default to the menu's; the game bar hands its own.
+  property color ground: Color.menu.background
+  property color ink: Color.menu.text
+  readonly property bool lightGround: tone.luminance(metrics.ground)
+    > tone.luminance(metrics.ink)
+  readonly property Ink tone: Ink {}
+
+  function groundWeight(job) {
+    if (!metrics.lightGround) return 0
+    return (job === "name" || job === "strong") ? 50 : 0
+  }
+
+  // **And last, the person's.** Whole steps of a hundred, from the payload
+  // (`[ui] weight`, `game_weight`), because the plugin cannot read omapad's
+  // config. A step over every job at once: the proportions between them are
+  // the design, and what somebody wants different is how heavy the whole
+  // surface reads - from a sofa, usually heavier.
+  property real weightStep: 0
+
+  // On the half steps the probes below stand on, so every weight a job is
+  // given is one this has asked Qt about rather than one it guessed at.
+  function nominal(job) {
+    var w = metrics.themeWeight(job) + metrics.groundWeight(job)
+      + metrics.weightStep * 100
+    return Math.max(100, Math.min(900, Math.round(w / 50) * 50))
+  }
+
+  // One probe per half step, set in the surface's own family, each saying
+  // which face Qt drew it in. Half steps because that is the finest thing
+  // `groundWeight` asks for, and a weight answered from the nearest whole
+  // probe can be answered wrongly: Qt draws 450 from the face below and 550
+  // from the face above, and rounding either to a hundred guesses which.
+  //
+  // A probe needs a character to set - an empty Text never resolves a face,
+  // and reports Regular at every weight. `family` and `styleName` together,
+  // because a family missing a face can be answered from a fallback family,
+  // and that is a different face too.
+  property list<Text> probes: [
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 100 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 150 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 200 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 250 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 300 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 350 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 400 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 450 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 500 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 550 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 600 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 650 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 700 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 750 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 800 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 850 },
+    Text { text: "H"; font.family: metrics.font.family; font.weight: 900 }
+  ]
+
+  readonly property var faces: {
+    var out = []
+    for (var i = 0; i < metrics.probes.length; i++) {
+      var info = metrics.probes[i].fontInfo
+      out.push(info.family + "/" + info.styleName)
+    }
+    return out
+  }
+
+  function face(w) {
+    var i = Math.max(0, Math.min(16, Math.round((w - 100) / 50)))
+    return metrics.faces[i]
+  }
+
+  readonly property QtObject weight: QtObject {
+    readonly property int body: metrics.nominal("body")
+    readonly property int name: metrics.nominal("name")
+    readonly property int display: metrics.nominal("display")
+
+    // Climbs until the face changes. Where it never does - a family of one
+    // face, or a variable one that names every weight alike - it asks for
+    // Bold outright, which Qt draws synthetically on a face that has none:
+    // an emboldened Regular is a worse letter and a better answer than a
+    // difference nobody can see.
+    readonly property int strong: {
+      var start = metrics.nominal("strong")
+      var plain = metrics.face(metrics.weight.body)
+      for (var w = start; w <= 900; w += 50) {
+        if (metrics.face(w) !== plain) return w
+      }
+      return Math.max(start, Font.Bold)
+    }
+  }
+
+  // -- tracking and figures -------------------------------------------------
+  //
+  // Letter-spacing is a proportion of the letter it spaces, so each is a
+  // function of the size rather than a number: a caption scaled up keeps the
+  // same air between its capitals.
+  readonly property QtObject tracking: QtObject {
+    // Capitals set small. An eighth of the letter: caps set without it read
+    // as a word with its letters touching.
+    function caps(size) {
+      return size / 8
+    }
+
+    // A masthead - a name and a time set side by side at the top of a
+    // screen. Sixteen hundredths of the letter, the design's one line spaced
+    // wider than a caption is.
+    function masthead(size) {
+      return size * 0.16
+    }
+  }
+
+  // Figures that keep one width each, for a number that changes in place.
+  // The shipped face is monospaced and does it anyway; a proportional one
+  // chosen with `[ui] font` does not, and a clock whose colon jumps sideways
+  // every second is the result.
+  readonly property var figures: ({ "tnum": 1 })
 }

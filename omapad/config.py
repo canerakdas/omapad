@@ -158,6 +158,17 @@ RADIUS_STOPS = (0.0,) + tuple(
     round(0.5 * RUNG ** n, 3) for n in range(4)
 )
 
+# The steps the surfaces' type may be set heavier or lighter by, a hundred
+# each, against the weights the theme and the design give it.
+#
+# **One down and two up**, because the two directions do not cost the same.
+# A step down puts reading text at 300, which is as light as a word read
+# from across a room survives, and a second one is a hairline. Up is the
+# direction somebody on a sofa wants, and two steps is Bold for the reading
+# text and the heaviest face most families have for what stands out; a
+# third would ask every family for a Black it mostly does not ship.
+WEIGHT_STOPS = (-1.0, 0.0, 1.0, 2.0)
+
 
 # ---------------------------------------------------------------------------
 # The settings the pad itself can change.
@@ -297,6 +308,20 @@ CHOSEN = {
                   1.0: "Full"},
         "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
+    },
+    # How heavy the words on the surfaces are set, in whole steps of a
+    # hundred over every weight at once. On the pad for the radius's reason:
+    # it is judged by looking at the thing it sets, and the thing it sets is
+    # the page the slider is on.
+    "weight": {
+        "attr": "ui_weight", "table": "ui", "key": "weight",
+        # Four places, and worded: a weight is a place to be rather than an
+        # amount - "+100" is a number from a font file, not something anybody
+        # holding a pad has a picture of. See `WEIGHT_STOPS` for the ends.
+        "kind": "number", "stops": WEIGHT_STOPS,
+        "min": WEIGHT_STOPS[0], "max": WEIGHT_STOPS[-1],
+        "words": {-1.0: "Lighter", 0.0: "The theme's", 1.0: "Heavier",
+                  2.0: "Heaviest"},
     },
     # Whether the readings are on screen. A setting rather than a surface
     # verb, because it is a thing you decide once and leave: chosen from the
@@ -627,6 +652,33 @@ def read_layout(path):
             # no longer resolves, one level along.
             "adopted": _layout_refs(plan.get("adopted")),
         }
+        # The headings made on this page from the pad, and their words. Here
+        # rather than in the tree because nobody wrote them in a config file:
+        # they are part of the arrangement. Only where there are some - a
+        # page without any is the arrangement it always was.
+        headings = _layout_headings(plan.get("headings"))
+        if headings:
+            out[str(page)]["headings"] = headings
+    return out
+
+
+def _layout_headings(value):
+    """The headings that are shaped like one. One bad one costs only itself.
+
+    The id has to carry the mark, or it would be a name a tile the config
+    has could answer to as well. The words are anything at all, since they
+    were typed.
+    """
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for name, text in value.items():
+        name = str(name).strip()
+        if not name.startswith(menu_module.HEADING_MARK):
+            continue
+        if not isinstance(text, str):
+            continue
+        out[name] = text
     return out
 
 
@@ -724,6 +776,9 @@ def render_layout(layout):
         "# else flows around those, in the order above. A cell off the edge of",
         "# a narrower screen is pulled back onto it rather than lost.",
         "#",
+        "# `headings` are the words put over a run of tiles from the pad, by",
+        "# id; where one stands is its place in `order`.",
+        "#",
         "# Delete a page's table to hand that page back to the config, or the",
         "# file to hand back every page.",
         "",
@@ -732,7 +787,7 @@ def render_layout(layout):
         plan = layout[page]
         if not plan.get("order") and not plan.get("removed") \
                 and not plan.get("span") and not plan.get("at") \
-                and not plan.get("adopted"):
+                and not plan.get("adopted") and not plan.get("headings"):
             continue
         lines.append("[layout.%s]" % page)
         if plan.get("order"):
@@ -757,6 +812,12 @@ def render_layout(layout):
             for name in sorted(plan["at"]):
                 x, y = plan["at"][name]
                 lines.append("%s = [%d, %d]" % (toml_string(name), x, y))
+        if plan.get("headings"):
+            lines.append("")
+            lines.append("[layout.%s.headings]" % page)
+            for name in sorted(plan["headings"]):
+                lines.append("%s = %s" % (toml_string(name),
+                                          toml_string(plan["headings"][name])))
         lines.append("")
     return "\n".join(lines)
 
@@ -1488,6 +1549,24 @@ class Config:
                 "ui.font names one family, not a list - Qt takes a single "
                 "name and falls back on its own"
             )
+        # How much heavier the words are set, in steps of a hundred over the
+        # theme's own weights. Two of them for the scale's reason: the page
+        # read at a desk and the page read from a sofa are the same page at
+        # two distances, and the one across the room is the one that loses
+        # its thin strokes first. `game_weight` is optional and follows
+        # `weight` until somebody sets it, so the one on the pad is the one
+        # that moves both.
+        self.ui_weight = float(ui.get("weight", 0.0))
+        game_weight = ui.get("game_weight")
+        self.ui_game_weight = (None if game_weight is None
+                               else float(game_weight))
+        for name, value in (("weight", self.ui_weight),
+                            ("game_weight", self.ui_game_weight)):
+            if value is None:
+                continue
+            if not WEIGHT_STOPS[0] <= value <= WEIGHT_STOPS[-1]:
+                raise ConfigError("ui.%s must be between %g and %g"
+                                  % (name, WEIGHT_STOPS[0], WEIGHT_STOPS[-1]))
         # How hard a corner is rounded, against what the compositor rounds a
         # window by. The ceiling is the ladder's own top stop: past it a tile
         # is not a rounded rectangle any more, it is a lozenge.

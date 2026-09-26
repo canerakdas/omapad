@@ -531,6 +531,9 @@ class MenuAction(Action):
         # spends its two on: putting one back on the page in front, and
         # putting it back on the page it came from.
         "place", "put_back",
+        # And the headings made from the pad: one put on the page over the
+        # tile in front, and the words of the one in front typed again.
+        "heading", "rename",
         # What `remove` was called while a tile taken off a page had nowhere
         # to go but the page it came off. Kept because a config that says it
         # still means it.

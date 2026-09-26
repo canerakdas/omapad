@@ -275,7 +275,7 @@ class ApplyTests(unittest.TestCase):
             if spec["kind"] != "number":
                 continue
             (placed if spec.get("stops") else swept).add(name)
-        self.assertEqual(placed, {"radius", "motion", "hold_scale"})
+        self.assertEqual(placed, {"radius", "motion", "hold_scale", "weight"})
         for name in placed:
             self.assertLessEqual(len(config_module.CHOSEN[name]["stops"]), 7)
         self.assertEqual(swept, {"sound_volume", "rumble_strength",
@@ -298,6 +298,24 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(config_module.setting_text("hold_scale", 1.5), "150%")
         self.assertEqual(self.set("hold_scale", "down"), 0.75)
         self.assertEqual(config_module.setting_text("hold_scale", 0.75), "75%")
+
+    def test_weight_is_four_worded_places(self):
+        # A weight is a place to be rather than an amount: "+100" is a number
+        # from a font file, and nobody holding a pad has a picture of it.
+        self.assertEqual(self.config.ui_weight, 0.0)
+        self.assertEqual(config_module.setting_text("weight", 0.0),
+                         "The theme's")
+        self.assertEqual(self.set("weight", "up"), 1.0)
+        self.assertEqual(self.set("weight", "up"), 2.0)
+        self.assertEqual(self.set("weight", "up"), 2.0)   # the top stop
+        self.assertEqual(config_module.setting_text("weight", 2.0),
+                         "Heaviest")
+        for expected in (1.0, 0.0, -1.0, -1.0):
+            self.assertEqual(self.set("weight", "down"), expected)
+        spec = config_module.CHOSEN["weight"]
+        self.assertEqual(
+            [spec["words"][stop] for stop in spec["stops"]],
+            ["Lighter", "The theme's", "Heavier", "Heaviest"])
 
     def test_a_corner_walks_a_ladder_rather_than_a_range(self):
         # A corner is a size, and every size on these surfaces climbs by the

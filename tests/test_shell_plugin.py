@@ -341,6 +341,10 @@ class FontTests(unittest.TestCase):
         # be told about, and listing the exceptions by name is how a list
         # goes stale.
         for name in self.files:
+            # The group itself, whose face probes are set in the family it
+            # is handed rather than handing it on.
+            if name == "Metrics.qml":
+                continue
             with open(os.path.join(PLUGIN, name)) as handle:
                 source = handle.read()
             if "metrics.font." not in source:
@@ -351,6 +355,30 @@ class FontTests(unittest.TestCase):
             self.assertIn(
                 "s.font", source,
                 "%s never reads the family off its payload" % name)
+            # And the weight rides beside it, for the same silence: a surface
+            # that never read `[ui] weight` would stay at the theme's weight
+            # while the slider moved every other one.
+            self.assertIn(
+                "weightStep: root.weightStep", source,
+                "%s builds Metrics without handing it the weight" % name)
+            self.assertIn(
+                "s.weight", source,
+                "%s never reads the weight off its payload" % name)
+
+    def test_every_size_comes_off_the_ladder(self):
+        # The shell's own list of sizes went from `Metrics` when the last
+        # surface crossed to the silver ladder (qml.md 8.2.1). A size read off
+        # the group that is not there any more is not an error in QML - it is
+        # `undefined`, a pixel size of nothing, and a word that does not draw.
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            for match in re.finditer(
+                    r"metrics\.(?:font\.(?!family\b)\w+|spacing\.\w+)",
+                    source):
+                number = source.count("\n", 0, match.start()) + 1
+                self.fail("%s:%d reads %s, which is off the ladder"
+                          % (name, number, match.group(0)))
 
     def test_no_surface_reaches_past_the_group_for_the_session_font(self):
         # `Style.font.family` is the desktop's answer and the group already
@@ -364,6 +392,82 @@ class FontTests(unittest.TestCase):
             self.assertNotIn(
                 "Style.font.family", source,
                 "%s takes the session's font instead of the surface's" % name)
+
+
+class WeightTests(unittest.TestCase):
+    """**A weight asked for is not a weight drawn** (qml.md 8.2.7).
+
+    The shipped family has a Regular and a Bold and nothing between, and Qt
+    answers `Font.Medium` from the Regular - so every word set Medium to
+    stand out was drawn exactly like the words around it, and nothing said
+    so. `metrics.weight` names the job and finds the face; a literal at the
+    call site is that silence coming back.
+    """
+
+    LITERAL = re.compile(r"font\.(?:weight\s*:.*\bFont\.\w+|bold\s*:)")
+
+    def setUp(self):
+        self.files = sorted(
+            name for name in os.listdir(PLUGIN) if name.endswith(".qml")
+        )
+
+    def test_no_surface_names_a_weight_of_its_own(self):
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                for number, line in enumerate(handle, 1):
+                    self.assertIsNone(
+                        self.LITERAL.search(line),
+                        "%s:%d sets a weight by hand: %s"
+                        % (name, number, line.strip()))
+
+    def test_every_word_in_the_surface_family_takes_a_weight(self):
+        # Unset is Normal, which the theme's word and the slider on the pad
+        # never reach: a label left without one stays put while every other
+        # word on the page gets heavier.
+        found = 0
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            for line, body in text_blocks(source):
+                if "font.family: metrics.font.family" not in body:
+                    continue
+                found += 1
+                # The binding and the line after it, where a ternary wraps.
+                weight = re.search(r"font\.weight:[^\n]*(?:\n\s*\?[^\n]*)?",
+                                   body)
+                self.assertTrue(
+                    weight and "metrics.weight." in weight.group(0),
+                    "%s:%d sets a word with no weight from metrics.weight"
+                    % (name, line))
+        self.assertGreater(found, 0)
+
+    def test_the_badges_keep_the_face_they_were_punched_in(self):
+        # A typed badge label asking for anything but the shipped face's own
+        # weight would be asking a FontLoader for a face it never loaded.
+        found = 0
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            for line, body in text_blocks(source):
+                if "font.family: buttonArt.family" not in body:
+                    continue
+                found += 1
+                self.assertIn(
+                    "font.weight: buttonArt.weight", body,
+                    "%s:%d letters a badge in another weight" % (name, line))
+        self.assertGreater(found, 0)
+
+    def test_tracking_is_a_proportion_named_once(self):
+        # Two constants for one caption - an eighth and nine hundredths -
+        # is how two captions stop matching.
+        for name in self.files:
+            with open(os.path.join(PLUGIN, name)) as handle:
+                source = handle.read()
+            for match in re.finditer(r"font\.letterSpacing:\s*(\S+)", source):
+                number = source.count("\n", 0, match.start()) + 1
+                self.assertTrue(
+                    match.group(1).startswith("metrics.tracking."),
+                    "%s:%d tracks by hand" % (name, number))
 
 
 class TravelTests(unittest.TestCase):

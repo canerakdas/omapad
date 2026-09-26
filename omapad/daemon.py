@@ -222,7 +222,22 @@ EDIT_KEYS = {
     "L": {"tap": "menu:group_prev", "desc": "Previous page",
           "short": "Previous"},
     "R": {"tap": "menu:group_next", "desc": "Next page", "short": "Next"},
+    # A heading goes on the page from here, over the tile in front. ZR because
+    # it is the one button this state has left: the triggers say shorter and
+    # taller with a tile in the hand and nothing at all with an empty one.
+    "ZR": {"tap": "menu:heading", "desc": "Add a heading here",
+           "short": "Heading"},
 }
+
+# And on a heading made from the pad, which is the one tile here with words
+# somebody typed: X takes it off for good rather than into the strip, since
+# the strip holds what the config has, and ZL types its words again.
+EDIT_HEADING_KEYS = dict(
+    EDIT_KEYS,
+    X={"tap": "menu:remove", "desc": "Delete the heading", "short": "Delete"},
+    ZL={"tap": "menu:rename", "desc": "Type the heading again",
+        "short": "Retype"},
+)
 
 # And what they mean with a tile in the hand. The sizes are here and nowhere
 # else: a page is not walked away from while something is being carried, so
@@ -265,7 +280,7 @@ EDIT_REMOVED_KEYS = {
 # hand, and a press that fell through to the window layer while the menu was
 # being rearranged would be a layer opening silently underneath a card.
 EDIT_ANY = frozenset(EDIT_KEYS) | frozenset(EDIT_CARRY_KEYS) \
-    | frozenset(EDIT_REMOVED_KEYS)
+    | frozenset(EDIT_REMOVED_KEYS) | frozenset(EDIT_HEADING_KEYS)
 
 # Which table is which, by the name `edit_state` answers with. A mapping
 # rather than a branch for `EDIT_KEYS`' own reason: the name is also the
@@ -274,6 +289,7 @@ EDIT_TABLES = {
     "edit": EDIT_KEYS,
     "edit-carry": EDIT_CARRY_KEYS,
     "edit-removed": EDIT_REMOVED_KEYS,
+    "edit-heading": EDIT_HEADING_KEYS,
 }
 
 # The order the legend prints them in, which is the order the contract names
@@ -411,6 +427,35 @@ def apply_curve(x, y, deadzone, exponent):
     factor = (scaled ** exponent) / magnitude
     return x * factor, y * factor
 
+
+class HeadingKeys:
+    """The keyboard, while what it types is a heading's words.
+
+    Stands where the uinput keyboard stands and takes every chord pressed
+    through it, so neither the on-screen keyboard nor a `key:` binding has to
+    know that what it types is going into the menu rather than a window. Caps
+    Lock goes through: the keyboard keeps its own idea of whether Caps is on,
+    and a Caps the compositor never heard about would leave the two
+    disagreeing once the heading is done.
+    """
+
+    CAPSLOCK = keymap.resolve("CAPSLOCK")
+
+    def __init__(self, keyboard, take):
+        self.keyboard = keyboard
+        self.take = take
+
+    def chord(self, mods, code, pressed):
+        if code == self.CAPSLOCK:
+            self.keyboard.chord(mods, code, pressed)
+        elif pressed:
+            self.take(list(mods), code)
+
+    def key(self, code, pressed):
+        self.chord([], code, pressed)
+
+    def __getattr__(self, name):
+        return getattr(self.keyboard, name)
 
 class HeldAction:
     __slots__ = ("action", "binding", "pressed_at", "hold_fired", "warned",
@@ -1647,6 +1692,8 @@ class Daemon:
             return "edit-removed"
         if self.menu.picked is not None:
             return "edit-carry"
+        if self.menu.heading() is not None:
+            return "edit-heading"
         return "edit"
 
     def edit_keys(self):
@@ -1966,7 +2013,7 @@ class Daemon:
             return "guide"
         if self.quick_open:
             return "quick"
-        if self.menu_open:
+        if self.menu_open and self.menu.typing is None:
             return "menu"
         if self.osk_open:
             return "osk"
@@ -2281,7 +2328,8 @@ class Daemon:
             "map": self.mapping_open,
             "guide": self.guide_open,
             "quick": self.quick_open,
-            "menu": self.menu_open,
+            # A heading being typed hands the pad to the keyboard over it.
+            "menu": self.menu_open and self.menu.typing is None,
             "osk": self.osk_open,
         }
         for name in SURFACES:
@@ -2382,6 +2430,10 @@ class Daemon:
             # Including whatever a trigger was holding: the button's release
             # will not be routed here once the keyboard is down.
             self.osk.reset_mods()
+            # Putting the keyboard away is being done with the words, which
+            # is what closing it over a text field means too: what was typed
+            # stays.
+            self.menu_type_end()
         self.push_osk_view()
         self.apply_grab()
         self.relabel_gamebar()
@@ -2398,6 +2450,17 @@ class Daemon:
         if self.mode == "game":
             return self.config.ui_game_scale
         return self.config.ui_scale
+
+    def view_weight(self):
+        """How many steps heavier the surfaces set their words right now.
+
+        Follows the mode for the scale's reason, and `game_weight` falls back
+        on `weight` because it is optional: somebody who has only ever moved
+        the slider on the pad has said one thing about both distances.
+        """
+        if self.mode == "game" and self.config.ui_game_weight is not None:
+            return self.config.ui_game_weight
+        return self.config.ui_weight
 
     def view_motion(self):
         """How long the surfaces may take to move.
@@ -2490,6 +2553,10 @@ class Daemon:
             # *not* what the badges are lettered in - that face is punched
             # into the drawings themselves.
             state["font"] = self.config.ui_font
+            # And how heavy it is set, which follows the mode the way the
+            # scale does. What a step resolves to is the plugin's question:
+            # only it can ask the family which faces it has.
+            state["weight"] = self.view_weight()
         return state
 
     def show_ripple(self, button):
@@ -2739,6 +2806,8 @@ class Daemon:
         self.menu_disarm()
         self.menu_uncount()
         if not opened:
+            # The heading goes with the page it is on.
+            self.menu_type_end()
             # Whatever was being pushed stops being pushed. Written down here
             # rather than lost: the menu closing is one of the four ways to
             # let go of a control, and the only one that takes the tile
@@ -4537,6 +4606,81 @@ class Daemon:
         self.apply_setting(name)
         self.save_settings()
 
+    def menu_type_start(self, name):
+        """Type the words of a heading made from the pad, on the keyboard.
+
+        **The keyboard, over the menu, typing into the menu.** The same
+        keyboard that types into a window, walked the same way, so there is
+        nothing new to learn to write one - only what it types is taken here
+        rather than sent to the compositor. The menu stays drawn under it,
+        with the caret on the heading, so what is being typed is seen landing
+        where it will stand.
+        """
+        if self.menu.typing is not None:
+            return
+        self.menu.typing = name
+        # Every chord the keyboard makes lands in `menu_type_key` until the
+        # words are done. Both references, since the keyboard's own keys send
+        # through the daemon's and a binding's `key:` sends through the
+        # context's - X is Backspace and Y is Space on that layer.
+        diverted = HeadingKeys(self.keyboard, self.menu_type_key)
+        self.keyboard = diverted
+        self.ctx.keyboard = diverted
+        self.set_osk(True)
+        self.push_menu_view()
+        log.info("menu: typing heading %s", name)
+
+    def menu_type_key(self, mods, code):
+        """One chord of a heading's words: a character, a Backspace, or done."""
+        name = self.menu.typing
+        if name is None:
+            return
+        if code == keymap.resolve("ENTER"):
+            self.menu_type_end()
+            return
+        text = self.menu.heading(name) or ""
+        if code == keymap.resolve("BACKSPACE"):
+            if not text:
+                self.menu_edge()
+                return
+            text = text[:-1]
+        else:
+            char = self.osk.char_for(mods, code)
+            if not char:
+                return
+            text += char
+        self.menu.set_heading(name, text)
+        self.push_menu_view()
+
+    def menu_type_end(self):
+        """The words are done. A heading left with none is not kept.
+
+        Called by every way out - Enter, the keyboard put away, the menu
+        closing - so it is also where the keyboard goes back to typing into
+        windows.
+        """
+        name = self.menu.typing
+        if name is None:
+            return
+        self.menu.typing = None
+        diverted = self.keyboard
+        if isinstance(diverted, HeadingKeys):
+            self.keyboard = diverted.keyboard
+            self.ctx.keyboard = diverted.keyboard
+        text = (self.menu.heading(name) or "").strip()
+        if text:
+            self.menu.set_heading(name, text)
+        else:
+            # Nothing typed is nothing to head a run with, and an empty one
+            # would be a gap in the page nobody can see the reason for.
+            self.menu.drop_heading(name)
+        self.set_osk(False)
+        self.menu_layout_save()
+        self.hud_rearranged()
+        if self.menu_open:
+            self.push_menu_view()
+        log.info("menu: heading %s %s", name, "kept" if text else "dropped")
+
     def menu_layout_save(self):
         """Write the arrangement down. Inline, the way settings.toml is.
 
@@ -4550,7 +4694,8 @@ class Daemon:
         layout = {page: plan for page, plan in self.menu.layout.items()
                   if page and (plan.get("order") or plan.get("removed")
                                or plan.get("span") or plan.get("at")
-                               or plan.get("adopted"))}
+                               or plan.get("adopted")
+                               or plan.get("headings"))}
         path = layout_path()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -4667,6 +4812,11 @@ class Daemon:
             return False  # navigation means nothing while the menu is down
 
         model = self.menu
+        if model.typing is not None:
+            # Only the control socket can get here while a heading is being
+            # typed - the pad is the keyboard's until it is put away - and
+            # whatever it asks for, the words are done first.
+            self.menu_type_end()
         # Anything that is not the press keeping a held row down is that row
         # being let go of: walking away from a tile counting down, or closing
         # the page it is on, is not a thing to keep counting behind.
@@ -4684,6 +4834,20 @@ class Daemon:
             return False
         if command == "save":
             self.menu_layout_save()
+            return False
+        if command in ("heading", "rename"):
+            if not model.edit:
+                return False
+            name = (model.add_heading() if command == "heading"
+                    else model.selected
+                    if model.heading() is not None else None)
+            if name is None:
+                self.menu_edge()
+            else:
+                self.say("commit" if command == "heading" else "show")
+                self.hud_rearranged()
+                self.menu_type_start(name)
+            self.push_menu_view()
             return False
         if command in ("pick", "remove", "hide", "place", "put_back",
                        "restore", "wider", "narrower", "taller", "shorter"):
@@ -6223,7 +6387,8 @@ class Daemon:
         """
         for name, opened in (("guide", self.guide_open),
                              ("quick", self.quick_open),
-                             ("menu", self.menu_open),
+                             ("menu", self.menu_open
+                              and self.menu.typing is None),
                              ("osk", self.osk_open)):
             if not opened:
                 continue

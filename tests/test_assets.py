@@ -332,6 +332,9 @@ class EveryControlIsDrawn(unittest.TestCase):
         # rather than a fill switched, because the ring and the window are
         # painted in two colours.
         "rows": ("travel:end-open", "key:ring", "key:lit"),
+        # Words on no ground at all, so nothing to generate: the whole of the
+        # drawing is the type.
+        "heading": (),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark

@@ -219,9 +219,11 @@ class BuildTests(unittest.TestCase):
                          ["Sticks", "Hide the pointer", "Button style"])
         # And the band under them is what omapad draws rather than what the
         # pad does - the three that were on Display reading as questions
-        # about the television, and how dark the desktop goes behind them.
+        # about the television, how heavy the words are, and how dark the
+        # desktop goes behind them.
         self.assertEqual(labels[start + 3:],
-                         ["Motion", "Corners", "Tile fill", "Background dim"])
+                         ["Motion", "Corners", "Text weight", "Tile fill",
+                          "Background dim"])
         pointer = rows[labels.index("Hide the pointer")]
         # A switch rather than two rows that both ticked: it has two states,
         # and the tile draws which one it is in.
@@ -2058,6 +2060,135 @@ class RearrangeTests(unittest.TestCase):
         # sends is one somebody is looking at a page through.
         model = self.model()
         self.assertNotIn("rm", model.view_state(True))
+
+
+class HeadingTests(unittest.TestCase):
+    """Words over a run of tiles, made from the pad or written in the config."""
+
+    def model(self):
+        return MenuModel(build([{"label": "Group", "items": [
+            {"label": "One", "action": "nop"},
+            {"label": "Two", "action": "nop"},
+            {"label": "Three", "action": "nop"},
+            {"label": "Four", "action": "nop"},
+        ]}], settings={}), columns=3)
+
+    def cells(self, model):
+        return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
+
+    def order(self, model):
+        return [tile["item"]["id"] for tile in model.tiles]
+
+    def test_only_a_page_being_rearranged_can_take_one(self):
+        model = self.model()
+        self.assertIsNone(model.add_heading())
+        model.set_edit(True)
+        self.assertEqual(model.add_heading(), "#1")
+        self.assertEqual(model.add_heading(), "#2")
+
+    def test_it_goes_over_the_tile_in_front_across_the_whole_row(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("two")
+        self.assertEqual(model.add_heading(), "#1")
+        self.assertEqual(model.selected, "#1")
+        cells = self.cells(model)
+        # One stays where it was; the heading takes the row under it whole,
+        # and Two starts the row under that.
+        self.assertEqual(cells["one"], (0, 0))
+        self.assertEqual(cells["#1"], (0, 1))
+        self.assertEqual(cells["two"], (0, 2))
+        self.assertEqual(model.tiles[1]["size"], (3, 1))
+
+    def test_nothing_after_it_climbs_above_it(self):
+        # Three tiles fit beside One; a heading after One is what stops them.
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("two")
+        model.add_heading()
+        for name in ("two", "three", "four"):
+            self.assertGreater(self.cells(model)[name][1], 1, name)
+
+    def test_it_is_walked_past_outside_the_mode(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("two")
+        model.add_heading()
+        model.set_heading("#1", "Games")
+        model.set_edit(False)
+        # The selection was on the heading and is handed to what it heads.
+        self.assertEqual(model.selected, "two")
+        self.assertFalse(model.select_id("#1"))
+        model.select_id("one")
+        self.assertTrue(model.step("down"))
+        self.assertEqual(model.selected, "two")
+        self.assertTrue(model.step("up"))
+        self.assertEqual(model.selected, "one")
+
+    def test_it_is_carried_past_tiles_rather_than_into_a_cell(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("two")
+        model.add_heading()
+        self.assertTrue(model.pick())
+        self.assertTrue(model.carry("right"))
+        self.assertEqual(self.order(model), ["one", "two", "#1", "three",
+                                             "four"])
+        self.assertNotIn("#1", model.plan()["at"])
+        self.assertTrue(model.carry("up"))
+        self.assertEqual(self.order(model)[0], "#1")
+        self.assertFalse(model.carry("up"))
+        self.assertTrue(model.carry("down"))
+        # Past the whole row that stood under it: three across, so all of
+        # One, Two and Three.
+        self.assertEqual(self.order(model), ["one", "two", "three", "#1",
+                                             "four"])
+
+    def test_x_deletes_it_rather_than_putting_it_in_the_strip(self):
+        model = self.model()
+        model.set_edit(True)
+        model.add_heading()
+        self.assertTrue(model.remove())
+        self.assertNotIn("#1", self.order(model))
+        self.assertEqual(model.removed(), [])
+        self.assertEqual(model.plan()["headings"], {})
+
+    def test_its_words_are_carried_to_the_panel(self):
+        model = self.model()
+        model.set_edit(True)
+        model.add_heading()
+        model.set_heading("#1", "Games")
+        model.typing = "#1"
+        row = [one for one in model.view_state(True)["items"]
+               if one["id"] == "#1"][0]
+        self.assertEqual(row["l"], "Games")
+        self.assertEqual(row["k"], "heading")
+        self.assertTrue(row["ty"])
+
+    def test_the_config_can_write_one(self):
+        items = build([{"label": "Group", "items": [
+            {"label": "Games", "control": "heading"},
+            {"label": "One", "action": "nop"},
+        ]}], settings={}, columns=4)
+        heading = items[0]["items"][0]
+        self.assertEqual(heading["control"], "heading")
+        self.assertEqual(heading["span"], (4, 1))
+        model = MenuModel(items, columns=4)
+        # Walked past: the page opens on the first tile it heads.
+        self.assertEqual(model.selected, "one")
+
+    def test_a_heading_is_words_and_nothing_else(self):
+        for extra in ({"action": "nop"}, {"items": [{"label": "A",
+                                                      "action": "nop"}]},
+                      {"stay": True}, {"countdown": 3}):
+            entry = dict({"label": "Games", "control": "heading"}, **extra)
+            with self.assertRaises(MenuError, msg=repr(extra)):
+                build([entry], settings={})
+
+    def test_an_id_cannot_pass_for_one_made_from_the_pad(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "One", "id": "#1", "action": "nop"}],
+                  settings={})
 
 
 class MovingATileToAnotherPage(unittest.TestCase):

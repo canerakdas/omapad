@@ -63,6 +63,9 @@ Item {
   property real uiScale: 1.0
   // The family its words are set in (`[ui] font`), empty for the desktop's.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
   // How long everything on it takes to move (`[ui] motion`). 0 is none.
   property real motion: 1.0
   // What share of each screen edge a television crops (`[ui] safe_area`).
@@ -105,6 +108,7 @@ Item {
     radiusScale: root.radiusScale
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
     safeArea: root.safeArea
     cornerBase: root.corner
@@ -157,10 +161,10 @@ Item {
   readonly property int rowWidth:
     root.cell * root.count + root.cellGap * (root.count - 1)
 
-  // The legend's badge: GameBar.qml's own expression, off the shell's scale
-  // rather than this surface's ladder, for the reason the header gives.
+  // The legend's badge: GameBar.qml's own expression, character for
+  // character, for the reason the header gives.
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
+    Math.max(metrics.space(20), metrics.type.fine + metrics.space(7)))
 
   // A typed badge label is centred on its capitals, not on its line box
   // (qml.md 8.5): measured with the label's own font rather than typed in.
@@ -171,7 +175,7 @@ Item {
     textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.round(root.badgeUnit * 0.44)
-    font.weight: Font.Medium
+    font.weight: buttonArt.weight
   }
   TextMetrics {
     id: capInk
@@ -203,6 +207,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)
@@ -295,7 +301,7 @@ Item {
       font.pixelSize: Math.round(badge.unit * 0.44)
       fontSizeMode: Text.HorizontalFit
       minimumPixelSize: Math.max(6, Math.round(badge.unit * 0.26))
-      font.weight: Font.Medium
+      font.weight: buttonArt.weight
     }
   }
 
@@ -348,9 +354,9 @@ Item {
         color: Color.accent
         font.family: metrics.font.family
         font.pixelSize: metrics.type.fine
-        font.weight: Font.Medium
+        font.weight: metrics.weight.name
         font.capitalization: Font.AllUppercase
-        font.letterSpacing: Math.round(metrics.type.fine * 0.09)
+        font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
         elide: Text.ElideRight
       }
 
@@ -365,7 +371,7 @@ Item {
         // is the thing being read, and a window's name set at the largest
         // rung outweighed it.
         font.pixelSize: metrics.type.lead
-        font.weight: Font.Medium
+        font.weight: metrics.weight.name
         elide: Text.ElideRight
       }
     }
@@ -491,6 +497,7 @@ Item {
               color: Color.menu.text
               opacity: root.inkDim
               font.family: metrics.font.family
+              font.weight: metrics.weight.body
               font.pixelSize: metrics.type.fine
               font.capitalization: Font.AllUppercase
               elide: Text.ElideRight
@@ -509,7 +516,7 @@ Item {
               color: Color.menu.text
               font.family: metrics.font.family
               font.pixelSize: metrics.type.body
-              font.weight: Font.Medium
+              font.weight: metrics.weight.name
               // Two lines before an ellipsis: three words is the label
               // budget, and a cell is narrower than three words at this size.
               wrapMode: Text.WordWrap
@@ -560,9 +567,9 @@ Item {
             opacity: root.inkMuted
             font.family: metrics.font.family
             font.pixelSize: metrics.type.fine
-            font.weight: Font.Medium
+            font.weight: metrics.weight.name
             font.capitalization: Font.AllUppercase
-            font.letterSpacing: Math.round(metrics.type.fine * 0.09)
+            font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
             elide: Text.ElideRight
           }
 
@@ -573,6 +580,7 @@ Item {
             textFormat: Text.PlainText
             color: root.band.x === true ? Color.urgent : Color.menu.text
             font.family: metrics.font.family
+            font.weight: metrics.weight.display
             font.pixelSize: metrics.type.loud
             elide: Text.ElideRight
           }
@@ -624,6 +632,7 @@ Item {
             color: bandCard.armed ? Color.urgent : Color.menu.text
             opacity: bandCard.armed ? 1 : root.inkMuted
             font.family: metrics.font.family
+            font.weight: metrics.weight.body
             font.pixelSize: bandCard.hasBar ? metrics.type.fine : metrics.type.body
             wrapMode: Text.WordWrap
             maximumLineCount: 2
@@ -673,7 +682,8 @@ Item {
               color: Color.bar.text
               opacity: 0.85
               font.family: metrics.font.family
-              font.pixelSize: metrics.font.bodySmall
+              font.weight: metrics.weight.body
+              font.pixelSize: metrics.type.fine
             }
           }
         }

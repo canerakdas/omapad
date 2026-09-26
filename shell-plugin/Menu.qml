@@ -181,6 +181,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
 
   // Whether omapad's own bar is holding a strip of the screen under this.
   // The scrim dims the desktop the menu stands in front of, and the bar is
@@ -226,6 +229,7 @@ Item {
     radiusScale: root.radiusScale
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
     safeArea: root.safeArea
     cornerBase: root.corner
@@ -269,7 +273,7 @@ Item {
   // shared, the same as `barh` and `barSideMargin` above - if it changes
   // there it changes here.
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
+    Math.max(metrics.space(20), metrics.type.fine + metrics.space(7)))
 
   // A typed badge label centred in its shape is centred by its *line box*,
   // and the line box is not centred on the capitals inside it - the letter
@@ -284,7 +288,7 @@ Item {
     textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.round(root.badgeUnit * 0.44)
-    font.weight: Font.Medium
+    font.weight: buttonArt.weight
   }
   TextMetrics {
     id: capInk
@@ -377,13 +381,13 @@ Item {
   // "nothing here" is a band a page is shorter for, every time the menu is
   // opened.
   readonly property int chipHeight:
-    metrics.font.bodySmall + metrics.space(10)
+    metrics.type.fine + metrics.space(10)
   readonly property int removedHeight:
     (root.editing && root.removed.length > 0) ? root.chipHeight : 0
   readonly property int removedBand: root.removedHeight <= 0 ? 0
     : root.removedHeight + root.contentSpacing
   readonly property int legendHeight: root.keys.length > 0
-    ? Math.max(root.badgeUnit, metrics.font.bodySmall) + metrics.space(6) : 0
+    ? Math.max(root.badgeUnit, metrics.type.fine) + metrics.space(6) : 0
   // What the legend takes off the bottom. On a card it is its own height and
   // the gap above it; on the whole screen it is the game bar's band, because
   // that is where the row it replaces was.
@@ -626,6 +630,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)
@@ -1082,7 +1088,7 @@ Item {
       font.pixelSize: Math.round(badge.unit * 0.44)
       fontSizeMode: Text.HorizontalFit
       minimumPixelSize: Math.max(6, Math.round(badge.unit * 0.26))
-      font.weight: Font.Medium
+      font.weight: buttonArt.weight
     }
   }
 
@@ -1364,19 +1370,20 @@ Item {
                   color: Color.menu.text
                   font.family: metrics.font.family
                   font.pixelSize: metrics.type.body
-                  font.weight: Font.Medium
+                  font.weight: metrics.weight.name
                   // Tracked far out, and only here. A name and a time set
                   // side by side at the top of a screen are a masthead, and
                   // a masthead is spaced: the design sets this one line at
-                  // sixteen hundredths of its own letter, which is four
-                  // times what a tracked caption takes.
+                  // sixteen hundredths of its own letter, wider than the
+                  // eighth a tracked caption takes (`metrics.tracking`).
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.body * 0.16
+                  font.letterSpacing:
+                    metrics.tracking.masthead(metrics.type.body)
                   // Time set here is read as a shape rather than spelled
                   // out, and the shape has to hold still: with proportional
                   // figures the line re-lays itself every minute as a 1
                   // replaces an 8.
-                  font.features: ({ "tnum": 1 })
+                  font.features: metrics.figures
                   elide: Text.ElideRight
                 }
 
@@ -1391,6 +1398,7 @@ Item {
                   color: Color.menu.text
                   opacity: root.inkDim
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   // The one place this surface sets capitals on somebody
                   // else's words, and a typographic decision rather than a
@@ -1399,8 +1407,8 @@ Item {
                   // it is. Tracked, because caps set without it read as a
                   // word with its letters touching.
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.fine / 8
-                  font.features: ({ "tnum": 1 })
+                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
+                  font.features: metrics.figures
                   elide: Text.ElideRight
                 }
               }
@@ -1432,6 +1440,7 @@ Item {
             color: Color.menu.text
             opacity: root.inkDim
             font.family: metrics.font.family
+            font.weight: metrics.weight.body
             font.pixelSize: metrics.type.lead
             elide: Text.ElideRight
           }
@@ -1446,6 +1455,7 @@ Item {
             color: Color.menu.text
             opacity: 0.42
             font.family: metrics.font.family
+            font.weight: metrics.weight.body
             font.pixelSize: metrics.type.body
           }
         }
@@ -1723,7 +1733,8 @@ Item {
                   // to be walked.
                   font.family: metrics.font.family
                   font.pixelSize: metrics.type.body
-                  font.weight: nav.here ? Font.Medium : Font.Normal
+                  font.weight: nav.here
+                    ? metrics.weight.strong : metrics.weight.body
                   elide: Text.ElideRight
                 }
 
@@ -1753,10 +1764,11 @@ Item {
                   color: nav.navInk
                   opacity: root.inkDim
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.fine / 8
-                  font.features: ({ "tnum": 1 })
+                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
+                  font.features: metrics.figures
                   elide: Text.ElideRight
                 }
 
@@ -1964,6 +1976,9 @@ Item {
                 y: root.cellY(tile.modelData.y)
                 width: root.cellSpan(tile.modelData.w)
                 height: root.rowsHeight(tile.modelData.h)
+                // A heading is drawn by the Repeater after this one, with none
+                // of what a tile is drawn with.
+                visible: tile.modelData.k !== "heading"
 
                 // A tile that has been taken off the page is drawn where it
                 // sits, faded, rather than moved anywhere: there is nothing to
@@ -2748,9 +2763,10 @@ Item {
                     // figure and finds the name without looking for it.
                     opacity: root.inkMuted
                     font.family: metrics.font.family
+                    font.weight: metrics.weight.body
                     font.pixelSize: metrics.type.fine
                     font.capitalization: Font.AllUppercase
-                    font.letterSpacing: metrics.type.fine / 8
+                    font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                     elide: Text.ElideRight
                   }
 
@@ -2790,6 +2806,7 @@ Item {
                     // cell saying "on" twice and "how much" nowhere.
                     color: tile.ink
                     font.family: metrics.font.family
+                    font.weight: metrics.weight.body
                     font.pixelSize: metrics.type.lead
                     // A value is what the machine reports, and most of them
                     // are a number that keeps arriving: a reading is asked
@@ -2799,7 +2816,7 @@ Item {
                     // across a room reads as the number twitching rather than
                     // as the number changing. The clock in the head strip is
                     // set this way for the same reason.
-                    font.features: ({ "tnum": 1 })
+                    font.features: metrics.figures
                   }
                 }
 
@@ -2973,8 +2990,9 @@ Item {
                       }
                       font.family: metrics.font.family
                       font.pixelSize: metrics.type.fine
-                      font.weight: Font.Medium
-                      font.letterSpacing: metrics.type.fine / 8
+                      font.weight: metrics.weight.name
+                      font.letterSpacing:
+                        metrics.tracking.caps(metrics.type.fine)
                     }
                   }
                 }
@@ -3001,6 +3019,7 @@ Item {
                   color: tile.ink
                   opacity: root.inkDim
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   elide: Text.ElideRight
                 }
@@ -3022,7 +3041,7 @@ Item {
                   color: tile.ink
                   font.family: metrics.font.family
                   font.pixelSize: metrics.type.body
-                  font.weight: Font.Medium
+                  font.weight: metrics.weight.name
                   elide: Text.ElideRight
                 }
 
@@ -3070,9 +3089,10 @@ Item {
                   color: tile.ink
                   opacity: root.inkMuted
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.fine / 8
+                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                 }
 
                 // **The ends of the spine**: the line carries on a little
@@ -3190,9 +3210,10 @@ Item {
                   color: tile.ink
                   opacity: root.inkDim
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.fine / 8
+                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                   elide: Text.ElideRight
                 }
 
@@ -3216,6 +3237,7 @@ Item {
                   textFormat: Text.PlainText
                   color: tile.ink
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.lead
                   wrapMode: Text.WordWrap
                   maximumLineCount: 2
@@ -3662,7 +3684,7 @@ Item {
                         font.family: metrics.font.family
                         font.pixelSize: metrics.type.body
                         font.weight: (line.here || line.ticked)
-                          ? Font.Medium : Font.Normal
+                          ? metrics.weight.strong : metrics.weight.body
                         elide: Text.ElideRight
                       }
 
@@ -3694,6 +3716,7 @@ Item {
                         // would mean.
                         opacity: root.inkDim
                         font.family: metrics.font.family
+                        font.weight: metrics.weight.body
                         font.pixelSize: metrics.type.fine
                         elide: Text.ElideRight
                       }
@@ -3719,6 +3742,7 @@ Item {
                         textFormat: Text.PlainText
                         color: Color.accent
                         font.family: metrics.font.family
+                        font.weight: metrics.weight.body
                         // **The name's size, not the value size the rest of
                         // this surface answers in.** A value is read against
                         // the words beside it and is sized to be picked out
@@ -3727,7 +3751,7 @@ Item {
                         // belongs to read as the row shouting seconds at
                         // somebody who is already watching them.
                         font.pixelSize: metrics.type.body
-                        font.features: ({ "tnum": 1 })
+                        font.features: metrics.figures
                       }
 
                       MouseArea {
@@ -3788,6 +3812,7 @@ Item {
                       textFormat: Text.PlainText
                       color: Color.accent
                       font.family: metrics.font.family
+                      font.weight: metrics.weight.body
                       // The size every value on this surface is set in. It
                       // was two rungs below, which made a choice the one kind
                       // of tile whose answer was smaller than its question -
@@ -3798,7 +3823,7 @@ Item {
                       // Held still between the chevrons - see the slider's
                       // value below. A choice walks through words more often
                       // than numbers, and a word is not hurt by it.
-                      font.features: ({ "tnum": 1 })
+                      font.features: metrics.figures
                       elide: Text.ElideRight
                     }
 
@@ -3987,6 +4012,7 @@ Item {
                         art: controlArt
                         family: metrics.font.family
                         figures: metrics.type.loud
+                        weight: metrics.weight.display
                         minutes: tile.modelData.mn !== undefined
                           ? tile.modelData.mn : 0
                         // Nothing turns while the card is down: the delegates
@@ -4047,8 +4073,9 @@ Item {
                   textFormat: Text.PlainText
                   color: Color.accent
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.body
-                  font.features: ({ "tnum": 1 })
+                  font.features: metrics.figures
                   anchors.right: parent.right
                   anchors.top: parent.top
                   anchors.rightMargin: metrics.gap.md
@@ -4067,6 +4094,7 @@ Item {
                   color: Color.menu.text
                   opacity: tile.modelData.sub ? 0.36 : 0
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.body
                   anchors.right: parent.right
                   anchors.top: parent.top
@@ -4091,6 +4119,141 @@ Item {
                     root.pointerSelect(tile.index, tile, mouse)
                   }
                   onClicked: root.pointerActivate(tile.index)
+                }
+              }
+            }
+
+            // **The headings**, drawn apart from the tiles because they share
+            // nothing with one but the cell they are placed in: no ground, no
+            // ring, no light and no mark. A heading is words over a run of
+            // tiles, and a card behind it would make it one more tile - the
+            // thing it is there to name a run *of*.
+            //
+            // A second Repeater over the same model rather than a branch in
+            // the tile's delegate, which draws a dozen layers a heading has no
+            // use for; the tile's delegate stands down on one (`visible`).
+            Repeater {
+              model: root.items
+
+              delegate: Item {
+                id: heading
+                required property int index
+                required property var modelData
+
+                readonly property bool shown: heading.modelData.k === "heading"
+                // Only while the page is being rearranged: everywhere else a
+                // heading is walked past, so there is nothing to be on.
+                readonly property bool selected: root.editing
+                  && heading.modelData.id === root.sel
+                readonly property bool carried: root.editing
+                  && heading.modelData.id === root.picked
+                readonly property bool typing: heading.modelData.ty === true
+
+                // **Its own size, from its own box, by the silver ratio.** The
+                // words take one part of the height in `silver` squared and
+                // the air takes the rest, so a heading made taller is a louder
+                // one and nothing has to say which rung of the ladder that is.
+                // The ladder is for type that sits beside other type; this
+                // sits over a run of tiles, and what it answers to is the box
+                // it was given. `fine` is the floor, for a cell set small.
+                //
+                // Squared, and it was not: one part in `silver` set a one-row
+                // heading at twice the size of anything else on the card, and
+                // a heading that outshouts the tiles it names reads as the
+                // page's title rather than as a section of it.
+                readonly property int size: Math.max(metrics.type.fine,
+                  Math.round(heading.height / metrics.silver / metrics.silver))
+                // And the air split the same way, the smaller share under the
+                // words: a heading belongs to the tiles below it, so it sits
+                // nearer to them than to the ones above.
+                readonly property int under: Math.round(
+                  (heading.height - heading.size) / metrics.silver / metrics.silver)
+
+                visible: heading.shown
+                x: root.cellX(heading.modelData.x) + root.shift
+                y: root.cellY(heading.modelData.y)
+                width: root.cellSpan(heading.modelData.w)
+                height: root.rowsHeight(heading.modelData.h)
+
+                // The box it stands in, while there is a page to arrange: an
+                // outline and nothing inside it, so it can be found and
+                // carried without a ground ever being drawn under the words.
+                // The accent where the selection or the hand is, the cell's
+                // own edge everywhere else.
+                Rectangle {
+                  anchors.fill: parent
+                  visible: root.editing
+                  color: "transparent"
+                  radius: metrics.radius.tile
+                  border.width: metrics.gap.hairline
+                  border.color: (heading.selected || heading.carried)
+                    ? Color.accent : root.cellEdge
+                  Behavior on border.color {
+                    ColorAnimation { duration: metrics.time.brisk }
+                  }
+                }
+
+                Text {
+                  id: words
+                  anchors.left: parent.left
+                  anchors.bottom: parent.bottom
+                  // The tiles' own inset, so the words start where the names
+                  // under them start.
+                  anchors.leftMargin: metrics.gap.xxl
+                  anchors.bottomMargin: heading.under
+                  width: Math.max(0, parent.width - metrics.gap.xxl * 2
+                                  - (heading.typing ? caret.width * 2 : 0))
+                  text: heading.modelData.l !== undefined
+                    ? heading.modelData.l : ""
+                  // Somebody's own words, typed on a pad: never markup.
+                  textFormat: Text.PlainText
+                  color: Color.menu.text
+                  font.family: metrics.font.family
+                  font.pixelSize: heading.size
+                  // The book weight: the size already says it is a heading,
+                  // and a heavy stroke on top of it was the loudest thing on
+                  // the page.
+                  font.weight: metrics.weight.display
+                  // A long heading in a narrow box comes down to fit before
+                  // it is cut, and is cut only below the floor.
+                  fontSizeMode: Text.HorizontalFit
+                  minimumPixelSize: metrics.type.fine
+                  elide: Text.ElideRight
+                }
+
+                // Where the next letter goes, while the keyboard is typing
+                // into this one. The line's weight, so it is the same stroke
+                // as every other line this surface draws.
+                Rectangle {
+                  id: caret
+                  visible: heading.typing
+                  width: metrics.spine.weight
+                  height: words.font.pixelSize
+                  x: words.x + Math.min(words.contentWidth, words.width)
+                    + metrics.gap.xxs
+                  anchors.bottom: words.bottom
+                  anchors.bottomMargin: Math.round(
+                    (words.height - words.font.pixelSize) / 2)
+                  color: Color.accent
+                }
+
+                // Only while the page is being arranged, for the reason the
+                // pad walks past one: outside that mode there is nothing on a
+                // heading for a pointer to be on either.
+                MouseArea {
+                  id: headingPicker
+                  anchors.fill: parent
+                  enabled: root.editing && heading.shown
+                  hoverEnabled: true
+                  cursorShape: Qt.PointingHandCursor
+                  onEntered: root.pointerSelect(heading.index, heading, {
+                    x: headingPicker.mouseX,
+                    y: headingPicker.mouseY
+                  })
+                  onPositionChanged: function(mouse) {
+                    root.pointerSelect(heading.index, heading, mouse)
+                  }
+                  onClicked: root.pointerActivate(heading.index)
                 }
               }
             }
@@ -4127,9 +4290,10 @@ Item {
             // in it and the chips are the things being read.
             opacity: root.inkMuted
             font.family: metrics.font.family
+            font.weight: metrics.weight.body
             font.pixelSize: metrics.type.fine
             font.capitalization: Font.AllUppercase
-            font.letterSpacing: metrics.type.fine / 8
+            font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
           }
 
           ListView {
@@ -4186,7 +4350,8 @@ Item {
                   color: Color.menu.text
                   opacity: chip.here ? 1 : root.inkMuted
                   font.family: metrics.font.family
-                  font.pixelSize: metrics.font.bodySmall
+                  font.weight: metrics.weight.body
+                  font.pixelSize: metrics.type.fine
                 }
 
                 Text {
@@ -4200,9 +4365,10 @@ Item {
                   color: Color.menu.text
                   opacity: root.inkDim
                   font.family: metrics.font.family
+                  font.weight: metrics.weight.body
                   font.pixelSize: metrics.type.fine
                   font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.type.fine / 8
+                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                 }
               }
 
@@ -4290,7 +4456,8 @@ Item {
                 color: Color.bar.text
                 opacity: 0.85
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.bodySmall
+                font.weight: metrics.weight.body
+                font.pixelSize: metrics.type.fine
               }
             }
           }

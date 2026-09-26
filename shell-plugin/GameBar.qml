@@ -92,6 +92,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
   // Which of the two ways a badge is drawn (`[ui] badge_style`). A payload
   // field rather than a shell constant: the panel cannot read the config, and
   // the answer changes from the menu while the surface is up.
@@ -124,8 +127,13 @@ Item {
     id: metrics
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
     safeArea: root.safeArea
+    // The bar's own ground and ink rather than the menu's: whether a theme
+    // is light is a question about what this strip is drawn on.
+    ground: Color.bar.background
+    ink: Color.bar.text
   }
 
   // The drawn buttons, and the font their labels are set in.
@@ -161,7 +169,7 @@ Item {
   readonly property int safeGap: metrics.edge(root.screenH, 0)
   readonly property int safeSide: metrics.edge(root.screenW, 0)
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.space(20), metrics.font.bodySmall + metrics.space(7)))
+    Math.max(metrics.space(20), metrics.type.fine + metrics.space(7)))
   readonly property int barHeight: Math.max(metrics.space(wantedHeight),
     badgeUnit + metrics.space(3) * 2)
   // Zero means no badge leans, and the sweep says the whole of the confirm
@@ -184,7 +192,7 @@ Item {
     textFormat: Text.PlainText
     font.family: buttonArt.family
     font.pixelSize: Math.round(root.badgeUnit * 0.44)
-    font.weight: Font.Medium
+    font.weight: buttonArt.weight
   }
   TextMetrics {
     id: capInk
@@ -309,6 +317,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       if (s.safe !== undefined)
@@ -732,7 +742,7 @@ Item {
       font.pixelSize: Math.round(badge.unit * 0.44)
       fontSizeMode: Text.HorizontalFit
       minimumPixelSize: Math.max(6, Math.round(badge.unit * 0.26))
-      font.weight: Font.Medium
+      font.weight: buttonArt.weight
     }
   }
 
@@ -938,8 +948,8 @@ Item {
               textFormat: Text.PlainText
               color: root.foreground
               font.family: metrics.font.family
-              font.pixelSize: metrics.font.body
-              font.weight: Font.Medium
+              font.pixelSize: metrics.type.fine
+              font.weight: metrics.weight.name
             }
           }
         }
@@ -1000,7 +1010,8 @@ Item {
                 color: root.foreground
                 opacity: parent.focused || root.occupied(parent.modelData) ? 1 : 0.5
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.body
+                font.weight: metrics.weight.body
+                font.pixelSize: metrics.type.fine
               }
             }
           }
@@ -1040,7 +1051,8 @@ Item {
           color: root.foreground
           opacity: 0.45
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.bodySmall
+          font.weight: metrics.weight.body
+          font.pixelSize: metrics.type.fine
         }
 
         Repeater {
@@ -1082,7 +1094,8 @@ Item {
                 color: root.foreground
                 opacity: 0.85
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.bodySmall
+                font.weight: metrics.weight.body
+                font.pixelSize: metrics.type.fine
               }
             }
 

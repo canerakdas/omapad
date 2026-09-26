@@ -53,6 +53,9 @@ Item {
   // lettered in the face their drawings were punched with, which is
   // `buttonArt.family`. See `Metrics.fontFamily`.
   property string fontFamily: ""
+  // And how many steps heavier than the theme's weights its words are set
+  // (`[ui] weight`, `game_weight`). See `Metrics.weightStep`.
+  property real weightStep: 0
 
   // Whether omapad's own bar is holding a strip of the screen under this.
   // The scrim dims the desktop, and the bar is not the desktop: it prints
@@ -89,6 +92,7 @@ Item {
     radiusScale: root.radiusScale
     scale: root.uiScale
     fontFamily: root.fontFamily
+    weightStep: root.weightStep
     motion: root.motion
   }
 
@@ -101,13 +105,15 @@ Item {
     id: buttonArt
   }
 
-  // Same measurements as the menu, so the two read as one family.
-  readonly property int contentMargin: metrics.spacing.panelPadding
-  readonly property int columnGap: metrics.space(28)
-  readonly property int groupGap: metrics.space(14)
-  readonly property int rowGap: metrics.space(5)
+  // On the menu's ladder (qml.md 8.2.1), so the two read as one family: the
+  // card's air is the menu's sixteen pixels, a column stands a rung past the
+  // groups, and a row is the smallest gap that still reads as two lines.
+  readonly property int contentMargin: metrics.gap.xl
+  readonly property int columnGap: metrics.gap.xxxl
+  readonly property int groupGap: metrics.gap.xl
+  readonly property int rowGap: metrics.gap.sm
   readonly property int badgeUnit: metrics.badge(
-    Math.max(metrics.space(22), metrics.font.body + metrics.space(8)))
+    Math.max(metrics.space(22), metrics.type.body + metrics.gap.md))
   // A shoulder is drawn twice as wide as it is tall; every row indents past
   // that, so a column of badges lines its descriptions up whatever is in it.
   readonly property int badgeWide: Math.round(badgeUnit * 2)
@@ -126,8 +132,8 @@ Item {
     text: "H"
     textFormat: Text.PlainText
     font.family: buttonArt.family
-    font.pixelSize: metrics.font.bodySmall
-    font.weight: Font.Medium
+    font.pixelSize: Math.round(root.badgeUnit * 0.44)
+    font.weight: buttonArt.weight
   }
   TextMetrics {
     id: capInk
@@ -166,6 +172,8 @@ Item {
       // First, so a scale change lands even if a later field throws.
       if (s.scale !== undefined) root.uiScale = Number(s.scale) || 1
       if (s.font !== undefined) root.fontFamily = String(s.font)
+      if (s.weight !== undefined)
+        root.weightStep = Number(s.weight) || 0
       if (s.motion !== undefined)
         root.motion = Math.max(0, Number(s.motion))
       // Whether the pad has been touched lately enough to go on holding
@@ -282,10 +290,13 @@ Item {
       // through, and on a washed one it is the card's text.
       color: root.stencil ? Color.menu.background : Color.menu.text
       font.family: buttonArt.family
-      font.pixelSize: metrics.font.bodySmall
+      // Off the ladder and off the badge, the bar's own proportion: a typed
+      // label is the size of the shape it is punched into rather than a
+      // size of type (qml.md 8.2.1, mirrored measurements).
+      font.pixelSize: Math.round(root.badgeUnit * 0.44)
       fontSizeMode: Text.HorizontalFit
-      minimumPixelSize: Math.max(6, metrics.font.caption - metrics.space(2))
-      font.weight: Font.Medium
+      minimumPixelSize: Math.max(6, Math.round(root.badgeUnit * 0.26))
+      font.weight: buttonArt.weight
     }
   }
 
@@ -312,7 +323,7 @@ Item {
     Text {
       id: label
       anchors.left: parent.left
-      anchors.leftMargin: root.badgeWide + metrics.space(10)
+      anchors.leftMargin: root.badgeWide + metrics.gap.lg
       anchors.right: parent.right
       height: Math.ceil(label.implicitHeight)
       y: line.hasHold ? 0 : Math.round((line.height - label.height) / 2)
@@ -320,7 +331,8 @@ Item {
       textFormat: Text.PlainText
       color: Color.menu.text
       font.family: metrics.font.family
-      font.pixelSize: metrics.font.body
+      font.weight: metrics.weight.body
+      font.pixelSize: metrics.type.body
       elide: Text.ElideRight
     }
 
@@ -336,7 +348,8 @@ Item {
       color: Color.menu.text
       opacity: 0.52
       font.family: metrics.font.family
-      font.pixelSize: metrics.font.caption
+      font.weight: metrics.weight.body
+      font.pixelSize: metrics.type.fine
       elide: Text.ElideRight
     }
   }
@@ -384,7 +397,7 @@ Item {
         anchors.topMargin: card.borderTop + root.contentMargin
         anchors.leftMargin: card.borderLeft + root.contentMargin
         anchors.rightMargin: card.borderRight + root.contentMargin
-        spacing: metrics.spacing.md
+        spacing: metrics.gap.sm
 
         Text {
           id: heading
@@ -394,8 +407,8 @@ Item {
           textFormat: Text.PlainText
           color: Color.menu.text
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.heading
-          font.weight: Font.Medium
+          font.pixelSize: metrics.type.lead
+          font.weight: metrics.weight.name
           elide: Text.ElideRight
         }
 
@@ -407,11 +420,12 @@ Item {
           color: Color.menu.text
           opacity: 0.55
           font.family: metrics.font.family
-          font.pixelSize: metrics.font.bodySmall
+          font.weight: metrics.weight.body
+          font.pixelSize: metrics.type.fine
           elide: Text.ElideRight
         }
 
-        Item { width: 1; height: metrics.space(4) }
+        Item { width: 1; height: metrics.gap.xs }
 
         // The page itself: omapad has already packed the groups into
         // columns, because it is the side that knows how many rows a page can
@@ -449,8 +463,8 @@ Item {
                     textFormat: Text.PlainText
                     color: Color.accent
                     font.family: metrics.font.family
-                    font.pixelSize: metrics.font.caption
-                    font.weight: Font.Medium
+                    font.pixelSize: metrics.type.fine
+                    font.weight: metrics.weight.name
                     elide: Text.ElideRight
                   }
 
@@ -470,7 +484,7 @@ Item {
 
         Item {
           width: 1
-          height: metrics.space(6)
+          height: metrics.gap.sm
           visible: root.count > 1
         }
 
@@ -490,7 +504,7 @@ Item {
         Row {
           id: pager
           anchors.horizontalCenter: parent.horizontalCenter
-          spacing: metrics.space(2)
+          spacing: metrics.gap.xxs
           visible: root.count > 1
 
           Repeater {
@@ -512,7 +526,8 @@ Item {
                 color: pip.current ? Color.accent : Color.menu.text
                 opacity: pip.current ? 1 : 0.5
                 font.family: metrics.font.family
-                font.pixelSize: metrics.font.body
+                font.weight: metrics.weight.body
+                font.pixelSize: metrics.type.body
               }
             }
           }

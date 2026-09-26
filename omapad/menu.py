@@ -72,7 +72,7 @@ BIAS = 2.0
 # validation that fails `omapad check`, and a test. A control that can be
 # added by touching one file is one that can ship half-drawn.
 CONTROLS = ("toggle", "choice", "slider", "knob", "gauge", "media",
-            "readout", "clock", "chrono", "rows", "row_break")
+            "readout", "clock", "chrono", "rows", "row_break", "heading")
 
 # Which control a setting may be drawn as, by the kind of thing it holds. A
 # switch pointed at a number is a tile that could never draw itself, and the
@@ -167,6 +167,26 @@ CLOCK = "clock"
 # (see `hud.py`). One name each, and the two are told apart by what a payload
 # carries rather than by a flag somebody has to look up.
 CHRONO = "chrono"
+
+# Words over a run of tiles, saying what the run is. It is the one tile that
+# is not a thing to press: nothing happens at it, so it is walked **past**
+# rather than onto everywhere but while a page is being rearranged, where it
+# is a thing to carry like any other. And it is a paragraph mark as well as a
+# name - the tiles written after it start below it, and nothing written after
+# it backfills a hole above it - because a heading a tile could climb over is
+# a heading over the wrong tiles.
+#
+# Two ways to have one, for the rule that anything the pad can make the
+# config can write: `control = "heading"` with a `label` in `config.toml`,
+# and one made from the pad while a page is being rearranged, which lives in
+# that page's arrangement rather than in the tree.
+HEADING = "heading"
+
+# What the id of a heading made from the pad starts with. Never produced by
+# `slug` and refused in a written `id`, so a heading made on a page can never
+# be taken for a tile the config has - `#` is to a heading what `REF` is to a
+# tile a page was given.
+HEADING_MARK = "#"
 
 # How long a row that counts down counts for, where it does not say. Seconds,
 # and a whole number of them because the row prints it: a count that went
@@ -343,6 +363,14 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         source = entry.get("from")
         if children is not None and spec is not None:
             raise MenuError("%s has both an action and items" % path)
+        if control == HEADING and (children is not None or spec is not None
+                                   or source is not None):
+            # Said rather than ignored: a heading is walked past everywhere
+            # but while a page is being rearranged, so whatever it was meant
+            # to run would be a row nobody could ever press.
+            raise MenuError(
+                "%s: a heading is words - it has no action and no items"
+                % path)
         if control == ROWS and children is None and source is None:
             raise MenuError(
                 "%s: a %s tile is drawn from its items, and has none"
@@ -499,6 +527,13 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         item["open_on"] = bool(entry.get("open_on", False))
         if item["open_on"] and not item["when"]:
             raise MenuError("%s: 'open_on' needs a 'when'" % path)
+        if item["id"].startswith(HEADING_MARK):
+            # What a heading made from the pad is called, so an id written
+            # with it could be one the pad later makes as well.
+            raise MenuError(
+                "%s: an id cannot start with %r - it is what names a heading "
+                "made from the pad" % (path, HEADING_MARK)
+            )
         if REF in item["id"]:
             # Said here rather than found later: this is the character that
             # names a tile on another page, and an id holding one would make
@@ -591,6 +626,16 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 # nothing to protect.
                 raise MenuError("%s: a control is not confirmed" % path)
             item["stay"] = True
+        elif item["control"] == HEADING:
+            # Nothing happens at a heading, so nothing about what happens can
+            # be asked of it either.
+            if item["repeat"] or item["stay"] or item["confirm"]:
+                raise MenuError(
+                    "%s: a heading is words - nothing happens at it" % path)
+            if item["open_on"]:
+                raise MenuError(
+                    "%s: the menu cannot open on a heading - it is walked past"
+                    % path)
         else:
             raise MenuError("%s needs an action or items" % path)
         items.append(item)
@@ -844,6 +889,11 @@ def _span(entry, control, path, columns):
     """How many cells a tile takes, as (width, height)."""
     spec = entry.get("span")
     if spec is None:
+        if control == HEADING:
+            # The whole width, because it heads a run of tiles rather than
+            # one of them - and not in SPANS, because how wide the whole
+            # width is is the page's to say.
+            return (columns, 1)
         return SPANS.get(control, SPANS[""])
     if not isinstance(spec, (list, tuple)) or len(spec) != 2:
         raise MenuError("%s: 'span' is [width, height] in cells" % path)
@@ -1319,6 +1369,47 @@ def given_away(layout, page):
     return out
 
 
+def heading_item(name, text, columns=COLUMNS):
+    """A heading made from the pad, as a tile the page can place.
+
+    Built rather than written in the tree, because it is not in the tree: it
+    is part of one page's arrangement, and the arrangement is what `arrange`
+    merges. Every field a tile has, so nothing that walks a page has to ask
+    whether this one is real.
+    """
+    return {
+        "label": str(text), "icon": "", "icon_font": "", "detail": "",
+        "meta": _group_meta(None, ""), "items": None, "action": None,
+        "repeat": False, "stay": False, "from": None, "template": None,
+        "empty": "", "when": (), "control": HEADING, "rows": None,
+        "many": False, "confirm": False, "countdown": 0, "id": name,
+        "span": (columns, 1), "open_on": False, "keys": {}, "reads": (),
+        "shows": "",
+    }
+
+
+def headings_of(plan, columns=COLUMNS):
+    """The headings a page was given from the pad, in the order they were made.
+
+    Only the ones shaped like one: an id without the mark would be a name a
+    tile the config has could also answer to.
+    """
+    out = []
+    for name, text in sorted(((plan or {}).get("headings") or {}).items(),
+                             key=lambda pair: _heading_number(pair[0])):
+        if str(name).startswith(HEADING_MARK):
+            out.append(heading_item(name, text, columns))
+    return out
+
+
+def _heading_number(name):
+    """The number in `#3`, for the order headings were made in. 0 for none."""
+    try:
+        return int(str(name)[len(HEADING_MARK):])
+    except ValueError:
+        return 0
+
+
 def arrange(items, plan, extra=(), gone=()):
     """One page's tiles, in the order and at the sizes somebody chose.
 
@@ -1454,12 +1545,22 @@ def place(items, columns, plan=None, rows=None):
             continue
         if item["id"] in where:
             continue
+        heading = item["control"] == HEADING
+        if heading:
+            # A heading starts a row of its own, the way a break does, so it
+            # stands under everything written before it.
+            floor = flowed
         width, height = effective_span(item, plan)
         width = min(width, columns)
         x, y = _first_fit(taken, columns, width, height, floor)
         claim(item, x, y, width, height)
         flowed = max(flowed, y + height)
         used = max(used, y + height)
+        if heading:
+            # And everything after it starts under it: a tile written below a
+            # heading that backfilled a hole above it would be a tile filed
+            # under the wrong name.
+            floor = flowed
 
     tiles = []
     for item in items:
@@ -1599,6 +1700,10 @@ class MenuModel:
         # set at the same time as a page change: taking is a thing done to the
         # tile in front, and there is no way to leave it still holding one.
         self.taken = None
+        # The heading whose words are being typed, as an id, or None. The
+        # keyboard is what types them; this is only which heading they land
+        # on, so the panel can draw the caret on the right one.
+        self.typing = None
         self.reset()
 
     def visible(self, items):
@@ -1855,19 +1960,47 @@ class MenuModel:
         page = self.page()
         self.items = arrange(
             items, plan,
-            adopted_items(self.pages(), self.layout, page, self.conditions),
+            adopted_items(self.pages(), self.layout, page, self.conditions)
+            + headings_of(plan, self.columns),
             given_away(self.layout, page),
         )
         self.tiles, self.rows = place(self.items, self.columns, plan,
                                       self.rows_limit())
-        names = [tile["item"]["id"] for tile in self.tiles]
+        every = [tile["item"] for tile in self.tiles]
+        names = [item["id"] for item in every if self.selectable(item)]
         if select in names:
             self.selected = select
         else:
-            self.selected = names[0] if names else None
+            self.selected = self._nearest(every, select, names)
         # A page placed again under a selection that has not moved keeps the
         # row it was on; a page arriving settles on the first one.
         self.settle_row()
+
+    def selectable(self, item):
+        """Whether the selection may stand on this tile right now.
+
+        Everything but a heading, and a heading too while the page is being
+        rearranged: nothing happens at one, so outside that mode a cursor on
+        it would be a press that answers with nothing - and inside it, it is
+        a tile to carry, retitle or take off like any other.
+        """
+        return self.edit or item["control"] != HEADING
+
+    @staticmethod
+    def _nearest(every, name, names):
+        """The selectable tile nearest one that is not, by the page's order.
+
+        The next one first, since a heading names the run under it, and the
+        one before where it heads nothing. The first on the page where the
+        name is not on it at all.
+        """
+        ids = [item["id"] for item in every]
+        if name in ids:
+            at = ids.index(name)
+            for other in ids[at + 1:] + list(reversed(ids[:at])):
+                if other in names:
+                    return other
+        return names[0] if names else None
 
     def repack(self):
         """Place the page again, keeping the selection on the same tile.
@@ -1932,7 +2065,8 @@ class MenuModel:
                 break
         if here is None:
             return False
-        boxes = [self._rect(tile) for tile in self.tiles]
+        boxes = [self._rect(tile) for tile in self.tiles
+                 if tile is here or self.selectable(tile["item"])]
         x = here["at"][0] + here["size"][0] / 2.0
         y = here["at"][1] + here["size"][1] / 2.0
         beside = self._band(self._rect(here), boxes,
@@ -1993,6 +2127,9 @@ class MenuModel:
         if not self.tiles:
             return
         index = max(0, min(int(index), len(self.tiles) - 1))
+        if not self.selectable(self.tiles[index]["item"]):
+            # A pointer over a heading is over words, not over a tile.
+            return
         if self.tiles[index]["item"]["id"] != self.selected:
             self.taken = None
             # A different card, so the row cursor is somewhere else entirely.
@@ -2004,6 +2141,8 @@ class MenuModel:
         """Jump the selection to a named tile. False when it is not here."""
         for tile in self.tiles:
             if tile["item"]["id"] == name:
+                if not self.selectable(tile["item"]):
+                    return False
                 if name != self.selected:
                     self.taken = None
                     self.row = None
@@ -2085,6 +2224,7 @@ class MenuModel:
         plan.setdefault("at", {})
         plan.setdefault("adopted", [])
         plan.setdefault("removed", [])
+        plan.setdefault("headings", {})
         return plan
 
     def _plan(self):
@@ -2110,9 +2250,12 @@ class MenuModel:
         # you are in the middle of neither.
         self.taken = None
         self.picked = None
+        self.typing = None
         # The strip is a place inside the mode, so leaving the mode leaves
         # it: what it holds is still held, and the focus is back on the page.
         self.removed_at = -1
+        # A heading the selection was on is walked past from here on, so the
+        # repack hands the selection to the tile it heads.
         self.repack()
         return True
 
@@ -2164,6 +2307,9 @@ class MenuModel:
                 break
         if here is None:
             return False
+        if (here["item"]["control"] == HEADING
+                and pinned_cell(here["item"], self.plan()) is None):
+            return self._carry_heading(direction)
         width, height = here["size"]
         x = here["at"][0] + step[0]
         y = here["at"][1] + step[1]
@@ -2190,6 +2336,136 @@ class MenuModel:
         plan = self._plan()
         plan["at"][self.picked] = (x, y)
         self.repack()
+        return True
+
+    def _carry_heading(self, direction):
+        """Move the heading in the hand past tiles rather than into a cell.
+
+        **A place in the order, which is what a cell replaced for every other
+        tile.** A heading is a paragraph mark, and a paragraph mark pinned to
+        a cell would stop being one: the tiles under it flow around a pin, so
+        they would climb past it into holes above. So it keeps the old
+        gesture - left and right carry it past one tile, up and down past the
+        row of them next to it - and `place` keeps it heading what comes
+        after it.
+        """
+        plan = self.plan()
+        order = [item["id"] for item in self.items
+                 if item["control"] != ROW_BREAK]
+        at = order.index(self.picked)
+        top = {tile["item"]["id"]: tile["at"][1] for tile in self.tiles
+               if pinned_cell(tile["item"], plan) is None}
+        # Only what flows: a pinned tile is wherever somebody put it, and
+        # walking past it in the order moves nothing on the screen.
+        before = [name for name in order[:at] if name in top]
+        after = [name for name in order[at + 1:] if name in top]
+        if direction == "left":
+            if not before:
+                return False
+            anchor = before[-1]
+        elif direction == "right":
+            if not after:
+                return False
+            anchor = after[0]
+        elif direction == "up":
+            if not before:
+                return False
+            # The run of tiles on the row just above, walked back from the
+            # heading: past all of it, and no further.
+            band = top[before[-1]]
+            anchor = before[-1]
+            for name in reversed(before):
+                if top[name] != band:
+                    break
+                anchor = name
+        else:
+            if not after:
+                return False
+            band = top[after[0]]
+            anchor = after[0]
+            for name in after:
+                if top[name] != band:
+                    break
+                anchor = name
+        order.remove(self.picked)
+        spot = order.index(anchor)
+        order.insert(spot if direction in ("left", "up") else spot + 1,
+                     self.picked)
+        self._plan()["order"] = order
+        self.repack()
+        return True
+
+    # -- headings made from the pad -------------------------------------------
+
+    def add_heading(self):
+        """Put a new, empty heading on the page in front. Its id, or None.
+
+        Just before the tile in front, so it lands over it: a heading is
+        made to name what comes next, and the tile a thumb is on is the one
+        it was aimed at. Selected and not picked up - what the next press
+        does is type its words, and carrying it is A after that.
+        """
+        if (not self.edit or self.in_removed or self.picked is not None
+                or not self.page()):
+            return None
+        plan = self._plan()
+        headings = plan["headings"]
+        number = 1 + max([_heading_number(name) for name in headings] + [0])
+        name = "%s%d" % (HEADING_MARK, number)
+        headings[name] = ""
+        order = [item["id"] for item in self.items
+                 if item["control"] != ROW_BREAK]
+        spot = order.index(self.selected) if self.selected in order \
+            else len(order)
+        order.insert(spot, name)
+        plan["order"] = order
+        self.repack()
+        self.select_id(name)
+        return name
+
+    def heading(self, name=None):
+        """The words of a heading made from the pad, or None for no such one.
+
+        The one in front where no name is given. A heading the config wrote
+        is not one of these: its words are the config's, and a pad that
+        could retitle it would be a second place saying what it is called.
+        """
+        if name is None:
+            name = self.selected
+        found = ((self.plan() or {}).get("headings") or {}).get(name)
+        return None if found is None else str(found)
+
+    def set_heading(self, name, text):
+        """Give a heading made from the pad new words. False where there is none."""
+        plan = self.plan()
+        if plan is None or name not in (plan.get("headings") or {}):
+            return False
+        plan["headings"][name] = str(text)
+        self.repack()
+        return True
+
+    def drop_heading(self, name):
+        """Take a heading made from the pad off the page, for good.
+
+        Not into the strip: the strip holds tiles the config has, so that
+        they can be put somewhere else. A heading made here is words and a
+        place, and both go with it.
+        """
+        plan = self.plan()
+        if plan is None or name not in (plan.get("headings") or {}):
+            return False
+        del plan["headings"][name]
+        if name in plan.get("order", ()):
+            plan["order"].remove(name)
+        for part in ("span", "at"):
+            (plan.get(part) or {}).pop(name, None)
+        if self.picked == name:
+            self.picked = None
+        if self.typing == name:
+            self.typing = None
+        where = self.index
+        self.repack()
+        self.select(where)
         return True
 
     def _room(self, x, y, width, height):
@@ -2230,6 +2506,8 @@ class MenuModel:
         if not self.edit or self.current is None:
             return False
         name = self.selected
+        if self.heading(name) is not None:
+            return self.drop_heading(name)
         home, bare = split_ref(name)
         if home is None:
             home, bare = self.page(), name
@@ -2793,6 +3071,9 @@ class MenuModel:
                 row["m"] = said
             if item["id"] == self.picked:
                 row["p"] = True
+            if item["id"] == self.typing:
+                # Being typed into, so the panel draws the caret after it.
+                row["ty"] = True
             if item["control"]:
                 row["k"] = item["control"]
                 if item["control"] in (CLOCK, CHRONO):

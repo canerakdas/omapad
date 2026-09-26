@@ -238,6 +238,10 @@ def cmd_check_layout(config):
                 known.add(ref)
             else:
                 unresolved.append(ref)
+        # A heading made from the pad is part of the arrangement rather than
+        # the config, so it is this page's as long as the file says so.
+        headings = plan.get("headings") or {}
+        known.update(headings)
         lost = [name for name in plan["order"] if name not in known]
         removed = [name for name in plan["removed"] if name in names]
         added = [name for name in names
@@ -257,6 +261,9 @@ def cmd_check_layout(config):
                               for name in sorted(given)))
         if adopted:
             print("    given by another page: %s" % ", ".join(adopted))
+        if headings:
+            print("    headings: %s" % ", ".join(
+                "%s %r" % (name, headings[name]) for name in sorted(headings)))
         if unresolved:
             print("    named a tile that is not there, ignored: %s"
                   % ", ".join(unresolved))

@@ -91,7 +91,7 @@ action = "exec:omarchy-menu toggle apps"
 | `open_on` | the menu opens on this tile while its `when` holds. Needs a `when` |
 | `id` | what a layout calls this tile. A slug of the label unless said, and unique on its page |
 | `span` | `[width, height]` in cells. `[1, 1]` unless said, and never wider than `[menu] columns` |
-| `control` | what kind of tile this is. `row_break` ends the row and draws nothing; `rows` draws its own `items` as lines inside it; `toggle`, `choice`, `slider`, `gauge` and `media` hold a value |
+| `control` | what kind of tile this is. `row_break` ends the row and draws nothing; `heading` is its `label` across the row, over what follows; `rows` draws its own `items` as lines inside it; `toggle`, `choice`, `slider`, `gauge` and `media` hold a value |
 | `many` | on a `rows` card: its keys **latch** rather than interlock, so any number of rows can be on at once. The line down the card goes and every row gets a key. Refused anywhere else, and on a card that lists |
 | `shows` | which stick a `gauge` draws the position of, `left` or `right`. Required on one, refused on anything else |
 | `reads` | where a control takes its value, `pad:<setting>` or `live:<reading>`. Required on a control, refused on anything else |
@@ -559,6 +559,21 @@ A `row_break` tile ends the row it is in:
 [[menu.items.items]]
 control = "row_break"
 ```
+
+A `heading` is the same paragraph mark with a name on it - the whole width of
+the page unless it has a `span`, its `label` and nothing else:
+
+```toml
+[[menu.items.items]]
+label = "Settings"
+control = "heading"
+```
+
+No action, no items, no `stay`, `repeat`, `confirm`, `countdown` or `open_on`,
+and `omapad check` names each: nothing happens at a heading, and outside
+rearranging the pad walks past it. Headings made from the pad are not written
+here - they live in `layout.toml` under the page they were made on, with an id
+that starts with `#`, which is why a written `id` may not.
 
 Reach for one to group tiles that belong together, and **not** to nudge a tile
 into place: the same page has to read at six columns and at four, and a break
