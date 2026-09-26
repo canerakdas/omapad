@@ -1213,6 +1213,18 @@ class Daemon:
         self.apply_gamebar()
         self.push_status_view()
 
+    def announce(self, body):
+        """Say what a press changed, unless a menu of ours is already saying it.
+
+        A row that stays open draws its own answer - the tick on a switch, the
+        value on a setting - so a notification then is the screen saying twice
+        what the tile says once, from the far corner. A row that closes its
+        menu first has nothing left on screen to say it, and is announced.
+        """
+        if not self.config.notify or self.menu_open or self.quick_open:
+            return
+        self.session.notify("omapad", body)
+
     def set_locked(self, locked):
         """Give the pad to the app in front outright, or take it back.
 
@@ -1237,12 +1249,10 @@ class Daemon:
             self.keeping = False
         log.info("workspace lock: %s", "on" if locked else "off")
         self.update_handover(force=True)
-        if self.config.notify:
-            self.session.notify(
-                "omapad",
-                "Workspace lock on - unlock it from the quick menu" if locked
-                else "Workspace lock off",
-            )
+        self.announce(
+            "Workspace lock on - unlock it from the quick menu" if locked
+            else "Workspace lock off"
+        )
 
     def set_keeping(self, keeping):
         """Keep the pad ours over an app that has opened it, or stop.
@@ -1273,12 +1283,10 @@ class Daemon:
             self.locked = False
         log.info("keep: %s", "on" if keeping else "off")
         self.update_handover(force=True)
-        if self.config.notify:
-            self.session.notify(
-                "omapad",
-                "Controller kept - every press drives the desktop" if keeping
-                else "Controller no longer kept",
-            )
+        self.announce(
+            "Controller kept - every press drives the desktop" if keeping
+            else "Controller no longer kept"
+        )
 
     def apply_gamebar(self):
         """The bar belongs to the couch, and not over an app driving itself.
@@ -1323,12 +1331,10 @@ class Daemon:
         log.info("mode: %s", mode)
         if self.config.mode_rumble:
             self.say("tick")
-        if self.config.notify:
-            self.session.notify(
-                "omapad",
-                "Desktop control on" if mode == "desktop"
-                else "Controller released to games",
-            )
+        self.announce(
+            "Desktop control on" if mode == "desktop"
+            else "Controller released to games"
+        )
 
     # -- the game-mode bar -------------------------------------------------
 
@@ -5344,14 +5350,9 @@ class Daemon:
         }
         # Said once, at the start, and then the number is the whole of it. A
         # tick a second for ten seconds is a pad buzzing through a decision
-        # somebody is in the middle of making.
+        # somebody is in the middle of making. No notification: the menu
+        # stays up for the whole count, and the row is already printing it.
         self.say("tick")
-        self.session.notify(
-            "omapad",
-            "%s in %ds - %s to cancel" % (item["label"], item["countdown"],
-                                          self.config.confirm_cancel),
-            timeout=item["countdown"] * 1000,
-        )
         self.push_menu_view()
         return True
 
@@ -5363,7 +5364,6 @@ class Daemon:
         self._menu_countdown = None
         if cancelled:
             self.say("back")
-            self.session.notify("omapad", "Cancelled", timeout=900)
             log.info("menu: countdown cancelled %s", item["id"])
         if self.menu_open:
             self.push_menu_view()
@@ -5424,7 +5424,6 @@ class Daemon:
             # Only once it had announced itself: a press let go of before the
             # tick said nothing, so there is nothing to take back.
             self.say("back")
-            self.session.notify("omapad", "Cancelled", timeout=900)
             log.info("menu: confirm cancelled")
         if self.menu_open:
             self.push_menu_view()
@@ -5459,16 +5458,10 @@ class Daemon:
             if elapsed < hold_ms:
                 return
             pending["warned"] = True
-            # The same announcement a binding makes, and it is made the same
-            # way: a tick for the hands, a notification for the eyes that are
-            # not on the tile, and the tile itself now filling.
+            # The binding's announcement less its notification: a binding
+            # has no tile, and this one is on screen and now filling, so a
+            # notification would only say it again from the corner.
             self.say("tick")
-            self.session.notify(
-                "omapad",
-                "%s - %s to cancel" % (pending["item"]["label"],
-                                       self.config.confirm_cancel),
-                timeout=confirm_ms,
-            )
             self.push_menu_view()
             return
         if elapsed < hold_ms + confirm_ms:
@@ -5844,12 +5837,8 @@ class Daemon:
             log.info("setting: %s %r -> %r", name, before, value)
             self.apply_setting(name)
         self.save_settings()
-        if self.config.notify:
-            self.session.notify(
-                "omapad",
-                "%s: %s" % (guide_module.PAD_NAMES.get(name, name),
-                            self.setting_words(name, value)),
-            )
+        self.announce("%s: %s" % (guide_module.PAD_NAMES.get(name, name),
+                                  self.setting_words(name, value)))
         if self.menu_open:
             # The tick moves to the row that was just picked.
             self.push_menu_view()

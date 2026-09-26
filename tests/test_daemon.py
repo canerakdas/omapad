@@ -1763,6 +1763,27 @@ class WorkspaceLockTests(DaemonTestCase):
         self.daemon.set_locked(True)
         self.assertIn("menu", self.session.notifications[-1][1])
 
+    def test_but_not_over_the_menu_whose_tile_already_says_it(self):
+        # A row that stays open ticks on its own; a notification in the
+        # corner of the same screen is the answer drawn twice.
+        self.config.notify = True
+        self.daemon.handed_over = True
+        self.daemon.set_quick(True)
+        self.daemon.set_locked(True)
+        self.daemon.set_locked(False)
+        self.daemon.set_keeping(True)
+        self.assertTrue(self.daemon.quick_open)
+        self.assertEqual(self.session.notifications, [])
+
+    def test_and_said_when_locking_took_the_menu_away(self):
+        # A lock hands the pad over, and handing it over closes the menu: the
+        # tile that would have ticked is gone, so the way out is spoken.
+        self.config.notify = True
+        self.daemon.set_menu(True)
+        self.daemon.set_locked(True)
+        self.assertFalse(self.daemon.menu_open)
+        self.assertIn("menu", self.session.notifications[-1][1])
+
     def test_the_row_ticks_while_it_is_on(self):
         # The tick is the only thing on screen that says the lock is on.
         row = actions.parse("lock:toggle")
@@ -2587,6 +2608,15 @@ class DictateClipboardTests(DaemonTestCase):
         self.assertFalse(self.config.osk_dictate_clipboard)
         self.assertEqual(self.session.spawned, ["say clipboard", "say type"])
 
+    def test_a_flip_is_announced_only_where_no_row_prints_it(self):
+        self.config.notify = True
+        self.daemon.set_menu(True)
+        self.daemon.set_setting("dictate_clipboard", ("toggle", None))
+        self.assertEqual(self.session.notifications, [])
+        self.daemon.set_menu(False)
+        self.daemon.set_setting("dictate_clipboard", ("toggle", None))
+        self.assertEqual(len(self.session.notifications), 1)
+
     def test_setting_it_to_what_it_already_is_runs_nothing(self):
         # `apply_setting` is reached only on a change, and this one edits a
         # file and restarts a unit: a menu that re-picked the row it is
@@ -3392,8 +3422,9 @@ class CountedRowTests(DaemonTestCase):
         # goes on looking.
         self.daemon.check_menu_countdown(time.monotonic())
         self.assertEqual(self.session.spawned, [])
-        # And it is announced, the way backing out of a hold is.
-        self.assertTrue(self.session.notifications)
+        # And not notified: the menu is still up, and the row stopping is the
+        # whole of the news.
+        self.assertEqual(self.session.notifications, [])
 
     def test_and_says_so_on_the_legend_while_it_runs(self):
         self.config.gamebar_enabled = False
@@ -3474,10 +3505,10 @@ class ConfirmedRowTests(DaemonTestCase):
         hold, count = self.waits()
         self.daemon.check_menu_confirm(at + hold + 0.01)
         self.assertEqual(self.session.spawned, [])
-        # The tick is for the hands and the notification for the eyes that are
-        # not on the tile; the fill is for the ones that are.
-        self.assertTrue(self.session.notifications)
-        self.assertIn("Wipe it", self.session.notifications[-1][1])
+        # The tick is for the hands and the fill for the eyes. No
+        # notification: the tile is on screen, and one in the corner would
+        # only say the same thing again.
+        self.assertEqual(self.session.notifications, [])
         state = self.drawn()
         self.assertTrue(state["armed"])
         self.assertEqual(state["ms"], self.config.announced_scaled[1])

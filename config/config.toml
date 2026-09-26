@@ -250,7 +250,7 @@ grab = true                   # take the pad exclusively, so nothing else acts
 # dropped mid-press - and while it lasts the app sees our presses too. 0 takes
 # the pad the moment it is wanted, which is where this used to be.
 grab_settle = 2.0
-notify = true                 # desktop notification on every mode switch
+notify = true                 # notify on a mode, lock or setting change (never over an open menu)
 # A tick on the motor at every mode switch too. The switch is the one press
 # whose result you may not be looking at - the pad is on your lap, the bar is
 # swapping itself out across the room - so it is worth feeling. One tick each

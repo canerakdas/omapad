@@ -172,7 +172,8 @@ sudo gpasswd -d "$USER" input    # the new session after this has no input group
   restriction, a difference in presentation.
 
 Switching between them: **hold HOME for 0.7 s** — on the desktop, in the menu
-or over a game. Every switch drops a notification **and ticks the motor** —
+or over a game. Every switch drops a notification (not over an open menu,
+which redraws in front of you) **and ticks the motor** —
 one tick each way, because the switch is the press whose result you may not be
 looking at: the bar is swapping itself out across the room while the pad is on
 your lap. Either answer can be turned off on its own:

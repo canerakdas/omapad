@@ -1012,11 +1012,14 @@ survived any one of them is [`rumble.md`](rumble.md)'s tick that sticks on. It
 counts down `MENU_SCRUB_HOLD` off the same `dt` the sweep integrates over, so
 there is one clock rather than two that can disagree.
 
-Nothing is saved or announced **until it settles**. A slider is one decision
-made over a second, not thirty: writing `settings.toml` per step is thirty
-chances to be interrupted halfway, `apply_setting` per step re-uploads the
-whole haptic vocabulary for a level nobody stopped on, and a notification per
-step is the screen saying twice what the tile already says once.
+Nothing is saved **until it settles**. A slider is one decision made over a
+second, not thirty: writing `settings.toml` per step is thirty chances to be
+interrupted halfway, and `apply_setting` per step re-uploads the whole haptic
+vocabulary for a level nobody stopped on. Nor is it announced when it does:
+`daemon.announce()` says nothing while the menu or the quick menu is open,
+because a notification is the screen saying twice what the tile already says
+once. A row that closes its menu before it fires has nothing left on screen,
+and is announced as before.
 
 **A cancel leaves no trace.** B restores the value *and* takes the setting back
 out of `config.chosen` if it was not there before - writing a shipped default
@@ -2018,7 +2021,8 @@ Three things it deliberately does not do:
 
 - **It does not tick per second.** A pad buzzing ten times through a decision
   somebody is in the middle of making is the opposite of what the wait is for.
-  One tick at the start, one notification, and then the number.
+  One tick at the start and then the number - no notification, because the
+  menu stays up for the whole count and the row is already printing it.
 - **`[confirm] scale` does not reach it.** That setting is for a hand that
   cannot keep a button down; this asks nobody to keep anything down.
 - **Only B stops it.** Walking the cursor lets go of a *hold*, because a hold
@@ -2034,8 +2038,9 @@ Three things it deliberately does not do:
 `menu_command("press")` calls `daemon.menu_arm()` instead, and what follows is
 the announced hold a binding's own `confirm = true` makes. The same two waits
 (`[confirm] hold_ms`, `confirm_ms`, both through `[confirm] scale` -
-`Config.announced_scaled`), the same tick, the same notification, the same
-cancel button.
+`Config.announced_scaled`), the same tick, the same cancel button. Not the
+same notification: a binding has no tile, and this one is on screen and
+filling, so a notification in the corner would only say it again.
 
 Four things end it, and only two of them are somebody deciding against it:
 
