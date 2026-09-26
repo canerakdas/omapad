@@ -9785,5 +9785,125 @@ class SocketDirectoryTests(unittest.TestCase):
         self.assertTrue(os.path.isdir(os.path.join(self.runtime, "omapad")))
 
 
+class TextTileTests(DaemonTestCase):
+    """A card of words read from a file, and the pad reading it."""
+
+    def setUp(self):
+        super().setUp()
+        directory = tempfile.mkdtemp(prefix="omapad-text-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        self.path = os.path.join(directory, "answer.md")
+        tree = [{"label": "Notes", "items": [
+            {"label": "Answer", "control": "text", "file": self.path},
+            {"label": "Lock", "action": "exec:true"},
+        ]}]
+        self.daemon.menu = menu_module.MenuModel(
+            menu_module.build(tree, columns=self.config.menu_columns),
+            columns=self.config.menu_columns,
+        )
+        self.write("# Title\n\none\n\ntwo\n\nthree\n")
+        self.daemon.set_menu(True)
+        self.daemon.menu.select_id("answer")
+
+    def write(self, text):
+        with open(self.path, "w") as handle:
+            handle.write(text)
+        # A file rewritten inside the same clock tick keeps its time, and
+        # the size is the other half of what says it changed.
+        now = time.time() + len(text)
+        os.utime(self.path, (now, now))
+
+    def row(self):
+        state = self.menu_client.sent[-1]
+        return state, [item for item in state["items"]
+                       if item["id"] == "answer"][0]
+
+    def test_the_file_is_read_when_the_menu_opens(self):
+        state, row = self.row()
+        self.assertEqual([block["t"] for block in row["md"]],
+                         ["h", "p", "p", "p"])
+        self.assertEqual(state["scr"], {"answer": 0.0})
+
+    def test_a_changed_file_reaches_the_card(self):
+        self.write("# Title\n\none\n\ntwo\n\nthree\n\nfour\n")
+        self.daemon.menu_text_refresh(time.monotonic() + 60)
+        _, row = self.row()
+        self.assertEqual(row["md"][-1], {"t": "p", "x": "four"})
+
+    def test_an_unchanged_file_is_not_read_again(self):
+        self.menu_client.sent.clear()
+        with unittest.mock.patch("builtins.open") as opened:
+            self.daemon.menu_text_refresh(time.monotonic() + 60)
+        opened.assert_not_called()
+        self.assertEqual(self.menu_client.sent, [])
+
+    def test_a_missing_file_is_a_card_with_nothing_on_it(self):
+        os.unlink(self.path)
+        self.daemon.menu_text_refresh(time.monotonic() + 60)
+        _, row = self.row()
+        self.assertEqual(row["md"], [])
+
+    def test_only_a_regular_file_is_read(self):
+        # A FIFO is the file a writer can hold open forever, and this read
+        # is on the loop.
+        os.unlink(self.path)
+        os.mkfifo(self.path)
+        self.daemon.menu_text_refresh(time.monotonic() + 60)
+        _, row = self.row()
+        self.assertEqual(row["md"], [])
+
+    def test_a_takes_it_and_the_d_pad_moves_the_words(self):
+        self.daemon.menu_command("press")
+        self.assertTrue(self.daemon.menu.reading)
+        self.daemon.menu_command("down")
+        self.daemon.menu_command("down")
+        self.assertEqual(self.daemon.menu.scrolled["answer"], 2)
+        self.daemon.menu_command("up")
+        self.assertEqual(self.daemon.menu.scrolled["answer"], 1)
+        # Left and right are nobody's while the words have the pad.
+        self.daemon.menu_command("right")
+        self.assertEqual(self.daemon.menu.selected, "answer")
+
+    def test_a_again_does_nothing_and_b_lets_go(self):
+        self.daemon.menu_command("press")
+        self.daemon.menu_command("press")
+        self.assertTrue(self.daemon.menu.reading)
+        self.daemon.menu_command("back")
+        self.assertFalse(self.daemon.menu.reading)
+        self.assertTrue(self.daemon.menu_open)
+
+    def test_the_end_of_the_words_is_felt_once(self):
+        self.daemon.menu_command("press")
+        edge = self.daemon.rumble.effects["edge"]
+        self.device.played = []
+        self.daemon.menu_command("up")
+        self.daemon.menu_command("up", repeat=True)
+        self.assertEqual([played for played in self.device.played
+                          if played == edge], [edge])
+
+    def test_the_legend_says_what_a_and_b_do_here(self):
+        self.assertEqual(self.daemon.menu_verb(), "Scroll")
+        self.daemon.menu_command("press")
+        self.assertEqual(self.daemon.menu_verb(), "")
+        self.assertEqual(self.daemon.menu_leave(), "Back")
+        words = [row["n"] for row in self.daemon.menu_directions()]
+        self.assertEqual(words, ["Up", "Down"])
+
+    def test_a_press_is_one_line_up_to_where_the_panel_says_they_end(self):
+        self.daemon.handle_control("menu lines answer 3")
+        self.daemon.menu_command("press")
+        for _ in range(5):
+            self.daemon.menu_command("down")
+        self.assertEqual(self.daemon.menu.scrolled["answer"], 3)
+        self.assertEqual(self.menu_client.sent[-1]["scr"], {"answer": 3})
+
+    def test_a_wheel_scrolls_it_without_taking_it(self):
+        answer = self.daemon.handle_control("menu scroll answer 2")
+        self.assertTrue(answer.startswith("menu=open"))
+        self.assertEqual(self.daemon.menu.scrolled["answer"], 2)
+        self.assertFalse(self.daemon.menu.reading)
+        self.assertIn("unknown", self.daemon.handle_control(
+            "menu scroll answer lots"))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

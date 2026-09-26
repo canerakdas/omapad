@@ -1729,6 +1729,13 @@ class Config:
         self.menu_list_limit = int(menu.get("list_limit", 24))
         if self.menu_list_limit < 1:
             raise ConfigError("menu.list_limit must be 1 or more")
+        # How often a text tile on the page in front looks at its file. A
+        # look is a `stat` and nothing more until the file has changed, so
+        # this is how late a new sentence may land on the card rather than
+        # what the looking costs.
+        self.menu_text_poll = float(menu.get("text_poll_ms", 500)) / 1000.0
+        if self.menu_text_poll <= 0:
+            raise ConfigError("menu.text_poll_ms must be more than 0")
         # How long a flick across the bar waits before a group that lists its
         # tiles asks. Walking five chips in a second should spawn one command,
         # not five, and the chip you stop on is the only one worth asking

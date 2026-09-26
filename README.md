@@ -2988,6 +2988,35 @@ Reach for one only where the rows are **not** alternatives. The test is whether
 pressing the second row should let the first one out — if it should, the card
 above it is the one you want.
 
+### A page of words, read from a file
+
+A tile with `control = "text"` shows a Markdown file — a note, or an answer
+something else has written:
+
+```toml
+[[menu.items.items]]
+label = "Answer"
+control = "text"
+file = "~/.cache/answer.md"
+empty = "No answer yet"       # what the card says while the file is missing
+```
+
+**A** takes the card, **up and down** then scroll it a line at a time, faster
+the longer a direction is held, and **B** lets go. A mouse wheel over the card
+scrolls it three lines a notch without taking it. It
+is four cells by three unless `span` says otherwise.
+
+The menu looks at the file every `[menu] text_poll_ms` (500 by default) while
+it is open, and draws what changed. Something writing into the file a few
+words at a time keeps your place; a file that says something else entirely
+starts again from the top, and so does the card.
+
+It draws headings, **bold**, *italic*, ~~struck~~ and `code`, fenced code
+blocks, lists three levels deep, quotes, rules and simple pipe tables. Links
+are drawn as links but cannot be followed from the card, an image is its alt
+text, and HTML is printed as the characters it is: nothing in the file can make
+the menu fetch anything. Only the first 64 KiB of the file is read.
+
 ### Giving a page its own X or Y
 
 A group, or any tile that opens a page, can take **X and Y** for a job of its

@@ -335,6 +335,9 @@ class EveryControlIsDrawn(unittest.TestCase):
         # Words on no ground at all, so nothing to generate: the whole of the
         # drawing is the type.
         "heading": (),
+        # Words again, a page of them: type in the weights the blocks ask
+        # for, and a line for a rule, which is a rectangle rather than art.
+        "text": (),
     }
 
     # Drawn for a *state* rather than for a kind of tile: the grip is the mark

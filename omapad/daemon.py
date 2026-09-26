@@ -7,6 +7,7 @@ import math
 import os
 import select
 import socket
+import stat
 import time
 
 from . import actions, keymap, linux_input as li
@@ -20,6 +21,7 @@ from .control import ControlServer
 from . import guide as guide_module
 from . import handover
 from . import kbd
+from . import markdown
 from . import cursor as cursor_theme
 from . import snap as snap_module
 from .gamebar import GameBarModel
@@ -28,7 +30,7 @@ from .hud import HudModel
 from .mapping import MappingModel, render as render_mapping
 from .chrono import Chrono, RUNNING as CHRONO_RUNNING, STOPPED as CHRONO_STOPPED
 from . import menu as menu_module
-from .menu import (CHRONO, CONTROL_KINDS, ROWS, MenuError, MenuModel,
+from .menu import (CHRONO, CONTROL_KINDS, ROWS, TEXT, MenuError, MenuModel,
                    build as build_menu, build_head, head_sources,
                    meta_sources, listed)
 from .osk import OskModel, badge_index
@@ -154,6 +156,8 @@ CONTROL_VERBS = {
     "gauge": "Adjust",
     # A list in a card, and A is the way into it rather than a press on it.
     ROWS: "Open",
+    # Words longer than their card, and A is what lends them the D-pad.
+    TEXT: "Scroll",
     # Two or three values in one cell, walked in place: A steps to the next.
     "choice": "Next",
 }
@@ -163,6 +167,13 @@ CONTROL_VERBS = {
 # list has neither - `More` of a choice is not a thing anybody could act on -
 # so it steps along the list instead.
 ADJUST_WORDS = {"choice": ("Previous", "Next"), "": ("Less", "More")}
+
+# How much of a text tile's file is read. An implementation limit rather than
+# a setting: it is the bound on what one look can cost the loop and on how
+# long a line the socket carries twice a second - and every word of it is
+# drawn - while ten thousand words is more than anybody scrolls through with
+# a D-pad.
+TEXT_LIMIT = 64 * 1024
 
 # The two triggers, read as axes while the menu is open. Named here rather
 # than bound: `bindings.md` says of ZL that a layer trigger has no binding of
@@ -708,6 +719,11 @@ class Daemon:
         # said, and when it is worth asking again.
         self._menu_meta_text = {}
         self._menu_meta_due = {}
+        # When the text tiles are next looked at, and what each one's file
+        # was the last time it was read - its change time and its size.
+        # Nothing is read again until one of the two moves.
+        self._menu_text_due = 0.0
+        self._menu_text_seen = {}
         # One built binding per page and button, for the keys a page spends.
         # Keyed by page rather than cleared on every move: what a page spends
         # never changes, and there are not many pages.
@@ -1887,6 +1903,10 @@ class Daemon:
         item = self.menu.acting
         if item is None:
             return ""
+        if self.menu.reading:
+            # Nothing: the words are being read, and up and down are what
+            # moves them. B is the way back out, and says so.
+            return ""
         if self.menu_holds():
             # The one tile where A is not a press. Said before it is pressed
             # rather than found out by pressing, which is what this row is for.
@@ -1942,6 +1962,9 @@ class Daemon:
             # printing a number is no use to somebody who does not know which
             # button takes it back.
             return "Cancel"
+        if self.menu.reading:
+            # There is no value to put back - reading moved nothing.
+            return "Back"
         if self.menu.taken is not None and not self.menu.entered:
             # Leaving a control you have pushed too far is putting it back.
             return "Cancel"
@@ -1966,6 +1989,12 @@ class Daemon:
         item = self.menu.held
         if item is None or self.menu.entered or self.menu.edit:
             return []
+        if self.menu.reading:
+            # One axis, and the one the words run along.
+            return [{"b": guide_module.badge_of(button, self.guide.layout),
+                     "k": "dpad", "n": word}
+                    for button, word in (("DPAD_UP", "Up"),
+                                         ("DPAD_DOWN", "Down"))]
         less, more = ADJUST_WORDS.get(self.menu_kind(item), ADJUST_WORDS[""])
         rows = [{"b": guide_module.badge_of(button, self.guide.layout),
                  "k": "dpad", "n": word}
@@ -2847,6 +2876,7 @@ class Daemon:
             self.menu_group_enter()
             self.menu_head_refresh()
             self.menu_meta_refresh()
+            self.menu_text_refresh(time.monotonic())
             # Both surfaces read the D-pad, and stacking the menu over the
             # keyboard leaves no way to tell which one a press belongs to.
             self.set_osk(False)
@@ -3025,6 +3055,80 @@ class Daemon:
             took(self.session.capture(
                 meta["from"], self.config.menu_list_timeout
             ))
+
+    def menu_text_refresh(self, now):
+        """Look at the file behind each text tile on the page in front.
+
+        Every `[menu] text_poll_ms` while the menu is up, and at once for a
+        tile nothing has been read for yet - a page arriving should not draw
+        an empty card for half a second first. Only the page in front, for
+        `menu_meta_refresh`'s reason: a file nobody is looking at is not
+        worth a look.
+        """
+        if not self.menu_open:
+            return
+        due = now >= self._menu_text_due
+        if due:
+            self._menu_text_due = now + self.config.menu_text_poll
+        changed = False
+        for tile in self.menu.tiles:
+            item = tile["item"]
+            if item["control"] != TEXT:
+                continue
+            if not due and item["id"] in self.menu.texts:
+                continue
+            words = self.menu_text_read(item["id"], item["file"],
+                                        item["id"] not in self.menu.texts)
+            if words is None:
+                continue
+            if self.menu.set_text(item["id"], words, markdown.parse(words)):
+                changed = True
+        if changed:
+            self.push_menu_view()
+
+    def menu_text_read(self, key, name, fresh=False):
+        """What a text tile's file says, or None where it has not changed.
+
+        **On the loop, and it may be**, where every other thing the menu
+        reads goes to the worker: a `stat` of a local file and a read capped
+        at `TEXT_LIMIT` are over in microseconds, and what makes a read hang
+        is refused before the open - a FIFO is the file a writer can leave
+        open forever, and only a regular file is read at all. A file that is
+        not there, or cannot be read, is a card with nothing on it rather
+        than an error: what writes it may simply not have run yet.
+        """
+        path = os.path.expanduser(name)
+        try:
+            info = os.stat(path)
+        except OSError:
+            info = None
+        if info is None or not stat.S_ISREG(info.st_mode):
+            stamp = None
+        else:
+            stamp = (info.st_mtime_ns, info.st_size)
+        # By tile rather than by path: two tiles can show one file, and the
+        # first to see it change must not leave the second thinking it has.
+        if not fresh and self._menu_text_seen.get(key, 0) == stamp:
+            return None
+        self._menu_text_seen[key] = stamp
+        if stamp is None:
+            return ""
+        try:
+            with open(path, "rb") as handle:
+                data = handle.read(TEXT_LIMIT)
+        except OSError as exc:
+            log.warning("menu: cannot read %s: %s", path, exc)
+            return ""
+        return data.decode("utf-8", "replace")
+
+    def menu_scroll(self, name, steps):
+        """Move a text tile's words from the pointer, by lines."""
+        if not self.menu_open:
+            return
+        if self.menu.scroll(name, steps):
+            self.push_menu_view()
+        else:
+            self.menu_edge()
 
     def menu_head_read(self, line):
         def took(lines):
@@ -3923,7 +4027,8 @@ class Daemon:
         if not item["reads"]:
             # A card of rows reads nothing, so there is nothing to put back:
             # going into a list is a place to be rather than a number being
-            # pushed, and B out of it undoes a walk rather than a value.
+            # pushed, and B out of it undoes a walk rather than a value. A
+            # text tile is the same, with words instead of rows.
             self._menu_before = None
             self.say("move", rumble=False)
             self.push_menu_view()
@@ -4937,6 +5042,19 @@ class Daemon:
             self.push_menu_view()
             return True
         if command in ("up", "down", "left", "right"):
+            if model.reading:
+                # The words took the axis they run along, and a held
+                # direction covers ground the way a held control does - one
+                # line to start with, more the longer it is held.
+                if command in ("up", "down"):
+                    way = 1 if command == "down" else -1
+                    if model.scroll(model.taken, way * self.menu_ramp(way)):
+                        self.say("move", rumble=False)
+                    else:
+                        self.menu_edge()
+                    self.push_menu_view()
+                    return True
+                return False
             if model.entered:
                 # A card of rows took **one** axis, and it is the other one: a
                 # list runs down the card, so left and right say nothing here
@@ -5002,6 +5120,10 @@ class Daemon:
             if not model.back():
                 self.set_menu(False)
                 return False
+        elif command == "press" and model.reading:
+            # Nothing: B leaves, and A letting go too would be the same
+            # press said by two buttons - `bindings.md` rule 4.
+            return False
         elif (command == "press" and model.taken is not None
                 and not model.entered):
             # Let go, keeping what it is on: A commits, and committing a
@@ -5985,7 +6107,8 @@ class Daemon:
             return (
                 "usage: osk <toggle|open|close> "
                 "| menu <toggle|open|close|up|down|left|right|press|back"
-                "|group_prev|group_next|select N|group N|row ID> "
+                "|group_prev|group_next|select N|group N|row ID"
+                "|scroll ID N> "
                 "| quick <toggle|open|close|left|right|up|down|press|back"
                 "|select N> "
                 "| guide <toggle|open|close|next|prev> "
@@ -6067,6 +6190,26 @@ class Daemon:
                 # A row inside a card of rows, named the way it is drawn. No
                 # index: a row carries a `when` like anything else here.
                 self.menu_select_row(args[1])
+            elif command == "scroll" and len(args) > 2:
+                # A wheel over a text tile: its id and how many lines, down
+                # positive. Named rather than taken, because a wheel over a
+                # card of words scrolls it on every desktop there is.
+                try:
+                    steps = int(args[2])
+                except ValueError:
+                    return "unknown menu command: scroll %s" % args[2]
+                self.menu_scroll(args[1], steps)
+            elif command == "lines" and len(args) > 2:
+                # The panel, saying how many lines a text tile's words
+                # overflow its card by. Not a thing anybody types: it is the
+                # one measurement the model cannot make, and this socket is
+                # the only way a panel has of saying anything.
+                try:
+                    lines = int(args[2])
+                except ValueError:
+                    return "unknown menu command: lines %s" % args[2]
+                if self.menu.set_overflow(args[1], lines) and self.menu_open:
+                    self.push_menu_view()
             elif command == "group" and len(args) > 1:
                 # The chip a pointer clicked, the same way `select` names a
                 # tile. Walking the bar is `group_prev` / `group_next`.
@@ -7566,6 +7709,7 @@ class Daemon:
                     self.menu_cards_settled(now)
                     self.menu_head_refresh()
                     self.menu_meta_refresh()
+                    self.menu_text_refresh(now)
                     self.live_refresh(now)
                     self.push_menu_live(now)
                     if now >= self._menu_next_heartbeat:

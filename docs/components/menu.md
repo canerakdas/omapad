@@ -121,6 +121,7 @@ anything a button can.
 | `span` | `[width, height]` in cells; `[1, 1]` unless said |
 | `control` | what kind of tile it is; empty is a plain one |
 | `reads` | where a control takes its value from, `pad:<setting>` |
+| `file` | a `text` tile only: the Markdown file it shows |
 | `open_on` | the menu opens on this tile while its `when` holds |
 | `meta` | a group only: the word under its name on the bar |
 
@@ -1162,6 +1163,29 @@ before it does.
 same choice `check_flick` makes, because this asks where the thumb is rather
 than how fast to move a pointer.
 
+### A page of words, read from a file
+
+`control = "text"` with a `file` is a card of somebody else's words: the
+heading ([95](../decisions/95-words-over-a-run.md)) one level up, and what a
+model's answer will be drawn on. [`markdown.md`](markdown.md) is the whole of
+it - the parser, why Qt's renderer is refused, how the file is watched - and
+[97](../decisions/97-a-page-of-words.md) the decision. What it adds to this
+surface's state machine is one row:
+
+| | browse | reading |
+|---|---|---|
+| D-pad up/down | move the selection | move the words a line, faster held |
+| D-pad left/right | move the selection | - |
+| **A** | **take** it | - |
+| **B** | up one level | let go, keeping the place |
+
+`reading` is `taken` on a text tile, as `entered` is `taken` on a card of
+rows, and it is on `TAKEABLE` for that card's reason: a grid spends up and
+down on getting about, so a direction that scrolled the words while a thumb was
+only passing over them would be a direction meaning two things. `build()`
+refuses one with an action, items, a listing, `reads`, `repeat` or `confirm`,
+and a `file` on anything else; a text tile is not allowed on a card of rows.
+
 ## A card, or the screen
 
 `[menu] fullscreen` decides which, and the daemon stamps it on the payload as
@@ -2191,7 +2215,8 @@ shipped config leaves empty because the head carries the time now.
 ```
 open, title, clock, depth, sel, row, g, n, hit, groups, head, headrows, keys,
 cols, rows,
-items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?} ]
+items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?} ]
+scr?
 ```
 
 `sel` is a tile **id**, not an index. `g` is which nav card. `groups` is
@@ -2281,6 +2306,14 @@ reaches the row, so a panel that had to work out which of the two `sel` meant
 would be the one place those answers could disagree. `confirm`'s `{id, ms,
 armed}` names the **row** while one is being held, so the row fills and the
 verbs beside it do not.
+
+A `text` tile adds `md`, its blocks as `markdown.parse()` left them, and `e`,
+the words it says where there are none. `md` is off the wire until the file
+has been read and an empty list once it has been read and found empty or
+missing, so the panel draws nothing for a moment and `e` for a state. Where it
+has been read to rides on the surface as `scr`, `{id: lines}` for every text
+tile on the page, for `chrono`'s reason: it changes at every push, and inside
+`items` it would rebuild the page it is moving the words of.
 
 `count` is the third of these stamped fields and the newest: `{id, left}` while
 a row is counting down, absent otherwise, with `left` the whole seconds
@@ -2597,5 +2630,5 @@ it is a slider whose last step does nothing.
 Settings: `[menu] title`, `clock`, `columns`, `cell_height`, `bias`, `keys`,
 `dim`, `tile_corner`, `tile_fill`, `press_ms`, `countdown`,
 `repeat_delay_ms`, `repeat_rate_ms`, `group_settle_ms`, `list_timeout_ms`,
-`list_limit`, `socket`,
+`list_limit`, `text_poll_ms`, `socket`,
 `[[menu.head]]`, `[[menu.items]]`, `[bindings.menu]`.

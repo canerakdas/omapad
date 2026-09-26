@@ -3172,3 +3172,136 @@ class ClockTests(unittest.TestCase):
 
     def test_an_empty_format_means_no_clock(self):
         self.assertEqual(MenuModel([], "Go", "").view_state(True)["clock"], "")
+
+
+class TextTileTests(unittest.TestCase):
+    TREE = [{"label": "Notes", "items": [
+        {"label": "Answer", "control": "text", "file": "~/answer.md",
+         "empty": "No answer yet"},
+        {"label": "Lock", "action": "exec:true"},
+    ]}]
+
+    def setUp(self):
+        self.model = MenuModel(build(self.TREE))
+        self.model.select_id("answer")
+        self.item = self.model.current
+
+    def blocks(self, count):
+        return [{"t": "p", "x": str(n)} for n in range(count)]
+
+    def payload(self):
+        state = self.model.view_state(True)
+        return state, [row for row in state["items"] if row["id"] == "answer"][0]
+
+    def test_it_is_a_card_of_words_that_is_taken_to_be_read(self):
+        self.assertEqual(self.item["file"], "~/answer.md")
+        self.assertEqual(self.item["span"], (4, 3))
+        self.assertIn("text", TAKEABLE)
+        self.assertTrue(self.model.take())
+        self.assertTrue(self.model.reading)
+        self.assertFalse(self.model.entered)
+
+    def test_it_has_to_say_which_file(self):
+        with self.assertRaisesRegex(MenuError, "which file"):
+            build([{"label": "A", "control": "text"}])
+
+    def test_only_a_text_tile_reads_a_file(self):
+        with self.assertRaisesRegex(MenuError, "only a text tile"):
+            build([{"label": "A", "action": "exec:true", "file": "x.md"}])
+
+    def test_it_runs_nothing(self):
+        with self.assertRaisesRegex(MenuError, "no action"):
+            build([{"label": "A", "control": "text", "file": "x.md",
+                    "action": "exec:true"}])
+        with self.assertRaisesRegex(MenuError, "read, not run"):
+            build([{"label": "A", "control": "text", "file": "x.md",
+                    "confirm": True}])
+
+    def test_it_reads_a_file_and_not_a_setting(self):
+        with self.assertRaisesRegex(MenuError, "reads nothing"):
+            build([{"label": "A", "control": "text", "file": "x.md",
+                    "reads": "pad:rumble"}])
+
+    def test_it_cannot_be_a_row_on_a_card(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "C", "control": "rows", "items": [
+                {"label": "A", "control": "text", "file": "x.md"}]}])
+
+    def test_a_card_waiting_for_its_file_carries_no_words(self):
+        state, row = self.payload()
+        self.assertNotIn("md", row)
+        self.assertEqual(row["e"], "No answer yet")
+        self.assertNotIn("scr", state)
+
+    def test_the_words_ride_the_tile_and_where_they_are_read_to_does_not(self):
+        self.model.set_text("answer", "x", self.blocks(5))
+        self.model.scroll("answer", 2)
+        state, row = self.payload()
+        self.assertEqual(row["md"], self.blocks(5))
+        self.assertEqual(state["scr"], {"answer": 2})
+
+    def test_an_empty_file_is_words_that_are_empty(self):
+        self.model.set_text("answer", "", [])
+        state, row = self.payload()
+        self.assertEqual(row["md"], [])
+        self.assertEqual(state["scr"], {"answer": 0.0})
+
+    def test_scrolling_stops_at_both_ends(self):
+        self.model.set_text("answer", "x", self.blocks(3))
+        self.assertFalse(self.model.scroll("answer", -1))
+        self.assertTrue(self.model.scroll("answer", 5))
+        self.assertEqual(self.model.scrolled["answer"], 2)
+        self.assertFalse(self.model.scroll("answer", 1))
+
+    def test_words_that_grow_keep_the_place(self):
+        # An answer arrives a few words at a time, and a card that jumped to
+        # the top at every sentence could only be read from the top.
+        self.model.set_text("answer", "one", self.blocks(4))
+        self.model.scroll("answer", 3)
+        self.assertTrue(self.model.set_text("answer", "one two",
+                                            self.blocks(6)))
+        self.assertEqual(self.model.scrolled["answer"], 3)
+
+    def test_other_words_start_again_from_the_top(self):
+        self.model.set_text("answer", "one", self.blocks(4))
+        self.model.scroll("answer", 3)
+        self.model.set_text("answer", "something else", self.blocks(4))
+        self.assertEqual(self.model.scrolled["answer"], 0)
+
+    def test_the_same_words_are_not_news(self):
+        self.model.set_text("answer", "one", self.blocks(1))
+        self.assertFalse(self.model.set_text("answer", "one", self.blocks(1)))
+
+    def test_shorter_words_pull_the_place_back_inside_them(self):
+        self.model.set_text("answer", "one", self.blocks(6))
+        self.model.scroll("answer", 5)
+        self.model.set_text("answer", "one!", self.blocks(2))
+        self.assertEqual(self.model.scrolled["answer"], 1)
+
+    def test_the_panel_says_where_the_words_end(self):
+        # How many lines a paragraph wraps to is a font and a width, which
+        # the model has neither of - until the panel says, the blocks are the
+        # least the words can be.
+        self.model.set_text("answer", "x", self.blocks(3))
+        self.assertTrue(self.model.scroll("answer", 10))
+        self.assertEqual(self.model.scrolled["answer"], 2)
+        self.model.set_overflow("answer", 12)
+        self.assertTrue(self.model.scroll("answer", 1))
+        self.assertTrue(self.model.scroll("answer", 20))
+        self.assertEqual(self.model.scrolled["answer"], 12)
+
+    def test_words_that_fit_again_pull_the_place_back(self):
+        self.model.set_text("answer", "x", self.blocks(3))
+        self.model.set_overflow("answer", 12)
+        self.model.scroll("answer", 12)
+        self.assertTrue(self.model.set_overflow("answer", 4))
+        self.assertEqual(self.model.scrolled["answer"], 4)
+        self.assertFalse(self.model.set_overflow("answer", 6))
+
+    def test_letting_go_keeps_the_place(self):
+        self.model.set_text("answer", "x", self.blocks(4))
+        self.model.take()
+        self.model.scroll("answer", 2)
+        self.model.release()
+        self.assertFalse(self.model.reading)
+        self.assertEqual(self.model.scrolled["answer"], 2)

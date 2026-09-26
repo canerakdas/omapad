@@ -32,6 +32,12 @@ nowhere* - true of a commit, not of a move. The work is small, a pan in
 is. The same entry owes the set its listen: every level is measured through a
 model of a television, and none has been heard on one.
 
+**[97](decisions/97-a-page-of-words.md) · an answer on the card · Buildable ·
+S.** The card reads a file and draws Markdown; nothing writes one yet. What it
+was built for is a model's answer, which is [29](decisions/29-assistant.md)'s
+to write, and that entry's cost has not changed. What is missing is deciding
+whether the assistant comes back, and on which page its card stands.
+
 ## Built, and short of what it promised
 
 **[10](decisions/10-hint-bar.md) · the hint bar, on the desktop · Buildable ·

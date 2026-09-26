@@ -2928,6 +2928,19 @@ countdown = 10
 # slow; lower it and a slow one settles on empty sooner.
 list_timeout_ms = 1000
 list_limit = 24               # and how many of its lines reach the page
+
+# A `text` tile shows a Markdown file, and while the menu is up it looks at
+# that file this often. A look is cheap until the file changes, so lower it to
+# watch something being written - an answer arriving a few words at a time -
+# and raise it for a note that never moves. A tile is written like this, on
+# any page; A takes it, up and down scroll it, B lets go:
+#
+#     [[menu.items.items]]
+#     label = "Notes"
+#     control = "text"
+#     file = "~/notes/today.md"
+#     empty = "No notes yet"      # what it says while the file is missing
+text_poll_ms = 500
 # socket = "/run/user/1000/omapad/menu.sock"   # defaults to $XDG_RUNTIME_DIR
 
 # ---------------------------------------------------------------------------

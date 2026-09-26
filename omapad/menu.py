@@ -72,7 +72,8 @@ BIAS = 2.0
 # validation that fails `omapad check`, and a test. A control that can be
 # added by touching one file is one that can ship half-drawn.
 CONTROLS = ("toggle", "choice", "slider", "knob", "gauge", "media",
-            "readout", "clock", "chrono", "rows", "row_break", "heading")
+            "readout", "clock", "chrono", "rows", "row_break", "heading",
+            "text")
 
 # Which control a setting may be drawn as, by the kind of thing it holds. A
 # switch pointed at a number is a tile that could never draw itself, and the
@@ -182,6 +183,21 @@ CHRONO = "chrono"
 # that page's arrangement rather than in the tree.
 HEADING = "heading"
 
+# A card of somebody's words, read from a file: a heading is a line of them
+# and this is a page. It is the heading one level up - words that say
+# something rather than name a run of tiles - and it is what a model's answer
+# will be drawn on, which is why it reads a file rather than a line in the
+# config: the words are written by something else, as often as it likes, and
+# the card only has to look.
+#
+# **It is taken to be read**, the way a card of rows is entered to be walked.
+# A page of words is longer than the card it is on, and a grid spends up and
+# down on getting about - so A goes in, up and down move the words under the
+# card, and B comes back out onto the page. What is shown is Markdown, read
+# into blocks by `markdown.py` and drawn in plain text; see that module for
+# why Qt's own renderer is not allowed to do it.
+TEXT = "text"
+
 # What the id of a heading made from the pad starts with. Never produced by
 # `slug` and refused in a written `id`, so a heading made on a page can never
 # be taken for a tile the config has - `#` is to a heading what `REF` is to a
@@ -207,7 +223,7 @@ COUNTDOWN = 10
 # direction means two things depending on what it is pointing at - and no
 # thumb can be asked to know which. So A goes in, and up and down belong to
 # the page until it does.
-TAKEABLE = ("slider", KNOB, "gauge", ROWS)
+TAKEABLE = ("slider", KNOB, "gauge", ROWS, TEXT)
 
 # Where a control reads its value. `pad:` is omapad's own settings, `live:` is
 # what the desktop is doing - how loud it is, how bright, what is playing -
@@ -261,6 +277,10 @@ SPANS = {
     # A name and a number on one line. One cell holds one of them, and a
     # reading whose name is cut in half is a number nobody can place.
     "readout": (2, 1),
+    # A page of words wants width before height: a line a few words long is
+    # a column of newsprint, read a word at a time. Three rows is what leaves
+    # a paragraph visible whole under its caption at the shipped cell.
+    TEXT: (4, 3),
 }
 
 # What a page may spend on a job of its own. A and B are not on it and are not
@@ -371,6 +391,13 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             raise MenuError(
                 "%s: a heading is words - it has no action and no items"
                 % path)
+        if control == TEXT and (children is not None or spec is not None
+                                or source is not None):
+            # A press on it goes in to read, so an action would be a second
+            # meaning for A that the card could never be pressed into.
+            raise MenuError(
+                "%s: a %s tile is words - it has no action and no items"
+                % (path, TEXT))
         if control == ROWS and children is None and source is None:
             raise MenuError(
                 "%s: a %s tile is drawn from its items, and has none"
@@ -473,6 +500,10 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             # What a saved layout calls it, and what it measures.
             "id": str(entry.get("id", "")).strip() or slug(label),
         }
+        # The file a `text` tile draws, as written: `~` is the daemon's to
+        # expand, because this module reads nothing from the machine it runs
+        # on - the home directory included.
+        item["file"] = _file(entry, item, path)
         item["countdown"] = _countdown(entry, item, path, countdown)
         item["span"] = _span(entry, item["control"], path, columns)
         item["shows"] = _shows(entry, item, path)
@@ -626,6 +657,13 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 # nothing to protect.
                 raise MenuError("%s: a control is not confirmed" % path)
             item["stay"] = True
+        elif item["control"] == TEXT:
+            # Read rather than run: A takes it, and the press is never a
+            # thing to hold down, to be sure about, or to be thrown out by.
+            if item["repeat"] or item["confirm"]:
+                raise MenuError(
+                    "%s: a %s tile is read, not run" % (path, TEXT))
+            item["stay"] = True
         elif item["control"] == HEADING:
             # Nothing happens at a heading, so nothing about what happens can
             # be asked of it either.
@@ -696,7 +734,7 @@ def _break_row():
         "empty": "", "when": (), "control": ROW_BREAK, "id": "",
         "countdown": 0,
         "span": (1, 1), "open_on": False, "keys": {}, "reads": (),
-        "shows": "",
+        "shows": "", "file": "",
     }
 
 
@@ -801,6 +839,23 @@ def _reads(entry, item, path, settings, readings=None, machine=None):
                 % (path, name, found["kind"], control)
             )
     return (source, name)
+
+
+def _file(entry, item, path):
+    """The file a text tile reads, or empty for every other tile."""
+    spec = entry.get("file")
+    wants = item["control"] == TEXT
+    if spec is None:
+        if wants:
+            raise MenuError(
+                "%s: a %s tile has to say which file it shows" % (path, TEXT))
+        return ""
+    if not wants:
+        raise MenuError("%s: only a %s tile reads a file" % (path, TEXT))
+    name = str(spec).strip()
+    if not name:
+        raise MenuError("%s: 'file' is empty" % path)
+    return name
 
 
 def _countdown(entry, item, path, default):
@@ -1704,6 +1759,20 @@ class MenuModel:
         # keyboard is what types them; this is only which heading they land
         # on, so the panel can draw the caret on the right one.
         self.typing = None
+        # What each text tile's file last said, by id: the words as they
+        # were read, and the blocks they were drawn as. The daemon reads the
+        # file and hands it here, so this module still touches nothing.
+        self.texts = {}
+        # And how far down each one has been read, in lines. Kept by id
+        # rather than cleared on letting go, because coming back to a page
+        # you were half way down is coming back to where you were.
+        self.scrolled = {}
+        # How many lines of each one's words do not fit on its card, as the
+        # panel measured them. **The one number here that is the panel's**:
+        # how many lines a paragraph wraps to is a question about a font and a
+        # width, and this module has neither - so the panel says, over the
+        # control socket, and this is only the end of the travel.
+        self.overflow = {}
         self.reset()
 
     def visible(self, items):
@@ -2178,6 +2247,59 @@ class MenuModel:
         """
         item = self.held
         return item is not None and item["control"] == ROWS
+
+    @property
+    def reading(self):
+        """Whether the tile in front is a text tile that has been taken.
+
+        `entered`'s twin: up and down belong to the words while it is true,
+        and to the page again the moment B lets go.
+        """
+        item = self.held
+        return item is not None and item["control"] == TEXT
+
+    def set_text(self, name, words, blocks):
+        """What one text tile's file says now. True where anything changed.
+
+        **Where the reading stands survives the file being written to**, if
+        what was there is still there: an answer arrives a few words at a
+        time, and a card that jumped back to the top every time a sentence
+        landed could only ever be read from the top. A file that says
+        something else entirely is a new page, and a new page is read from
+        its first line.
+        """
+        was = self.texts.get(name)
+        if was is not None and was[0] == words:
+            return False
+        if was is None or not words.startswith(was[0]):
+            self.scrolled.pop(name, None)
+        self.texts[name] = (words, blocks)
+        self.scroll(name, 0)
+        return True
+
+    def scroll(self, name, steps):
+        """Move a text tile's words by `steps` lines. False at either end.
+
+        A line is what the eye reads by, and a push that moved a whole
+        paragraph at once was a push that skipped half of it. Until the panel
+        has said how far the words overflow there is no far end to stop at
+        but the blocks: the words are at least that many lines long.
+        """
+        blocks = (self.texts.get(name) or ("", []))[1]
+        last = self.overflow.get(name, max(0, len(blocks) - 1))
+        was = self.scrolled.get(name, 0)
+        now = max(0, min(last, was + steps))
+        self.scrolled[name] = now
+        return now != was
+
+    def set_overflow(self, name, lines):
+        """How many lines a text tile's words overflow by. True where the
+        place being read had to move to stay inside them."""
+        self.overflow[name] = max(0, int(lines))
+        was = self.scrolled.get(name, 0)
+        now = min(was, self.overflow[name])
+        self.scrolled[name] = now
+        return now != was
 
     def step_row(self, direction):
         """Walk the entered card. False at either end, and off one entirely.
@@ -3106,6 +3228,16 @@ class MenuModel:
                     # what it holds changes between one payload and the next,
                     # and a tile that changes is a page that is rebuilt.
                     row.update(control(item) or {})
+            if item["control"] == TEXT and item["id"] in self.texts:
+                # The words, as blocks. Off the wire until the file has been
+                # read, so the panel can tell a card still waiting from one
+                # whose file is empty - which is `md` present and empty.
+                row["md"] = self.texts[item["id"]][1]
+            if item["control"] == TEXT:
+                # What it says where there are no words: the file is not
+                # there, or has nothing in it. Its own field rather than `d`,
+                # which is the line under a tile's name.
+                row["e"] = item["empty"]
             if item.get("rows") is not None:
                 # The card's own rows, drawn in it rather than behind it. They
                 # carry no cells: what places a row is the row above it.
@@ -3141,6 +3273,15 @@ class MenuModel:
                         row["d"] = text
             items.append(row)
         head_tiles, head_rows = self.head_state(head)
+        # How many lines down each text tile on the page has been read.
+        # **Not on the tile**, for `chrono`'s reason below: a row that changed
+        # at every push down would rebuild every delegate on the page to move
+        # one card's words, and the card would lose its place in the rebuild.
+        read = {}
+        for tile in self.tiles:
+            item = tile["item"]
+            if item["control"] == TEXT and item["id"] in self.texts:
+                read[item["id"]] = self.scrolled.get(item["id"], 0)
         measured = None
         if chrono is not None and any(
                 tile["item"]["control"] == CHRONO for tile in self.tiles):
@@ -3199,6 +3340,9 @@ class MenuModel:
                                 "p": chip["page"]}
                                for chip in self.removed()]
             state_out["rmat"] = self.removed_at
+        if read:
+            # Off the wire where no text tile is on the page.
+            state_out["scr"] = read
         if measured is not None:
             # Off the wire entirely for a page with no chronograph on it, so
             # every other page costs nothing for this one existing - and there

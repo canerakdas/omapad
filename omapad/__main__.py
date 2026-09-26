@@ -52,7 +52,8 @@ def build_parser():
         nargs="*",
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
-        "|group_prev|group_next|select N|group N|row ID|removed N>, "
+        "|group_prev|group_next|select N|group N|row ID|removed N"
+        "|scroll ID N>, "
         "quick <toggle|open|close|left|right|up|down|press|back|select N>, "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "

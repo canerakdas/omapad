@@ -48,6 +48,11 @@ Item {
   // `menu_gauge`'s own warning one control along). Off the wire entirely for
   // a page with no chronograph on it.
   property var chronoState: ({})
+  // How far down each text tile on the page has been read, by id, as a share
+  // of its words. Off the tile for `chronoState`'s reason: it changes at every
+  // push down, and a tile that changed would rebuild the page - and the card
+  // being read would lose its place in the rebuild.
+  property var scrolls: ({})
   property var items: []
   property var groups: []
   property var head: []
@@ -663,6 +668,9 @@ Item {
       // surface. See `whole` above.
       if (whole)
         root.chronoState = s.chrono !== undefined ? s.chrono : ({})
+      // The same, for how far each text tile has been read.
+      if (whole)
+        root.scrolls = s.scr !== undefined ? s.scr : ({})
       if (s.groups !== undefined && root.fresh("groups", s.groups))
         root.groups = s.groups
       if (s.head !== undefined && root.fresh("head", s.head))
@@ -2579,6 +2587,13 @@ Item {
                 // The rows are the daemon's, like everything else here, and
                 // so is which of them the cursor is on: `root.selRow`.
                 readonly property bool column: tile.modelData.k === "rows"
+                // **A page of somebody's words**, read from a file. The daemon
+                // reads the Markdown into blocks and every one of them is drawn
+                // here in plain text (qml.md 8.6) - a heading in the strong
+                // weight, a line of code in a monospaced face on a ground of
+                // its own - so nothing a file says can make this card fetch
+                // anything. A takes it; up and down then move the words.
+                readonly property bool words: tile.modelData.k === "text"
                 // A card that lists and found one thing. It is not a list
                 // then - there is nothing to choose between, and A does
                 // nothing on it - so what it holds is drawn as a reading:
@@ -2722,7 +2737,7 @@ Item {
                 // its edges in.
                 readonly property bool named: !tile.slider && !tile.knob
                   && !tile.gauge && !tile.readout && !tile.column
-                  && !tile.clock && !tile.chrono
+                  && !tile.clock && !tile.chrono && !tile.words
 
                 // **A figure sits at the top of the card and its travel
                 // along the bottom.** Slider and dead zone both answer the
@@ -3069,7 +3084,10 @@ Item {
                 // says so. `build()` refuses the card its own.
                 Text {
                   id: columnHead
-                  visible: tile.column
+                  // A page of words takes the same caption: it is the same
+                  // kind of card, a tall one whose name is read before what
+                  // is on it.
+                  visible: tile.column || tile.words
                   anchors.left: parent.left
                   // **Held off the right edge as well**, which it was not
                   // while the only thing it could print was a label somebody
@@ -3082,7 +3100,7 @@ Item {
                   anchors.rightMargin: tile.pad
                   anchors.topMargin: tile.pad
                   elide: Text.ElideRight
-                  text: tile.column
+                  text: (tile.column || tile.words)
                     ? (tile.says.length > 0 ? tile.says : tile.modelData.l)
                     : ""
                   textFormat: Text.PlainText
@@ -3215,6 +3233,387 @@ Item {
                   font.capitalization: Font.AllUppercase
                   font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                   elide: Text.ElideRight
+                }
+
+                // **The words**, under the caption and clipped to the card.
+                // Not interactive: where the page is read to is the daemon's,
+                // like every other cursor here, and arrives as a number of
+                // lines (`root.scrolls`). How many lines the words overflow
+                // the card by is the one thing only this side can know - a
+                // font and a width - so it is measured here and said back
+                // (`overflow`), and the daemon stops the push at it.
+                Flickable {
+                  id: reader
+                  visible: tile.words
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.top: columnHead.bottom
+                  anchors.bottom: parent.bottom
+                  anchors.leftMargin: tile.pad
+                  // Room for the bar that says how far down this is.
+                  anchors.rightMargin: tile.pad + metrics.gap.sm
+                  anchors.topMargin: metrics.gap.md
+                  anchors.bottomMargin: tile.pad
+                  clip: true
+                  interactive: false
+                  contentWidth: width
+                  contentHeight: prose.height
+
+                  readonly property var blocks: tile.words
+                    && tile.modelData.md !== undefined ? tile.modelData.md : []
+                  readonly property real reach:
+                    Math.max(0, reader.contentHeight - reader.height)
+
+                  // **One line of body text is the unit of everything here**:
+                  // what a push moves the words by, and what the air between
+                  // blocks is measured in. The air is that line over the
+                  // silver ratio, and every other gap is the same ratio one
+                  // step either way - a heading takes a whole line above it
+                  // and a list item one step less than a paragraph - so the
+                  // page has one proportion rather than a list of gaps.
+                  FontMetrics {
+                    id: bodyType
+                    font.family: metrics.font.family
+                    font.pixelSize: metrics.type.body
+                  }
+                  readonly property real line: Math.max(1, bodyType.lineSpacing)
+                  readonly property real air: reader.line / metrics.silver
+
+                  readonly property int at: {
+                    var n = root.scrolls[tile.modelData.id]
+                    return n !== undefined ? Math.max(0, Number(n) || 0) : 0
+                  }
+                  // How many lines the words overflow the card by. Rounded
+                  // up, so the last push lands the last line on the floor
+                  // rather than leaving it half under the edge.
+                  readonly property int overflow:
+                    Math.ceil(reader.reach / reader.line - 0.01)
+                  readonly property real share: reader.reach > 0
+                    ? Math.min(1, reader.at * reader.line / reader.reach) : 0
+                  contentY: Math.min(reader.reach, reader.at * reader.line)
+
+                  // Said whether or not the menu is up: the daemon keeps it
+                  // for the next time it is, and the card is built once.
+                  function report() {
+                    if (tile.words)
+                      root.send("menu lines " + tile.modelData.id + " "
+                                + reader.overflow)
+                  }
+                  onOverflowChanged: Qt.callLater(reader.report)
+
+                  // Moved rather than jumped, once the card is standing: a
+                  // page rebuilt under a press is born at the top, and the
+                  // first place it is put is where it already was.
+                  property bool settled: false
+                  Component.onCompleted: Qt.callLater(function() {
+                    reader.settled = true
+                    reader.report()
+                  })
+                  Behavior on contentY {
+                    enabled: reader.settled
+                    NumberAnimation {
+                      duration: metrics.time.follow
+                      easing.type: Easing.OutCubic
+                    }
+                  }
+
+                  Column {
+                    id: prose
+                    width: reader.width
+
+                    Repeater {
+                      model: reader.blocks
+
+                      delegate: Item {
+                        id: block
+                        required property int index
+                        required property var modelData
+
+                        readonly property string kind:
+                          String(block.modelData.t || "p")
+                        readonly property bool code: block.kind === "code"
+                        readonly property bool heading: block.kind === "h"
+                        readonly property int level:
+                          Number(block.modelData.lv) || 0
+                        // A line of code or a row of a table carries on the
+                        // one above it, so the two are one ground, not two.
+                        readonly property bool joined: block.index > 0
+                          && (block.code || block.kind === "tr")
+                          && reader.blocks[block.index - 1].t === block.kind
+                        // The air above a block, on the silver ratio. A
+                        // heading takes a whole line, so it belongs to what
+                        // is under it; what follows a heading, and one list
+                        // item after another, take a step less than a
+                        // paragraph, so a list and its heading read as one.
+                        readonly property bool follows: block.index > 0
+                          && (reader.blocks[block.index - 1].t === "h"
+                              || (block.kind === "li"
+                                  && reader.blocks[block.index - 1].t === "li"))
+                        readonly property int above: block.index === 0
+                          || block.joined ? 0
+                          : block.heading ? Math.round(reader.line)
+                          : block.follows
+                            ? Math.round(reader.air / metrics.silver)
+                          : Math.round(reader.air)
+                        // Where the words start: a list item after its mark,
+                        // and one more step in for each level it is nested;
+                        // a quote after its bar; code clear of its ground's
+                        // edge.
+                        // Wide enough for `9.` with air after it; the mark
+                        // is set flush right in it, so a `10.` grows to the
+                        // left rather than into its words.
+                        readonly property int markRoom: metrics.gap.xxl
+                        readonly property int indent: block.kind === "li"
+                          ? block.level * block.markRoom + block.markRoom
+                          : block.kind === "q" ? metrics.gap.lg
+                          : block.code ? metrics.gap.sm : 0
+                        // A heading climbs from the body by the silver ratio
+                        // less one - sqrt(2), the ladder's own step - and by
+                        // half that step at the second level, so three
+                        // levels are three sizes and none is a stranger to
+                        // the ladder. Past the second, the weight and the
+                        // muted ink are what say it is a heading.
+                        readonly property int size: !block.heading
+                          || block.level > 2 ? metrics.type.body
+                          : Math.round(metrics.rung(metrics.type.body,
+                                                    block.level === 1
+                                                      ? 1 : 0.5))
+                        readonly property string style: block.modelData.s
+                          !== undefined ? String(block.modelData.s) : ""
+                        readonly property bool mixed:
+                          block.modelData.r !== undefined
+
+                        width: prose.width
+                        height: block.above + (block.kind === "hr"
+                          ? Math.round(reader.air)
+                          : block.kind === "tr" ? cells.height
+                          : block.mixed ? flow.height : plain.height)
+
+                        function family(s) {
+                          return s === "c" ? "monospace" : metrics.font.family
+                        }
+
+                        // The ground under a line of code, meeting the next.
+                        Rectangle {
+                          visible: block.code
+                          y: block.above
+                          width: parent.width
+                          height: parent.height - block.above
+                          color: Util.alpha(Color.menu.text, 0.07)
+                        }
+
+                        // The bar down the side of a quote: the spine's ink
+                        // and weight, because it is the same kind of line.
+                        Rectangle {
+                          visible: block.kind === "q"
+                          y: block.above
+                          width: metrics.spine.weight
+                          height: parent.height - block.above
+                          color: root.spineInk
+                        }
+
+                        Rectangle {
+                          visible: block.kind === "hr"
+                          y: block.above + Math.round(reader.air / 2)
+                          width: parent.width
+                          height: metrics.spine.weight
+                          color: root.spineInk
+                        }
+
+                        Text {
+                          visible: block.kind === "li"
+                          x: block.indent - block.markRoom
+                          y: block.above
+                          width: block.markRoom
+                          rightPadding: metrics.gap.sm
+                          horizontalAlignment: Text.AlignRight
+                          text: visible ? String(block.modelData.m || "") : ""
+                          textFormat: Text.PlainText
+                          color: tile.ink
+                          opacity: root.inkMuted
+                          font.family: metrics.font.family
+                          font.weight: metrics.weight.body
+                          font.pixelSize: block.size
+                          font.features: metrics.figures
+                        }
+
+                        // One style, one `Text` that wraps itself: nearly
+                        // every paragraph anybody writes.
+                        Text {
+                          id: plain
+                          visible: !block.mixed && block.kind !== "hr"
+                            && block.kind !== "tr"
+                          x: block.indent
+                          y: block.above
+                          width: parent.width - block.indent
+                          text: visible ? String(block.modelData.x || "") : ""
+                          textFormat: Text.PlainText
+                          wrapMode: block.code ? Text.WrapAnywhere
+                                               : Text.WordWrap
+                          color: block.style.indexOf("l") >= 0
+                            ? tile.mark : tile.ink
+                          opacity: block.kind === "q"
+                            || (block.heading && block.level > 2)
+                            ? root.inkMuted : 1.0
+                          font.family: block.family(block.code ? "c"
+                                                                : block.style)
+                          font.weight: block.heading
+                            || block.style.indexOf("b") >= 0
+                            ? metrics.weight.strong : metrics.weight.body
+                          font.italic: block.style.indexOf("i") >= 0
+                          font.strikeout: block.style.indexOf("s") >= 0
+                          font.underline: block.style.indexOf("l") >= 0
+                          font.pixelSize: block.size
+                        }
+
+                        // Mixed styles, a word at a time: a `Flow` breaks
+                        // between its items and never inside one, and each
+                        // word carries the space after it (`markdown.pieces`).
+                        Flow {
+                          id: flow
+                          visible: block.mixed
+                          x: block.indent
+                          y: block.above
+                          width: parent.width - block.indent
+
+                          Repeater {
+                            model: block.mixed ? block.modelData.r : []
+
+                            delegate: Item {
+                              id: piece
+                              required property var modelData
+                              readonly property string style:
+                                String(piece.modelData[1] || "")
+                              readonly property bool code: piece.style === "c"
+                              width: Math.min(word.implicitWidth, flow.width)
+                              height: word.implicitHeight
+
+                              Rectangle {
+                                visible: piece.code
+                                anchors.fill: parent
+                                radius: metrics.gap.xxs
+                                color: Util.alpha(Color.menu.text, 0.07)
+                              }
+
+                              Text {
+                                id: word
+                                width: piece.width
+                                text: String(piece.modelData[0])
+                                textFormat: Text.PlainText
+                                elide: Text.ElideRight
+                                color: piece.style.indexOf("l") >= 0
+                                  ? tile.mark : tile.ink
+                                opacity: block.kind === "q"
+                                  ? root.inkMuted : 1.0
+                                font.family: block.family(piece.style)
+                                font.weight: block.heading
+                                  || piece.style.indexOf("b") >= 0
+                                  ? metrics.weight.strong : metrics.weight.body
+                                font.italic: piece.style.indexOf("i") >= 0
+                                font.strikeout: piece.style.indexOf("s") >= 0
+                                font.underline: piece.style.indexOf("l") >= 0
+                                font.pixelSize: block.size
+                              }
+                            }
+                          }
+                        }
+
+                        // A row of a table: the columns share the width, and
+                        // the header is set in the strong weight over a line.
+                        Row {
+                          id: cells
+                          visible: block.kind === "tr"
+                          y: block.above
+                          width: parent.width
+                          readonly property var list: block.kind === "tr"
+                            && block.modelData.c !== undefined
+                            ? block.modelData.c : []
+
+                          Repeater {
+                            model: cells.list
+
+                            delegate: Text {
+                              required property var modelData
+                              width: cells.width / Math.max(1, cells.list.length)
+                              rightPadding: metrics.gap.sm
+                              bottomPadding: metrics.gap.xs
+                              text: String(modelData)
+                              textFormat: Text.PlainText
+                              wrapMode: Text.WordWrap
+                              color: tile.ink
+                              font.family: metrics.font.family
+                              font.weight: block.modelData.th === true
+                                ? metrics.weight.strong : metrics.weight.body
+                              font.pixelSize: block.size
+                              font.features: metrics.figures
+                            }
+                          }
+                        }
+
+                        Rectangle {
+                          visible: block.kind === "tr"
+                            && block.modelData.th === true
+                          anchors.bottom: parent.bottom
+                          width: parent.width
+                          height: metrics.gap.hairline
+                          color: root.spineInk
+                        }
+                      }
+                    }
+                  }
+                }
+
+                // What the card says where there are no words - the file is
+                // not there, or is empty. Nothing at all while it has not
+                // been read yet, which is a moment rather than a state.
+                Text {
+                  visible: tile.words && tile.modelData.md !== undefined
+                    && tile.modelData.md.length === 0
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.leftMargin: tile.pad
+                  anchors.rightMargin: tile.pad
+                  anchors.verticalCenter: parent.verticalCenter
+                  horizontalAlignment: Text.AlignHCenter
+                  text: visible ? String(tile.modelData.e || "") : ""
+                  textFormat: Text.PlainText
+                  color: tile.ink
+                  opacity: root.inkDim
+                  font.family: metrics.font.family
+                  font.weight: metrics.weight.body
+                  font.pixelSize: metrics.type.body
+                  wrapMode: Text.WordWrap
+                }
+
+                // How far down the words are, where there is further to go:
+                // the part of the page in view, along the card's right edge.
+                // Only while there is more than fits, because a bar that
+                // fills its own track says nothing.
+                Rectangle {
+                  id: readTrack
+                  visible: tile.words && reader.reach > 0
+                  anchors.right: parent.right
+                  anchors.top: reader.top
+                  anchors.bottom: reader.bottom
+                  anchors.rightMargin: tile.pad - metrics.spine.weight
+                  width: metrics.spine.weight
+                  color: root.spineInk
+
+                  Rectangle {
+                    width: parent.width
+                    height: Math.max(metrics.gap.md, parent.height
+                      * reader.height / Math.max(1, reader.contentHeight))
+                    y: (parent.height - height) * reader.share
+                    color: tile.taken ? tile.mark : tile.ink
+                    opacity: tile.taken ? 1.0 : root.inkMuted
+                    Behavior on y {
+                      enabled: reader.settled
+                      NumberAnimation {
+                        duration: metrics.time.follow
+                        easing.type: Easing.OutCubic
+                      }
+                    }
+                  }
                 }
 
                 // The rows. Above the tile's own `picker`, which fills the
@@ -4119,6 +4518,19 @@ Item {
                     root.pointerSelect(tile.index, tile, mouse)
                   }
                   onClicked: root.pointerActivate(tile.index)
+                  // A wheel over a page of words moves them, taken or not -
+                  // what a wheel over words does on every desktop. Anywhere
+                  // else it is let through to the grid, which scrolls.
+                  onWheel: function(wheel) {
+                    if (!tile.words || wheel.angleDelta.y === 0) {
+                      wheel.accepted = false
+                      return
+                    }
+                    // Three lines a notch, which is what a wheel moves words
+                    // by everywhere else on the desktop.
+                    root.send("menu scroll " + tile.modelData.id + " "
+                              + (wheel.angleDelta.y < 0 ? 3 : -3))
+                  }
                 }
               }
             }
