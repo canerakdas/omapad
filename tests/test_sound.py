@@ -1,5 +1,6 @@
 """What a press sounds like: what is said, and what is deliberately silent."""
 
+import math
 import os
 import re
 import sys
@@ -106,7 +107,7 @@ class ConfigTests(unittest.TestCase):
 
 
 class ShippedFilesTests(unittest.TestCase):
-    """The four files are generated and checked in, like the badges."""
+    """The files are generated and checked in, like the badges."""
 
     def test_every_voice_has_a_file(self):
         for name in sound.VOICES:
@@ -167,13 +168,97 @@ class ShippedFilesTests(unittest.TestCase):
             finally:
                 os.unlink(fresh)
 
-    def test_the_generator_and_the_daemon_name_the_same_four(self):
+    def test_the_generator_and_the_daemon_name_the_same_five(self):
         sys.path.insert(0, os.path.join(ROOT, "assets"))
         try:
             import sounds as generator
         finally:
             sys.path.pop(0)
         self.assertEqual(sorted(generator.VOICES), sorted(sound.VOICES))
+
+
+def _generator():
+    sys.path.insert(0, os.path.join(ROOT, "assets"))
+    try:
+        import sounds as generator
+    finally:
+        sys.path.pop(0)
+    return generator
+
+
+class LoudnessTests(unittest.TestCase):
+    """How loud each cue is, measured the way a broadcaster measures it."""
+
+    def setUp(self):
+        self.generator = _generator()
+        self.files = {}
+        for name in sound.VOICES:
+            self.files[name] = self.generator.read(
+                os.path.join(SOUNDS, "%s.wav" % name))
+
+    def test_the_meter_is_bs1770_where_the_standard_prints_it(self):
+        # The standard's table is for 48 kHz and the files are not, so the
+        # meter builds its filters from the analog design; at 48 kHz that
+        # has to land on the printed coefficients or it is some other meter.
+        shelf, lowcut = self.generator.k_weighting(48000)
+        expected = (
+            ((1.53512485958697, -2.69169618940638, 1.19839281085285),
+             (1.0, -1.69065929318241, 0.73248077421585)),
+            ((1.0, -2.0, 1.0),
+             (1.0, -1.99004745483398, 0.99007225036621)),
+        )
+        for got, want in zip((shelf, lowcut), expected):
+            for side in range(2):
+                for a, b in zip(got[side], want[side]):
+                    self.assertAlmostEqual(a, b, places=12)
+
+    def test_a_full_scale_sine_reads_what_the_standard_says(self):
+        # BS.1770's own check: a 997 Hz sine at full scale in one channel
+        # reads -3.01.
+        rate = 48000
+        samples = [math.sin(2.0 * math.pi * 997.0 * n / rate)
+                   for n in range(int(rate * self.generator.BLOCK))]
+        measured = self.generator.loudness(samples, rate, heard=False)
+        self.assertAlmostEqual(measured, -3.01, delta=0.05)
+
+    def test_each_file_measures_the_loudness_its_voice_names(self):
+        for name in sound.VOICES:
+            samples, rate = self.files[name]
+            self.assertAlmostEqual(
+                self.generator.loudness(samples, rate),
+                self.generator.VOICES[name]["lufs"], delta=0.1,
+                msg="%s is not as loud as assets/sounds.py says" % name)
+
+    def test_they_rise_in_the_order_they_cost(self):
+        # `sound.VOICES` is ordered by what each costs, move first and
+        # commit last. Set by a share of a peak, the back came out louder
+        # than the tick and the edge as quiet as it on a television; a
+        # loudness is what the order is a claim about.
+        levels = [self.generator.VOICES[name]["lufs"]
+                  for name in sound.VOICES]
+        self.assertEqual(levels, sorted(levels))
+        # Two apart at the least, or a room hears one size of press twice.
+        for (a, low), (b, high) in zip(zip(sound.VOICES, levels),
+                                       zip(sound.VOICES[1:], levels[1:])):
+            self.assertGreaterEqual(high - low, 2.0, "%s, %s" % (a, b))
+
+    def test_nothing_goes_over_the_ceiling(self):
+        for name in sound.VOICES:
+            samples, _ = self.files[name]
+            self.assertLessEqual(max(abs(x) for x in samples),
+                                 self.generator.PEAK, name)
+
+    def test_nothing_was_made_for_the_desk(self):
+        # A cue whose loudness lives below what a television's drivers play
+        # is one that has to be pushed until the desk hears it too loud
+        # before the set hears it at all. The edge is the one near that
+        # line, and holds its level with its own harmonics rather than
+        # with a louder fundamental.
+        for name in sound.VOICES:
+            samples, rate = self.files[name]
+            lost = (self.generator.loudness(samples, rate, heard=False)
+                    - self.generator.loudness(samples, rate))
+            self.assertLess(lost, 5.0, "%s loses %.1f on a set" % (name, lost))
 
 
 if __name__ == "__main__":

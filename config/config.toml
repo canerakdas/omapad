@@ -587,11 +587,12 @@ enabled = false
 # this is here to put them under a film rather than over one.
 volume = 0.6
 # Where the five files come from: `move.wav`, `back.wav`, `tick.wav`,
-# `edge.wav` and `commit.wav` in a directory of your own. Empty is the set that ships,
-# written by `assets/sounds.py` - synthesised rather than recorded, so a
-# different commit is a different number in that file. A directory missing a
-# name loses that one cue and keeps the rest, which is what makes a pack of
-# one sound worth writing.
+# `edge.wav` and `commit.wav` in a directory of your own. Empty is the set
+# that ships, written by `assets/sounds.py` - synthesised rather than
+# recorded, so a different commit is a different number in that file. A name the directory does not hold plays the shipped
+# one, which is what makes a pack of one sound worth writing;
+# `python3 assets/sounds.py --measure DIR` says how far each file is from the
+# level of the one it replaces.
 pack = ""
 # socket = ""                 # default: $XDG_RUNTIME_DIR/omapad/sound.sock
 
