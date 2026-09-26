@@ -41,7 +41,7 @@ yesterday's button and nothing else complains.
 | `shapes/sys-round.svg` | the small **round** button - every one of them but Create and Options |
 | `shapes/sys-guide.svg` | the **Xbox button** alone, 36 of 40 against the others' 24, with `sys-nexus.svg` drawn to match |
 | `shapes/system.svg` | the **oblong** - Create, Options, and the bare shape the shell types a word into |
-| `shapes/stick.svg` | the **stick from above** - 56x40, one pill, wide because `L3` is two characters. No rim: every badge on the pad is a solid silhouette, and a ring among them reads as a different colour |
+| `shapes/stick.svg` | the **stick from above** - 56x40, a pill inside its own rim, wide because `L3` is two characters. The rim is fill, not a stroke |
 | `buttons/` | generated SVGs - portable, usable outside the shell |
 | `shapes/ground-*.svg` | **a quarter of a menu tile** - one corner per tile state, and the one drawing here that answers to a size |
 | `shapes/travel-*.svg` | **the figures that stand on a line** - a slider's scale (the knob's figures at whole line weights) and a card of rows' caps and marks. Every side a whole number of ten-unit line weights, so the panel sizes them from `Metrics.spine` and they land on whole pixels |
@@ -156,8 +156,8 @@ And one is theirs alone: **a shape with a hole in it is wound so the hole
 survives both fill rules.** A badge is painted non-zero normally and even-odd
 in the stencil style, so two same-wound circles are a ring in one and a disc
 in the other. The dial's rim is an outer arc with `sweep 1` and an inner with
-`sweep 0`; `AnnuliSurviveEitherFillRule` is what says so. It is the lesson
-`stick.svg` taught before it gave its own rim up.
+`sweep 0`; `AnnuliSurviveEitherFillRule` is what says so. It is `stick.svg`'s
+lesson one shape along.
 
 ## Drawing a tile ground
 
@@ -217,14 +217,8 @@ must not do.
   pixels, not in the shape's units, so it stays a hairline on a badge twice
   the size and disappears entirely in the stencil style, where the surface
   paints the shape solid. A line that is part of the drawing is drawn as one:
-  `dial-face.svg` is an outer arc and an inner wound the other way, so the
+  `stick.svg`'s rim is three subpaths, wound the opposite way in turn so the
   same annulus comes out under either fill rule.
-
-- **A badge is a solid silhouette.** Every one of them: a circle, a cross, a
-  pill, a capsule, with the label punched out of it. A ring among them reads
-  as a different colour rather than as a different button, which is why
-  `stick.svg` stopped being one. What a badge says is which button it is, and
-  it says that with its outline.
 - **The shape has to carry its label at the full cap.** `fit` will shrink a
   label rather than fail, and a shipped shape that makes it do so is the wrong
   shape for that many characters - `LabelsStandAtOneHeight` is what says so.

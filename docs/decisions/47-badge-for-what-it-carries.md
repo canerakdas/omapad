@@ -23,7 +23,9 @@ colour, it was outside the fill with nowhere left to be. Painted background on
 background: the style the reporter had turned on was the one where the rim did
 not exist. It is an annulus in the same fill now - three subpaths wound the
 opposite way in turn, so the same shape comes out under either fill rule - two
-units thick at every size and in both styles. `Shape` raises on a stroke, and
+units thick at every size and in both styles. (Three since: two came out a
+pixel and a half on a 1.25-scaled screen and stepped on every curve, so the
+rim took one unit from the air inside it and the pill it holds did not move.) `Shape` raises on a stroke, and
 `ring`/`ringWidth` are gone from `BadgeArt` and all four surfaces.
 
 **56 by 40, and that is not a free choice.** A badge is `unit` tall and
