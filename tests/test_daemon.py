@@ -6601,6 +6601,31 @@ class QuickTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu_open)
         self.assertFalse(self.daemon.quick_open)
 
+    def test_the_two_trade_one_backdrop(self):
+        # The pushes that trade the two say so, both sides of it, so neither
+        # panel lifts its scrim before the other has one up (decision 98).
+        self.tap("HOME")
+        self.assertNotIn("swap", self.menu_client.sent[-1])
+        self.menu_client.sent.clear()
+        self.tap("PLUS")
+        leaving = [s for s in self.menu_client.sent if "open" in s][0]
+        self.assertFalse(leaving["open"])
+        self.assertTrue(leaving["swap"])
+        arriving = [s for s in self.quick_client.sent if s.get("open")][0]
+        self.assertTrue(arriving["swap"])
+        self.quick_client.sent.clear()
+        self.menu_client.sent.clear()
+        self.tap("HOME")
+        self.assertTrue(self.quick_client.sent[0]["swap"])
+        self.assertTrue(
+            [s for s in self.menu_client.sent if s.get("open")][0]["swap"])
+        # And only the trade: the heartbeat after it, and a menu put away
+        # with B, carry nothing.
+        self.daemon.push_menu_view()
+        self.assertNotIn("swap", self.menu_client.sent[-1])
+        self.daemon.set_menu(False)
+        self.assertNotIn("swap", self.menu_client.sent[-1])
+
     def test_over_a_game_the_chord_reaches_it(self):
         # PLUS alone belongs to the game's pause screen, so the chord is
         # PLUS for over a game (decision 90).

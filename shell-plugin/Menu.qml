@@ -20,6 +20,10 @@
 // does: Exclusive focus so the arrows reach it rather than the window under
 // the scrim, hover to select, a click to pick, a click outside to leave.
 //
+// HOME and PLUS trade this menu and the quick menu over one backdrop: a
+// change of `open` that arrives with `swap` is that trade, and Backdrop.qml
+// says how it keeps the desktop from showing between the two.
+//
 // Every size on it comes off `Metrics`' silver ladder - `metrics.type` and
 // `metrics.gap`, never `metrics.font` or `metrics.spacing` - except where a
 // measurement belongs to something else. Those are the card's own width, two
@@ -40,6 +44,11 @@ Item {
   id: root
 
   property bool opened: false
+  // The hand-over to and from the quick menu - QuickMenu.qml's three,
+  // meaning what they mean there.
+  property bool swap: false
+  property bool partnerDrawn: false
+  readonly property bool drawn: panel.backingWindowVisible
   // **The stopwatch, and it is the surface's rather than the tile's.** What
   // it holds changes between one payload and the next, and `fresh` decides
   // whether to rebuild the page by comparing the tiles it was sent with the
@@ -723,13 +732,25 @@ Item {
       // delegate under it.
       var off = (s.rm !== undefined) ? s.rm : []
       if (whole && root.fresh("rm", off)) root.removed = off
-      if (s.open !== undefined) root.opened = !!s.open
+      // Every line, absent meaning no, and before `open`, which reads it.
+      root.swap = !!s.swap
+      if (s.open !== undefined) {
+        backdrop.turn(!!s.open, root.swap)
+        root.opened = !!s.open
+      }
       // Last of all: it is what lights a tile, and the tile it names has to
       // be on the page before it does.
       if (s.n !== undefined) root.pressSeq = Number(s.n) || 0
       root.joined = true
       Qt.callLater(root.reveal)
     } catch (e) {}
+  }
+
+  Backdrop {
+    id: backdrop
+    opened: root.opened
+    partner: root.partnerDrawn
+    fade: metrics.time.follow
   }
 
   onPressSeqChanged: {
@@ -1102,7 +1123,7 @@ Item {
 
   PanelWindow {
     id: panel
-    visible: root.opened
+    visible: backdrop.mapped
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "omapad-menu"
@@ -1111,7 +1132,13 @@ Item {
     // belongs to it, and a key reaches the window under the scrim only after
     // it goes away. Arrows and Enter navigate, and the game behind gets
     // nothing until the menu leaves.
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    //
+    // Only while it is open: a menu handing its backdrop to the quick menu
+    // stays on screen a moment after it has closed, and neither the keys nor
+    // the pointer are its to take by then.
+    WlrLayershell.keyboardFocus: root.opened
+      ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+    mask: Region { item: root.opened ? scrim : null }
     // Ignore, except where our own bar is up: `Normal` with the zero
     // exclusive zone it defaults to asks for what is left once every bar has
     // taken its strip, so the scrim stops where the game bar starts instead
@@ -1129,10 +1156,16 @@ Item {
     // tile, a click picks one, a click on the scrim leaves. The keyboard and
     // the guide still pass clicks through - they are pad-only by design.
     Rectangle {
+      id: scrim
       anchors.fill: parent
       color: Color.menu.scrim
-      opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
+      opacity: backdrop.up ? 1 : 0
+      // Snapped arriving on a hand-over: it is taking over a backdrop, not
+      // dimming. Leaving, it fades as ever (Backdrop.qml).
+      Behavior on opacity {
+        enabled: !(root.opened && root.swap)
+        NumberAnimation { duration: metrics.time.follow }
+      }
     }
 
     // And then as much again as `[menu] dim` asks for, in the theme's own
@@ -1141,8 +1174,11 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: Util.alpha(Color.menu.background, root.dim)
-      opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
+      opacity: backdrop.up ? 1 : 0
+      Behavior on opacity {
+        enabled: !(root.opened && root.swap)
+        NumberAnimation { duration: metrics.time.follow }
+      }
     }
 
     MouseArea {

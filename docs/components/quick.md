@@ -56,7 +56,7 @@ and the id of a tile pressed once that wants a second press (`armed`).
 
 ```
 {open, sel, tiles:[{id, l, i, f?, m, on, x}], band:{id, l, w, t, adj, arm, x, v?},
- head:{k, t}, keys:[{b, k, n}], cell, corner, fill, dim, barh}
+ head:{k, t}, keys:[{b, k, n}], cell, corner, fill, dim, barh, swap?}
 ```
 
 - `tiles` carries **nothing that moves with the selection**: which tile is in
@@ -84,6 +84,12 @@ and the id of a tile pressed once that wants a second press (`armed`).
   read as the menu reads it - a plain tile and the band at that alpha, the
   tile in front solid. Without it the row drew every tile opaque, and on any
   fill below 1.0 the same theme gave the two surfaces two different greys.
+- `swap` is on the one push that opens the row in the menu's place or shuts
+  it for the menu, and on no other. The panel hands it to `Backdrop.qml`
+  before it assigns `open`, so one backdrop stays under the two - arriving,
+  the scrim is up at once; leaving, it holds until the menu's window is on
+  screen and a fade longer, and the head and legend it had stay on it while
+  it fades ([decision 98](../decisions/98-one-backdrop-two-menus.md)).
 
 ## The daemon
 

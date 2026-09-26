@@ -22,8 +22,11 @@ Item {
   id: root
 
   Keyboard { id: keyboard }
-  Menu { id: menu }
-  QuickMenu { id: quick }
+  // Each is told when the other's window is on screen: HOME and PLUS trade
+  // the two over one backdrop, and the one leaving holds its scrim until the
+  // one arriving is there to take it (Backdrop.qml).
+  Menu { id: menu; partnerDrawn: quick.drawn }
+  QuickMenu { id: quick; partnerDrawn: menu.drawn }
   Guide { id: guide }
   Mapping { id: mapping }
   GameBar {}

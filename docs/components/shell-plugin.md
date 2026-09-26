@@ -92,6 +92,16 @@ missing optional package must cost one feature rather than the keyboard.
   `menu.background` and `menu.text`, the two colours every theme is guaranteed
   to define. A third would be a console's own palette arriving through the
   back door.
+- **`Backdrop.qml`** - the dimmed screen the menu and the quick menu trade
+  when HOME and PLUS swap them ([98](../decisions/98-one-backdrop-two-menus.md)).
+  Two layer-shell windows the compositor stacks in its own order, and a
+  window reported visible reaches the glass frames later: so the arriving
+  panel's scrim is up at once, and the leaving one's holds until the other
+  window is on screen (`partnerDrawn`, wired in `Surfaces.qml` from each
+  panel's `backingWindowVisible`) and a fade longer, then fades out. It draws
+  nothing; a panel calls `turn(open, swap)` **before** it assigns `open` -
+  after is too late, the window is already gone - reads `up` and `mapped`
+  from it, and fades its scrim except while arriving on a swap.
 - **`Travel.qml`** - where along something a number is, drawn as the
   knob's scale unrolled: a slider being pushed, and a slider with places to
   stand rather than a distance to cover. Every figure is one the ring has, at

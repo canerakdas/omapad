@@ -2824,9 +2824,18 @@ class Daemon:
 
     # -- menu --------------------------------------------------------------
 
-    def set_menu(self, opened):
+    def set_menu(self, opened, swap=False):
+        """Open or close the menu.
+
+        `swap` is the quick menu opening in its place: the push says so, and
+        the panel keeps its backdrop up for the row to take over rather than
+        lifting it. See `push_menu_view`.
+        """
         if opened == self.menu_open:
             return
+        # Read before the row below is shut: whether this opening takes over
+        # a backdrop already on screen.
+        swap = swap or (opened and self.quick_open)
         self.menu_open = opened
         # A row counting down belongs to the page it is on. The menu going
         # away is not somebody deciding against it, so it is not announced as
@@ -2882,13 +2891,13 @@ class Daemon:
             self.set_osk(False)
             # The same for the quick menu, which is the menu's other shape:
             # HOME from the row is the way here, and the row goes as it comes.
-            self.set_quick(False)
+            self.set_quick(False, swap=True)
             # Before the menu is pushed, never after: the bar stands in the
             # band a fullscreen HUD prints its own row of hints in, and two
             # rows of words crossfading in one place is what reads as a
             # flicker when the menu opens.
             self.apply_gamebar()
-        self.push_menu_view()
+        self.push_menu_view(swap=swap)
         if not opened:
             # And back afterwards, for the same reason the other way round.
             self.apply_gamebar()
@@ -2922,7 +2931,7 @@ class Daemon:
             states.add("first_run")
         return frozenset(states)
 
-    def push_menu_view(self):
+    def push_menu_view(self, swap=False):
         self._menu_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
         state = self.menu.view_state(
             self.menu_open, self.action_state, self.action_value,
@@ -2980,6 +2989,15 @@ class Daemon:
         live = self.menu_live()
         state["live"] = live or {}
         self._menu_live_last = live
+        # On the one push that opens or shuts the menu because the quick menu
+        # is taking its place, or giving it back. The two are separate
+        # windows dimming the screen the same amount, and one lifting its
+        # scrim before the other has faded its own in showed the desktop
+        # between them - a breath of light between two dark screens. Absent
+        # on every other push, which is what ends it: the panel reads it only
+        # as `open` changes. See decision 98.
+        if swap:
+            state["swap"] = True
         self.menu_client.send(self.scaled(state))
 
     def menu_head_refresh(self):
@@ -5538,9 +5556,11 @@ class Daemon:
 
     # -- the quick menu ----------------------------------------------------
 
-    def set_quick(self, opened):
+    def set_quick(self, opened, swap=False):
+        """Open or close the quick menu; `swap` is `set_menu`'s."""
         if opened == self.quick_open:
             return
+        swap = swap or (opened and self.menu_open)
         self.quick_open = opened
         if opened:
             # The first tile, every time: see `QuickModel.reset`. After the
@@ -5551,7 +5571,7 @@ class Daemon:
             # One surface reads the D-pad at a time. The menu is the row's
             # other shape and PLUS inside it is the way here, so it goes as
             # this comes; the keyboard is under both.
-            self.set_menu(False)
+            self.set_menu(False, swap=True)
             self.set_osk(False)
             # The edge tick is shared with the menu's controls, and a wall one
             # of them found is not a wall on this row.
@@ -5571,7 +5591,7 @@ class Daemon:
             self._live_due.clear()
             self._live_pending.clear()
             self._live_sent.clear()
-        self.push_quick_view()
+        self.push_quick_view(swap=swap)
         if not opened:
             self.apply_gamebar()
         self.apply_grab()
@@ -5620,7 +5640,7 @@ class Daemon:
                 ids.append(item["id"])
         return ids
 
-    def push_quick_view(self):
+    def push_quick_view(self, swap=False):
         self._quick_next_heartbeat = time.monotonic() + VIEW_HEARTBEAT
         self.quick.hide(self.quick_hidden())
         state = self.quick.view_state(
@@ -5641,6 +5661,9 @@ class Daemon:
         # is up (`apply_gamebar`), and the row that answers the buttons stays
         # where it was.
         state["barh"] = self.config.gamebar_height
+        # The menu's hand-over, from this side: see `push_menu_view`.
+        if swap:
+            state["swap"] = True
         self.quick_client.send(self.scaled(state))
 
     def quick_head(self):

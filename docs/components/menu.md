@@ -2216,8 +2216,15 @@ shipped config leaves empty because the head carries the time now.
 open, title, clock, depth, sel, row, g, n, hit, groups, head, headrows, keys,
 cols, rows,
 items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?} ]
-scr?
+scr?, swap?
 ```
+
+`swap` rides only on the push that opens the menu in the quick menu's place
+or shuts it for the quick menu. The panel hands it to `Backdrop.qml` before it
+assigns `open`: arriving, the scrim is up at once with no fade; leaving, the
+window and its scrim stay until the row's window is on screen and a fade
+longer, with the keyboard and the pointer already given back
+([decision 98](../decisions/98-one-backdrop-two-menus.md)).
 
 `sel` is a tile **id**, not an index. `g` is which nav card. `groups` is
 `[{id, l, i, d, m}]` - `d` being the group's own detail, which the title line

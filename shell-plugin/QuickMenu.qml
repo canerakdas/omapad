@@ -24,6 +24,10 @@
 // that paused it, and a click that landed on the game behind would be worse
 // than a click that did nothing.
 //
+// PLUS and HOME trade this row and the menu over one backdrop: a change of
+// `open` that arrives with `swap` is that trade, and Backdrop.qml says how it
+// keeps the desktop from showing between the two.
+//
 // Every size is off `Metrics`' silver ladder - `metrics.type` and
 // `metrics.gap` - except the cell, which is the menu's module, the stroke
 // weights, which belong to the drawing rather than to the spacing, and **the
@@ -44,6 +48,13 @@ Item {
   id: root
 
   property bool opened: false
+  // Whether the line that last changed `open` said the menu is taking this
+  // row's place, or giving it back (decision 98).
+  property bool swap: false
+  // Whether the menu's window is on screen, and whether this one is: the
+  // two halves of the hand-over, wired to each other in Surfaces.qml.
+  property bool partnerDrawn: false
+  readonly property bool drawn: panel.backingWindowVisible
   property int sel: -1
   property var tiles: []
   // The tile in front, worded: its name, what it is on, the line under it,
@@ -227,13 +238,29 @@ Item {
         root.tiles = s.tiles
       if (s.band !== undefined && root.fresh("band", s.band))
         root.band = s.band
-      if (s.head !== undefined && root.fresh("head", s.head))
+      // Kept as they are on a row leaving for the menu: the daemon empties
+      // both on a closed row, and they fade out with the rest of it.
+      var leaving = s.open === false && !!s.swap
+      if (!leaving && s.head !== undefined && root.fresh("head", s.head))
         root.head = s.head
-      if (s.keys !== undefined && root.fresh("keys", s.keys))
+      if (!leaving && s.keys !== undefined && root.fresh("keys", s.keys))
         root.keys = s.keys
       if (s.sel !== undefined) root.sel = Number(s.sel)
-      if (s.open !== undefined) root.opened = !!s.open
+      // Every line, absent meaning no: only the push that trades the two
+      // surfaces carries it. Before `open`, which reads it.
+      root.swap = !!s.swap
+      if (s.open !== undefined) {
+        backdrop.turn(!!s.open, root.swap)
+        root.opened = !!s.open
+      }
     } catch (e) {}
+  }
+
+  Backdrop {
+    id: backdrop
+    opened: root.opened
+    partner: root.partnerDrawn
+    fade: metrics.time.follow
   }
 
   // omapad connects here and streams state; both ends keep trying, so the
@@ -307,7 +334,7 @@ Item {
 
   PanelWindow {
     id: panel
-    visible: root.opened
+    visible: backdrop.mapped
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
     WlrLayershell.namespace: "omapad-quick"
@@ -321,8 +348,13 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: Color.menu.scrim
-      opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
+      opacity: backdrop.up ? 1 : 0
+      // Snapped arriving on a hand-over: it is taking over a backdrop, not
+      // dimming. Leaving, it fades as ever (Backdrop.qml).
+      Behavior on opacity {
+        enabled: !(root.opened && root.swap)
+        NumberAnimation { duration: metrics.time.follow }
+      }
     }
 
     // And as much again as `[menu] dim` asks for, in the theme's own
@@ -331,14 +363,19 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: Util.alpha(Color.menu.background, root.dim)
-      opacity: root.opened ? 1 : 0
-      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
+      opacity: backdrop.up ? 1 : 0
+      Behavior on opacity {
+        enabled: !(root.opened && root.swap)
+        NumberAnimation { duration: metrics.time.follow }
+      }
     }
 
     // -- the head: what is in front, and what the machine is doing -------
 
     Column {
       id: heading
+      opacity: root.opened ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
       anchors.left: parent.left
       anchors.top: parent.top
       anchors.leftMargin: root.sideRoom
@@ -381,6 +418,9 @@ Item {
     Column {
       anchors.centerIn: parent
       spacing: root.cellGap
+      // The row fades with the scrim, and is all that fades on a hand-over.
+      opacity: root.opened ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
 
       Row {
         id: row
@@ -653,6 +693,8 @@ Item {
       anchors.bottomMargin: root.safeGap
       height: root.barBand
       visible: root.keys.length > 0
+      opacity: root.opened ? 1 : 0
+      Behavior on opacity { NumberAnimation { duration: metrics.time.follow } }
 
       Row {
         id: legendRow
