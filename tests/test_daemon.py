@@ -843,7 +843,10 @@ class ChronoMarkTests(DaemonTestCase):
 
     def start(self):
         """A measurement running, and the moment it started."""
-        at = time.monotonic()
+        # A whole number rather than the clock: `at + 60.0 - at` is not 60.0
+        # for every float the clock can read, and a mark a nanosecond short
+        # of the turn is no mark. The machine that read one ran this red.
+        at = 1000.0
         self.daemon.chrono.press(at)
         return at
 

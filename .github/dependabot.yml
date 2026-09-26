@@ -1,0 +1,32 @@
+# omapad has no Python dependencies to update; the workflows' actions and
+# CI's qmllint are the only third-party code it pulls in. Actions are pinned
+# to commit SHAs and qmllint to hashes, and this is what moves each pin and
+# the version beside it together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # A release that turns out to be compromised is usually pulled within
+    # days; waiting a week before proposing one lets that happen first.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  # The one download CI takes from PyPI (qmllint); hashes move with versions.
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      qt:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
