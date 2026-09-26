@@ -1,0 +1,68 @@
+# What a contributor is asked to run before pushing, run for them.
+#
+# omapad has no dependencies beyond the Python standard library, so there is
+# nothing to install: the suite runs on a stock interpreter, and the shell
+# scripts are checked with the shellcheck the runner image already carries.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor docs/conventions/python.md sets (tomllib); the
+        # newest is what an up-to-date Arch - so Omarchy - is running.
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile
+        run: python -m compileall -q omapad assets tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax
+        run: |
+          for script in install.sh boot.sh bin/omapad; do
+            bash -n "$script"
+          done
+      - name: shellcheck
+        run: shellcheck install.sh boot.sh bin/omapad
+
+  manifest:
+    name: Manifest and config
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Parse
+        run: |
+          python -c 'import json; json.load(open("manifest.json"))'
+          python -c 'import tomllib; tomllib.load(open("config/config.toml", "rb"))'
