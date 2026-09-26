@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write the five sounds a press makes into `sounds/`.
+"""Write the sounds a press makes into `sounds/`.
 
     python3 assets/sounds.py
     python3 assets/sounds.py --measure DIR   # how loud a pack of your own is
@@ -14,8 +14,8 @@ that is committed shows up in a diff when the numbers move, which
 
 They are placeholders in the sense that a drawn badge is: correct, shipped,
 and replaceable by anything with the same name. Point `[sound] pack` at a
-directory of your own `move.wav`, `tick.wav`, `edge.wav`, `commit.wav`,
-`back.wav` and nothing here is loaded at all.
+directory of your own `move.wav`, `next.wav`, `show.wav` and the rest of
+`sound.VOICES` and nothing here is loaded at all.
 
 **Why these are quiet, short and low.** They are heard over whatever is
 playing rather than instead of it - a film, a game, a track - and the pad
@@ -101,10 +101,12 @@ TV_ORDER = 4
 #   partials  (frequency in Hz, how much of the peak it gets)
 #   bend    where the fundamental ends up, as a ratio, swept over the sound
 #   decay   how many time constants fit in `ms` - higher is more percussive
+#   attack  optional: the share of `ms` spent coming up from silence, where
+#           the voice wants other than `ATTACK`
 #   lufs    how loud it is, measured as a television hears it (see above). In
 #           `sound.VOICES` order they rise, because that order is what each
-#           costs, and two apart at the least, or a room hears one size
-#           of press twice
+#           costs, two apart at the least; a pair that is one gesture in two
+#           directions shares its level
 #
 # The frequencies are four notes and a thud rather than round numbers: the
 # three that a press produces in a row - move, move, commit - are a fifth
@@ -118,6 +120,31 @@ VOICES = {
     "move": {
         "ms": 16, "partials": ((1174.7, 1.0), (2349.3, 0.18)),
         "bend": 1.0, "decay": 5.0, "lufs": -50.0,
+    },
+    # A page turned - the menu's bar, the guide, the keyboard's pages. The
+    # move's own note, a little longer, bent a whole tone up for the next
+    # page and down for the previous one, so the room hears which way the
+    # page went: what Xbox's MoveNext and MovePrevious are for. Heard and
+    # never felt, like the move, and for the move's reason - a shoulder held
+    # down turns page after page.
+    "next": {
+        "ms": 34, "partials": ((1174.7, 1.0), (2349.3, 0.15)),
+        "bend": 1.1225, "decay": 4.5, "lufs": -48.0,
+    },
+    "prev": {
+        "ms": 34, "partials": ((1174.7, 1.0), (2349.3, 0.15)),
+        "bend": 0.8909, "decay": 4.5, "lufs": -48.0,
+    },
+    # A surface arriving - the menu, the quick menu, the keyboard, the guide.
+    # The back upside down: it rises the fourth the back falls, from A to the
+    # D every sound inside the surface starts on, so opening a thing and
+    # putting it away are one gesture read in two directions, the way a
+    # commit and a back are. And it swells rather than strikes: a long
+    # attack is what tells it from the commit's rising fourth, because a
+    # surface arriving is not a press landing.
+    "show": {
+        "ms": 85, "partials": ((440.0, 1.0), (880.0, 0.2)),
+        "bend": 1.3348, "decay": 2.6, "attack": 0.35, "lufs": -46.0,
     },
     # A press that did something. The motor's own word, and the sound sits
     # just under it: a fifth below the move, so a press reads as heavier than
@@ -247,7 +274,7 @@ def shape(spec):
     """One cue at an arbitrary level, as floats: the partials, the bend and
     the envelope, before anything decides how loud it is."""
     count = max(1, int(RATE * spec["ms"] / 1000.0))
-    attack = max(1, int(count * ATTACK))
+    attack = max(1, int(count * spec.get("attack", ATTACK)))
     weight = sum(share for _, share in spec["partials"])
     out = []
     # The phase of each partial is integrated rather than computed from

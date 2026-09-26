@@ -43,7 +43,7 @@ Item {
   // How loud, from the daemon (`[sound] volume`): the panel cannot read the
   // config, and this changes from the menu while a page is being walked.
   property real gain: 0.6
-  // Where the four files are (`[sound] pack`). Empty is the set that ships
+  // Where the files are (`[sound] pack`). Empty is the set that ships
   // beside the plugin.
   property string dir: ""
 
@@ -60,7 +60,7 @@ Item {
   Loader {
     id: bank
     source: "SoundBank.qml"
-    // Asynchronous so that decoding four files cannot hold up the frame the
+    // Asynchronous so that decoding the files cannot hold up the frame the
     // shell is drawing when the plugin loads. Nothing waits on it: a cue
     // that arrives before the bank is ready is dropped, and the cue after it
     // is a fiftieth of a second later.

@@ -9,10 +9,10 @@ motor and every one whose owner has turned it off. A console answers the third
 way: it makes a noise, and the noise is what tells a room across three metres
 that a press landed.
 
-**The vocabulary is the motor's, plus the two words the motor cannot say.**
+**The vocabulary is the motor's, plus the words the motor cannot say.**
 `tick`, `edge` and `commit` are `rumble.VOCABULARY`'s own, deliberately, so
-that what happened has one name and two things that can say it. The other two
-are the additions, and each is a thing a motor has no way to be:
+that what happened has one name and two things that can say it. The rest are
+the additions, and each is a thing a motor has no way to be:
 
 `move` is *quiet enough to repeat*. A motor that ticked on every step of a
 held direction buzzes all the way down a list, which is why `[snap] rumble`
@@ -26,6 +26,12 @@ the other way". The pair is one gesture read in two directions - the commit
 bends up, the back bends down from the same note - so a room hears which of
 them happened without anybody having been taught the difference. It still
 ticks the hands, because a press is a press: only the speakers know which.
+
+`show` is `back` upside down - a surface arriving, rising the fourth that
+putting one away falls - and ticks the hands for the same reason. `next` and
+`prev` are a page turned, the move's note bent up or down a tone: which way
+the page went is a pitch, and a motor has none. They are Xbox's MoveNext and
+MovePrevious, and like the move they are heard and never felt.
 
 `texture` is the other direction and has no sound at all. It is the motor's
 one held effect, and a speaker cannot hold a note under a slider for a second
@@ -45,12 +51,19 @@ menu, or `sound = true`, and it is on.
 """
 
 # The words, and the order is what they cost: a move is the quietest thing
-# that happens and a commit is the loudest. Each is a file of the same name
-# under `assets/sounds/`, written by `assets/sounds.py`.
+# that happens and a commit is the loudest - measured, `assets/sounds.py`
+# gives each a loudness and `tests/test_sound.py` holds them in this order.
+# Each is a file of the same name under `assets/sounds/`, written by
+# `assets/sounds.py`.
 #
 # Held effects are not here and cannot be: `rumble.VOCABULARY` has one
 # (`texture`) and a speaker has no way to say it that a room would forgive.
-VOICES = ("move", "back", "tick", "edge", "commit")
+VOICES = ("move", "prev", "next", "show", "back", "tick", "edge", "commit")
+
+# Said by the speakers and never felt, because each is a step that repeats
+# under a held direction or a held shoulder: a motor ticking at every one of
+# them buzzes all the way down a list. `daemon.say()` reads this.
+UNFELT = ("move", "prev", "next")
 
 
 class SoundModel:

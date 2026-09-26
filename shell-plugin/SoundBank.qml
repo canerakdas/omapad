@@ -1,4 +1,4 @@
-// The five files, loaded and ready to fire.
+// The files, loaded and ready to fire.
 //
 // Kept apart from `Sound.qml` for one reason: the `import QtMultimedia` below.
 // Quickshell does not depend on qt6-multimedia, a QML import that cannot be
@@ -25,9 +25,9 @@ Item {
   property string dir: ""
 
   // The closed list, and it is the daemon's `sound.VOICES` in the same order.
-  // A sixth word is four things rather than one: a file here, a name there,
+  // A new word is four things rather than one: a file here, a name there,
   // a `say()` at the moment it happens, and a test.
-  readonly property var voices: ["move", "back", "tick", "edge", "commit"]
+  readonly property var voices: ["move", "prev", "next", "show", "back", "tick", "edge", "commit"]
 
   // A pack is a directory of files; the shipped set is beside this file. Both
   // end up as URLs, which is what a `SoundEffect` takes.

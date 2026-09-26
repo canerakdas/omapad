@@ -57,7 +57,7 @@ def build_parser():
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
-        "sound <move|tick|edge|commit>, "
+        "sound <move|prev|next|show|back|tick|edge|commit>, "
         "press <BUTTON> [tap|hold], "
         "lock <on|off|toggle>, keep <on|off|toggle>, "
         "hud <on|off|toggle>, "

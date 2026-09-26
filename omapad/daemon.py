@@ -41,7 +41,7 @@ from .live import Live
 from . import live as live_module
 from .sysinfo import Sysinfo
 from . import sysinfo as sysinfo_module
-from .rumble import Rumble
+from .rumble import Rumble, VOCABULARY as RUMBLE_WORDS
 from . import xkb
 from .viewsock import ViewClient, drawable
 from .uinput import WHEEL_HI_RES_STEP, VirtualKeyboard, VirtualMouse
@@ -2518,19 +2518,19 @@ class Daemon:
         `rumble=False` is the one asymmetry, and `move` is why it exists: a
         motor that ticked on every step of a held direction buzzes the whole
         way down a list, and a speaker doing the same thing ticks, because a
-        sound decays and a vibration does not.
+        sound decays and a vibration does not. `sound.UNFELT` is the same
+        rule said once for the words that are always that kind of step.
 
         Best-effort at both ends - a pad with no motor, a shell that is not
         up - and neither is a reason for the press itself to have gone
         anywhere but through.
         """
-        if rumble:
-            # The motor says the nearest thing it has. `move` and `back` are
-            # the two words it does not hold, and both are a press, so both
-            # tick: the hands feel that something happened and the speakers
-            # are what say which. See sound.py.
-            self.rumble.play(
-                "tick" if name in ("move", "back") else name)
+        if rumble and name not in sound_module.UNFELT:
+            # The motor says the nearest thing it has. Every word it does not
+            # hold is a press - a back, a surface shown - so it ticks: the
+            # hands feel that something happened and the speakers are what
+            # say which. See sound.py.
+            self.rumble.play(name if name in RUMBLE_WORDS else "tick")
         if not self.config.sound_enabled:
             return False
         if not self.sound.say(name):
@@ -2639,11 +2639,15 @@ class Daemon:
             # Toggled shut is closed: MINUS is the same button going the other
             # way, and a button that answered on the way in and said nothing
             # on the way out would be the surface keeping half a promise.
-            if self.osk_open:
-                self.say("back")
+            self.say("back" if self.osk_open else "show")
             self.set_osk(not self.osk_open)
             return
         if command == "open":
+            # Said by the verb, never by the surface arriving: the keyboard
+            # that opens itself under a text field (decision 30) was asked
+            # for by nobody, and has no press to answer.
+            if not self.osk_open:
+                self.say("show")
             self.set_osk(True)
             return
         if command == "close":
@@ -2683,8 +2687,10 @@ class Daemon:
             name = command[6:]
             if name == "next":
                 model.cycle_layer(1)
+                self.say("next")
             elif name == "prev":
                 model.cycle_layer(-1)
+                self.say("prev")
             else:
                 model.set_layer(name)
         elif command == "caps":
@@ -4634,9 +4640,17 @@ class Daemon:
         if not repeat:
             self._menu_edged = False
         if command == "toggle":
+            # Toggled shut goes through `back` like every other way out;
+            # toggled open is the surface arriving.
+            if self.menu_open:
+                self.say("back")
+            else:
+                self.say("show")
             self.set_menu(not self.menu_open)
             return False
         if command == "open":
+            if not self.menu_open:
+                self.say("show")
             self.set_menu(True)
             return False
         if command == "close":
@@ -4801,7 +4815,7 @@ class Daemon:
             held = True
         elif command in ("group_prev", "group_next"):
             if model.group_move(-1 if command == "group_prev" else 1):
-                self.say("move", rumble=False)
+                self.say("prev" if command == "group_prev" else "next")
             self.menu_group_enter()
             held = True
         elif command == "back" and self._menu_countdown is not None:
@@ -5216,11 +5230,12 @@ class Daemon:
         # so closing it is the one thing that happens here besides turning a
         # page, and it is the same word every other surface leaves on.
         if command == "toggle":
-            if self.guide_open:
-                self.say("back")
+            self.say("back" if self.guide_open else "show")
             self.set_guide(not self.guide_open)
             return
         if command == "open":
+            if not self.guide_open:
+                self.say("show")
             self.set_guide(True)
             return
         if command == "close":
@@ -5232,7 +5247,7 @@ class Daemon:
             return  # turning a page means nothing while the guide is down
         if command in ("next", "prev"):
             self.guide.move(1 if command == "next" else -1)
-            self.say("move", rumble=False)
+            self.say(command)
         self.push_guide_view()
 
     # -- the quick menu ----------------------------------------------------
@@ -5425,11 +5440,12 @@ class Daemon:
     def quick_command(self, command, repeat=False):
         """Drive the quick menu. True when holding the button should repeat."""
         if command == "toggle":
-            if self.quick_open:
-                self.say("back")
+            self.say("back" if self.quick_open else "show")
             self.set_quick(not self.quick_open)
             return False
         if command == "open":
+            if not self.quick_open:
+                self.say("show")
             self.set_quick(True)
             return False
         if command == "close":

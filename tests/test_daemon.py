@@ -3239,6 +3239,88 @@ class LeavingSoundsTests(DaemonTestCase):
                          [self.daemon.rumble.effects["tick"]])
 
 
+class ArrivingSoundsTests(DaemonTestCase):
+    """`show` and the page turns: Xbox's Show, MoveNext and MovePrevious.
+
+    `show` is `back` upside down, said by the verb that opens a surface and
+    never by a surface arriving on its own. `next` and `prev` are which way a
+    page went, heard and never felt, because a held shoulder turns page after
+    page.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.config.sound_enabled = True
+        self.daemon.config.menu_first_run = False
+
+    def said(self):
+        return self.sound_client.sent[-1]["c"] if self.sound_client.sent \
+            else None
+
+    def test_every_surface_opened_by_a_verb_says_it(self):
+        for command, is_open in (
+                (self.daemon.menu_command, lambda: self.daemon.menu_open),
+                (self.daemon.quick_command, lambda: self.daemon.quick_open),
+                (self.daemon.guide_command, lambda: self.daemon.guide_open),
+                (self.daemon.osk_command, lambda: self.daemon.osk_open)):
+            for verb in ("open", "toggle"):
+                command("close")
+                self.sound_client.sent = []
+                command(verb)
+                self.assertTrue(is_open())
+                self.assertEqual(self.said(), "show", (command, verb))
+
+    def test_toggled_shut_is_still_back(self):
+        self.daemon.menu_command("toggle")
+        self.sound_client.sent = []
+        self.daemon.menu_command("toggle")
+        self.assertEqual(self.said(), "back")
+
+    def test_opening_what_is_open_says_nothing(self):
+        self.daemon.menu_command("open")
+        self.sound_client.sent = []
+        self.daemon.menu_command("open")
+        self.assertIsNone(self.said())
+
+    def test_a_keyboard_that_opened_itself_says_nothing(self):
+        # Nobody pressed anything: decision 30's keyboard coming up under a
+        # text field has no press to answer.
+        self.sound_client.sent = []
+        self.daemon.set_osk(True)
+        self.assertIsNone(self.said())
+
+    def test_the_hands_feel_a_surface_arrive(self):
+        # The same reason `back` ticks: a press is a press.
+        self.device.played = []
+        self.daemon.menu_command("open")
+        self.assertEqual(self.device.played,
+                         [self.daemon.rumble.effects["tick"]])
+
+    def test_a_page_turned_says_which_way(self):
+        self.daemon.menu_command("open")
+        self.sound_client.sent = []
+        self.daemon.menu_command("group_next")
+        self.assertEqual(self.said(), "next")
+        self.daemon.menu_command("group_prev")
+        self.assertEqual(self.said(), "prev")
+
+    def test_and_is_never_felt(self):
+        self.daemon.menu_command("open")
+        self.device.played = []
+        self.daemon.menu_command("group_next")
+        self.daemon.menu_command("group_next", repeat=True)
+        self.assertEqual(self.device.played, [])
+
+    def test_the_guide_and_the_keyboard_turn_the_same_way(self):
+        self.daemon.guide_command("open")
+        self.sound_client.sent = []
+        self.daemon.guide_command("next")
+        self.assertEqual(self.said(), "next")
+        self.daemon.osk_command("open")
+        self.daemon.osk_command("layer:prev")
+        self.assertEqual(self.said(), "prev")
+
+
 class CountedRowTests(DaemonTestCase):
     """A menu row that is pressed and then counts down to running.
 

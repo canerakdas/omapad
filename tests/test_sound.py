@@ -48,18 +48,27 @@ class SayTests(unittest.TestCase):
         # loudest thing in the room.
         self.assertNotIn("texture", sound.VOICES)
 
-    def test_the_vocabulary_is_the_motor_s_plus_the_two_it_cannot_say(self):
+    def test_the_vocabulary_is_the_motor_s_plus_what_it_cannot_say(self):
         # `move` is quiet enough to repeat, which a motor is not: one that
         # ticked on every step of a held direction buzzes the whole way down
         # a list. `back` is lower and softer than a commit, which a motor
         # cannot be either - it can be shorter or weaker, and that says "less
-        # happened" rather than "this went the other way".
+        # happened" rather than "this went the other way". `show` is the
+        # back upside down, and `next` / `prev` are a direction, which is a
+        # pitch and not a buzz.
         from omapad import rumble
         played = set(name for name in rumble.VOCABULARY
                      if not rumble.VOCABULARY[name]["held"])
         self.assertTrue(played.issubset(set(sound.VOICES)),
                         "a word the motor plays that the speakers cannot")
-        self.assertEqual(set(sound.VOICES) - played, {"move", "back"})
+        self.assertEqual(set(sound.VOICES) - played,
+                         {"move", "prev", "next", "show", "back"})
+
+    def test_what_repeats_under_a_held_button_is_never_felt(self):
+        # A shoulder held down turns page after page the way a held D-pad
+        # walks tile after tile; a motor ticking at each is a buzz.
+        self.assertEqual(set(sound.UNFELT), {"move", "prev", "next"})
+        self.assertTrue(set(sound.UNFELT).issubset(set(sound.VOICES)))
 
     def test_the_volume_rides_every_cue(self):
         # There is no heartbeat on this socket, so a panel that had missed
@@ -126,8 +135,8 @@ class ShippedFilesTests(unittest.TestCase):
         # A sound longer than the gap between two presses is a chord rather
         # than an answer. The move is the one that has to be shortest: it
         # fires six times a second while somebody crosses a page.
-        limits = {"move": 25, "back": 90, "tick": 40, "edge": 70,
-                  "commit": 120}
+        limits = {"move": 25, "prev": 45, "next": 45, "show": 110,
+                  "back": 90, "tick": 40, "edge": 70, "commit": 120}
         for name in sound.VOICES:
             with wave.open(os.path.join(SOUNDS, "%s.wav" % name)) as handle:
                 ms = handle.getnframes() * 1000.0 / handle.getframerate()
@@ -238,9 +247,13 @@ class LoudnessTests(unittest.TestCase):
                   for name in sound.VOICES]
         self.assertEqual(levels, sorted(levels))
         # Two apart at the least, or a room hears one size of press twice.
+        # The one pair that shares a level is one gesture in two directions.
         for (a, low), (b, high) in zip(zip(sound.VOICES, levels),
                                        zip(sound.VOICES[1:], levels[1:])):
-            self.assertGreaterEqual(high - low, 2.0, "%s, %s" % (a, b))
+            if {a, b} == {"prev", "next"}:
+                self.assertEqual(low, high)
+            else:
+                self.assertGreaterEqual(high - low, 2.0, "%s, %s" % (a, b))
 
     def test_nothing_goes_over_the_ceiling(self):
         for name in sound.VOICES:
