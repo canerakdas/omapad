@@ -1,0 +1,124 @@
+# What a contributor is asked to run before pushing, run for them.
+#
+# omapad has no dependencies beyond the Python standard library, so there is
+# nothing to install: the suite runs on a stock interpreter, and the shell
+# scripts are checked with the shellcheck the runner image already carries.
+#
+# Every action is pinned to a full commit SHA, with the tag it was cut from
+# beside it; Dependabot moves both. A tag can be re-pointed by whoever holds
+# the action's repository, a commit cannot.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # release.yml runs the same checks on the tagged commit before publishing.
+  workflow_call:
+
+# Nothing by default; each job asks for what it reads.
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor docs/conventions/python.md sets (tomllib); the
+        # newest is what an up-to-date Arch - so Omarchy - is running.
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Compile
+        run: python -m compileall -q omapad assets tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+  shell:
+    name: Shell scripts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Syntax
+        run: |
+          for script in install.sh boot.sh bin/omapad; do
+            bash -n "$script"
+          done
+      - name: shellcheck
+        run: shellcheck install.sh boot.sh bin/omapad
+
+  qml:
+    name: QML lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Install qmllint
+        run: |
+          python -m venv "$RUNNER_TEMP/qt"
+          "$RUNNER_TEMP/qt/bin/pip" install --quiet --require-hashes --only-binary :all: \
+            -r .github/requirements/qmllint.txt
+      # Quickshell and Omarchy's qs.* modules exist only on a machine running
+      # the shell, so every check that has to resolve a type from them is off:
+      # without them each would fire on every line that touches one. What is
+      # left - syntax, duplicate names and bindings, and the rest of what a
+      # file can be wrong about on its own - fails the job.
+      #
+      # property-override is reported but not fatal: Mapping.qml's `state`
+      # shadows Item.state on purpose, and renaming it is a shell change.
+      - name: qmllint
+        run: |
+          "$RUNNER_TEMP/qt/bin/pyside6-qmllint" \
+            --import disable \
+            --unqualified disable \
+            --missing-property disable \
+            --unresolved-type disable \
+            --required disable \
+            --property-override info \
+            --max-warnings 0 \
+            shell-plugin/*.qml
+
+  manifest:
+    name: Manifest and config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+      - name: Parse
+        run: |
+          python -c 'import json; json.load(open("manifest.json"))'
+          python -c 'import tomllib; tomllib.load(open("config/config.toml", "rb"))'
