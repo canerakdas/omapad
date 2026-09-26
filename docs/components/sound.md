@@ -6,7 +6,7 @@
 | **Panel** | `shell-plugin/Sound.qml`, `shell-plugin/SoundBank.qml` |
 | **Socket** | `sound.sock` |
 | **Settings** | `[sound] enabled`, `volume`, `pack`, `socket` |
-| **Verb** | `omapad ctl sound <move\|back\|tick\|edge\|commit>` |
+| **Verb** | `omapad ctl sound <move\|prev\|next\|show\|back\|tick\|edge\|commit>` |
 
 A press is answered three ways and this program had two of them. The screen is
 answered by looking at it, which is the one thing somebody walking a menu by
@@ -15,9 +15,10 @@ the pad is on a knee, nothing on a pad that has no motor, and nothing for
 anybody who has turned it off. This is the third, and it is the only one a
 room hears.
 
-## The vocabulary, and the two words that are not the motor's
+## The vocabulary, and the words that are not the motor's
 
-`VOICES` is `("move", "back", "tick", "edge", "commit")`. Three of them are
+`VOICES` is `("move", "prev", "next", "show", "back", "tick", "edge",
+"commit")`, in the order of what each costs. Three of them are
 [`rumble.md`](rumble.md)'s own words, deliberately: **what happened has one
 name and two things that can say it**, and `daemon.say()` is where both are
 said at once. Two vocabularies kept in step by hand are two vocabularies that
@@ -56,6 +57,23 @@ a control put back with B, and either kind of countdown backed out of
 does **not** come through any of them - it has an answer of its own, and two
 sounds for one press is one of them arguing with the other.
 
+**`show` is `back` upside down** ([94](../decisions/94-sounds-measured-where-heard.md)).
+It rises from A to D - the fourth `back` falls, ending on the note every sound
+inside a surface starts on - and it swells rather than strikes, which is what
+tells it from the commit's rising fourth: a surface arriving is not a press
+landing. It is Xbox's `Show`; `back` was already its `Hide`. Like `back` it is
+said by the **verb** - `menu`, `quick`, `guide` and `osk`, `open` or `toggle`
+when the surface was down - and never by a surface arriving on its own, so the
+keyboard that opens itself under a text field says nothing. It ticks the hands
+for `back`'s reason.
+
+**`next` and `prev` are which way a page went**: the menu's bar, the guide's
+pages, the keyboard's. The move's note, a little longer, bent a tone up or
+down - Xbox's `MoveNext` and `MovePrevious`. They were `move` before, which
+said a page turned and not which way. `sound.UNFELT` holds them with `move`:
+a shoulder held down turns page after page, and `say()` never sends any of
+the three to the motor.
+
 **A mute is said with the same pair.** A `live:` switch whose reading says
 `quiets` - `mute`, `mic`, `deafen` - falls as it goes on and rises as it goes
 off, `back` and `commit`, which is the shape of Discord's own mute and unmute
@@ -71,7 +89,7 @@ speaker holding a note under a slider for a second and a half is also the
 loudest thing in the room. `tests/test_sound.py` says so as an
 invariant rather than as a comment: every *played* word of the motor's
 vocabulary is a voice, and the difference between the two sets is exactly
-`{"move", "back"}`.
+the words this section names.
 
 ## It ships off
 
@@ -118,8 +136,8 @@ payload does not ask.
 ```
 
 `dir` empty is the set that ships. Anything else is a directory the panel
-opens `move.wav`, `back.wav`, `tick.wav`, `edge.wav` and `commit.wav` in - expanded in
-`config.py`, because the plugin has no shell to expand a `~` with.
+opens `<voice>.wav` in, one per word of `VOICES` - expanded in `config.py`,
+because the plugin has no shell to expand a `~` with.
 
 ## The panel, and the import that is quarantined
 
@@ -143,7 +161,7 @@ silent, which is what makes a pack of one sound worth writing.
 
 ## The files
 
-Four WAVs under `assets/sounds/`, **generated and checked in** exactly as the
+One WAV per voice under `assets/sounds/`, **generated and checked in** exactly as the
 badges are - `python3 assets/sounds.py` writes them, and
 `tests/test_sound.py` fails when they and the generator disagree. Synthesised
 rather than recorded: a sample is a licence to carry and a file nobody can
@@ -157,13 +175,29 @@ for a television's own drivers. The three notes a press produces in a row -
 move, move, commit - are a fifth apart, so walking a page and pressing
 something sounds like one instrument rather than three unrelated beeps.
 
+**How loud each is, is measured.** Every voice names a loudness in LUFS -
+ITU-R BS.1770, the meter every broadcast loudness rule is written against -
+measured over one 400 ms block and **through a television**: a fourth-order
+high-pass at 200 Hz standing in for a set's own drivers. `render()` scales
+each voice until it reads its number. They rise in `VOICES` order, two LU
+apart at the least, and `prev` / `next` share one because they are one
+gesture ([94](../decisions/94-sounds-measured-where-heard.md)).
+`tests/test_sound.py` holds the files to their numbers, the order, a peak
+ceiling, and a meter that reproduces the standard's own coefficients and its
+-3.01 check tone.
+
+`python3 assets/sounds.py --measure DIR` reads a pack of your own the same
+way and prints, per file, the gain that would put it where the shipped voice
+is.
+
 ## Changing it
 
 Read [`../procedures/pad-surface.md`](../procedures/pad-surface.md) first.
-Adding a voice is five places and not one: a name in `sound.VOICES`, an entry
-in `assets/sounds.py` with a comment saying what it is answering, the
-generated file, the list in `SoundBank.qml`, and a `say()` at the moment it
-happens. A voice that can be added by touching one file is one that ships
+Adding a voice is five places and not one: a name in `sound.VOICES` (and
+`sound.UNFELT` if it repeats under a held button), an entry in
+`assets/sounds.py` with a comment saying what it is answering and a `lufs`
+that keeps the order, the generated file, the list in `SoundBank.qml`, and a
+`say()` at the moment it happens. A voice that can be added by touching one file is one that ships
 without a sound.
 
 Related: [`rumble.md`](rumble.md) for the other half of the same sentence,

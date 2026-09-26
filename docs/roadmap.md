@@ -24,6 +24,14 @@ the entry is the design for putting it back; the cost it was taken out for - a
 model, a recorder and a transcriber, four more ways for the pad to stop working
 - has not changed.
 
+**[94](decisions/94-sounds-measured-where-heard.md) · a move that comes
+from where the ring is · Buildable · S.** Xbox pans its focus sound by the
+element's place on screen; ours are mono on purpose, because a cue *happened
+nowhere* - true of a commit, not of a move. The work is small, a pan in
+`Sound.qml` from the ring's position. What is missing is deciding what a cue
+is. The same entry owes the set its listen: every level is measured through a
+model of a television, and none has been heard on one.
+
 ## Built, and short of what it promised
 
 **[10](decisions/10-hint-bar.md) · the hint bar, on the desktop · Buildable ·

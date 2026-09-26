@@ -31,7 +31,7 @@ omarchy-restart-shell            # so the shell picks up the new ButtonArt.qml
 | `shapes/clock-*.svg` | Everything on a clock face and on the chronograph that shares it: the rim, its twelve marks, the hub, the hour and minute hands, the sweep hand, and the register's ring and hand - a line drawing of the Seiko 6139's dial, with no name on it. Drawn on the dial's own 40-unit canvas so the two circles a page may hold are one circle, with a double hairline case against the dial's one band three units thick, a track in fifths, slim batons and tapering hands all in outline - the Seiko 6139's dial, to the proportions of a reference drawing of it - except the register's pair, which is drawn on the register's own 40 so a hand there is measured against the circle it turns in. A hand stands at twelve, pinned at 20,20 where the hub is; the panel turns the whole face-sized box about its middle and names no length, weight or corner. What is left to it is where the register sits and how big it is. |
 | `buttons/` | Generated: each shape with its label punched through it, one path with `evenodd`. Portable - use these outside the shell. |
 | `generate.py` | The generator. |
-| `sounds/` | Generated: the four WAVs a press is answered with. Nothing hand-made stands behind them - the source is the table in `sounds.py`. See [`sound.md`](sound.md). |
+| `sounds/` | Generated: the WAVs a press is answered with, one per voice. Nothing hand-made stands behind them - the source is the table in `sounds.py`. See [`sound.md`](sound.md). |
 | `sounds.py` | The other generator, and the only one with no `shapes/`: a sound is arithmetic rather than a drawing, so its source is the numbers beside it. |
 | `truetype.py`, `svgpath.py`, `place.py` | Its parts. |
 

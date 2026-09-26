@@ -2061,11 +2061,13 @@ else in the room as well, so a desktop that started clicking because a
 controller had been plugged into it would be omapad deciding something about
 the room rather than about the pad.
 
-#### It says the motor's three words, and two more
+#### It says the motor's three words, and five more
 
 | | Says | Where you hear it |
 |---|---|---|
-| **move** | the selection went somewhere | walking the menu's tiles, its bar, the keyboard's keys, the guide's pages |
+| **move** | the selection went somewhere | walking the menu's tiles, the quick menu, the keyboard's keys |
+| **next** / **prev** | the page turned, and which way | the shoulders on the menu's bar, the guide's pages, the keyboard's pages |
+| **show** | a surface came up | opening the menu, the quick menu, the keyboard or the guide |
 | **back** | that went the other way | B up a level, leaving a page, putting a control back, a countdown backed out of, any surface put away |
 | **tick** | a press landed | everywhere the motor ticks |
 | **edge** | you cannot go further | a control at the end of its range |
@@ -2084,14 +2086,26 @@ same place — and softer and shorter besides, because leaving is the smaller
 event. A press still ticks the hands either way; only the room is told which
 of the two it was.
 
+`show` is `back` turned over: it rises the fourth that putting a surface away
+falls, and it swells in rather than striking, so it is never mistaken for a
+commit. `next` and `prev` are the move's note bent up or down — the room hears
+which way the page went, and like `move` the hands feel none of it, because a
+shoulder held down turns page after page.
+
 `texture` goes the other way and has no sound at all: a hum under a thumb
 becomes the loudest thing in the room coming out of a speaker.
 
-The five files ship beside the plugin and are **generated, not recorded** —
-`python3 assets/sounds.py` writes them from a table of about eighty lines, so
-changing what a commit sounds like is changing a number. Point `pack` at a
-directory of your own to replace them; a name it does not hold falls back to
-the shipped one, so a pack of a single `commit.wav` is worth writing.
+Each one is set to a measured loudness rather than a guessed one — LUFS, the
+broadcast meter, taken the way a television's own small speakers hear it — so
+a low sound like `edge` is not lost on the set it was made for.
+
+The files ship beside the plugin and are **generated, not recorded** —
+`python3 assets/sounds.py` writes them from a table, so changing what a commit
+sounds like is changing a number. Point `pack` at a directory of your own to
+replace them; a name it does not hold falls back to the shipped one, so a pack
+of a single `commit.wav` is worth writing. `python3 assets/sounds.py --measure
+DIR` tells you how far each of your files is from the level of the one it
+replaces.
 
 Playing anything needs **`qt6-multimedia`**, which Quickshell does not depend
 on. Without it the sounds are simply absent and nothing else in the plugin is
