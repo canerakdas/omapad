@@ -39,11 +39,13 @@ has no motor half.
 
 `back` is the second addition, and it is the other kind of thing a motor
 cannot be. A motor can be shorter or weaker, which says *less happened*; it
-cannot fall a fourth, which says *this one went the other way*. So the cue is
-the commit's own note and the commit's own interval inverted - that one bends
-up over its length, this one bends down from the same place - and softer and
-shorter besides. The pair is one gesture read in two directions, which is what
-lets a room tell them apart without anybody having been taught to.
+cannot sit lower and duller, which says *this one went nowhere*. So the cue
+is one note, the A below the commit's D, on the vibraphone with the soft
+mallet and muffled: the commit rings out above D and the back stays beneath
+it. It shares the tick's note and is told from it by the instrument - a
+soft, dull vibraphone against a hard marimba stroke - and by two dB. The commit's two notes falling were tried
+first and heard as wrong: a falling figure reads as an error, and leaving
+is not one.
 
 Unlike `move` it **does** tick the motor: a press is a press, and the hands
 have no business finding out that something was cancelled by feeling nothing.
@@ -57,19 +59,19 @@ a control put back with B, and either kind of countdown backed out of
 does **not** come through any of them - it has an answer of its own, and two
 sounds for one press is one of them arguing with the other.
 
-**`show` is `back` upside down** ([94](../decisions/94-sounds-measured-where-heard.md)).
-It rises from A to D - the fourth `back` falls, ending on the note every sound
-inside a surface starts on - and it swells rather than strikes, which is what
-tells it from the commit's rising fourth: a surface arriving is not a press
-landing. It is Xbox's `Show`; `back` was already its `Hide`. Like `back` it is
-said by the **verb** - `menu`, `quick`, `guide` and `osk`, `open` or `toggle`
+**`show` is the arrival** ([94](../decisions/94-sounds-measured-where-heard.md)).
+A low D and its octave on the vibraphone, soft, swelling in over 25 ms: the
+deepest thing a surface says and the slowest to arrive, which is what tells
+it from a press landing. A rolled D, F sharp, A was tried first and heard as
+a notification. It is Xbox's `Show`; `back` was already its `Hide`. Like `back` it is
+said by the **verb** - `menu`, `guide` and `osk`, `open` or `toggle`
 when the surface was down - and never by a surface arriving on its own, so the
 keyboard that opens itself under a text field says nothing. It ticks the hands
 for `back`'s reason.
 
 **`next` and `prev` are which way a page went**: the menu's bar, the guide's
-pages, the keyboard's. The move's note, a little longer, bent a tone up or
-down - Xbox's `MoveNext` and `MovePrevious`. They were `move` before, which
+pages, the keyboard's. The move's neighbours on the scale, a little longer,
+one up and one down - Xbox's `MoveNext` and `MovePrevious`. They were `move` before, which
 said a page turned and not which way. `sound.UNFELT` holds them with `move`:
 a shoulder held down turns page after page, and `say()` never sends any of
 the three to the motor.
@@ -168,12 +170,29 @@ rather than recorded: a sample is a licence to carry and a file nobody can
 edit, while these are a table of numbers, so a different commit sound is a
 different number in `VOICES` and a re-run.
 
+**They are two bars** ([101](../decisions/101-a-marimba-and-a-vibraphone.md)), modelled
+rather than sampled, and which one a voice is on says what kind of thing
+happened. **Walking is the marimba** - the move, the page turns and the
+tick: a bar with a marimba's carved overtones, the resonator tube under it
+that holds the note and blooms, and a hard mallet given as the length of
+its push against the wood. **What happens to a surface is the
+vibraphone** - it arrives, a press is taken, it is left, it will go no
+further: the marimba's metal cousin, tuned 1, 4, 10 and ringing far longer,
+its mallet given as which overtones it wakes. Those four were the marimba
+first and were heard as the walk repeating itself.
+
+Every cue is a note or a few, from D, E, F sharp and A, so any two that
+overlap are consonant: the move E, the page turns F sharp and D, the tick
+the A below; the show a low D and its octave swelling in, the commit D and
+A struck together hard, the back that A soft and muffled, the edge two
+quick low strokes - the shape of *no* - soft and muffled. No pitch slides
+anywhere: a glide on a struck note is a water drop, and was heard as
+one.
+
 Four decisions shape all of them, and each is in that file beside the number
-it produced: under 100 ms, no attack that steps the speaker cone, an
-exponential decay that is over before the next press, and a pitch low enough
-for a television's own drivers. The three notes a press produces in a row -
-move, move, commit - are a fifth apart, so walking a page and pressing
-something sounds like one instrument rather than three unrelated beeps.
+it produced: under 200 ms, no step at either end that moves the speaker
+cone, a body that has rung down before the next press, and nothing whose
+loudness lives below what a television's drivers play.
 
 **How loud each is, is measured.** Every voice names a loudness in LUFS -
 ITU-R BS.1770, the meter every broadcast loudness rule is written against -

@@ -218,7 +218,7 @@ and the file is the thing that actually changed.
   why they get no say in it.
 - `set_locked()` is the workspace lock: the pad is the app in front's whatever
   `/proc` says, and `allowed()` then lets nothing through but a chord - the
-  quick menu, with the lock's tile on it, and so the way back out. `chord_pending()` is the other half of it,
+  menu, with the lock's tile on its quick page, and so the way back out. `chord_pending()` is the other half of it,
   and keeps a chord that can do nothing right now from making its buttons wait
   for their release. See [handover](handover.md).
 - `set_keeping()` is the same question answered the other way: the pad is ours
@@ -229,7 +229,8 @@ and the file is the thing that actually changed.
 
 ## Surfaces
 
-`set_osk`, `set_menu`, `set_quick`, `set_guide`, `set_mapping`,
+`set_osk`, `set_menu` (and `set_menu(True, page=...)` for PLUS's quick page),
+`set_guide`, `set_mapping`,
 `set_gamebar` open and close; `push_*_view()` pushes `model.view_state(...)` through the surface's
 `ViewClient`, wrapped in `scaled()` so the payload carries the scale the mode
 asks for. `push_open_views()` redraws everything on screen when something

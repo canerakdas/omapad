@@ -53,8 +53,7 @@ def build_parser():
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
         "|group_prev|group_next|select N|group N|row ID"
-        "|scroll ID N>, "
-        "quick <toggle|open|close|left|right|up|down|press|back|select N>, "
+        "|scroll ID N> [page], "
         "guide <toggle|open|close|next|prev>, "
         "map <toggle|open|close|skip|back|restart|save|cancel>, "
         "surface <close|close_all|back>, ripple <left|right|middle>, "
@@ -417,7 +416,7 @@ def _report_triggers(config, device, trigger_axes):
 
 def cmd_check(config):
     """Parse every binding so mistakes surface before the daemon starts."""
-    from . import actions, menu, osk, quick
+    from . import actions, menu, osk
 
     problems = 0
     for layer_name, bindings in config.bindings.items():
@@ -468,11 +467,12 @@ def cmd_check(config):
     except menu.MenuError as exc:
         problems += 1
         print("%s" % exc, file=sys.stderr)
-    try:
-        quick.build(config.quick_items)
-    except quick.QuickError as exc:
-        problems += 1
-        print("%s" % exc, file=sys.stderr)
+    if config.quick_leftover:
+        # Not a problem: the file loads and the daemon runs. It is a row
+        # somebody wrote that is no longer drawn, which is worth one line.
+        print("warning: [quick] and [bindings.quick] are no longer read - "
+              "the quick menu is the menu's quick page, [[menu.items]] "
+              "with id = \"quick\"", file=sys.stderr)
     try:
         osk.OskModel(config.osk_layout,
                      overrides=config.osk_key_overrides,
@@ -588,7 +588,7 @@ def cmd_ctl(config, words):
 
     if not words:
         print("usage: omapad ctl "
-              "<osk|menu|quick|guide|map|pad|lock|keep|hud|ripple|sound"
+              "<osk|menu|guide|map|pad|lock|keep|hud|ripple|sound"
               "|press|mode|status>"
               " [...]",
               file=sys.stderr)
@@ -760,14 +760,12 @@ def _menu_command_rows(config):
 # selection or opens and closes a surface and does nothing else, and that is
 # the whole rule for adding one: this runs against the daemon driving the
 # desktop in front of you. `press` runs whatever the row is (the first stress
-# run launched a browser from All apps), `up` and `down` on the quick menu
-# turn the volume, and `left` / `right` on a menu control move its value -
-# none of them may be here. `tests/test_cli.py` holds the list to that.
+# run launched a browser from All apps), and `left` / `right` on a menu
+# control move its value - none of them may be here. `tests/test_cli.py` holds the list to that.
 STRESS_CYCLE = (
     "menu open", "menu group 1", "menu select 1", "menu select 0",
     "menu group 0", "menu close",
-    "quick open", "quick select 1", "quick select 2", "quick select 0",
-    "quick close",
+    "menu open quick", "menu select 1", "menu select 0", "menu close",
     "guide open", "guide next", "guide next", "guide prev", "guide close",
     "osk open", "osk close",
 )
@@ -954,7 +952,7 @@ def _budget_stress(config, words):
     if fields is None:
         print("daemon: %s" % why)
         return 1
-    open_now = [name for name in ("osk", "menu", "quick", "guide", "map")
+    open_now = [name for name in ("osk", "menu", "guide", "map")
                 if fields.get(name) == "open"]
     if open_now:
         # Every cycle ends by closing what it opened, and a surface that was
@@ -989,7 +987,7 @@ def _budget_stress(config, words):
         if watch is not None:
             watch.stop()
 
-    for surface in ("menu", "quick", "guide", "osk"):
+    for surface in ("menu", "guide", "osk"):
         times = sorted(took.get(surface, ()))
         if not times:
             continue
@@ -1108,7 +1106,7 @@ def cmd_budget(config, words):
         print("daemon: %s" % why)
     else:
         pid = int(fields["pid"])
-        open_now = [name for name in ("osk", "menu", "quick", "guide", "map")
+        open_now = [name for name in ("osk", "menu", "guide", "map")
                     if fields.get(name) == "open"]
         print("daemon: pid %d, %s mode, %s"
               % (pid, fields.get("mode", "?"),

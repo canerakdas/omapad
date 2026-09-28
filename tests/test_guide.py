@@ -23,6 +23,14 @@ class DescribeTests(unittest.TestCase):
         self.assertEqual(guide.describe("menu:press"), "Pick")
         self.assertEqual(guide.describe("guide:next"), "Next page")
 
+    def test_the_quick_page_is_named_as_the_quick_menu(self):
+        # PLUS, and the same door spelt as it was before decision 102.
+        self.assertEqual(guide.describe("menu:toggle=quick"), "Quick menu")
+        self.assertEqual(guide.describe("menu:open=quick"),
+                         "Open the quick menu")
+        self.assertEqual(guide.describe("quick:toggle"), "Quick menu")
+        self.assertEqual(guide.brief_of("menu:toggle=quick"), "Quick")
+
     def test_a_command_loses_the_prefix_every_row_would_carry(self):
         self.assertEqual(
             guide.describe("exec:omarchy-launch-terminal"), "Launch terminal"
@@ -50,6 +58,21 @@ class DescribeTests(unittest.TestCase):
     def test_a_binding_that_does_nothing_prints_nothing(self):
         self.assertEqual(guide.describe("nop"), "")
         self.assertEqual(guide.describe(None), "")
+
+
+class OldQuickConfigTests(unittest.TestCase):
+    """A user file from while the quick menu was a surface of its own."""
+
+    def test_it_still_loads_and_says_what_is_no_longer_read(self):
+        config = build({
+            "quick": {"items": [{"label": "Resume", "action": "quick:close"}]},
+            "bindings": {"quick": {"A": "quick:press"}},
+        })
+        self.assertTrue(config.quick_leftover)
+        self.assertNotIn("quick", config.bindings)
+
+    def test_a_file_without_it_says_nothing(self):
+        self.assertFalse(build({}).quick_leftover)
 
 
 class BriefTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 # What is installed - `omapad/apps.py`
 
-The applications the Add picker offers, and what an app put on a page runs.
+The applications the Add picker offers, what an app put on a page runs, and
+what an `apps` tile (`Apps > All apps`) opens.
 A **source rather than a surface**, the shape [`live.md`](live.md) and
 [`snap.md`](snap.md) have: no socket and no control verb, because nothing
 here is drawn. Decision [100](../decisions/100-one-button-that-adds.md) is
@@ -41,7 +42,9 @@ class with it. That was a bug for an afternoon - 17 of 44 apps - and the test
 that strips the line is why it stays fixed.
 
 `Daemon.apps_refresh()` asks when the loop starts and whenever rearranging
-begins, which is the moment somebody may be about to open the picker. Not in
+begins, which is the moment somebody may be about to open the picker, and
+at every press of an `apps` tile - which is built from the index already
+read, so the press does not wait and the answer is the next visit's. Not in
 the constructor: every test builds a daemon, and none of them may start a
 subprocess. One read at a time, however often it is asked.
 

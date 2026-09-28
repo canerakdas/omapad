@@ -85,12 +85,12 @@ omapad budget stress 500
 An idle daemon allocates nothing, so a payload or a descriptor that outlives
 its surface only shows once the surfaces have been opened a few hundred
 times. `budget stress` sends `STRESS_CYCLE` - open, walk and close the menu,
-the quick menu, the guide and the keyboard - over the control socket that
+the menu on its quick page, the guide and the keyboard - over the control socket that
 many times, and prints:
 
 | Line | What it is |
 |---|---|
-| `menu:` `quick:` `guide:` `osk:` | the control round trip for that surface's commands: the median, the slowest tenth, the worst. Timed over the socket from inside the process rather than through `omapad ctl`, which would time an interpreter starting |
+| `menu:` `guide:` `osk:` | the control round trip for that surface's commands: the median, the slowest tenth, the worst. Timed over the socket from inside the process rather than through `omapad ctl`, which would time an interpreter starting |
 | `daemon:` | resident size, descriptors and threads, and how far each moved across the run |
 | `stalls:` | how often, and for how long at worst, the shell stopped reading for `SHELL_STALL` (50 ms) or more - see below |
 | `shell:` | the same for `quickshell` - the whole shell, bar and every other plugin included, so only the drift is ours to answer for, and QML's collector moves even that |

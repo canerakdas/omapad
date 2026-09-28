@@ -55,6 +55,9 @@ What there is comes in four layers, and the set was held against each:
 - **A separate `hide`.** `back` already is Xbox's Hide for every surface put
   away, and a second word for the same press would be two sounds arguing.
 
+The timbre this entry left to a pack was taken up in
+[101](101-a-marimba-and-a-vibraphone.md).
+
 **Not yet heard on the set.** Everything above is measured and tested; none
 of it has been listened to across the room on the television it was measured
 for, and that is the check still owed.

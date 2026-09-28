@@ -540,13 +540,22 @@ class MenuAction(Action):
         # still means it.
         "hide",
     }
+    # The two that may name a page: `menu:open=quick` opens the menu on that
+    # chip's first tile, and `menu:toggle=quick` shuts it again from there.
+    # That is what PLUS is - the quick page, a door of its own into the one
+    # menu HOME opens where it was left (decision 102).
+    PAGED = ("open", "toggle")
     holdable = True
 
     def __init__(self, command):
-        command = command.strip()
+        command, _, page = command.strip().partition("=")
+        command, page = command.strip(), page.strip()
         if command not in self.SIMPLE:
             raise ActionError("unknown menu command: %r" % command)
+        if page and command not in self.PAGED:
+            raise ActionError("menu:%s names no page" % command)
         self.command = command
+        self.page = page or None
 
     @property
     def toggles(self):
@@ -559,7 +568,7 @@ class MenuAction(Action):
         # the list repeats, and so does a row marked `repeat`. Picking an
         # ordinary row twice because a thumb rested on A never is what was
         # meant.
-        if ctx.daemon.menu_command(self.command):
+        if ctx.daemon.menu_command(self.command, page=self.page):
             ctx.daemon.repeat_start(
                 self,
                 ctx.daemon.config.menu_repeat_delay,
@@ -580,41 +589,27 @@ class MenuAction(Action):
         ctx.daemon.menu_command(self.command, repeat=True)
 
 
-class QuickAction(Action):
-    """Drive the quick menu - the row PLUS opens. See quick.py."""
+class QuickAction(MenuAction):
+    """The quick menu's old spelling, which is the menu's quick page now.
 
-    SIMPLE = {"toggle", "open", "close", "left", "right", "up", "down",
-              "press", "back"}
-    holdable = True
+    The row PLUS opened was a surface of its own until decision 102 made it a
+    page of the menu. A config written before that still says `quick:toggle`,
+    and a binding that stopped parsing takes the whole file with it - so the
+    word is kept and means the page: toggle and open name it, and the rest
+    were always the menu's words for walking a surface.
+    """
+
+    PAGE = "quick"
+    OLD = {"toggle", "open", "close", "left", "right", "up", "down",
+           "press", "back"}
 
     def __init__(self, command):
         command = command.strip()
-        if command not in self.SIMPLE:
+        if command not in self.OLD:
             raise ActionError("unknown quick command: %r" % command)
-        self.command = command
-
-    @property
-    def toggles(self):
-        return self.command == "toggle"
-
-    def press(self, ctx):
-        # The same shape as the menu's: walking the row and nudging a value
-        # repeat while the button is held, and nothing else does - a tile run
-        # twice because a thumb rested on A is never what was meant.
-        if ctx.daemon.quick_command(self.command):
-            ctx.daemon.repeat_start(
-                self,
-                ctx.daemon.config.menu_repeat_delay,
-                ctx.daemon.config.menu_repeat_rate,
-                ctx.daemon.config.menu_repeat_ramp,
-                ctx.daemon.config.menu_repeat_ramp_time,
-            )
-
-    def release(self, ctx):
-        ctx.daemon.repeat_stop(self)
-
-    def repeat(self, ctx):
-        ctx.daemon.quick_command(self.command, repeat=True)
+        MenuAction.__init__(
+            self, "%s=%s" % (command, self.PAGE)
+            if command in self.PAGED else command)
 
 
 class GuideAction(Action):
@@ -854,8 +849,8 @@ class LockAction(Action):
     being interrupted - an announced hold is deliberate at a desk and a
     shoulder rested on for a second and a half mid-fight is not.
 
-    Locked, the only thing left is a chord, which is the quick menu - the
-    lock's tile is on it - and so the way back out. See `Daemon.set_locked` and `Daemon.allowed`.
+    Locked, the only thing left is a chord, which is the menu's quick page -
+    the lock's tile is on it - and so the way back out. See `Daemon.set_locked` and `Daemon.allowed`.
     """
 
     SIMPLE = ("toggle", "on", "off")

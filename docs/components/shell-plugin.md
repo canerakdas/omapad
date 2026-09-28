@@ -37,7 +37,9 @@ Flipping `opened` here would draw a surface the daemon does not know it is
 showing, and its next heartbeat would take it away again.
 
 `summonable` maps a payload name to a surface; `surfaceNames` accepts both the
-control verb and the obvious word for it (`keyboard` → `osk`). A summon with
+control verb and the obvious word for it (`keyboard` → `osk`), and
+`surfacePages` the one name that opens a surface on a page: `quick` is the
+menu's quick page ([102](../decisions/102-a-page-not-a-second-menu.md)). A summon with
 no payload means the menu - the door the pad's own button opens. The game bar
 is deliberately not summonable: it follows game mode, and
 `omapad ctl mode` is its door.
@@ -51,7 +53,6 @@ no window at all - there is no such thing as a cue being on screen.
 |---|---|
 | `Keyboard.qml` | [`osk.md`](osk.md) |
 | `Menu.qml` | [`menu.md`](menu.md) |
-| `QuickMenu.qml` | [`quick.md`](quick.md) |
 | `Guide.qml` | [`guide.md`](guide.md) |
 | `Mapping.qml` | [`mapping.md`](mapping.md) |
 | `GameBar.qml` | [`gamebar.md`](gamebar.md) |
@@ -92,16 +93,6 @@ missing optional package must cost one feature rather than the keyboard.
   `menu.background` and `menu.text`, the two colours every theme is guaranteed
   to define. A third would be a console's own palette arriving through the
   back door.
-- **`Backdrop.qml`** - the dimmed screen the menu and the quick menu trade
-  when HOME and PLUS swap them ([98](../decisions/98-one-backdrop-two-menus.md)).
-  Two layer-shell windows the compositor stacks in its own order, and a
-  window reported visible reaches the glass frames later: so the arriving
-  panel's scrim is up at once, and the leaving one's holds until the other
-  window is on screen (`partnerDrawn`, wired in `Surfaces.qml` from each
-  panel's `backingWindowVisible`) and a fade longer, then fades out. It draws
-  nothing; a panel calls `turn(open, swap)` **before** it assigns `open` -
-  after is too late, the window is already gone - reads `up` and `mapped`
-  from it, and fades its scrim except while arriving on a swap.
 - **`Travel.qml`** - where along something a number is, drawn as the
   knob's scale unrolled: a slider being pushed, and a slider with places to
   stand rather than a distance to cover. Every figure is one the ring has, at

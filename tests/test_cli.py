@@ -110,7 +110,6 @@ class StressCycleTests(unittest.TestCase):
     # does on every row, not on the rows the shipped menu happens to have.
     SAFE = {
         "menu": {"open", "close", "select", "group"},
-        "quick": {"open", "close", "select"},
         "guide": {"open", "close", "next", "prev"},
         "osk": {"open", "close"},
     }
@@ -125,11 +124,12 @@ class StressCycleTests(unittest.TestCase):
     def test_every_surface_is_opened_and_closed_in_a_cycle(self):
         # One left open would be closed by the next cycle's open of another,
         # and the drift would be the cost of a surface up, not of a leak.
+        # By verb rather than by line: `menu open quick` opens the menu too.
+        verbs = [tuple(command.split()[:2]) for command in cli.STRESS_CYCLE]
         for surface in self.SAFE:
-            self.assertEqual(
-                cli.STRESS_CYCLE.count("%s open" % surface),
-                cli.STRESS_CYCLE.count("%s close" % surface), surface)
-            self.assertIn("%s open" % surface, cli.STRESS_CYCLE)
+            self.assertEqual(verbs.count((surface, "open")),
+                             verbs.count((surface, "close")), surface)
+            self.assertIn((surface, "open"), verbs)
 
 
 class ShellWatchTests(unittest.TestCase):

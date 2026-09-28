@@ -49,7 +49,21 @@ NOTHING_LISTED = "Nothing found"
 # can point at twice is what a first start *is*. It is spent on the one page
 # that says what the buttons do, so the opening it appears in is the opening
 # that explains it.
-WHEN = ("game", "handed_over", "locked", "kept", "first_run")
+#
+# `window` and `empty` are a second kind: not a state but what is in front -
+# a window, or a bare workspace. They came with the quick page (decision
+# 102), whose Resume and Close window would offer to go back to, or close,
+# something that is not on screen. A place listed beside states still has to
+# be the place: the lock is `["window", "game", "handed_over"]`, since over
+# an empty workspace it locks the pad to nothing.
+PLACES = ("window", "empty")
+
+# What a nav card may be named after instead of its own `label` (`names`).
+# One: the app in front, which is what the quick page is about - a pause is
+# a pause over something, and a card saying `Quick` says only which page it
+# is (decision 102). The label is what it says where nothing is in front.
+NAMES = ("window",)
+WHEN = PLACES + ("game", "handed_over", "locked", "kept", "first_run")
 
 # The values a listed line carries, in the order the row's action takes them.
 # Numbered rather than one `%s` because the command a row runs often wants two
@@ -214,6 +228,24 @@ APP_MARK = "@"
 # the config has can be called - a picker page that shared a name with a real
 # one would draw that page's arrangement over the choices.
 PICKER_MARK = "+"
+
+# What an `apps` tile says to open every kind of application rather than one
+# of them: `apps = "all"` is a page of kinds, `apps = "games"` is the games.
+ALL_APPS = "all"
+
+# The mark on each kind's card, by the id `apps.KINDS` gives it. Kept here
+# rather than beside the kinds because a glyph is a question about the font
+# the panel draws in, and `apps.py` reads entries and draws nothing.
+KIND_ICONS = {
+    "games": "󰊗",
+    "media": "󰝚",
+    "internet": "󰖟",
+    "office": "󰈙",
+    "graphics": "󰋩",
+    "development": "󰅩",
+    "system": "󰒓",
+    "other": "󰀻",
+}
 
 # How long a row that counts down counts for, where it does not say. Seconds,
 # and a whole number of them because the row prints it: a count that went
@@ -392,8 +424,26 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         children = entry.get("items")
         spec = entry.get("action")
         source = entry.get("from")
+        library = entry.get("apps")
         if children is not None and spec is not None:
             raise MenuError("%s has both an action and items" % path)
+        if library is not None:
+            # A third way for a tile to have a page, and the only one whose
+            # page nobody writes and no command prints: what is installed,
+            # read by the rules Omarchy's own launcher reads by.
+            if children is not None or spec is not None or source is not None:
+                raise MenuError(
+                    "%s: 'apps' is the page - it takes no action, items or "
+                    "'from'" % path)
+            if control:
+                raise MenuError(
+                    "%s: 'apps' opens a page, and a %s tile opens none"
+                    % (path, control))
+            library = str(library).strip()
+            known = [ALL_APPS] + [name for name, _ in apps_module.kinds()]
+            if library not in known:
+                raise MenuError("%s: 'apps' is one of %s, not %r"
+                                % (path, ", ".join(known), library))
         if control == HEADING and (children is not None or spec is not None
                                    or source is not None):
             # Said rather than ignored: a heading is walked past everywhere
@@ -470,6 +520,9 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             "template": None,
             # What that submenu says when the command finds nothing.
             "empty": str(entry.get("empty", "")).strip() or NOTHING_LISTED,
+            # Which installed applications this tile's page is, where it is
+            # one: `ALL_APPS` or a kind. Empty on every other tile.
+            "apps": library or "",
             # The states this row is offered in, any of them being enough.
             # Empty - which is almost every row - means always.
             "when": _when(entry.get("when"), path),
@@ -567,6 +620,10 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 % path
             )
         item["open_on"] = bool(entry.get("open_on", False))
+        item["names"] = str(entry.get("names") or "").strip()
+        if item["names"] and item["names"] not in NAMES:
+            raise MenuError("%s: 'names' is %s, not %r"
+                            % (path, " or ".join(NAMES), item["names"]))
         if item["open_on"] and not item["when"]:
             raise MenuError("%s: 'open_on' needs a 'when'" % path)
         for mark, what in ((HEADING_MARK, "a heading made from the pad"),
@@ -596,8 +653,8 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         # Named after the tile, so the daemon has somewhere to file what the
         # command said without the config having to name a second thing.
         item["meta"] = dict(item["meta"], id=item["id"])
-        if source is not None or children is not None:
-            # Neither kind of submenu row is picked, so neither can nudge or
+        if source is not None or children is not None or library:
+            # No kind of submenu row is picked, so neither can nudge or
             # stay: both are answers to what happens when a row *runs*.
             if item["repeat"]:
                 raise MenuError("%s: only an action row can repeat" % path)
@@ -632,6 +689,10 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 # entered: what it holds is read at the press, and until then
                 # the only honest answer is that it drills in.
                 item["items"] = []
+        elif library:
+            # Filled at the press, from the index the daemon last read, and
+            # not None until then for the reason a listed row is not.
+            item["items"] = []
         elif children is not None:
             # Carrying both down, which is the whole of what a nested page
             # needs to be checked the same way this one is: without them a
@@ -766,7 +827,7 @@ def _keys(entry, item, path):
     if not isinstance(table, dict):
         raise MenuError("%s: 'keys' is a table of buttons" % path)
     if item["items"] is None and not entry.get("items") \
-            and not entry.get("from"):
+            and not entry.get("from") and not entry.get("apps"):
         raise MenuError(
             "%s: only a page can spend a key - this tile acts" % path
         )
@@ -883,7 +944,7 @@ def _countdown(entry, item, path, default):
     spec = entry.get("countdown")
     if spec is None or spec is False:
         return 0
-    if entry.get("items") or entry.get("from"):
+    if entry.get("items") or entry.get("from") or entry.get("apps"):
         # Asked of the entry rather than of `item["items"]`, which is not
         # settled yet: the branch that fills it runs after this.
         raise MenuError("%s: only an action row can count down" % path)
@@ -1000,7 +1061,26 @@ def _when(spec, path):
                 % (path, name, ", ".join(WHEN))
             )
         out.append(name)
+    if all(place in out for place in PLACES):
+        raise MenuError(
+            "%s: 'when' names both places - leave both out for either" % path
+        )
     return tuple(out)
+
+
+def offered(when, conditions):
+    """Whether a tile asking for `when` is offered under `conditions`.
+
+    Any one listed state is enough, and a listed place has to hold as well:
+    the lock over a window in game mode, not over any window or in any game.
+    """
+    if not when:
+        return True
+    places = [name for name in when if name in PLACES]
+    if places and not conditions.intersection(places):
+        return False
+    states = [name for name in when if name not in PLACES]
+    return not states or bool(conditions.intersection(states))
 
 
 def listed(item, lines, limit):
@@ -1343,7 +1423,10 @@ def pages_of(root):
 
     def walk(items):
         for item in items:
-            if item["items"]:
+            # Not a page of installed apps: what it holds is whatever was
+            # installed at the last press, and a tile moved off it would be
+            # a reference to something the next press may not build.
+            if item["items"] and not item.get("apps"):
                 add(item, item["items"])
                 walk(item["items"])
 
@@ -1421,8 +1504,8 @@ def adopted_items(pages, layout, page, conditions=None):
         for item in found["items"]:
             if item["id"] != name or item["control"] == ROW_BREAK:
                 continue
-            if (conditions is not None and item["when"]
-                    and not conditions.intersection(item["when"])):
+            if (conditions is not None
+                    and not offered(item["when"], conditions)):
                 break
             out.append(dict(item, id=ref))
             break
@@ -1514,6 +1597,16 @@ def app_action(entry):
         start = "omarchy-launch-or-focus %s %s" % (
             shlex.quote(entry["wmclass"]), shlex.quote(start))
     return actions.parse("exec:" + start)
+
+
+def library_span(columns=COLUMNS):
+    """The cells a tile of an `apps` page takes: a sixth of the page, two rows.
+
+    Smaller than `app_span` because nothing here is chosen to stand out: a
+    page of a dozen of one kind is scanned for a mark, and six to a band
+    keeps a kind on one screen. Two rows because the mark goes over the name.
+    """
+    return (max(1, columns // 6), 2)
 
 
 def app_item(name, entry, columns=COLUMNS):
@@ -1770,6 +1863,10 @@ class MenuModel:
         # selection would move every tile after it while a thumb was aiming at
         # one.
         self.conditions = frozenset()
+        # The name of the app in front, set by the daemon when the menu
+        # opens, for a chip that `names = "window"`. Empty is the chip's own
+        # label.
+        self.window_name = ""
         self.groups = []
         self.group = 0
         # Whose page is in front: the group at depth 0, and the tile that was
@@ -1874,8 +1971,7 @@ class MenuModel:
         if not any(item["when"] for item in items):
             return items
         return [item for item in items
-                if not item["when"]
-                or self.conditions.intersection(item["when"])]
+                if offered(item["when"], self.conditions)]
 
     @property
     def depth(self):
@@ -1996,6 +2092,12 @@ class MenuModel:
         if item["items"] is None:
             return [item]
         return self.visible(item["items"])
+
+    def chip_label(self, item):
+        """What a nav card is called: its label, or the app it names."""
+        if item.get("names") == "window" and self.window_name:
+            return drawable(self.window_name)
+        return item["label"]
 
     def build_groups(self):
         """The chips, which is the top level filtered twice.
@@ -2843,10 +2945,48 @@ class MenuModel:
                 tiles.append(tile)
             if tiles:
                 out.append(_made(PICKER_MARK + "kind-" + kind, words, span,
+                                 icon=KIND_ICONS.get(kind, ""),
                                  detail="%d apps" % len(tiles)
                                  if len(tiles) != 1 else "1 app",
                                  items=tiles))
         return out
+
+    def library(self, item):
+        """The page an `apps` tile opens: what is installed, as tiles.
+
+        **A card per kind, and the apps under it**, the picker's own cut:
+        from a sofa a list of every installed app is a scroll nobody
+        finishes, and seven doors with a dozen behind each is two presses
+        to anything. A tile naming one kind skips the doors.
+
+        Built from the index the daemon last read rather than at load, so an
+        app installed since the menu was built is on it; and an app here is
+        the tile an app put on a page from the pad is - launch or focus, the
+        mark its entry names.
+        """
+        span = library_span(self.columns)
+        found = apps_module.by_kind(self.apps or {})
+        if item["apps"] != ALL_APPS:
+            found = [kind for kind in found if kind[0] == item["apps"]]
+        kinds = []
+        for kind, words, entries in found:
+            tiles = []
+            for entry in entries:
+                tile = app_item("app:" + entry["id"], entry, self.columns)
+                tile["span"] = span
+                tiles.append(tile)
+            kinds.append(_made("kind-" + kind, words, span,
+                               icon=KIND_ICONS.get(kind, ""),
+                               detail="%d apps" % len(tiles)
+                               if len(tiles) != 1 else "1 app",
+                               items=tiles))
+        if not kinds:
+            # Nothing read yet, or nothing of this kind: said in the tile's
+            # own `empty` words rather than as a page that opens on nothing.
+            return [_listed_row(item, item["empty"], None, None)]
+        if item["apps"] != ALL_APPS:
+            return kinds[0]["items"]
+        return kinds
 
     def _picker_pages(self, span):
         """One page per page of the menu, each of the tiles it wrote.
@@ -3155,6 +3295,8 @@ class MenuModel:
         # arrives, and the page arriving is the answer.
         self.press_seq += 1
         self.press_hit = item["id"]
+        if item.get("apps"):
+            item["items"] = self.library(item)
         if item["items"] is not None:
             # The page as the tree holds it rather than as it was arranged,
             # so coming back arranges it afresh: a tile taken off or a
@@ -3533,7 +3675,7 @@ class MenuModel:
             # one, because which one that is already travels as `g` and a
             # payload that answered the same question twice is a payload that
             # can disagree with itself.
-            "groups": [{"l": item["label"], "i": item["icon"],
+            "groups": [{"l": self.chip_label(item), "i": item["icon"],
                         "d": item["detail"],
                         "m": drawable(self.group_meta(item, metas)),
                         "id": item["id"]}

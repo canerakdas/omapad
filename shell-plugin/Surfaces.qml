@@ -1,11 +1,11 @@
 // The plugin's panel entry point.
 //
-// A plugin gets one panel entry point, and omapad draws eight independent
-// surfaces - the on-screen keyboard, the controller menu, the quick menu, the
-// bindings guide, the mapping screen, the game-mode bar, the readings it
-// leaves on screen and the burst a click leaves at the pointer - each fed by
-// its own socket. Mounting them here keeps them in one hot-reloading plugin
-// directory instead of eight. The ninth draws nothing at all and is mounted
+// A plugin gets one panel entry point, and omapad draws seven independent
+// surfaces - the on-screen keyboard, the controller menu, the bindings guide,
+// the mapping screen, the game-mode bar, the readings it leaves on screen and
+// the burst a click leaves at the pointer - each fed by its own socket.
+// Mounting them here keeps them in one hot-reloading plugin directory instead
+// of seven. The eighth draws nothing at all and is mounted
 // here for the same reason the rest are: it is a socket the daemon streams to.
 //
 // The shell's summon/hide/toggle contract lands on `open()`, `close()` and
@@ -22,11 +22,7 @@ Item {
   id: root
 
   Keyboard { id: keyboard }
-  // Each is told when the other's window is on screen: HOME and PLUS trade
-  // the two over one backdrop, and the one leaving holds its scrim until the
-  // one arriving is there to take it (Backdrop.qml).
-  Menu { id: menu; partnerDrawn: quick.drawn }
-  QuickMenu { id: quick; partnerDrawn: menu.drawn }
+  Menu { id: menu }
   Guide { id: guide }
   Mapping { id: mapping }
   GameBar {}
@@ -52,7 +48,6 @@ Item {
   readonly property var summonable: ({
     "osk": keyboard,
     "menu": menu,
-    "quick": quick,
     "guide": guide,
     "map": mapping
   })
@@ -64,10 +59,17 @@ Item {
     "osk": "osk",
     "keyboard": "osk",
     "menu": "menu",
-    "quick": "quick",
+    // The quick menu is the menu's quick page (decision 102), and a keybind
+    // written for it before that still opens it.
+    "quick": "menu",
     "guide": "guide",
     "map": "map",
     "mapping": "map"
+  })
+
+  // The page a name opens its surface on, where it names one.
+  readonly property var surfacePages: ({
+    "quick": "quick"
   })
 
   // A summon with no payload means the menu: it is the door the pad's own
@@ -75,11 +77,13 @@ Item {
   readonly property string defaultSurface: "menu"
 
   // The shell reads this to decide whether a toggle should summon or hide.
-  readonly property bool opened: keyboard.opened || menu.opened || quick.opened
+  readonly property bool opened: keyboard.opened || menu.opened
     || guide.opened || mapping.opened
 
-  function ask(verb, command) {
-    Quickshell.execDetached(["omapad", "ctl", verb, command])
+  function ask(verb, command, page) {
+    var words = ["omapad", "ctl", verb, command]
+    if (page) words.push(page)
+    Quickshell.execDetached(words)
   }
 
   function open(payloadJson) {
@@ -93,7 +97,7 @@ Item {
       console.warn("omapad: summon names no surface: " + name)
       return
     }
-    root.ask(verb, "open")
+    root.ask(verb, "open", root.surfacePages[name])
   }
 
   function close() {

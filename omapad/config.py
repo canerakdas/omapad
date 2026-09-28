@@ -107,10 +107,8 @@ PROFILE_LAYOUTS = {
 # The surfaces the daemon draws, in the order they outrank one another: the
 # mapping screen reads the pad raw, and each of the others closes the ones
 # below it when it opens. `base` is not one - it is the table that applies
-# whichever is up. See daemon.surface_top(). The quick menu and the menu close
-# each other, so which of the two is higher only decides the tie that cannot
-# happen; it is above because it is the one opened from the other over a game.
-SURFACES = ("map", "guide", "quick", "menu", "osk")
+# whichever is up. See daemon.surface_top().
+SURFACES = ("map", "guide", "menu", "osk")
 KEYBOARD_SURFACES = ("base",) + SURFACES
 
 DPAD_NAMES = {
@@ -2023,15 +2021,14 @@ class Config:
         guide = data.get("guide", {})
         self.guide_socket = guide.get("socket") or None
 
-        # The quick menu (quick.py). Its tiles are built and checked where the
-        # menu's are - by the daemon, which comes up with an empty row rather
-        # than not at all, and by `omapad check`, which names the tile - so
-        # only what is read here is checked here.
+        # The quick menu's own table, from while it was a surface rather than
+        # the menu's quick page (decision 102). A user file written then still
+        # loads - its tiles are simply not drawn - and `omapad check` says so,
+        # since a row somebody wrote that quietly stopped appearing is the
+        # thing that check is for.
         quick = data.get("quick", {})
-        if not isinstance(quick, dict):
-            raise ConfigError("quick must be a table")
-        self.quick_socket = quick.get("socket") or None
-        self.quick_items = quick.get("items", [])
+        self.quick_leftover = bool(isinstance(quick, dict)
+                                   and quick.get("items"))
 
         chrono = data.get("chrono", {})
         # The minute mark: a running stopwatch ticks the pad each time its
@@ -2162,8 +2159,12 @@ class Config:
         # them has a [layers.*] entry.
         self.bindings.setdefault("osk", {})
         self.bindings.setdefault("menu", {})
-        self.bindings.setdefault("quick", {})
         self.bindings.setdefault("guide", {})
+        # The quick menu's layer went with its surface (decision 102): the
+        # quick page is walked by the menu's own. Dropped rather than refused,
+        # for the reason `[quick]` above is.
+        if self.bindings.pop("quick", None):
+            self.quick_leftover = True
         # So is game mode, which activates with the mode rather than with a
         # surface. Empty by default: the pad belongs to the game there, and
         # every button this names is one the game stops seeing.
@@ -2450,11 +2451,6 @@ class Config:
             # roles, because it is the one with something for a thumb to do:
             # a grid of tiles, and a gauge that answers where the stick is.
             return (self.menu_left_stick, self.menu_right_stick)
-        elif layer_name == "quick":
-            # Nothing for a thumb to steer on a row the D-pad walks, and a
-            # pointer drifting over the game behind it is worse than a stick
-            # that does nothing while it is up.
-            return ("none", "none")
         elif layer_name == "game":
             roles = (
                 self.game_left_stick or self.left_stick,

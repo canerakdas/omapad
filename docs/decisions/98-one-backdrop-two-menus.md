@@ -1,4 +1,4 @@
-# 98. One backdrop under two menus · ✅ Done · S
+# 98. One backdrop under two menus · 🗑 Removed · S
 
 Asked for from the sofa: *quick menuden menuye gecerken quick menu kapaniyor
 sonra menu aciliyor. bu kismen kotu bir goruntu olusturuyor. arka plan
@@ -91,3 +91,9 @@ either way.
   and the scrims' fade-out `Behavior` still never plays on one: the window is
   unmapped under it. B going straight back to the game is not what looked
   wrong, and it is a separate change if it ever does.
+
+**Removed by [102](102-a-page-not-a-second-menu.md).** The quick menu became
+a page of the menu, so there is one window and nothing to hand over;
+`Backdrop.qml` and `swap` went with the second surface. What the three tries
+measured - that *visible* is not the first buffer on the glass - is still
+true of any two layer-shell windows traded in one place.

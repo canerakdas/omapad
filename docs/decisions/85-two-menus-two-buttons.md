@@ -117,3 +117,8 @@ Rejected:
   the guide: it is driven by the thumb that paused, and a click that landed on
   the game behind would be worse than a click that did nothing.
   `omapad ctl quick` drives it without a pad.
+
+**Since [102](102-a-page-not-a-second-menu.md)** the two buttons open one
+menu: PLUS on its quick page, HOME where it was left. The row, its band and
+its press-twice are gone; the split between a home and a pause is what
+stayed.

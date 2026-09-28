@@ -297,6 +297,52 @@ class WhenTests(unittest.TestCase):
             build([{"label": "X", "action": "exec:true", "when": "sofa"}])
         self.assertIn("sofa", str(caught.exception))
 
+    def test_a_place_has_to_hold_beside_the_states(self):
+        # The lock over a window in game mode - not over any window, and not
+        # in any game: over an empty workspace it locks the pad to nothing.
+        tree = build([
+            {"label": "Terminal", "action": "exec:true"},
+            {"label": "Workspace lock", "action": "lock:toggle",
+             "when": ["window", "game", "handed_over"]},
+        ])
+        for states, offered in ((("window", "game"), True),
+                                (("window",), False),
+                                (("empty", "game"), False),
+                                (("window", "handed_over"), True)):
+            model = MenuModel(tree)
+            model.conditions = frozenset(states)
+            model.reset()
+            self.assertEqual(
+                "Workspace lock" in [g["label"] for g in model.groups],
+                offered, states)
+
+    def test_a_place_alone_is_the_place(self):
+        model = MenuModel(build([
+            {"label": "Terminal", "action": "exec:true"},
+            {"label": "Resume", "action": "menu:close", "when": "window"},
+        ]))
+        model.conditions = frozenset(["empty", "game"])
+        model.reset()
+        self.assertEqual([g["label"] for g in model.groups], ["Terminal"])
+
+    def test_both_places_is_either_and_so_is_said_by_leaving_them_out(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "X", "action": "exec:true",
+                    "when": ["window", "empty"]}])
+
+    def test_a_chip_named_after_the_window_falls_back_to_its_label(self):
+        model = MenuModel(build([
+            {"label": "Quick", "names": "window", "items": [
+                {"label": "Resume", "action": "menu:close"}]},
+        ]))
+        self.assertEqual(model.chip_label(model.groups[0]), "Quick")
+        model.window_name = "Firefox"
+        self.assertEqual(model.chip_label(model.groups[0]), "Firefox")
+
+    def test_a_chip_names_nothing_else(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "X", "action": "exec:true", "names": "title"}])
+
     def test_a_level_nobody_asks_about_keeps_its_list(self):
         # A listed submenu is filled in place after the page is entered, so a
         # level that filters nothing must hand back the list itself.
@@ -2544,6 +2590,78 @@ class AnAppPutOnAPage(unittest.TestCase):
                 build([{"label": "Apps", "items": [
                     {"label": "Steam", "id": name, "action": "nop"}]}],
                     settings={})
+
+
+class ATileThatIsTheInstalledApps(unittest.TestCase):
+    """`apps = ...`: a page of what is installed, inside the menu."""
+
+    INDEX = AnAppPutOnAPage.INDEX
+
+    def model(self, apps="all", index=INDEX):
+        model = MenuModel(build([
+            {"label": "Apps", "items": [
+                {"label": "All apps", "apps": apps},
+            ]},
+        ], settings={}), columns=12)
+        model.apps = dict(index) if index is not None else None
+        model.reset()
+        return model
+
+    def labels(self, model):
+        return [tile["item"]["label"] for tile in model.tiles]
+
+    def test_it_opens_a_card_per_kind_and_the_apps_behind_each(self):
+        model = self.model()
+        self.assertEqual(model.press()[0], "enter")
+        self.assertEqual(self.labels(model), ["Games", "System"])
+        self.assertEqual(model.current["detail"], "1 app")
+        # Six to a band: a kind is scanned for a mark, not picked from four.
+        self.assertEqual([tile["size"] for tile in model.tiles],
+                         [(2, 2), (2, 2)])
+        self.assertEqual(model.press()[0], "enter")
+        self.assertEqual(self.labels(model), ["Steam"])
+        kind, item = model.press()
+        self.assertEqual(kind, "run")
+        self.assertEqual(item["action"].command,
+                         "omarchy-launch-or-focus steam "
+                         "'uwsm-app -- gtk-launch steam.desktop'")
+        self.assertFalse(item["stay"])
+        self.assertEqual(item["image"], "steam")
+
+    def test_one_kind_skips_the_cards(self):
+        model = self.model(apps="system")
+        model.press()
+        self.assertEqual(self.labels(model), ["Files"])
+
+    def test_it_is_read_again_at_every_press(self):
+        model = self.model(index=None)
+        model.press()
+        self.assertEqual(self.labels(model), ["Nothing found"])
+        self.assertIsNone(model.press()[1]["action"])
+        model.back()
+        model.apps = dict(self.INDEX)
+        model.press()
+        self.assertEqual(self.labels(model), ["Games", "System"])
+
+    def test_what_it_holds_is_no_page_a_tile_can_be_moved_from(self):
+        model = self.model()
+        model.press()
+        model.back()
+        model._pages = None
+        self.assertNotIn("kind-games", model.pages())
+
+    def test_it_takes_nothing_that_would_be_a_second_page(self):
+        for extra in ({"action": "nop"}, {"items": [{"label": "x",
+                                                     "action": "nop"}]},
+                      {"from": "true", "action": "nop"},
+                      {"control": "rows"}, {"stay": True}):
+            entry = dict({"label": "All apps", "apps": "all"}, **extra)
+            with self.assertRaises(MenuError, msg=repr(extra)):
+                build([entry], settings={})
+
+    def test_it_names_a_kind_that_exists(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "All apps", "apps": "everything"}], settings={})
 
 
 class APageIsAGridNotAList(unittest.TestCase):

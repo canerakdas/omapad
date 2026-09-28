@@ -135,8 +135,8 @@ class ShippedFilesTests(unittest.TestCase):
         # A sound longer than the gap between two presses is a chord rather
         # than an answer. The move is the one that has to be shortest: it
         # fires six times a second while somebody crosses a page.
-        limits = {"move": 25, "prev": 45, "next": 45, "show": 110,
-                  "back": 90, "tick": 40, "edge": 70, "commit": 120}
+        limits = {"move": 50, "prev": 65, "next": 65, "show": 180,
+                  "back": 120, "tick": 75, "edge": 125, "commit": 160}
         for name in sound.VOICES:
             with wave.open(os.path.join(SOUNDS, "%s.wav" % name)) as handle:
                 ms = handle.getnframes() * 1000.0 / handle.getframerate()

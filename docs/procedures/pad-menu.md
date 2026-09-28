@@ -68,9 +68,9 @@ An entry needs a `label`, and has **either** an `action` **or** nested `items`
 [[menu.items]]
 icon = "󰀻"                      # any glyph in the shell's font
 # icon_font = "omarchy"         # only where the glyph is not in that font
-label = "All apps"
-detail = "Everything installed"   # the second line; optional
-action = "exec:omarchy-menu toggle apps"
+label = "Browser"
+detail = "The web"                # the second line; optional
+action = "exec:omarchy-launch-browser"
 ```
 
 | Field | What it does |
@@ -86,6 +86,7 @@ action = "exec:omarchy-menu toggle apps"
 | `stay` | one press, menu stays up. What a row that changes a setting the menu itself prints needs |
 | `countdown` | a row that is **pressed and then waits**: A starts `[menu] countdown` seconds (or the number this says), the row prints them, and B stops it. For what takes the screen away - logging out, rebooting. Only on an action row, and never beside `confirm` or `repeat` |
 | `confirm` | a row that is **held** rather than pressed: A starts the announced hold every other one of ours makes - the tile fills, the pad ticks, B and letting go both back out (no notification: the filling tile is already saying it) - and only when it has counted down does the row run. Both waits are `[confirm]`'s, `[confirm] scale` reaches them, and the legend says `Hold to confirm` while the tile is in front. Only on an action row, and never beside `repeat` |
+| `apps` | the page is what is installed: `all` for a card per kind, or one kind (`games`, `media`, `internet`, `office`, `graphics`, `development`, `system`, `other`). Takes no `action`, `items`, `from` or `control` |
 | `from` | a command whose output **is** the submenu, read at the press. With `action` as the template each line runs, and `empty` for what the page says when it finds nothing |
 | `when` | the states the row is offered in - `game`, `handed_over`, `locked`, `kept`, `first_run`, any one of them being enough. Read when the menu opens. For a row that could do nothing useful elsewhere: the workspace lock has nothing to lock to on a desktop |
 | `open_on` | the menu opens on this tile while its `when` holds. Needs a `when` |

@@ -143,13 +143,11 @@ MENU_TEXT = {
     "group_prev": "Previous group", "group_next": "Next group",
 }
 
-QUICK_TEXT = {
-    "toggle": "Quick menu", "open": "Open the quick menu",
-    "close": "Close the quick menu", "press": "Pick", "back": "Back",
-    # A row: left and right walk it, and up and down are the value on the
-    # tile in front rather than a way along.
-    "left": "Previous tile", "right": "Next tile",
-    "up": "Turn up", "down": "Turn down",
+# The two a page can be named on - `menu:toggle=quick` is PLUS. Keyed by the
+# page, and read for `quick:` too, which is the same door spelt the way it was
+# before the quick menu became a page of this one (decision 102).
+PAGE_TEXT = {
+    "quick": {"toggle": "Quick menu", "open": "Open the quick menu"},
 }
 
 GUIDE_TEXT = {
@@ -264,8 +262,7 @@ BRIEF = {
         "up": "Up", "down": "Down", "left": "Left", "right": "Right",
     },
     "menu": {"toggle": "Menu", "open": "Menu", "up": "Up", "down": "Down"},
-    "quick": {"toggle": "Quick", "open": "Quick", "left": "Left",
-              "right": "Right", "up": "More", "down": "Less"},
+    "quick": {"toggle": "Quick", "open": "Quick"},
     "guide": {"toggle": "Guide", "open": "Guide"},
     "map": {"toggle": "Mapping", "restart": "Restart"},
     "mode": {"toggle": "Mode", "desktop": "Desktop", "game": "Game"},
@@ -292,7 +289,11 @@ def brief_of(spec):
     """One word for what an action does, for the bar. See BRIEF."""
     text = str(spec or "").strip()
     kind, _, argument = text.partition(":")
-    word = BRIEF.get(kind.strip(), {}).get(argument.strip())
+    kind, argument = kind.strip(), argument.strip()
+    if kind == "menu" and argument.endswith("=quick"):
+        # PLUS, spelt the way a page is named; the bar says what it said.
+        kind, argument = "quick", argument[:-len("=quick")]
+    word = BRIEF.get(kind, {}).get(argument)
     if word:
         return word
     return _shorten(describe(spec))
@@ -385,10 +386,16 @@ def describe(spec):
                 return "%s keyboard page" % ("Next" if page == "next" else "Previous")
             return "Keyboard page: %s" % page
         return OSK_TEXT.get(argument, _sentence(argument))
-    if kind == "menu":
-        return MENU_TEXT.get(argument, _sentence(argument))
-    if kind == "quick":
-        return QUICK_TEXT.get(argument, _sentence(argument))
+    if kind == "quick" and argument in ("toggle", "open"):
+        kind, argument = "menu", "%s=quick" % argument
+    if kind in ("menu", "quick"):
+        command, _, page = argument.partition("=")
+        command, page = command.strip(), page.strip()
+        if page:
+            return PAGE_TEXT.get(page, {}).get(
+                command, "%s: %s" % (MENU_TEXT.get(command, _sentence(command)),
+                                     page))
+        return MENU_TEXT.get(command, _sentence(command))
     if kind == "guide":
         return GUIDE_TEXT.get(argument, _sentence(argument))
     if kind == "map":
@@ -601,7 +608,6 @@ def _layer_titles(config, layout=DEFAULT_LAYOUT):
         ))
     titles.append(("osk", "Keyboard", "While the on-screen keyboard is up."))
     titles.append(("menu", "Menu", "While the controller menu is up."))
-    titles.append(("quick", "Quick menu", "While the quick menu is up."))
     # Empty unless [bindings.game] names something, and then it is the page
     # worth having: the short list of what still answers while a game has the
     # pad, which is exactly what you cannot work out by pressing buttons.

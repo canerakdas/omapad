@@ -86,8 +86,9 @@ back a dozen times a second. It read from the sofa as a menu that stuttered
 under the triggers. So the menu answers for `MENU_TRIGGERS` always, not only
 while rearranging - which is also the one place a held modifier no longer
 reaches the window layer over a surface; the card is over what it would move.
-The quick menu keeps them the same way (`TRIGGERS_KEPT`), with nothing to
-sweep: see [quick](quick.md).
+`TRIGGERS_KEPT` names the surfaces that keep them, and the menu is the one
+left since the quick menu became its page
+([decision 102](../decisions/102-a-page-not-a-second-menu.md)).
 
 **Left and right are not a second way to say Back and Pick.** They were, while
 this was one column and both were free to be. A grid spends both axes on
@@ -116,7 +117,7 @@ anything a button can.
 | `from` + `empty` | a page it lists rather than holds |
 | `repeat`, `stay` | what happens when it runs |
 | `confirm` | it is **held**, not pressed - see below |
-| `when` | the states it is offered in - `game`, `handed_over`, `locked`, `kept`, `first_run` |
+| `when` | the states it is offered in - `game`, `handed_over`, `locked`, `kept`, `first_run` - and the place, `window` or `empty` |
 | `id` | what a layout calls it - a slug of the label by default, and never with a `/` in it: that is what names a tile a page was **given** |
 | `span` | `[width, height]` in cells; `[1, 1]` unless said |
 | `control` | what kind of tile it is; empty is a plain one |
@@ -124,6 +125,7 @@ anything a button can.
 | `file` | a `text` tile only: the Markdown file it shows |
 | `open_on` | the menu opens on this tile while its `when` holds |
 | `meta` | a group only: the word under its name on the bar |
+| `names` | a group only: `"window"` names its card after the app in front instead of its `label` |
 
 `id` is unique per page: two tiles that would answer to the same name fail
 `omapad check` rather than one of them becoming unreachable.
@@ -1026,7 +1028,7 @@ Nothing is saved **until it settles**. A slider is one decision made over a
 second, not thirty: writing `settings.toml` per step is thirty chances to be
 interrupted halfway, and `apply_setting` per step re-uploads the whole haptic
 vocabulary for a level nobody stopped on. Nor is it announced when it does:
-`daemon.announce()` says nothing while the menu or the quick menu is open,
+`daemon.announce()` says nothing while the menu is open,
 because a notification is the screen saying twice what the tile already says
 once. A row that closes its menu before it fires has nothing left on screen,
 and is announced as before.
@@ -1308,6 +1310,40 @@ that has never been opened has nowhere to come back to either - so the two
 rules never disagree over it. The daemon writes the mark false as it opens
 (`[menu] first_run`, through `settings.toml`), which makes this the one tile
 whose whole life is one opening.
+
+### A page asked for by name - the quick page
+
+`menu:open=<chip>` and `menu:toggle=<chip>` open the menu **on that chip's
+first tile**, whatever it was doing last. It is what PLUS is:
+`menu:toggle=quick`, the quick menu, which was a surface of its own until
+[decision 102](../decisions/102-a-page-not-a-second-menu.md) made it the
+first page here. A pause offers to stop pausing first, so the page opens on
+Resume every time and PLUS then A is always back.
+
+- **With the menu up**, the same press walks the bar to that chip
+  (`menu_turn_to`); on it already, a toggle closes the menu - PLUS twice is
+  in and out.
+- **A chip that is not offered now** is not somewhere to open on, and the
+  menu falls back to `open_at()`. The quick page asks for a window, so over
+  an empty workspace PLUS opens on the first chip there is - Apps. With the
+  menu up, a toggle naming it closes the menu instead.
+- **HOME and the chord come back to it like any page.** Where the menu was
+  is written down on every close (`menu_where_keep`), the quick page
+  included, so HOME and `MINUS+PLUS` (`menu:open`) open the page last open
+  whichever button opened it; only a press naming the chip goes to its head.
+
+**The quick page's card is named after the app in front** (`names =
+"window"`), with `Quick menu` under it as its `meta`: a pause is a pause over
+something, and `Quick` said only which page it was. `daemon.window_name()`
+finds the name the way Omarchy's launcher finds a running app - the desktop
+entry whose window class or id is the window's class, from the same index the
+Add picker reads (`apps.py`) - and falls back to the window's title, which is
+what a game started by Steam is called; the model's `chip_label()` prints it,
+and the label wherever nothing is in front. Read when the menu opens, like
+the conditions.
+
+`quick:toggle`, `quick:open` and the rest still parse, as `QuickAction` - the
+menu spelt the way a config written before 102 spells it.
 
 ## The title, and what it says at each level
 
@@ -1773,7 +1809,7 @@ confused with a navigation or a stepping problem.
 card of rows' top and bottom row, the page's rim - once per press: a wall you
 are still pushing against is still one wall, so a held direction's repeats
 find it once, and a fresh press finds it again (`menu_command(repeat=)`, the
-quick menu's rule). It was forgotten only when a value moved, so a card of rows
+rule the quick menu brought with it). It was forgotten only when a value moved, so a card of rows
 bumped at its top the first time and never again. `commit` on taking and on
 letting go. And `texture` on the first step of a push only, on the side it
 went, rather than a tick per step or a hum for the length of a hold: `[snap]
@@ -2163,6 +2199,14 @@ tile that says nothing is always there, which is nearly all of them. `build()`
 rejects a name that is not one of those, so `omapad check` says which tile
 would never appear.
 
+**`window` and `empty` are places**, not states - what is in front, a window
+or a bare workspace (`menu.PLACES`). A listed place has to hold *as well as*
+any one listed state (`menu.offered`): the workspace lock is
+`["window", "game", "handed_over"]`, since over an empty workspace it would
+lock the pad to nothing. Naming both places is refused - leaving both out
+says either. They came with the quick page, whose Resume and Close window
+mean nothing over a bare desktop, and the whole page asks for `window`.
+
 Every state but the last is something the person holding the pad can see for
 themselves, which is the rule the list is kept short by: a tile that comes and
 goes for a reason nobody can point at is worse than one that is always there
@@ -2251,6 +2295,30 @@ Walking to a card whose page is listed does **not** read it at once:
 `[menu] group_settle_ms` is how long the bar has to stop moving first, because
 flicking across five cards should spawn one command rather than five.
 
+## A tile that is what is installed
+
+`apps = "all"` or `apps = "<kind>"` gives a tile a third kind of page, after
+`items` and `from`: the installed applications, read by
+[`apps.py`](apps.md) under Omarchy's launcher's rules. `All apps` was
+`exec:omarchy-menu toggle apps` until decision
+[103](../decisions/103-all-apps-inside-the-menu.md) - a search box over the
+menu's own backdrop, which is a keyboard's list in a thumb's place.
+
+`press()` fills the page from `MenuModel.apps` as it enters it (`library()`),
+so there is no command at the press and nothing to wait for: `all` is a card
+per kind, the picker's own cut and marks (`KIND_ICONS`), and a kind is its
+apps. Each app is `app_item()` - the tile an app put on a page from the pad
+is, launch or focus and its own icon - so the two doors to an app start it
+the same way - at `library_span()`, a sixth of the page rather than the
+quarter an app put on a page takes, so a kind of a dozen fits one screen.
+With no index yet, or nothing of that kind, the page is the
+tile's `empty` line. The daemon asks `apps_refresh()` at the same press, so an
+app installed since is on the next visit.
+
+`pages_of` does not walk into one: what it holds is whatever the last press
+built, so a tile of it offered by the picker's `Menu` would be a reference to
+something the next press may not build.
+
 ## `MenuModel`
 
 `step(direction)`, `press()`, `back()`, `reset()`, `repack()`, with `depth` and
@@ -2281,7 +2349,7 @@ shipped config leaves empty because the head carries the time now.
 open, title, clock, depth, sel, row, g, n, hit, groups, head, headrows, keys,
 cols, rows, edit, add, pick,
 items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?, ai?} ]
-scr?, swap?
+scr?
 ```
 
 `edit` is whether the page in front is being rearranged and `add` whether
@@ -2289,13 +2357,6 @@ the Add picker is what is in front; `edit` is false while `add` is true, so
 the picker's choices are not outlined as tiles to arrange. `ai` rides on an
 app added from the pad: its icon's name, which `appIcon` resolves in the
 theme in force. Off the wire on every other row.
-
-`swap` rides only on the push that opens the menu in the quick menu's place
-or shuts it for the quick menu. The panel hands it to `Backdrop.qml` before it
-assigns `open`: arriving, the scrim is up at once with no fade; leaving, the
-window and its scrim stay until the row's window is on screen and a fade
-longer, with the keyboard and the pointer already given back
-([decision 98](../decisions/98-one-backdrop-two-menus.md)).
 
 `sel` is a tile **id**, not an index. `g` is which nav card. `groups` is
 `[{id, l, i, d, m}]` - `d` being the group's own detail, which the title line

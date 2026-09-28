@@ -25,7 +25,6 @@ from omapad import linux_input as li
 from omapad import uinput
 from omapad import actions
 from omapad import menu as menu_module
-from omapad import quick as quick_module
 from omapad import chrono as chrono_module
 from omapad import guide as guide_module
 from omapad import sysinfo as sysinfo_module
@@ -327,7 +326,6 @@ class DaemonTestCase(unittest.TestCase):
         self.menu_client = self.daemon.menu_client = FakeViewClient()
         self.hud_client = self.daemon.hud_client = FakeViewClient()
         self.guide_client = self.daemon.guide_client = FakeViewClient()
-        self.quick_client = self.daemon.quick_client = FakeViewClient()
         # Swapped here rather than per-test: the real clients connect to the
         # live shell's sockets, so a suite that left them in place would push
         # test payloads at whatever is running on the machine.
@@ -344,6 +342,12 @@ class DaemonTestCase(unittest.TestCase):
     def _restore(self):
         daemon_module.VirtualMouse = self._real_mouse
         daemon_module.VirtualKeyboard = self._real_keyboard
+
+    def on_quick(self):
+        """Whether the menu is up on its quick page - what PLUS opens."""
+        menu = self.daemon.menu
+        return (self.daemon.menu_open and bool(menu.groups)
+                and menu.groups[menu.group]["id"] == "quick")
 
     def feed(self, *events):
         self.device.pending.extend(events)
@@ -406,7 +410,6 @@ class ProfileTests(DaemonTestCase):
         daemon.menu_client = FakeViewClient()
         daemon.hud_client = FakeViewClient()
         daemon.guide_client = FakeViewClient()
-        daemon.quick_client = FakeViewClient()
         daemon.attach(FakeDevice(NINTENDO))
         self.assertEqual(daemon.buttons[0x130], "B")
         self.assertEqual(daemon.buttons[0x139], "ZR")
@@ -1129,7 +1132,7 @@ class HandoverTests(DaemonTestCase):
         self.hand_over()
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
 
     def test_but_the_single_button_summons_stand_aside(self):
         # Back and Start are buttons every game binds. Summoning on them over
@@ -1140,7 +1143,6 @@ class HandoverTests(DaemonTestCase):
         self.press("PLUS")
         self.release("PLUS")
         self.assertFalse(self.daemon.menu_open)
-        self.assertFalse(self.daemon.quick_open)
         self.press("MINUS")
         self.release("MINUS")
         self.assertFalse(self.daemon.osk_open)
@@ -1712,7 +1714,7 @@ class WorkspaceLockTests(DaemonTestCase):
         self.daemon.locked = True
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
 
     def test_and_the_menu_it_opens_still_drives(self):
         self.daemon.handed_over = True
@@ -1768,11 +1770,10 @@ class WorkspaceLockTests(DaemonTestCase):
         # corner of the same screen is the answer drawn twice.
         self.config.notify = True
         self.daemon.handed_over = True
-        self.daemon.set_quick(True)
-        self.daemon.set_locked(True)
-        self.daemon.set_locked(False)
+        self.daemon.set_menu(True)
         self.daemon.set_keeping(True)
-        self.assertTrue(self.daemon.quick_open)
+        self.daemon.set_keeping(False)
+        self.assertTrue(self.daemon.menu_open)
         self.assertEqual(self.session.notifications, [])
 
     def test_and_said_when_locking_took_the_menu_away(self):
@@ -1796,16 +1797,17 @@ class WorkspaceLockTests(DaemonTestCase):
         self.assertFalse(self.daemon.locked)
 
     def menu_labels(self):
-        walk_menu(self.daemon, ["Spaces"], lambda: None)
+        # The quick page, which asks for a window (decision 102).
+        self.daemon.focus_class = "game"
+        self.daemon.menu.conditions = self.daemon.menu_conditions()
+        self.daemon.menu.build_groups()
+        walk_menu(self.daemon, ["Quick"], lambda: None)
         return [tile["item"]["label"] for tile in self.daemon.menu.tiles]
 
     def pick_the_row(self):
         # The tile is offered only while there is something to lock to, and
-        # it is on Spaces - the lock holds the pad to the game on this
-        # workspace. Walked to rather than opened on: the menu comes back
-        # where it was left, and a tile that overrode that would take that
-        # answer away - see `open_on`, which is still there for anyone who
-        # wants the other behaviour.
+        # it is on the quick page, where a pause looks (decision 102).
+        self.daemon.focus_class = "game"
         self.daemon.set_menu(True)
         self.assertIn("Workspace lock", self.menu_labels())
         self.assertTrue(self.daemon.menu.select_id("workspace-lock"))
@@ -1835,7 +1837,8 @@ class WorkspaceLockTests(DaemonTestCase):
             self.daemon.menu_command("press")
         self.assertFalse(self.daemon.locked)
         self.assertFalse(self.daemon.handed_over)
-        self.assertTrue(self.daemon.menu_open, "unlocking leaves the menu up")
+        # A pause's verb ends the pause, this one included.
+        self.assertFalse(self.daemon.menu_open)
 
     def test_the_bar_widget_is_told(self):
         self.daemon.handed_over = True
@@ -1908,7 +1911,11 @@ class KeepingThePadTests(DaemonTestCase):
         self.assertTrue(self.daemon.allowed(actions.NoAction(), "base"))
 
     def menu_labels(self):
-        walk_menu(self.daemon, ["Spaces"], lambda: None)
+        # The quick page, which asks for a window (decision 102).
+        self.daemon.focus_class = "game"
+        self.daemon.menu.conditions = self.daemon.menu_conditions()
+        self.daemon.menu.build_groups()
+        walk_menu(self.daemon, ["Quick"], lambda: None)
         return [item["label"] for item in self.daemon.menu.items]
 
     def test_the_row_is_offered_where_there_is_a_pad_to_keep(self):
@@ -2878,6 +2885,12 @@ def walk_menu(daemon, labels, press):
         press()
 
 
+def apps_page(config):
+    """The Apps group as the config has it - no longer the first one."""
+    return next(group for group in config.menu_items
+                if group.get("label") == "Apps")
+
+
 class MenuTests(DaemonTestCase):
     def open_menu(self):
         # The first start opens on `Start here` wherever it is (FirstRunTests);
@@ -2904,7 +2917,8 @@ class MenuTests(DaemonTestCase):
 
     def test_home_summons_it(self):
         # HOME is the menu's button, the way the button in the middle of a
-        # console pad opens its home. PLUS is the quick menu's - QuickTests.
+        # console pad opens its home. PLUS opens it on the quick page -
+        # QuickPageTests.
         self.press("HOME")
         self.release("HOME")
         self.assertTrue(self.daemon.menu_open)
@@ -3033,7 +3047,7 @@ class MenuTests(DaemonTestCase):
         # was the volume and brightness stepping rows, and those are a ring
         # and a bar now
         # - so the flag needs its own tile to be tested at all.
-        self.config.menu_items[0]["items"].append({
+        apps_page(self.config)["items"].append({
             "label": "Nudge", "action": "exec:nudge-it", "repeat": True,
         })
         self.daemon.menu = daemon_module.MenuModel(
@@ -3293,7 +3307,6 @@ class ArrivingSoundsTests(DaemonTestCase):
     def test_every_surface_opened_by_a_verb_says_it(self):
         for command, is_open in (
                 (self.daemon.menu_command, lambda: self.daemon.menu_open),
-                (self.daemon.quick_command, lambda: self.daemon.quick_open),
                 (self.daemon.guide_command, lambda: self.daemon.guide_open),
                 (self.daemon.osk_command, lambda: self.daemon.osk_open)):
             for verb in ("open", "toggle"):
@@ -3365,7 +3378,7 @@ class CountedRowTests(DaemonTestCase):
 
     def setUp(self):
         super().setUp()
-        self.config.menu_items[0]["items"].append({
+        apps_page(self.config)["items"].append({
             "label": "Wipe it", "action": "exec:wipe-it", "countdown": True,
         })
         self.daemon.menu = daemon_module.MenuModel(
@@ -3469,7 +3482,7 @@ class ConfirmedRowTests(DaemonTestCase):
 
     def setUp(self):
         super().setUp()
-        self.config.menu_items[0]["items"].append({
+        apps_page(self.config)["items"].append({
             "label": "Wipe it", "action": "exec:wipe-it", "confirm": True,
         })
         self.daemon.menu = daemon_module.MenuModel(
@@ -6569,8 +6582,8 @@ class GuideTests(DaemonTestCase):
                       self.daemon.handle_control("guide sideways"))
 
 
-class QuickTests(DaemonTestCase):
-    """PLUS opens the quick menu: one row, and the menu one press away."""
+class QuickPageTests(DaemonTestCase):
+    """PLUS opens the menu on its quick page, at Resume (decision 102)."""
 
     def tap(self, name):
         self.press(name)
@@ -6578,107 +6591,153 @@ class QuickTests(DaemonTestCase):
 
     def setUp(self):
         super().setUp()
-        # A machine that answers for both values, so every shipped tile is
-        # on the row; `test_a_value_nobody_answers_is_left_off` is the other.
+        self.daemon.config.menu_first_run = False
         self.daemon.live.values["volume"] = 0.5
-        self.daemon.live.values["brightness"] = 1.0
-        # And a window in front, which is the row most of these are about;
-        # `test_an_empty_workspace_is_back_and_the_apps` is the other.
+        # A window in front, which the page asks for;
+        # `test_an_empty_workspace_opens_on_the_first_page_there_is` is the
+        # other case.
         self.daemon.focus_class = "kitty"
 
-    def walk_to(self, ident):
-        for _ in range(len(self.daemon.quick.items)):
-            if self.daemon.quick.current["id"] == ident:
-                return
-            self.daemon.quick_command("right")
-        self.fail("no tile called %s" % ident)
+    def ids(self):
+        return [tile["item"]["id"] for tile in self.daemon.menu.tiles]
 
-    def test_plus_opens_it_and_not_the_menu(self):
+    def pick(self, ident):
+        self.assertTrue(self.daemon.menu.select_id(ident), ident)
+        self.daemon.menu_command("press")
+
+    def test_plus_opens_the_menu_on_the_quick_page_at_resume(self):
         self.tap("PLUS")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertFalse(self.daemon.menu_open)
-        self.assertEqual(self.daemon.current_layer, "quick")
-        state = self.quick_client.sent[-1]
-        self.assertTrue(state["open"])
-        self.assertEqual(state["sel"], 0)
-        self.assertEqual(state["tiles"][0]["l"], "Resume")
+        self.assertTrue(self.on_quick())
+        self.assertEqual(self.daemon.menu.selected, "resume")
+        self.assertEqual(self.daemon.current_layer, "menu")
+        self.assertTrue(self.menu_client.sent[-1]["open"])
+
+    def chip(self):
+        groups = self.menu_client.sent[-1]["groups"]
+        return next(group["l"] for group in groups if group["id"] == "quick")
+
+    def test_the_chip_is_named_after_the_app_in_front(self):
+        # By its desktop entry, found by window class or by id.
+        self.daemon.menu.apps = {
+            "org.mozilla.firefox": {"id": "org.mozilla.firefox",
+                                    "name": "Firefox", "wmclass": "",
+                                    "icon": "", "kind": ""},
+            "foot": {"id": "foot", "name": "Foot", "wmclass": "footclient",
+                     "icon": "", "kind": ""},
+        }
+        self.daemon.set_focus("firefox", "Mozilla Firefox")
+        self.daemon.menu_command("open", page="quick")
+        self.assertEqual(self.chip(), "Firefox")
+        self.daemon.menu_command("close")
+        self.daemon.set_focus("footclient", "~")
+        self.daemon.menu_command("open", page="quick")
+        self.assertEqual(self.chip(), "Foot")
+
+    def test_a_game_is_named_by_its_title(self):
+        # Steam's games are steam_app_N to the compositor; the title is the
+        # name, and no desktop entry answers for it.
+        self.daemon.set_focus("steam_app_1", "Velvet Horizon")
+        self.daemon.menu_command("open", page="quick")
+        self.assertEqual(self.chip(), "Velvet Horizon")
+
+    def test_the_chip_says_what_it_is_underneath(self):
+        self.daemon.menu_command("open", page="quick")
+        groups = self.menu_client.sent[-1]["groups"]
+        self.assertEqual(groups[0]["m"], "Quick menu")
+
+    def test_the_page_is_the_first_chip(self):
+        self.daemon.set_menu(True)
+        self.assertEqual(self.daemon.menu.groups[0]["id"], "quick")
 
     def test_plus_opens_it_on_the_way_down(self):
         # PLUS is half of the MINUS+PLUS chord, and a chord member waits for
-        # its release - which made a row that only appeared when the thumb
+        # its release - which made a menu that only appeared when the thumb
         # came off, and read as a button that wanted holding.
         self.press("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.on_quick())
         self.release("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.on_quick())
 
     def test_holding_plus_does_nothing_else(self):
         self.press("PLUS")
         pressed_at = time.monotonic()
         self.daemon.check_hold_timers(pressed_at + 2.0)
         self.release("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.on_quick())
         self.assertEqual(self.session.spawned, [])
 
-    def test_the_chord_leaves_the_row_plus_opened(self):
-        # PLUS opens the row on the way down, before MINUS can land; the
-        # chord opening it again must not be a toggle shutting it.
+    def test_the_chord_leaves_the_page_plus_opened(self):
         self.press("PLUS")
         self.press("MINUS")
         self.release("MINUS")
         self.release("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.on_quick())
         self.assertFalse(self.daemon.osk_open)
 
     def test_plus_again_puts_it_away(self):
         self.tap("PLUS")
         self.tap("PLUS")
-        self.assertFalse(self.daemon.quick_open)
-        self.assertFalse(self.quick_client.sent[-1]["open"])
+        self.assertFalse(self.daemon.menu_open)
+        self.assertFalse(self.menu_client.sent[-1]["open"])
+
+    def test_plus_from_another_page_goes_to_the_quick_page(self):
+        self.tap("HOME")
+        self.daemon.menu_command("group_next")
+        self.assertFalse(self.on_quick())
+        self.tap("PLUS")
+        self.assertTrue(self.on_quick())
+        self.assertEqual(self.daemon.menu.selected, "resume")
+        # And from there it is in and out, as ever.
+        self.tap("PLUS")
+        self.assertFalse(self.daemon.menu_open)
+
+    def test_home_comes_back_to_the_page_last_open(self):
+        self.tap("HOME")
+        self.daemon.menu_command("group_next")
+        apps = self.daemon.menu.where()
+        self.daemon.menu_command("close")
+        self.tap("HOME")
+        self.assertEqual(self.daemon.menu.where(), apps)
+        self.daemon.menu_command("close")
+        # The quick page too, when PLUS was the last to open it.
+        self.tap("PLUS")
+        self.tap("PLUS")
+        self.tap("HOME")
+        self.assertTrue(self.on_quick())
+
+    def test_the_chord_comes_back_to_the_page_last_open(self):
+        # Over a game as well: it is HOME for where HOME may not reach.
+        self.tap("HOME")
+        self.daemon.menu_command("group_next")
+        apps = self.daemon.menu.where()
+        self.daemon.menu_command("close")
+        self.daemon.handed_over = True
+        self.press("MINUS")
+        self.press("PLUS")
+        self.release("PLUS")
+        self.release("MINUS")
+        self.assertEqual(self.daemon.menu.where(), apps)
+
+    def test_every_opening_is_at_resume(self):
+        self.tap("PLUS")
+        self.daemon.menu_command("down")
+        self.assertNotEqual(self.daemon.menu.selected, "resume")
+        self.tap("PLUS")
+        self.tap("PLUS")
+        self.assertEqual(self.daemon.menu.selected, "resume")
+
+    def test_resume_is_the_first_press(self):
+        self.tap("PLUS")
+        self.tap("A")
+        self.assertFalse(self.daemon.menu_open)
+        self.assertEqual(self.hypr.calls, [])
 
     def test_it_takes_the_pad_while_it_is_up(self):
         self.daemon.handed_over = True
         self.daemon.apply_grab()
         self.assertFalse(self.device.grabbed)
-        self.daemon.set_quick(True)
+        self.daemon.menu_command("open", page="quick")
         self.assertTrue(self.device.grabbed)
-
-    def test_the_menu_and_the_row_close_each_other(self):
-        self.tap("HOME")
-        self.assertTrue(self.daemon.menu_open)
-        # PLUS inside the menu is the way to the row.
-        self.tap("PLUS")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertFalse(self.daemon.menu_open)
-        # And HOME from the row is the way back.
-        self.tap("HOME")
-        self.assertTrue(self.daemon.menu_open)
-        self.assertFalse(self.daemon.quick_open)
-
-    def test_the_two_trade_one_backdrop(self):
-        # The pushes that trade the two say so, both sides of it, so neither
-        # panel lifts its scrim before the other has one up (decision 98).
-        self.tap("HOME")
-        self.assertNotIn("swap", self.menu_client.sent[-1])
-        self.menu_client.sent.clear()
-        self.tap("PLUS")
-        leaving = [s for s in self.menu_client.sent if "open" in s][0]
-        self.assertFalse(leaving["open"])
-        self.assertTrue(leaving["swap"])
-        arriving = [s for s in self.quick_client.sent if s.get("open")][0]
-        self.assertTrue(arriving["swap"])
-        self.quick_client.sent.clear()
-        self.menu_client.sent.clear()
-        self.tap("HOME")
-        self.assertTrue(self.quick_client.sent[0]["swap"])
-        self.assertTrue(
-            [s for s in self.menu_client.sent if s.get("open")][0]["swap"])
-        # And only the trade: the heartbeat after it, and a menu put away
-        # with B, carry nothing.
-        self.daemon.push_menu_view()
-        self.assertNotIn("swap", self.menu_client.sent[-1])
-        self.daemon.set_menu(False)
-        self.assertNotIn("swap", self.menu_client.sent[-1])
 
     def test_over_a_game_the_chord_reaches_it(self):
         # PLUS alone belongs to the game's pause screen, so the chord is
@@ -6688,108 +6747,62 @@ class QuickTests(DaemonTestCase):
         self.press("PLUS")
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertFalse(self.daemon.menu_open)
+        self.assertTrue(self.on_quick())
 
     def test_a_tile_runs_over_a_game(self):
-        # The row closes before the tile fires, and by then the pad looks
+        # The menu closes before the tile fires, and by then the pad looks
         # handed over again; the press was ours, on a surface we drew.
         self.daemon.handed_over = True
-        self.daemon.set_quick(True)
-        self.walk_to("keyboard")
-        self.tap("A")
-        self.assertFalse(self.daemon.quick_open)
+        self.daemon.menu_command("open", page="quick")
+        self.pick("keyboard")
+        self.assertFalse(self.daemon.menu_open)
         self.assertTrue(self.daemon.osk_open)
 
-    def test_the_next_window_is_not_on_the_row(self):
-        ids = [item["id"] for item in self.daemon.quick.items]
-        self.assertNotIn("next-window", ids)
-
-    def with_brightness(self):
-        # Brightness is off the shipped row, and still the case the rule
-        # was written for: a monitor with no DDC answers with nothing.
-        self.daemon.quick = quick_module.QuickModel(quick_module.build([
-            {"label": "Resume", "action": "quick:close"},
-            {"label": "Brightness", "up": "live:brightness=up",
-             "down": "live:brightness=down"},
-            {"label": "Volume", "up": "live:volume=up",
-             "down": "live:volume=down"},
-            {"label": "Screenshot", "action": "exec:true"},
-        ]))
-
-    def test_a_value_nobody_answers_is_left_off(self):
-        # A monitor with no DDC answers the brightness read with nothing,
-        # and a tile turning a number nobody can read changes nothing.
-        self.with_brightness()
-        del self.daemon.live.values["brightness"]
-        self.daemon.set_quick(True)
-        labels = [tile["l"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertNotIn("Brightness", labels)
-        self.assertIn("Volume", labels)
-        # And the read that would bring it back is still asked.
-        self.assertIn("brightness", self.daemon.live_names())
-
-    def test_a_tile_arriving_keeps_the_selection_where_it_is(self):
-        self.with_brightness()
-        del self.daemon.live.values["brightness"]
-        self.daemon.set_quick(True)
-        self.walk_to("screenshot")
-        self.daemon.live.values["brightness"] = 0.8
-        self.daemon.push_quick_view()
-        state = self.quick_client.sent[-1]
-        self.assertIn("Brightness", [tile["l"] for tile in state["tiles"]])
-        self.assertEqual(state["tiles"][state["sel"]]["id"], "screenshot")
-
-    def test_an_empty_workspace_is_back_and_the_apps(self):
+    def test_an_empty_workspace_opens_on_the_first_page_there_is(self):
         # Nothing in front: nothing to resume, close or type into - so the
-        # row is the way out and then something to start.
+        # page is not offered and PLUS opens on something to start.
         self.daemon.focus_class = ""
-        self.daemon.set_quick(True)
-        state = self.quick_client.sent[-1]
-        ids = [tile["id"] for tile in state["tiles"]]
-        self.assertEqual(ids[0], "back")
-        self.assertEqual(state["sel"], 0)
-        self.assertIn("steam", ids)
-        for gone in ("resume", "close-window", "keyboard", "volume"):
-            self.assertNotIn(gone, ids)
+        self.tap("PLUS")
+        self.assertTrue(self.daemon.menu_open)
+        self.assertFalse(self.on_quick())
+        self.assertEqual(self.daemon.menu.where()[0], "apps")
+        self.assertNotIn("quick",
+                         [group["id"] for group in self.daemon.menu.groups])
+        # And PLUS inside it has nowhere to go, so it is the way out.
+        self.tap("PLUS")
+        self.assertFalse(self.daemon.menu_open)
 
-    def test_the_window_row_has_none_of_the_apps(self):
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertEqual(ids[0], "resume")
-        self.assertNotIn("back", ids)
-        self.assertNotIn("steam", ids)
-
-    def test_the_lock_is_on_the_row_in_game_mode(self):
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertNotIn("workspace-lock", ids)
-        self.daemon.set_quick(False)
+    def test_the_lock_is_on_the_page_in_game_mode(self):
+        self.daemon.menu_command("open", page="quick")
+        self.assertNotIn("workspace-lock", self.ids())
+        self.daemon.menu_command("close")
         self.daemon.mode = "game"
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        # Second, after the way out, since it is a way back to the game too.
+        self.daemon.menu_command("open", page="quick")
+        ids = self.ids()
+        # After the way out, since it is a way back to the game too.
         self.assertEqual(ids.index("workspace-lock"), 1)
         # Keeping is for a pad the app has taken, and this one has not.
         self.assertNotIn("keep-the-controller", ids)
 
-    def test_the_lock_locks_nothing_over_an_empty_workspace(self):
+    def test_the_lock_is_on_one_page(self):
+        # It was on Spaces as well; one of anything, and this is the one.
         self.daemon.mode = "game"
-        self.daemon.focus_class = ""
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertNotIn("workspace-lock", ids)
+        self.daemon.set_menu(True)
+        for group in self.daemon.menu.groups:
+            if group["id"] == "quick":
+                continue
+            ids = [item["id"] for item in self.daemon.menu.group_page(group)]
+            self.assertNotIn("workspace-lock", ids, group["id"])
 
-    def test_the_lock_tile_closes_the_row_and_locks(self):
+    def test_the_lock_tile_closes_the_menu_and_locks(self):
         self.daemon.mode = "game"
-        self.daemon.set_quick(True)
-        self.walk_to("workspace-lock")
-        self.daemon.quick_command("press")
-        self.assertFalse(self.daemon.quick_open)
+        self.daemon.menu_command("open", page="quick")
+        self.pick("workspace-lock")
+        self.assertFalse(self.daemon.menu_open)
         self.assertTrue(self.daemon.locked)
 
     def test_under_the_lock_the_chord_reaches_the_lock_tile(self):
-        # Only a chord gets past the lock, so the row it opens is the way
+        # Only a chord gets past the lock, so the page it opens is the way
         # out, and the tile turning it off has to be on it.
         self.daemon.set_locked(True)
         self.daemon.handed_over = True
@@ -6797,176 +6810,76 @@ class QuickTests(DaemonTestCase):
         self.press("PLUS")
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.quick_open)
-        self.walk_to("workspace-lock")
-        self.daemon.quick_command("press")
+        self.assertTrue(self.on_quick())
+        self.pick("workspace-lock")
         self.assertFalse(self.daemon.locked)
 
-    def test_keeping_stays_on_the_row_while_kept(self):
+    def test_keeping_stays_on_the_page_while_kept(self):
         self.daemon.keeping = True
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertIn("keep-the-controller", ids)
+        self.daemon.menu_command("open", page="quick")
+        self.assertIn("keep-the-controller", self.ids())
 
-    def test_the_row_carries_the_call_and_not_the_camera(self):
-        self.daemon.set_quick(True)
-        ids = [tile["id"] for tile in self.quick_client.sent[-1]["tiles"]]
-        self.assertIn("microphone", ids)
-        self.assertIn("deafen", ids)
-        for gone in ("brightness", "screenshot", "record"):
-            self.assertNotIn(gone, ids)
+    def test_the_page_carries_the_call(self):
+        self.daemon.menu_command("open", page="quick")
+        ids = self.ids()
+        for wanted in ("volume", "microphone", "deafen", "keyboard",
+                       "close-window"):
+            self.assertIn(wanted, ids)
 
-    def test_deafen_stays_up_lit_and_asks_the_microphone_again(self):
-        self.daemon.live.values["deafen"] = False
-        self.daemon.live.values["mic"] = False
-        self.daemon.set_quick(True)
-        self.walk_to("deafen")
-        self.daemon.quick_command("press")
-        self.assertTrue(self.daemon.quick_open)
-        state = self.quick_client.sent[-1]
-        self.assertTrue(state["tiles"][state["sel"]]["on"])
-        # The microphone moved with it, and its tile is re-asked once the
-        # deafen has gone out - after its cue, see `live_switch`.
-        self.daemon.live_flush(force=True)
-        self.assertIn("mic", self.daemon._live_due)
+    def test_closing_the_window_is_held(self):
+        self.daemon.menu_command("open", page="quick")
+        self.daemon.menu.select_id("close-window")
+        self.assertTrue(self.daemon.menu.current["confirm"])
 
-    def test_back_is_the_first_press_over_nothing(self):
-        self.daemon.focus_class = ""
-        self.tap("PLUS")
-        self.tap("A")
-        self.assertFalse(self.daemon.quick_open)
-        self.assertEqual(self.session.spawned, [])
+    def test_the_control_socket_names_the_page(self):
+        reply = self.daemon.handle_control("menu open quick")
+        self.assertIn("menu=open", reply)
+        self.assertTrue(self.on_quick())
+        self.assertIn("unknown menu command",
+                      self.daemon.handle_control("menu close quick"))
 
-    def test_resume_is_back_first_when_a_window_is(self):
-        # The last opening left Resume off; this one must not follow the
-        # tile it was on by name to somewhere past the first place.
-        self.daemon.focus_class = ""
-        self.daemon.set_quick(True)
-        self.daemon.set_quick(False)
-        self.daemon.focus_class = "kitty"
-        self.daemon.set_quick(True)
-        state = self.quick_client.sent[-1]
-        self.assertEqual(state["sel"], 0)
-        self.assertEqual(state["tiles"][0]["id"], "resume")
+    def test_the_shell_summon_still_reaches_it(self):
+        self.daemon.set_surface("quick", True)
+        self.assertTrue(self.on_quick())
 
-    def test_resume_is_the_first_press(self):
-        self.tap("PLUS")
-        self.tap("A")
-        self.assertFalse(self.daemon.quick_open)
-        self.assertEqual(self.hypr.calls, [])
-
-    def test_the_dpad_walks_the_row_and_wraps(self):
-        self.daemon.set_quick(True)
-        self.feed((li.EV_ABS, li.ABS_HAT0X, -1))
-        self.feed((li.EV_ABS, li.ABS_HAT0X, 0))
-        self.assertEqual(self.daemon.quick.index,
-                         len(self.daemon.quick.shown) - 1)
-        self.assertEqual(self.quick_client.sent[-1]["sel"],
-                         self.daemon.quick.index)
-
-    def test_closing_the_window_takes_two_presses(self):
-        self.daemon.set_quick(True)
-        self.walk_to("close-window")
-        self.tap("A")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertEqual(self.hypr.calls, [])
-        self.assertTrue(self.quick_client.sent[-1]["band"]["arm"])
-        legend = [row["n"] for row in self.quick_client.sent[-1]["keys"]]
-        self.assertIn("Confirm", legend)
-        self.assertIn("Cancel", legend)
-        self.tap("A")
-        self.assertFalse(self.daemon.quick_open)
-        self.assertEqual(self.hypr.calls, ["hl.dsp.window.close()"])
-
-    def test_b_lets_go_of_the_second_press_before_it_leaves(self):
-        self.daemon.set_quick(True)
-        self.walk_to("close-window")
-        self.tap("A")
-        self.tap("B")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertIsNone(self.daemon.quick.armed)
-        self.tap("B")
-        self.assertFalse(self.daemon.quick_open)
-        self.assertEqual(self.hypr.calls, [])
-
-    def test_up_turns_the_volume_on_its_tile(self):
-        self.daemon.set_quick(True)
-        self.walk_to("volume")
-        self.session.captured.clear()
-        self.daemon.quick_command("up")
-        self.assertAlmostEqual(self.daemon.live.value("volume"), 0.55)
-        self.assertTrue(self.session.captured)
-        band = self.quick_client.sent[-1]["band"]
-        self.assertEqual(band["w"], "55%")
-        self.assertAlmostEqual(band["v"], 0.55)
-
-    def test_up_does_nothing_on_a_tile_without_a_value(self):
-        self.daemon.set_quick(True)
-        self.assertFalse(self.daemon.quick_command("up"))
-
-    def test_the_legend_says_the_tile(self):
-        self.daemon.set_quick(True)
-        legend = self.quick_client.sent[-1]["keys"]
-        words = dict((row["b"], row["n"]) for row in legend)
-        self.assertEqual(words.get("A"), "Resume")
-        self.walk_to("volume")
-        legend = self.quick_client.sent[-1]["keys"]
-        self.assertTrue(any(row["k"] == "dpad" for row in legend))
-        self.assertNotIn("A", [row["b"] for row in legend])
-
-    def test_the_bar_stands_down_while_it_is_up(self):
-        # The row prints the bar's row of buttons in the bar's own band, so
-        # two rows of the same words must not stand in one place.
-        self.daemon.set_mode("game")
-        self.assertTrue(self.daemon.gamebar_open)
-        self.daemon.set_quick(True)
-        self.assertFalse(self.daemon.gamebar_open)
-        self.assertEqual(self.quick_client.sent[-1]["barh"],
-                         self.config.gamebar_height)
-        self.daemon.set_quick(False)
-        self.assertTrue(self.daemon.gamebar_open)
-
-    def test_the_head_names_what_is_in_front(self):
-        self.daemon.set_focus("steam_app_1", "Velvet Horizon")
-        self.daemon.set_quick(True)
-        head = self.quick_client.sent[-1]["head"]
-        self.assertEqual(head["t"], "Velvet Horizon")
-        self.assertEqual(head["k"], "Desktop")
-
-    def test_the_control_socket_drives_it(self):
-        reply = self.daemon.handle_control("quick open")
-        self.assertIn("quick=open", reply)
-        self.daemon.handle_control("quick select 2")
-        self.assertEqual(self.daemon.quick.index, 2)
-        self.assertIn("quick=closed",
-                      self.daemon.handle_control("quick close"))
-        self.assertIn("unknown quick command",
-                      self.daemon.handle_control("quick sideways"))
-        self.assertIn("quick=closed", self.daemon.handle_control("status"))
+    def test_the_old_spelling_is_the_page(self):
+        # A config from before decision 102 still says `quick:toggle`.
+        action = actions.parse("quick:toggle")
+        self.assertIsInstance(action, actions.MenuAction)
+        self.assertEqual((action.command, action.page), ("toggle", "quick"))
+        action = actions.parse("quick:press")
+        self.assertEqual((action.command, action.page), ("press", None))
+        with self.assertRaises(actions.ActionError):
+            actions.parse("menu:press=quick")
 
 
 class ChordTests(DaemonTestCase):
-    """MINUS + PLUS opens the quick menu, whichever button lands first."""
+    """MINUS + PLUS opens the menu, whichever button lands first."""
+
+    def setUp(self):
+        super().setUp()
+        # The quick page asks for a window.
+        self.daemon.focus_class = "kitty"
 
     def test_minus_first(self):
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
         # Neither button also did its own job: MINUS did not open the keyboard,
-        # and PLUS's own quick:toggle, fired on the way down, was not undone by
+        # and PLUS's own menu:toggle=quick, fired on the way down, was not undone by
         # the chord.
         self.assertFalse(self.daemon.osk_open)
 
     def test_plus_first(self):
         self.press("PLUS")
         self.press("MINUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
         self.release("PLUS")
         self.release("MINUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
         self.assertFalse(self.daemon.osk_open)
 
     def test_a_chord_member_waits_for_its_release(self):
@@ -6985,31 +6898,30 @@ class ChordTests(DaemonTestCase):
         self.daemon.handed_over = True
         self.press("MINUS")
         self.press("PLUS")
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
 
     def test_it_fires_once_per_press_not_once_per_button(self):
-        # `quick:open` cannot close what it opened, so what is counted is the
-        # chord firing rather than the row it leaves.
+        # `menu:open` cannot close what it opened, so what is counted
+        # is the chord firing rather than the page it leaves.
         fired = []
-        run = self.daemon.quick_command
-        def counted(command, repeat=False):
+        run = self.daemon.menu_command
+        def counted(command, repeat=False, page=None):
             fired.append(command)
-            return run(command, repeat)
-        self.daemon.quick_command = counted
+            return run(command, repeat, page)
+        self.daemon.menu_command = counted
         self.press("MINUS")
         self.press("PLUS")
         self.release("PLUS")
         self.release("MINUS")
         self.assertEqual(fired.count("open"), 1)
-        self.assertTrue(self.daemon.quick_open)
+        self.assertTrue(self.daemon.menu_open)
 
     def test_either_button_alone_still_does_its_own_job(self):
         self.press("PLUS")
         self.release("PLUS")
-        self.assertTrue(self.daemon.quick_open)
-        self.assertFalse(self.daemon.menu_open)
+        self.assertTrue(self.daemon.menu_open)
         self.assertEqual(self.daemon.mode, "desktop")
-        self.daemon.set_quick(False)
+        self.daemon.set_menu(False)
         self.press("MINUS")
         self.release("MINUS")
         self.assertTrue(self.daemon.osk_open)
@@ -9605,7 +9517,7 @@ class SettingTests(DaemonTestCase):
                           if played == edge], [edge])
 
     def test_and_every_fresh_press_finds_it_again(self):
-        # `quick_command`'s rule. It was forgotten only when a value moved,
+        # The quick menu's rule, kept. It was forgotten only when a value moved,
         # so a wall found once was never felt again until something did.
         self.daemon.config.scroll_speed = 40.0
         self.land("Controller", "Sticks", "Scroll")
@@ -9775,17 +9687,6 @@ class SettingTests(DaemonTestCase):
         self.assertLess(self.daemon.config.pointer_speed, 2000.0)
         self.feed((li.EV_ABS, li.ABS_Z, 0))
         self.assertEqual(self.daemon.active_layers, [])
-
-    def test_the_quick_menu_keeps_the_left_trigger_too(self):
-        # Nothing to sweep there, and the same fault: a card over the
-        # desktop with the window layer opening under it, and the two sticks
-        # the row leaves idle resizing and moving the window behind.
-        self.daemon.set_menu(False)
-        self.daemon.set_quick(True)
-        self.feed((li.EV_ABS, li.ABS_Z, 255))
-        self.assertEqual(self.daemon.active_layers, [])
-        self.assertEqual(self.daemon.current_layer, "quick")
-        self.assertEqual(self.daemon.stick_roles(), ("none", "none"))
 
     def test_the_window_layer_is_back_once_the_menu_is_down(self):
         self.daemon.set_menu(False)

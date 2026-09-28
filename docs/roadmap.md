@@ -77,7 +77,8 @@ the two worth a change made:
   menu with the game bar standing down included. The second-long freezes
   are `budget stress`'s own first second - eighteen opens and closes sent
   back to back, which no hand makes. What is left is memory: under selection
-  churn at 30 ms a command the quick menu kept 36 MB over forty cycles and
+  churn at 30 ms a command the quick menu - a surface of its own until 102 -
+  kept 36 MB over forty cycles and
   the guide 16, which the menu and the keyboard do not, and at a thumb's
   pace (150 ms) none of them kept anything. Worth watching with the tool
   below, not worth a change yet.

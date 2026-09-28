@@ -198,8 +198,8 @@ next start, which is a reboot, a fresh login or
 start = "desktop"   # or "game", to come back up from the couch
 ```
 
-(MINUS + PLUS used to be the chord for this; it opens the **quick menu** now —
-see below.)
+(MINUS + PLUS used to be the chord for this; it opens the **menu** now — see
+below.)
 
 While game mode is up the screen is the couch's, so omapad also tells Omarchy
 to **stay awake** (`omarchy toggle idle stay-awake`): the screensaver and the
@@ -292,12 +292,11 @@ does ask for.
 **What still gets through is a gesture the game does not ask for**, and there
 are two of them.
 
-First: **the MINUS + PLUS chord, which opens [the quick menu](#the-quick-menu)**
-— the row Start opens on the desktop. Two buttons at once is not an input any
-game binds, and this is the door: the keyboard and the workspace lock are tiles
-on the row, and **Y or the Menu tile goes on to the controller menu**, where the
-window controls, the guide and the app launcher are. HOME opens the controller
-menu over a game by itself too. The moment either opens omapad takes the pad
+First: **the MINUS + PLUS chord, which opens the controller menu on the page
+last open**, the way HOME does. Two buttons at once is not an input any game
+binds, and this is the door: the keyboard and the workspace lock are tiles on
+[the quick page](#the-quick-menu), the first one, and every other page is a
+shoulder away. HOME opens the menu over a game by itself too. The moment either opens omapad takes the pad
 back (otherwise the D-pad would drive both the menu and the game), and lets go
 again when it closes.
 
@@ -307,7 +306,7 @@ one nobody could make by accident — held for seconds, saying what is about to
 happen through a rumble and a notification, and abandoned by letting go or by
 pressing the cancel button.
 
-**Single-button summons stand aside.** On the desktop PLUS opens the quick menu
+**Single-button summons stand aside.** On the desktop PLUS opens the quick page
 and MINUS the keyboard; over an app that has the pad, both do nothing, because
 Back and Start are buttons every game binds and our menu appearing every time you
 reach for the game's pause screen is the same fault pointing the other way. That
@@ -316,7 +315,7 @@ removing it puts them back:
 
 ```toml
 [bindings.base]
-PLUS  = { tap = "quick:toggle", on_press = true, reaches_past = false }
+PLUS  = { tap = "menu:toggle=quick", on_press = true, reaches_past = false }
 MINUS = { tap = "osk:toggle", reaches_past = false }
 ```
 
@@ -401,8 +400,9 @@ of omapad's fires any more. Not an announced hold, not a `reaches_past`
 binding, not a single-button summon. A hold it will not let through does not
 **announce** itself either — the tick and the notification are a promise that
 something is about to happen, and they land on top of the game. What is left is the MINUS + PLUS chord,
-which opens the quick menu, and **Workspace lock** is the tile after Resume —
-that is the way back out, and the notification says so as it locks.
+which opens the menu, and **Workspace lock** is the tile after Resume on its
+quick page — that is the way back out, and the notification says so as it
+locks.
 
 The chord fires **only while the app in front already has the pad**. On the
 desktop `ZL + B` closes the window and `ZR` is a left click you can drag with,
@@ -447,8 +447,8 @@ button taken away from the game.
 
 `[profile.cloud]` gives them the same shape as `[profile.steam]`: **the
 shoulders, held and confirmed, walk the workspaces** — the one thing worth doing
-without leaving the stream — and everything else is on the quick menu or behind
-it, the MINUS + PLUS chord away.
+without leaving the stream — and everything else is in the menu, the
+MINUS + PLUS chord away.
 
 ```toml
 [profile.cloud]
@@ -1038,11 +1038,11 @@ hold in every layer and every application —
 | ZL | **window layer (hold)** | – |
 | L / R | previous / next workspace (the pad ticks) | move the window to the previous / next workspace |
 | D-pad | arrow keys | window focus (by direction) |
-| PLUS | **[the quick menu](#the-quick-menu)**, the moment it goes down | toggle split |
+| PLUS | **the menu on [its quick page](#the-quick-menu)**, the moment it goes down | toggle split |
 | MINUS | tap: **the on-screen keyboard**, hold: **push to talk** | – |
-| MINUS + PLUS | **the quick menu** (a chord, everywhere, and the way in over a game or the workspace lock) | – |
+| MINUS + PLUS | **the menu on the page last open** (a chord, everywhere, and the way in over a game or the workspace lock) | – |
 | ZL + B, ZR + B | **the workspace lock** — a chord, and only over an app that already has the pad | – |
-| HOME | press: **the controller menu**, the moment it goes down · hold: **switch mode** | centre the window |
+| HOME | press: **the controller menu** on the page last open, the moment it goes down · hold: **switch mode** | centre the window |
 | Left stick click | middle click | pin the window |
 | Right stick click | back (mouse 4) | the on-screen keyboard |
 | Capture* | tap: screenshot, hold: region | screen recording |
@@ -1334,7 +1334,7 @@ Which button to spend on what is a question of its own —
 
 ```toml
 [chords]
-"MINUS+PLUS" = "quick:open"
+"MINUS+PLUS" = "menu:open"
 "ZL+B" = "lock:on"
 "ZR+B" = "lock:on"
 ```
@@ -2066,9 +2066,9 @@ the room rather than about the pad.
 
 | | Says | Where you hear it |
 |---|---|---|
-| **move** | the selection went somewhere | walking the menu's tiles, the quick menu, the keyboard's keys |
+| **move** | the selection went somewhere | walking the menu's tiles, the keyboard's keys |
 | **next** / **prev** | the page turned, and which way | the shoulders on the menu's bar, the guide's pages, the keyboard's pages |
-| **show** | a surface came up | opening the menu, the quick menu, the keyboard or the guide |
+| **show** | a surface came up | opening the menu, the keyboard or the guide |
 | **back** | that went the other way | B up a level, leaving a page, putting a control back, a countdown backed out of, any surface put away |
 | **tick** | a press landed | everywhere the motor ticks |
 | **edge** | you cannot go further | a control at the end of its range |
@@ -2114,21 +2114,22 @@ affected — `omarchy-shell ipc call omapad-sound state` says which it is.
 
 ## The menu
 
-Press **HOME** — the button in the middle of the pad, the Xbox button. Three
-things open together, stacked down the middle of the screen:
+Press **HOME** — the button in the middle of the pad, the Xbox button — and
+the menu opens on the page last open. Three things open together, stacked
+down the middle of the screen:
 
 - **the head** — your name, the time, and whatever else you point a command at.
   Game mode takes Omarchy's bar away and there is no other clock the pad can
   reach, so the menu carries one.
-- **the bar** — one card per group, walked with the shoulders. `Apps`,
-  `Spaces`, `Sound`, `Display`, `Controller`, `Readings`, `System`. A nav card is
+- **the bar** — one card per group, walked with the shoulders. `Quick`
+  (over a window), `Apps`, `Spaces`, `Sound`, `Display`, `Controller`, `Readings`, `System`. A nav card is
   one cell of the grid below it, drawn on the same ground and standing over
   the same columns — the one you are on is filled with the accent outright.
 - **the grid** — the tiles of the group you are on, some of them wider or
   taller than others.
 
-The real Omarchy menu is a tile under **System**, and PLUS opens
-[the quick menu](#the-quick-menu). The Omarchy menu wants a keyboard and a
+The real Omarchy menu is a tile under **System**, and PLUS opens the menu on
+[its quick page](#the-quick-menu). The Omarchy menu wants a keyboard and a
 mouse; this one takes them both — the same Exclusive focus, hover-to-select and
 clicks — so whichever hand you are holding, the menu reads the same way.
 
@@ -2152,7 +2153,7 @@ entries, and has nowhere to put a page.
 | A | Pick — and go in, if it opens a page |
 | B | Back to the page above; at the top it closes the menu |
 | X · Capture · Right stick click | Close the menu outright, from any depth |
-| PLUS | Go to [the quick menu](#the-quick-menu) |
+| PLUS | Go to [the quick page](#the-quick-menu); on it, close the menu |
 | Y | Open [the bindings guide](#the-bindings-guide) |
 | HOME | Tap: close the menu · Hold: switch mode |
 
@@ -3110,9 +3111,9 @@ that answers with nothing leaves the last answer up rather than blanking the
 cell.
 
 **Apps is the couch's list, not the machine's.** Four of its rows are named
-applications and the fifth is *everything installed*, because a controller menu
-that tried to be a launcher would be a list nobody can walk with a thumbstick.
-The four are what a sofa reaches for: Steam Big Picture, Discord, Spotify and
+applications and the last is *everything installed*, cut into a card per kind
+— Games, Internet, System and the rest — because one list of every app is a
+scroll nobody finishes with a thumbstick. The four are what a sofa reaches for: Steam Big Picture, Discord, Spotify and
 YouTube — the game, the people you are playing with, the music and the
 television. Three of them **launch or focus**: with a pointer this slow, a
 second copy of a chat client is never what was asked for, so if the window is
@@ -3170,12 +3171,33 @@ before means the devices it listed last until the fresh ones land. Two settings
 bound it: `[menu] list_timeout_ms` is how late an answer may be before the page
 is called empty, and `[menu] list_limit` is how many of its lines reach it.
 
-The bar that ships is seven cards, in the order a thumb reaches for them:
+### A page of what is installed
+
+`All apps` opens a page of the menu rather than Omarchy's launcher, which is
+a search box and wants a keyboard:
+
+```toml
+[[menu.items.items]]
+icon = "󰀻"
+label = "All apps"
+apps = "all"          # or one kind: games, media, internet, office,
+                      # graphics, development, system, other
+```
+
+`all` is a card per kind with the apps behind each; a kind opens straight
+onto its apps. The list is the one Omarchy's launcher shows — an app hidden
+there is hidden here — each app shows its own icon, and each **launches or
+focuses** the way an app added from the pad does. It is read again every time
+the menu starts arranging and every time the tile is pressed, so an app
+installed a moment ago is there the next time you open it.
+
+The bar that ships is eight cards, in the order a thumb reaches for them:
 
 | Group | Holds |
 |---|---|
+| **Quick** (named after the app in front) | only over a window: Resume, the workspace lock and *Keep the controller* while there is anything to use them on, the volume, the microphone, deafen, the keyboard, close the window — [the quick menu](#the-quick-menu) |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
-| **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — the workspace lock and *Keep the controller* while there is anything to use them on, and do not disturb |
+| **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — and do not disturb |
 | **Sound** | what is playing, previous / next, the volume and mute; which speakers, which microphone, and where dictation puts the words |
 | **Display** | how bright the screen is, night light, staying awake through a film, scale and the screensaver in one card, which screens are lit when a laptop is plugged into a television, and the resolution and refresh rate the screen in front offers, and VRR — those three until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below — how much omapad's own surfaces move, how hard they round their corners and how solid a tile is drawn, and, on the first start only, `Start here` |
@@ -3186,8 +3208,10 @@ What you open, then where you are, then what you hear, then what is on
 screen, then the pad, then the machine. There used to be a `Now` page in front
 of them all, holding the keyboard, the volume and what was playing; the [quick
 menu](#the-quick-menu) took the keyboard and the volume onto `PLUS`, and what
-was left was sound, so it went to the page about sound. The menu opens on
-`Apps`, which is where a console's home opens too. Brightness stays on
+was left was sound, so it went to the page about sound. The quick menu is the
+first page now, and the one a first opening over a window lands on; over an
+empty workspace the menu opens on `Apps`, which is where a console's home
+opens. Brightness stays on
 `Display`: how bright the screen is follows the light coming in the window
 rather than what you are doing, which is the same errand as the scale.
 
@@ -3441,56 +3465,43 @@ omapad ctl menu toggle
 
 ## The quick menu
 
-Press **PLUS** — Start, the Xbox pad's ☰. One row of tiles opens across the
-middle of the screen, with a band under it for the tile in front: its name,
-what it is on, and what A will do. The window in front is named at the top
-left, and the buttons are along the foot — in the game bar's place and at its
-size, because the bar steps down while the row is up and this is its row.
+Press **PLUS** — Start, the Xbox pad's ☰. The controller menu opens on its
+first page — the quick menu, whose card is named after the app in front
+(`Firefox`, or a game's own title) — with **Resume** in front, every time: PLUS then A is
+always back to what was in front. It is an ordinary page of the menu — walked
+the same four ways, rearranged with Y, added to with RT — and the rest of the
+menu is a shoulder away.
 
-The controller menu is a place — groups, pages, a head — and HOME is its door.
-This is what a pause button is for instead: the handful of things somebody
-stops a game to do, walked end to end with the D-pad rather than found on a
-page. It is drawn after `Console Overlay` in the Console OS v2 mockups, in the
-theme's own colours.
+HOME and the MINUS + PLUS chord open the menu on **the page last open**,
+this one included when PLUS was the last to open it.
 
 | Button | Job |
 |---|---|
-| D-pad ← → · L / R | Walk the row (it wraps) |
-| D-pad ↑ ↓ | Turn the value on the tile in front up or down |
-| A | Pick — the row closes first and the tile runs after |
-| B | Back out of a tile waiting for its second press, then close |
-| X · PLUS · Capture · Right stick click | Close |
-| Y · HOME | Go to the controller menu · Hold HOME: switch mode |
+| PLUS | Open the menu on the quick page · on it, close the menu · on any other page, go to it |
+| HOME · MINUS + PLUS | Open the menu on the page last open |
 
-It opens on **Resume** every time, so PLUS then A is always back to what was in
-front. What ships over a window:
+What ships:
 
 | Tile | Does |
 |---|---|
-| Resume | Closes the row |
+| Resume | Closes the menu |
 | Workspace lock | Every press goes to the game in front until it is unlocked — only in game mode, or while the game has the pad |
 | Keep the controller | Takes the pad back from an app that has opened it and is not being played — only while one has, or while kept |
-| Volume | ↑ ↓ turn it; the band draws where it is |
-| Microphone | Mutes or unmutes the microphone; lit while muted, and the row stays up |
-| Deafen | Mutes the microphone and all sound, as Discord's button does; lit while on. Off unmutes both |
+| Volume | A bar: A takes it and ← → turn it, or sweep it with a trigger |
+| Mute microphone | Mutes or unmutes the microphone |
+| Deafen | Mutes the microphone and all sound, as Discord's button does. Off unmutes both |
 | Keyboard | The on-screen keyboard |
-| Menu | The controller menu |
-| Close window | **Pressed twice** — the first A says so in the band, B lets go of it |
+| Close window | **Held**, like every guarded tile in the menu |
 
-**Over an empty workspace** there is nothing to go back to, close or type into,
-so the row is a different one: **Back** first — PLUS then A is still the way
-out — and then the apps the controller menu's Apps page leads with: Steam,
-Discord, Spotify, YouTube, Browser, Terminal and All apps.
+**Over an empty workspace** there is nothing to resume, close or type into, so
+the page is not offered and PLUS opens the menu on its first page that is —
+Apps.
 
 **Over a game** PLUS belongs to the game's pause screen, so the way in is the
-MINUS + PLUS chord, which opens this row. Everything on it runs over the game
-from there, the same way a menu row does. It is also the way in while the
-workspace lock is on, and the lock's tile is on the row to turn it off.
-
-**HOME is the same.** Its hold switches the mode, and while the menu waited
-for the release a press held a moment too long to make sure switched the mode
-instead. It opens as the button goes down now; hold on to the switch and the
-menu closes again as the mode changes.
+MINUS + PLUS chord. Everything on the page runs over the game from there, the
+same way any menu tile does. It is also the way in while the workspace lock is
+on, and the lock's tile is on the quick page to turn it off — one shoulder
+away if the menu was last left on another page.
 
 **PLUS opens it the moment it goes down.** It is half of the MINUS + PLUS
 chord, and a chord member normally waits for its release to find out which it
@@ -3499,47 +3510,27 @@ as a button that wanted holding. `on_press = true` on a binding says to act at
 once anyway; if the partner lands while the button is still down, the chord
 takes over from it. PLUS carries no hold either: a button that opens one menu
 when tapped and another when held a beat too long is a button whose press is a
-guess, so the Omarchy menu is a tile under System instead.
+guess, so the Omarchy menu is a tile under System instead. HOME acts on the way
+down for the same reason: its hold switches the mode.
 
-The row is `[[quick.items]]`, in the binding grammar, so a tile reaches anything
-a button can:
+The page is a `[[menu.items]]` group with `id = "quick"`, which is what
+`menu:toggle=quick` names — rename the label freely and keep the id.
+`names = "window"` is what puts the app's name on its card; `label` is what
+it says when there is none. Its
+`when = "window"` is what keeps it off an empty workspace; a tile's `when`
+takes `window` or `empty` beside the states, and a place listed beside states
+still has to be the place, so the lock is
+`when = ["window", "game", "handed_over"]`.
 
-```toml
-[[quick.items]]
-icon = "󰕾"
-label = "Volume"
-detail = "Up and down turn it"     # the line in the band
-up = "live:volume=up"              # what ↑ does on this tile - both or neither
-down = "live:volume=down"
-
-[[quick.items]]
-icon = "󰅖"
-label = "Close window"
-action = "hypr:hl.dsp.window.close()"
-arm = true                         # A twice
-danger = true                      # the theme's urgent colour
-when = "window"                    # only over a window; "empty" only over none
-```
-
-`when` also takes the controller menu's states — `game`, `handed_over`,
-`locked`, `kept` — as a list, any one of them being enough; a place listed
-beside them still has to be the place. The lock tile is
-`when = ["window", "game", "handed_over"]`: a window, and either game mode or a
-game holding the pad.
-
-A tile whose `up` is a `live:` reading waits for that reading's first answer
-before it takes a place on the row: a desktop monitor that speaks no DDC answers
-the brightness read with nothing, and a tile turning a number nobody can read
-changes nothing on screen.
-
-`stay = true` keeps the row up after A instead of closing it first. Redefining `items` in your own config replaces the whole row. The row
-takes the menu's `cell`, `tile_corner` and `dim`, so the two look like one
-family.
+It was a row of its own, on a surface of its own, until
+[decision 102](docs/decisions/102-a-page-not-a-second-menu.md). A config from
+then still loads: `quick:toggle` means the page, and `[[quick.items]]` and
+`[bindings.quick]` are no longer read — `omapad check` says so.
 
 To drive it without a pad:
 
 ```bash
-omapad ctl quick toggle     # open | close | left | right | up | down | press | back | select N
+omapad ctl menu open quick     # or: toggle quick
 ```
 
 ## The bindings guide

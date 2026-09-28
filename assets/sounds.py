@@ -6,9 +6,11 @@
 
 Synthesised rather than recorded, and checked in like the badges are, for the
 same three reasons. A sample somebody recorded is a licence to carry and a
-file nobody can edit; these are eighty lines of arithmetic, so changing what a
-commit sounds like is changing a number here and running this again. They cost
-about 14 kB together, against a sample pack's megabyte. And a generated file
+file nobody can edit; these are a hundred lines of arithmetic, so changing
+what a commit sounds like is changing a number here and running this again.
+What they are is two bars, a marimba and a vibraphone, each modelled with
+its mallet, with every cue a note or two on one of them. They cost
+about 70 kB together, against a sample pack's megabyte. And a generated file
 that is committed shows up in a diff when the numbers move, which
 `tests/test_assets.py` is what makes binding.
 
@@ -20,10 +22,10 @@ directory of your own `move.wav`, `next.wav`, `show.wav` and the rest of
 **Why these are quiet, short and low.** They are heard over whatever is
 playing rather than instead of it - a film, a game, a track - and the pad
 makes one every time a thumb moves. A UI sound earns its place by being
-noticed and not listened to, which means: under 100 ms, no attack that clicks
-the speaker, a decay that is over before the next press, and a pitch low
-enough that a television's small drivers can actually produce it. Everything
-below is one of those four decisions.
+noticed and not listened to, which means: under 200 ms, no step that clicks
+the speaker, a ring that is down before the next press, and nothing whose
+loudness lives below what a television's small drivers can produce.
+Everything below is one of those four decisions.
 
 **How loud each one is, is measured rather than guessed.** Each voice names a
 loudness in LUFS (ITU-R BS.1770, the meter every broadcaster's loudness rule
@@ -95,112 +97,159 @@ LOWCUT_Q = 0.5003270373238773
 TV_CORNER = 200.0
 TV_ORDER = 4
 
-# The cues, each as a stack of partials and an envelope.
+# The cues, each as a phrase played on a bar: a note, a pair of notes or a
+# chord.
 #
-#   ms      how long the whole thing lasts, decay included
-#   partials  (frequency in Hz, how much of the peak it gets)
-#   bend    where the fundamental ends up, as a ratio, swept over the sound
-#   decay   how many time constants fit in `ms` - higher is more percussive
-#   attack  optional: the share of `ms` spent coming up from silence, where
-#           the voice wants other than `ATTACK`
+#   ms      how long the whole thing lasts, the ring included
+#   notes   (onset in ms, frequency in Hz, how hard it is struck relative
+#           to the others in the cue)
+#   bar     optional: "soft" or "hard" for a vibraphone bar struck with
+#           that mallet (see `VIBRAPHONE`); without it, the marimba
+#   swell   optional: ms the cue spends rising from silence, for the one
+#           voice that arrives rather than lands
+#   dull    optional: a low-pass in Hz over the whole thing
 #   lufs    how loud it is, measured as a television hears it (see above). In
 #           `sound.VOICES` order they rise, because that order is what each
 #           costs, two apart at the least; a pair that is one gesture in two
 #           directions shares its level
 #
-# The frequencies are four notes and a thud rather than round numbers: the
-# three that a press produces in a row - move, move, commit - are a fifth
-# apart, so a hand walking a menu and pressing something sounds like one
-# instrument rather than three unrelated beeps.
+# Two instruments, and the line between them is Brewster's rule for earcons
+# read at the level of families: members of one share a timbre and differ
+# in pitch and contour, and two kinds of thing get two families. Walking -
+# the move and the page turns - and the tick are the marimba, dry and
+# short, because they happen many times a minute. What happens *to* a
+# surface - it arrives, a press is taken, it is left, it will go no
+# further - is the vibraphone, the marimba's metal cousin: the same bar,
+# the same mallets, a longer ring. The marimba in those four was heard as
+# the walk repeating itself, and the vibraphone was chosen by ear (101).
+#
+# The notes are D, E, F sharp and A, the D major pentatonic without its B:
+# any two of them sounding over each other is consonant, so a cue that
+# lands on the tail of the last one is never a wrong note. What a cue means
+# is carried by where it sits and which way it goes, never by a pitch
+# sliding: a glide on a struck note is the sound of a water drop, and was
+# heard as one.
 VOICES = {
-    # A step of the selection. The quietest and shortest thing here by a wide
-    # margin, because it is the one that happens six times in a second while
-    # somebody crosses a page, and anything with a tail turns that into a
-    # chord.
-    "move": {
-        "ms": 16, "partials": ((1174.7, 1.0), (2349.3, 0.18)),
-        "bend": 1.0, "decay": 5.0, "lufs": -50.0,
-    },
+    # A step of the selection: one high note, the shortest cue here,
+    # because it happens six times in a second while somebody crosses a
+    # page and faster still once a held direction has ramped. Past 45 ms it
+    # would be two notes sounding at once on every step.
+    "move": {"ms": 45, "notes": ((0, 659.3, 1.0),), "lufs": -50.0},
     # A page turned - the menu's bar, the guide, the keyboard's pages. The
-    # move's own note, a little longer, bent a whole tone up for the next
-    # page and down for the previous one, so the room hears which way the
-    # page went: what Xbox's MoveNext and MovePrevious are for. Heard and
-    # never felt, like the move, and for the move's reason - a shoulder held
-    # down turns page after page.
-    "next": {
-        "ms": 34, "partials": ((1174.7, 1.0), (2349.3, 0.15)),
-        "bend": 1.1225, "decay": 4.5, "lufs": -48.0,
-    },
-    "prev": {
-        "ms": 34, "partials": ((1174.7, 1.0), (2349.3, 0.15)),
-        "bend": 0.8909, "decay": 4.5, "lufs": -48.0,
-    },
+    # neighbours of the move's note, F sharp for the next page and D for
+    # the previous one, so the room hears which way the page went: what
+    # Xbox's MoveNext and MovePrevious are for. Heard and never felt, like
+    # the move, and for the move's reason - a shoulder held down turns page
+    # after page.
+    "next": {"ms": 60, "notes": ((0, 740.0, 1.0),), "lufs": -48.0},
+    "prev": {"ms": 60, "notes": ((0, 587.3, 1.0),), "lufs": -48.0},
     # A surface arriving - the menu, the quick menu, the keyboard, the guide.
-    # The back upside down: it rises the fourth the back falls, from A to the
-    # D every sound inside the surface starts on, so opening a thing and
-    # putting it away are one gesture read in two directions, the way a
-    # commit and a back are. And it swells rather than strikes: a long
-    # attack is what tells it from the commit's rising fourth, because a
-    # surface arriving is not a press landing.
+    # A low D and its octave on the vibraphone, soft, swelling in over
+    # `swell`: the deepest thing a surface says and the slowest to arrive,
+    # which is what an arrival is next to a press. A rolled D, F sharp, A
+    # on the marimba was here first and was heard as a notification (101).
     "show": {
-        "ms": 85, "partials": ((440.0, 1.0), (880.0, 0.2)),
-        "bend": 1.3348, "decay": 2.6, "attack": 0.35, "lufs": -46.0,
+        "ms": 180, "bar": "soft", "swell": 25.0,
+        "notes": ((0, 293.7, 1.0), (0, 587.3, 0.5)), "lufs": -46.0,
     },
-    # A press that did something. The motor's own word, and the sound sits
-    # just under it: a fifth below the move, so a press reads as heavier than
-    # the walk that got there.
-    "tick": {
-        "ms": 28, "partials": ((783.99, 1.0), (1568.0, 0.22)),
-        "bend": 1.0, "decay": 4.5, "lufs": -42.0,
-    },
+    # A press that did something. The motor's own word: one note, a fifth
+    # below the move's D, so a press reads as heavier than the walk that
+    # got there.
+    "tick": {"ms": 70, "notes": ((0, 440.0, 1.0),), "lufs": -42.0},
     # The end of the travel - a selection with nowhere further to go, a
-    # slider against its own maximum. Low, dull and with nothing bright
-    # above it, so it reads as something stopping rather than as a note.
+    # slider against its own maximum. Two quick low strokes, the second
+    # softer - the shape of *no* in every language that has a sound for it
+    # - soft and muffled, so it refuses without scolding.
     #
-    # Its own octave and fifth are strong, and that is for the television:
-    # a set's drivers barely play 175 Hz, and with only the fundamental the
-    # edge had to be pushed until it was the loudest thing on a desk before
-    # a set heard it at all. The ear rebuilds a fundamental from the
-    # harmonics above it, so the set plays the octave and the room still
-    # hears the low note - and nothing above 350 Hz keeps it dull.
+    # Each stroke is the lowest D and its octave, the octave the stronger,
+    # and that is for the television: a set's drivers barely play 147 Hz,
+    # and the ear rebuilds a fundamental from what sits above it, so the set
+    # plays the octave and the room still hears the low note.
     "edge": {
-        "ms": 55,
-        "partials": ((174.61, 1.0), (261.63, 0.2), (349.23, 0.45)),
-        "bend": 0.94, "decay": 3.2, "lufs": -39.0,
+        "ms": 125, "bar": "soft", "dull": 1500.0,
+        "notes": ((0, 146.8, 0.9), (0, 293.7, 1.0),
+                  (55, 146.8, 0.7), (55, 293.7, 0.8)),
+        "lufs": -39.0,
     },
-    # Taken, kept, fired. The only one allowed a shape rather than a pitch:
-    # it bends up a fourth over its own length, which is the difference
-    # between a sound that happened and a sound that concluded.
+    # Taken, kept, fired. D and the A above it struck together, hard, on
+    # the vibraphone: an open fifth is the most settled sound two notes
+    # make, and the hard mallet is the brightest stroke in the set, which
+    # is the difference between a sound that happened and one that
+    # concluded.
     "commit": {
-        "ms": 90, "partials": ((587.33, 1.0), (1174.7, 0.3), (1760.0, 0.1)),
-        "bend": 1.335, "decay": 3.0, "lufs": -36.0,
+        "ms": 160, "bar": "hard",
+        "notes": ((0, 587.3, 0.8), (0, 880.0, 0.7)), "lufs": -36.0,
     },
-    # Back a level, out of a page, off a control, out of a countdown. The
-    # commit's own note and the commit's own interval, **falling**: it starts
-    # where that one starts and bends down the fourth that one bends up. A
-    # cancel is not a different instrument from a confirm - it is the same
-    # gesture going the other way, and a pair that share a note and mirror an
-    # interval is how a room hears which of the two happened without anybody
-    # being taught the difference.
+    # Back a level, out of a page, off a control, out of a countdown. One
+    # note, the A below the commit's D, soft and muffled: where the commit
+    # rings out above D, the back sits under it and says nothing more. The
+    # commit's two notes falling were here first and were heard as wrong
+    # (101) - a falling figure reads as an error, and leaving is not one.
     #
-    # Softer and shorter than the commit as well, because leaving is the
-    # smaller event: nothing was decided, and a sound that made as much of
-    # itself as the decision would be the surface arguing with you about it.
-    # Under the tick too, which is where `sound.VOICES` puts it: a press
-    # that took you somewhere costs more than one that took you back.
+    # It is the tick's note, and told from it by the instrument: the tick
+    # is a hard stroke on the marimba, this a soft one on the vibraphone
+    # with its brightness taken off, and two dB under it, which is where
+    # `sound.VOICES` puts it - a press that took you somewhere costs more
+    # than one that took you back.
     "back": {
-        "ms": 70, "partials": ((587.33, 1.0), (1174.7, 0.18)),
-        "bend": 0.749, "decay": 3.4, "lufs": -44.0,
+        "ms": 110, "bar": "soft", "dull": 2500.0,
+        "notes": ((0, 440.0, 1.0),), "lufs": -44.0,
     },
 }
 
-# How much of the front of a sound is spent coming up from silence, as a
-# share of its length. A waveform that starts at full amplitude steps the
-# speaker cone and that step is the click a cheap set makes audible; 3 ms is
-# under what anybody hears as an attack and over what any driver complains
-# about. A share rather than a fixed 3 ms because the move is 16 ms long and
-# a fifth of it is the right fade there too.
-ATTACK = 0.12
+# The bar: its modes as (ratio to the note, share, ms to fall by 1/e at
+# `REFERENCE_HZ`). A marimba bar is carved underneath so its overtones sit
+# near two octaves and a bit over three above the note rather than where a
+# plain bar would put them - that tuning is what makes it a marimba and
+# not a woodblock.
+BAR = ((1.0, 1.0, 55.0), (3.93, 0.35, 14.0), (9.2, 0.12, 5.0))
+
+# The vibraphone's bar, per mallet, as (ratio, share, ms to fall by 1/e).
+# Aluminium tuned to 1, 4 and 10, and ringing for most of a second, which is
+# what separates it from the marimba more than anything; the cue's own
+# length and `FADE_OUT_MS` are what stop it. Its mallet is given as which
+# overtones it wakes rather than as a push, because a vibraphone's decays
+# do not follow the pitch the way a wooden bar's do: the soft yarn head
+# barely reaches the fourth harmonic and never the tenth.
+VIBRAPHONE = {
+    "soft": ((1.0, 1.0, 400.0), (4.0, 0.12, 50.0)),
+    "hard": ((1.0, 1.0, 400.0), (4.0, 0.3, 50.0), (10.0, 0.06, 15.0)),
+}
+
+# Higher bars ring shorter, as real ones do: every decay is scaled by
+# (REFERENCE_HZ / note) ** RING_SLOPE.
+REFERENCE_HZ = 440.0
+RING_SLOPE = 0.5
+
+# The resonator tube under the bar: it holds the note itself and nothing
+# above it, a hair sharp of the bar, (share, ms). It is driven by the bar,
+# so it comes up over `TUBE_RISE_MS` rather than being struck - which is
+# the bloom that separates a marimba from a xylophone.
+TUBE = (0.5, 110.0)
+TUBE_SHARP = 1.003
+TUBE_RISE_MS = 4.0
+
+# The mallet, as a half-sine push of `MALLET_MS` against the bar. The
+# length of that push is the whole of how hard the mallet is: a pulse that
+# long has little energy above roughly 1 / MALLET_MS, so a soft yarn head
+# (3.5 ms) leaves the upper modes almost silent and a hard one (0.9 ms)
+# rings them. Hard was chosen by ear.
+# `THUMP` is how much of the push itself is heard - the wood of the
+# mallet, not the bar.
+MALLET_MS = 0.9
+THUMP = 0.12
+
+# Nothing is rendered above this: well past what any mode here reaches
+# except the top partial of the highest note, and there it would be over
+# Nyquist's comfort on a 44.1 kHz file.
+TOP_HZ = 15000.0
+
+# The ends of every cue. A sine starts at zero, but the thump does not
+# quite; 0.4 ms is under what anybody hears as an attack and keeps the
+# stroke sharp. The 15 ms out is so the tube, still ringing when a cue's
+# length is up, is faded rather than cut, which would be a click.
+FADE_IN_MS = 0.4
+FADE_OUT_MS = 15.0
 
 
 def _biquad(samples, b, a):
@@ -270,31 +319,97 @@ def loudness(samples, rate=RATE, heard=True):
     return -0.691 + 10.0 * math.log10(power)
 
 
-def shape(spec):
-    """One cue at an arbitrary level, as floats: the partials, the bend and
-    the envelope, before anything decides how loud it is."""
-    count = max(1, int(RATE * spec["ms"] / 1000.0))
-    attack = max(1, int(count * spec.get("attack", ATTACK)))
-    weight = sum(share for _, share in spec["partials"])
+def _low_pass(samples, hz):
+    """A first-order low-pass at `hz`."""
+    k = math.exp(-2.0 * math.pi * hz / RATE)
     out = []
-    # The phase of each partial is integrated rather than computed from
-    # `t * frequency`, because the fundamental is being bent: multiplying a
-    # moving frequency by an absolute time sweeps the phase at the wrong rate
-    # and the sound arrives a semitone out of where the numbers say.
-    phases = [0.0] * len(spec["partials"])
+    low = 0.0
+    for x in samples:
+        low = (1.0 - k) * x + k * low
+        out.append(low)
+    return out
+
+
+def _mallet(freq):
+    """How much of the mallet's push reaches `freq`: the magnitude of a
+    half-sine pulse's spectrum there, 1 at DC."""
+    x = 2.0 * freq * MALLET_MS / 1000.0
+    if abs(x - 1.0) < 1e-9:
+        return math.pi / 4.0
+    return abs(math.cos(math.pi * freq * MALLET_MS / 1000.0) / (1.0 - x * x))
+
+
+def strike(freq, count):
+    """One note on the marimba, `count` samples long, at an arbitrary
+    level."""
+    scale = (REFERENCE_HZ / freq) ** RING_SLOPE
+    out = [0.0] * count
+    for ratio, share, decay in BAR:
+        mode = freq * ratio
+        if mode > TOP_HZ:
+            continue
+        weight = share * _mallet(mode) / _mallet(freq)
+        tau = decay * scale / 1000.0 * RATE
+        step = 2.0 * math.pi * mode / RATE
+        for n in range(count):
+            out[n] += weight * math.exp(-n / tau) * math.sin(step * n)
+    share, decay = TUBE
+    tau = decay * scale / 1000.0 * RATE
+    rise = TUBE_RISE_MS / 1000.0 * RATE
+    step = 2.0 * math.pi * freq * TUBE_SHARP / RATE
     for n in range(count):
-        where = n / float(count)
-        bend = 1.0 + (spec["bend"] - 1.0) * where
-        # Exponential, so it is still decaying at the end rather than being
-        # cut off there - a sound that stops is a click at the other end.
-        envelope = math.exp(-spec["decay"] * where)
-        if n < attack:
-            envelope *= n / float(attack)
-        sample = 0.0
-        for index, (freq, share) in enumerate(spec["partials"]):
-            phases[index] += 2.0 * math.pi * freq * bend / RATE
-            sample += math.sin(phases[index]) * share
-        out.append(sample / weight * envelope)
+        out[n] += (share * (1.0 - math.exp(-n / rise))
+                   * math.exp(-n / tau) * math.sin(step * n))
+    width = max(2, int(RATE * MALLET_MS / 1000.0))
+    for n in range(min(width, count)):
+        out[n] += THUMP * math.sin(math.pi * n / width)
+    return out
+
+
+def ring(freq, count, mallet):
+    """One note on the vibraphone, struck with the `mallet` of
+    `VIBRAPHONE`, at an arbitrary level. No tube and no thump: the tubes
+    under a vibraphone are what its motor turns, and without the motor they
+    add only what the long decay already is."""
+    out = [0.0] * count
+    for ratio, share, decay in VIBRAPHONE[mallet]:
+        mode = freq * ratio
+        if mode > TOP_HZ:
+            continue
+        tau = decay / 1000.0 * RATE
+        step = 2.0 * math.pi * mode / RATE
+        for n in range(count):
+            out[n] += share * math.exp(-n / tau) * math.sin(step * n)
+    return out
+
+
+def shape(spec):
+    """One cue at an arbitrary level, as floats: its notes laid over each
+    other, before anything decides how loud it is."""
+    count = max(1, int(RATE * spec["ms"] / 1000.0))
+    out = [0.0] * count
+    bar = spec.get("bar")
+    for onset, freq, share in spec["notes"]:
+        start = int(RATE * onset / 1000.0)
+        if bar:
+            note = ring(freq, count - start, bar)
+        else:
+            note = strike(freq, count - start)
+        for n, sample in enumerate(note):
+            out[start + n] += share * sample
+    if "swell" in spec:
+        rise = RATE * spec["swell"] / 1000.0
+        out = [sample * min(1.0, n / rise) for n, sample in enumerate(out)]
+    if "dull" in spec:
+        # Twice, for a second-order slope: one pole leaves a stroke's top
+        # bright enough to click.
+        out = _low_pass(_low_pass(out, spec["dull"]), spec["dull"])
+    fade_in = max(1, int(RATE * FADE_IN_MS / 1000.0))
+    fade_out = max(1, int(RATE * FADE_OUT_MS / 1000.0))
+    for n in range(min(fade_in, count)):
+        out[n] *= n / float(fade_in)
+    for n in range(min(fade_out, count)):
+        out[count - 1 - n] *= n / float(fade_out)
     return out
 
 
