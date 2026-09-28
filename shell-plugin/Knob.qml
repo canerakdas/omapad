@@ -40,12 +40,11 @@
 // **It is a Braun knob, drawn in lines.** The T 1000's bandspread control,
 // taken from photographs of one: a cap with an edge and a flat top,
 // an index painted on the top, and a scale printed round it on the panel - a
-// hairline arc with short marks along it and a longer one at each end. The same line drawing the clock's 6139 is, so a page holding both
-// reads as one instrument panel rather than two styles. The cap, the index,
-// a mark and an end are drawings for the clock's hands' reason: a silhouette
-// that is the same at every value is a shape, and the value only decides the
-// angle it is turned to - or, for the cap, nothing, since a circle turned
-// looks the same at every angle.
+// hairline arc with short marks along it and a longer one at each end. The
+// cap, the index, a mark and an end are drawings because a silhouette that is
+// the same at every value is a shape, and the value only decides the angle it
+// is turned to - or, for the cap, nothing, since a circle turned looks the
+// same at every angle.
 //
 // What stays geometry is the ring itself - the scale and the run of it the
 // value has covered. That run grows with the number, so it cannot be a
@@ -56,16 +55,15 @@
 // redrawn notch. That is `assets.md`'s split, drawn where this control puts
 // it.
 //
-// **How many marks there are is still the panel's**, which is where this
-// parts company with the clock: the clock generates its track because it is
-// the same on every 6139, and a knob's marks are its places - a ring reading
-// a list of three has three where one reading a ladder of six has six, and a
-// continuous one twenty-one, one every five in a hundred. One drawing,
-// turned to as many places as the value has.
+// **How many marks there are is still the panel's**, because a knob's marks
+// are its places - a ring reading a list of three has three where one reading
+// a ladder of six has six, and a continuous one twenty-one, one every five in
+// a hundred. One drawing, turned to as many places as the value has.
 //
 // Every measurement below is a share of the face and none of them is on the
-// ladder (qml.md 8.2.1), for `Clock.qml`'s reason: a hand is a fraction of
-// the dial it turns in. The face's own units are the shapes' 40, so a number
+// ladder (qml.md 8.2.1): a pointer is a fraction of the dial it turns in,
+// which is the same geometric identity that keeps a pill's radius at
+// `height / 2`. The face's own units are the shapes' 40, so a number
 // here is what it would be in Figma.
 import QtQuick
 import QtQuick.Shapes
@@ -148,12 +146,9 @@ Item {
   // stops short of the scale, and a mark stands on the scale's middle, and
   // both of those are in the drawings.
   //
-  // The weight is the clock's hairline, a quarter of a unit - the width of
-  // each of its case's two rings and of every outline on its face. **A dial
-  // is drawn in the clock's weights and no others**: the first knob drew
-  // its own, a hair lighter, and beside the 6139 it read as the fainter of
-  // two drawings rather than one panel. `DialsShareTheClocksWeights` holds
-  // the drawings to it; this one number it cannot see.
+  // The weight is the drawings' hairline, a quarter of a unit - the width of
+  // the cap's edge and of every outline on the dial, so the scale is drawn in
+  // the same line as everything it holds.
   readonly property real scaleAt: 16.6
   readonly property real scaleRadius: knob.unit * knob.scaleAt
   readonly property real scaleWeight: knob.unit * 0.25
@@ -164,14 +159,14 @@ Item {
   }
 
   // **The arc runs on into each end mark and stops inside its outer side.**
-  // An end is the clock's baton with its foot left open, and the arc is what
+  // An end is a baton with its foot left open, and the arc is what
   // closes it, so the two read as one corner the scale turns. Stopped at the
   // baton's middle, as it first was, the arc left half the baton hanging
   // past its end and the two touched at a point - a break at nought and at a
   // hundred. It stops in the middle of that side's hairline rather than at
   // its edge, so the arc's own end is under the baton and never an edge of
   // the drawing: two figures sharing an edge each soften it on their own.
-  // The baton's half-width is `dial-end.svg`'s and the clock's.
+  // The baton's half-width is `dial-end.svg`'s.
   readonly property real endHalf: 0.4536
   readonly property real overrun: knob.across(knob.endHalf - 0.125)
   readonly property real arcLow: knob.arcFrom - knob.overrun

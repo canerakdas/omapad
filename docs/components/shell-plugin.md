@@ -119,11 +119,11 @@ missing optional package must cost one feature rather than the keyboard.
   out of that same middle is a clock rather than a value and its ghost - so
   the ring takes no `ghost` and reads no `b`, and what the turn has done is
   the run lengthening behind the pointer and the marks it has reached
-  lighting. It is a Braun T 1000 control in the clock's weights: a cap
-  whose edge is the clock's double case and never turns, the index on its
-  top, and the scale round it - `dial-cap`, `dial-pointer`, `dial-notch` and
-  `dial-end`. Every line is one the clock already draws (`assets.md`), and
-  the arc's `scaleWeight` is the clock's quarter-unit hairline.
+  lighting. It is a Braun T 1000 control drawn in one hairline weight: a
+  cap whose edge is a double ring and never turns, the index on its top, and
+  the scale round it - `dial-cap`, `dial-pointer`, `dial-notch` and
+  `dial-end` - and the arc's `scaleWeight` is the same quarter-unit
+  hairline.
   What is not generated is the scale's arc: the run of it the value has
   covered grows with the number, and a track drawn once with that run computed
   against it would be two drawings of one ring. How many marks there are is
@@ -135,41 +135,6 @@ missing optional package must cost one feature rather than the keyboard.
   only at the value, where the run reaches half a mark past it so a lit
   mark's foot is never on the unlit scale. The caller hands it `art` (the
   surface's `ControlArt`), the value, the stops and three colours.
-- **`Clock.qml`** - the time with hands on it, and the stopwatch that shares
-  its face, for the two surfaces that draw a clock tile. One file for `Travel.qml`'s reason: the menu is where the tile
-  is put on the page and the HUD is where it is looked at, and a face that
-  differed between them would be the arrangement saying something it does not
-  mean. Every figure on it comes out of `ControlArt.qml` - the rim, the twelve
-  marks, the hub, both hands, the sweep and the register's ring and hand - and
-  the time only turns them: a hand is drawn standing at twelve, pinned where
-  the hub is, and the panel gives it the whole face to fill and a rotation.
-  What is left as geometry is where the register sits and how big it is. **A clock has no second hand**:
-  the page arrives every `VIEW_HEARTBEAT` seconds, so one would be visibly
-  wrong most of the time on a surface whose whole argument is that nothing on
-  it twitches. The caller hands it `art` (the surface's `ControlArt`), the
-  minute of the day and three colours; every measurement in it is a share of
-  the face, which is why none of them is on the ladder.
-
-  **A chronograph is the same file with `elapsed` handed in**, and it is the
-  one drawing on these surfaces that animates itself: the daemon sends how
-  long it had measured and whether it is still going - **on the surface rather
-  than on the tile**, or `fresh()` would rebuild the page twice a second to
-  move one hand (qml.md 5.4) - and this stamps `Date.now()` when that lands
-  and counts on from there, re-syncing on every push. Not a
-  `Timer` polling for state - the state arrived on the socket; what turns here
-  is a hand on a measurement it already holds - and it sleeps while the
-  surface is down. The face is the Seiko 6139's in line: one register, the
-  thirty minutes measured at six, large and low as the 6139's is, with a hand
-  in the accent. `ShapesSitOnTheGrid` holds the dial's furniture to nothing,
-  because nothing snaps the square a clock is drawn in. **Under 140 pixels
-  across it is figures instead** - the time on a clock, the measurement on a
-  chronograph, at the size the surface hands in from its own ladder - because
-  that is where this drawing stops being legible; the menu's tile draws a
-  face and the HUD's corner draws figures - the running seconds and the hours the panda dial had
-  went, and the figures beside the name say the hours. The figures
-  beside the tile's name are spelled here too, which nothing else on these
-  surfaces does: a number that changes ten times a second cannot come off a
-  wire written twice a second.
 - **`Metrics.qml`** - the shell's measurements at omapad's own scale. Every
   surface here is read from twice the distance an Omarchy menu is, and the
   shell has one scale for the whole session, so this multiplies it per surface

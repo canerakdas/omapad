@@ -82,7 +82,7 @@ costs tens, and nothing on the loop may do it.
   for a menu row that cannot be taken back, drawn on the tile rather than on a
   badge. See [`menu.md`](menu.md).
 - `check_chrono()` - the stopwatch's minute mark. A running measurement ticks
-  the pad every time its sweep hand comes back to twelve, on the loop's own
+  the pad every time it rolls over another minute, on the loop's own
   heartbeat rather than the menu's: the measurement outlives the page it was
   started on, so the mark does too. See [`chrono.md`](chrono.md).
 - `ramped()` - how a held direction accelerates. One helper for both places a

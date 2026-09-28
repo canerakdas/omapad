@@ -329,23 +329,23 @@ not something the kernel publishes, so there is no table to point a `reads` at
 - one is refused by name, because "only a control reads something" is a
 baffling thing to be told about a line that says `control = "clock"`. It is
 the one tile whose value this module works out itself, and it may: `time` is
-already imported for the head, and `minute_of_day()` is the whole of it.
+already imported for the head, and `time_of_day()` is the whole of it: the
+time in `CLOCK_FORMAT`, the head's own `%H:%M`, sent as `t` - the field a
+reading's figure rides in.
 
-**A face rather than a second `%H:%M`.** The head already prints the time, to
-somebody who has just opened the menu and is reading words. A tile is glanced
-at from across a room and over something else, and what a glance gets off two
-hands is roughly when it is - which is the whole question anybody asks a clock
-from a sofa. It takes the gauge's square for the gauge's reason, and the same
-square: two circles on one page drawn at two sizes read as a fault rather than
-as two tiles.
+**Drawn the way a reading is**: its name, and the time beside it, in a
+reading's two cells by one. It was a watch face with two hands, and then a face
+that fell back to figures when drawn too small to read; both went, because a
+dial was the one drawing on these surfaces that was about something other than
+the pad and the desktop ([104](../decisions/104-a-clock-that-was-a-watch.md)).
 
 It is drawn by `Hud.qml` too, and that is what widened the rule over there:
 what a tile needs in order to be allowed over a game is **nothing to press**,
 not a reading to print. Game mode takes Omarchy's bar away, and the bar is
 where the time was.
 
-**A `chrono` is that face with a stopwatch in it**, which is what a
-chronograph is:
+**A `chrono` is a stopwatch**, drawn the way the clock is - its name, and the
+measurement beside it:
 
 ```toml
 [[menu.items.items]]
@@ -366,7 +366,7 @@ argument: this row is the page's own line about its buttons, and a button that
 means something else on the tile in front is exactly what it is for.
 
 And it is **not** drawn on the HUD, for the reason the clock beside it is: a
-chronograph has a pusher, and a pusher over a game is a control with no way to
+stopwatch has a pusher, and a pusher over a game is a control with no way to
 reach it.
 
 `build()` hands both down its own recursion. It did not, once, and since every
@@ -1126,17 +1126,18 @@ sent stands: let go of the volume ring, take the Strength slider next, and the
 slider wore the volume's percentage. Two tiles, one number, and nothing in any
 log. The fix is the field, not the panel's cleverness.
 
-The words are the daemon's rather than spelled in the panel, unlike the clock:
+The words are the daemon's rather than spelled in the panel, unlike the
+stopwatch's:
 what a value is called is a wording decision, and the panel holds no minimum,
 maximum or unit to spell one with.
 
 **Only the whole surface may say that something has ended.** Three fields mean
 *gone* by being absent - `chrono`, `confirm` and `count` - and the short push
 carries none of them, because it carries almost nothing. Read as
-authoritative it ends all three, which on screen was a clock losing its three
-sub-dials for as long as a ring was being turned beside it. It went unnoticed
-for as long as the short push only flew for a gauge; a held ring streams on
-any page, clocks included. `applyState` takes `s.items !== undefined` as the
+authoritative it ends all three, which on screen was the stopwatch losing its
+measurement for as long as a ring was being turned beside it. It went
+unnoticed for as long as the short push only flew for a gauge; a held ring
+streams on any page, stopwatches included. `applyState` takes `s.items !== undefined` as the
 mark of a whole surface - the same absence that makes the short push cheap -
 and guards the three with it. `test_shell_plugin.ShortPushTests` holds both
 halves of that contract, the guard and the daemon's leaving `items` off.
@@ -1902,7 +1903,7 @@ thing a press acts on.
 | a switch | `Turn on` / `Turn off`, read off the value |
 | what is playing | `Play` / `Pause`, read off the value |
 | a choice walked in place | `Next` |
-| the chronograph | `Start` / `Stop` / `Reset` - `Chrono.verb()` |
+| the stopwatch | `Start` / `Stop` / `Reset` - `Chrono.verb()` |
 | a row that cannot be taken back | `Hold to confirm` |
 | a reading, a clock, a card that lists one thing, a row that counts | nothing, and the row is left off |
 
@@ -2236,6 +2237,15 @@ command rather than four. It is keyed on `page_name()` rather than on a turn,
 so every way onto a page - the bar, drilling in, coming back out, opening the
 menu where it was left - arms it once and the same way.
 
+**A pick is read back once it has run.** `choose` moves the tick on the card
+that was pressed at once, but a pick can change what the *other* cards say -
+a resolution takes the rates beside it with it, and the bar's `1080p · 60 Hz`
+says the same thing again. So a listed row's `exec:` is spawned by
+`menu_pick`, which keeps the process, and `menu_pick_settled` reads every
+listing card on the page and expires every `meta` when it exits (or after
+`PICK_WAIT`). Not before: read while the command runs, the cards would say
+the mode it is replacing.
+
 **A listing with one line is not a list.** One pair of speakers in the room is
 one row: picking it sets what is already set, and a column of alternatives with
 a single alternative in it is a card of furniture round a fact. `lone()` is
@@ -2419,13 +2429,10 @@ that sentence one control along, and [`chrono.md`](chrono.md) has the numbers.
 It is asked for through a **callable**, like `control`, and only where a tile
 on the page in front would draw one: off the wire entirely everywhere else.
 
-A `clock` tile adds `mn`, **both hands as one number**: minutes since
-midnight, from `minute_of_day()`. One number rather than an hour and a minute
-because an hour hand stands between two hours by exactly how far round the
-minute hand has got, so a pair of fields could be sent disagreeing about that
-- and the panel would then have to know how to settle it, which is geometry
-this side does not owe it. It rides on the clock alone, so a page of switches
-costs nothing for having one on it.
+A `clock` tile adds `t`, **the time as its figure**, from `time_of_day()` -
+the field a reading's figure rides in, so the panel draws the two the same way.
+It rides on the clock alone, so a page of switches costs nothing for having one
+on it.
 
 A `rows` tile adds `rs`, its own rows as `[{id, l, i, d, on?}]` - the three
 questions a tile is asked and no others, because a row has no cells, no control

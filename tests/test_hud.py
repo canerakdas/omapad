@@ -160,12 +160,13 @@ class TheClockIsTheOtherTileWithNothingToPress(unittest.TestCase):
         drawn = model.view_state(True)["items"]
         self.assertEqual([row["l"] for row in drawn], ["Time"])
 
-    def test_it_carries_both_hands_and_which_tile_it_is(self):
+    def test_it_carries_the_time_and_which_tile_it_is(self):
         model = HudModel(tree(self.clock()))
+        before = menu_module.time_of_day()
         row = model.view_state(True)["items"][0]
+        after = menu_module.time_of_day()
         self.assertEqual(row["k"], "clock")
-        self.assertIn(row["mn"], (menu_module.minute_of_day(),
-                                  menu_module.minute_of_day() + 1))
+        self.assertIn(row["t"], (before, after))
 
     def test_a_reading_still_says_which_tile_it_is(self):
         # One field for the panel's whole choice of drawing, on every tile
@@ -173,7 +174,7 @@ class TheClockIsTheOtherTileWithNothingToPress(unittest.TestCase):
         model = HudModel(tree(readout("Processor", "cpu")))
         row = model.view_state(True, answers(cpu="37%"))["items"][0]
         self.assertEqual(row["k"], "readout")
-        self.assertNotIn("mn", row)
+        self.assertEqual(row["t"], "37%")
 
     def test_nothing_is_asked_about_a_clock(self):
         # `names()` is what the daemon polls for. A clock is not a reading and
@@ -192,11 +193,11 @@ class TheClockIsTheOtherTileWithNothingToPress(unittest.TestCase):
         self.assertEqual([row["l"] for row in drawn], ["Time"])
 
     def test_it_takes_the_cells_the_menu_gave_it(self):
-        # Square, because it is round - and the same square on both surfaces,
-        # because it is the same tile.
+        # A reading's room - and the same room on both surfaces, because it
+        # is the same tile.
         model = HudModel(tree(self.clock()))
         row = model.view_state(True)["items"][0]
-        self.assertEqual((row["w"], row["h"]), (2, 2))
+        self.assertEqual((row["w"], row["h"]), (2, 1))
 
 
 class TheGridIsTheScreen(unittest.TestCase):

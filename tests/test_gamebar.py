@@ -179,6 +179,35 @@ class ViewTests(unittest.TestCase):
         self.assertEqual(state["actions"], [])
         self.assertEqual(state["note"], "The pad is the game's")
 
+    def test_a_click_over_bare_wallpaper_is_not_offered(self):
+        # Nothing in front for the middle click, the context menu or Back to
+        # land on, and the row is empty for that reason rather than because
+        # the pad has been handed to anything.
+        bindings = {"X": "click:middle", "Y": "click:right",
+                    "RSTICK": "click:back"}
+        state = self.model.view_state(
+            True, bindings.get, None, "game", focused=False
+        )
+        self.assertEqual(state["actions"], [])
+        self.assertEqual(state["note"], "")
+        focused = self.view(bindings)
+        self.assertEqual([row["n"] for row in focused["actions"]],
+                         ["X", "Y", "RSTICK"])
+
+    def test_one_that_does_more_than_click_still_is(self):
+        bindings = {
+            "X": {"tap": "click:middle", "hold": "key:CTRL+W",
+                  "hold_desc": "Close"},
+            "Y": "key:CTRL+T",
+            "RSTICK": {"tap": "click:back", "bar": True},
+        }
+        state = self.model.view_state(
+            True, bindings.get, None, "game", focused=False
+        )
+        # And `bar = true` is somebody saying this one is worth seeing anyway.
+        self.assertEqual([row["n"] for row in state["actions"]],
+                         ["X", "Y", "RSTICK"])
+
     def test_a_bound_button_is_printed_in_one_word(self):
         state = self.view({"Y": "click:left"})
         self.assertEqual(state["actions"], [

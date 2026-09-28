@@ -203,81 +203,20 @@ BLANKS_TO_DRAW = (
 # geometry, and geometry is the panel's: a shape parameterised by a number is
 # not a shape that can be drawn once. It is the same split BadgeArt already
 # makes between a button and the label set into it.
-# The clock is the clearest case of that split, and it is drawn on the dial's
-# own 40-unit canvas so the two circles a page may hold are one circle: a
-# gauge and a clock side by side drawn to two rules read as two mistakes. What
-# differs is the rim: a double hairline case, against the dial's one band
-# three units thick. The face is a line drawing of the Seiko 6139's, with no
-# name on it, drawn to the proportions of a reference drawing of one
-# (`seiko_6139_dial_01`, checked against photographs of a 6139-6002).
 CONTROLS_TO_DRAW = (
-    ("clock", "face", "clock-face.svg"),
-    # Everything printed or applied on the dial: a track in fifths just inside
-    # the case - a longer hairline at every minute and four short ones
-    # between each two, as the 6139 counts its seconds - slim batons in outline at every hour but twelve and six, the
-    # twelve as two bars, and at six only a small mark at the edge, because
-    # the counter stands where its baton would. Three has a baton where the
-    # 6139 has its day-date window, which 84 asked out.
-    #
-    # Held to nothing by `ShapesSitOnTheGrid`, and it says why: a clock is
-    # drawn at whatever square the tile leaves it, so nothing snaps its unit
-    # to whole pixels in the first place.
-    ("clock", "ticks", "clock-ticks.svg"),
-    # What the hands meet under: two hairline rings, as the reference draws
-    # it. It is here rather than in the panel for the dial's thumb's reason -
-    # rings at the centre of the face are not parameterised by anything, and
-    # the join they cover is the one place the rotating hands show their
-    # corners.
-    ("clock", "hub", "clock-hub.svg"),
-    # **The hands.** An angle is a number and a hand is not: what the time
-    # decides is where the drawing is turned to, and the drawing itself is
-    # the same baton on every face this pad will ever draw. So each is here,
-    # standing at twelve on the face's own canvas and pinned at 20,20 - the
-    # panel turns the whole face-sized box about its middle and names no
-    # length, no weight and no corner.
-    #
-    # Long and thin against short and thick, and the pair has to differ in
-    # both at once: at a tile's size two hands of one weight are one hand and
-    # a shadow, and two of one length are a cross. Both are **drawn in
-    # outline**, tapering to a point, as the 6139's are - a metal edge round a
-    # lume stripe - the minute hand to the batons' outer end and the hour
-    # hand a little past their inner one, with tails short enough to stay
-    # under the hub.
-    ("clock", "hour", "clock-hour.svg"),
-    ("clock", "minute", "clock-minute.svg"),
-    # The longest and thinnest thing on the face, and the one hand drawn
-    # *into* the track: it is read against it one second at a time. Past the
-    # pivot it is a counterweight and then a hairline again, down to the
-    # register's middle, as the reference draws it.
-    ("clock", "sweep", "clock-sweep.svg"),
-    # **The chronograph's one register**, the 6139's thirty minutes at six: a
-    # hairline ring with a tick at every minute, heavier at every fifth, on
-    # the register's own 40 - the panel decides how big it is and where it
-    # sits, and a measurement decides the angle. Its numerals are left out:
-    # at a tile's size they are six pixels high. The hand is a stub from a
-    # dot, as drawn, and longer than drawn so a thumb's width away it still
-    # says which way it points.
-    ("clock", "register", "clock-register.svg"),
-    ("clock", "register-hand", "clock-register-hand.svg"),
     ("dial", "face", "dial-face.svg"),
     ("dial", "ticks", "dial-ticks.svg"),
     ("dial", "thumb", "dial-thumb.svg"),
-    # **The knob, a Braun T 1000 control drawn in lines**, and the same split
-    # as the clock: a pointer is a drawing and the scale it stands in is an
-    # arc. What the value moves is the angle of the one and the sweep of the
-    # other, and only the first of those is a shape that can be drawn once -
-    # an arc that grows with the number would be a second drawing of the ring
-    # it grows along.
+    # **The knob, a Braun T 1000 control drawn in lines**: a pointer is a
+    # drawing and the scale it stands in is an arc. What the value moves is
+    # the angle of the one and the sweep of the other, and only the first of
+    # those is a shape that can be drawn once - an arc that grows with the
+    # number would be a second drawing of the ring it grows along.
     #
-    # **Drawn in the clock's weights, not weights of its own**, which the
-    # first drawing was - hairlines a shade under the clock's and marks one
-    # stroke wide, so beside the 6139 it was the faint one of the two. Each
-    # figure is now one the clock already has: the cap's edge is the clock's
-    # case, two quarter-unit rings the same gap apart; a mark of the scale is
-    # the sweep hand's width; an end is an hour baton in outline, its foot
-    # left open for the arc that runs on under it to close; and the index is
-    # that baton solid, the way the accent is solid on the clock.
-    # `DialsShareTheClocksWeights` holds the two to it.
+    # One weight throughout: the cap's edge is two quarter-unit rings, a mark
+    # of the scale is as wide as one of them, an end is a baton in outline,
+    # its foot left open for the arc that runs on under it to close, and the
+    # index is that baton solid.
     #
     # The cap never turns.
     # The pointer is the index painted on that top. `dial-notch.svg` is one
@@ -845,9 +784,9 @@ def controls_qml(entries):
 // path data with that step skipped.
 //
 // **Every figure whose silhouette is the same at every value is here**,
-// turning ones included: a clock's hands and a knob's pointer are drawn
-// standing at twelve and rotated to wherever a number puts them, and an angle
-// is a transform rather than a shape. What is left to the panel is what a
+// turning ones included: a knob's pointer is drawn standing at twelve and
+// rotated to wherever a number puts it, and an angle is a transform rather
+// than a shape. What is left to the panel is what a
 // number genuinely redraws - an arc that grows along a ring, a disc whose
 // radius is a setting, a track as wide as the tile it sits in. It is the same
 // split BadgeArt already makes between a button and the label set into it.

@@ -44,10 +44,28 @@ Item {
   // it holds changes between one payload and the next, and `fresh` decides
   // whether to rebuild the page by comparing the tiles it was sent with the
   // tiles it has - so a measurement carried on its own tile is every delegate
-  // on this page rebuilt twice a second to move one hand (qml.md 5.4, and
+  // on this page rebuilt twice a second to move one figure (qml.md 5.4, and
   // `menu_gauge`'s own warning one control along). Off the wire entirely for
-  // a page with no chronograph on it.
+  // a page with no stopwatch on it.
   property var chronoState: ({})
+  // What the stopwatch prints *now*: the payload's measurement plus however
+  // long ago it landed, re-stamped on every payload - so the drift between
+  // two of them is never more than a heartbeat of two clocks disagreeing, and
+  // the moment it stops, the figure is the daemon's exactly. Counted here
+  // rather than received because tenths that change ten times a second cannot
+  // come off a wire that is written twice a second. It is not a `Timer`
+  // polling for state (qml.md 10): the state arrives on the socket, and what
+  // runs here is a figure this already holds, which is animation.
+  property real chronoShown: 0
+  property real chronoSince: 0
+  readonly property bool chronoRunning: root.chronoState.run === true
+  readonly property string chronoWords: root.chronoState.el !== undefined
+    ? root.spellMeasured(root.chronoShown) : ""
+
+  onChronoStateChanged: {
+    root.chronoSince = Date.now()
+    root.chronoShown = Math.max(0, Number(root.chronoState.el) || 0)
+  }
   // How far down each text tile on the page has been read, by id, as a share
   // of its words. Off the tile for `chronoState`'s reason: it changes at every
   // push down, and a tile that changed would rebuild the page - and the card
@@ -631,13 +649,13 @@ Item {
         root.safeArea = Math.max(0, Number(s.safe))
       if (s.bar !== undefined) root.overBar = !!s.bar
       // **Only the whole surface may say that something has ended.** Three
-      // fields below mean *gone* by being absent - the chronograph, the row
+      // fields below mean *gone* by being absent - the stopwatch, the row
       // being held towards running, the row counting down - and the short
       // push carries none of them, because it carries almost nothing
       // (menu.md: "no `items` key at all", which is what marks it). Read as
-      // authoritative, a stream that never mentions the clock wiped its three
-      // sub-dials every frame. It went unnoticed while the short push only
-      // flew for a gauge; a held ring streams on any page, clocks included.
+      // authoritative, a stream that never mentions the stopwatch wiped it
+      // every frame. It went unnoticed while the short push only flew for a
+      // gauge; a held ring streams on any page, stopwatches included.
       var whole = s.items !== undefined
       if (s.cols !== undefined) root.cols = Number(s.cols) || 6
       if (s.rows !== undefined) root.rows = Number(s.rows) || 1
@@ -650,9 +668,9 @@ Item {
       if (s.items !== undefined && root.fresh("items", s.items))
         root.items = s.items
       // Not through `fresh`: this one is *meant* to differ every time, and
-      // what it costs is three properties on one tile rather than a page of
+      // what it costs is one line of figures rather than a page of
       // delegates. Cleared where the payload has none, so a page without a
-      // chronograph draws none - but only where the payload is the *whole*
+      // stopwatch draws none - but only where the payload is the *whole*
       // surface. See `whole` above.
       if (whole)
         root.chronoState = s.chrono !== undefined ? s.chrono : ({})
@@ -720,6 +738,37 @@ Item {
     id: flash
     interval: root.pressMs
     onTriggered: root.flashed = ""
+  }
+
+  // **Twenty a second while the stopwatch runs with the card up, and not at
+  // all otherwise.** Twenty is a trade-off rather than a setting - nobody
+  // configures a repaint: the tenths digit changes every other tick, which
+  // is where it stops being something you can watch happen in steps. The
+  // delegates outlive the window being closed, so a card nobody can see
+  // wakes for nothing. `chronoState` is off the wire for a page with no
+  // stopwatch on it, which is what keeps every other page asleep too.
+  Timer {
+    interval: 50
+    repeat: true
+    running: root.opened && root.chronoRunning
+    onTriggered: root.chronoShown =
+      Math.max(0, Number(root.chronoState.el) || 0)
+        + (Date.now() - root.chronoSince) / 1000
+  }
+
+  // The measurement in figures. Tenths under the hour and seconds over it: a
+  // stopwatch is read for its tenths in the first minute and for its minutes
+  // after that, and a tenth still turning under an hour's worth of figures is
+  // a digit nobody is reading and everybody can see.
+  function spellMeasured(seconds) {
+    var whole = Math.floor(Math.max(0, seconds))
+    var hours = Math.floor(whole / 3600)
+    var minutes = Math.floor(whole / 60) % 60
+    var pad = function (n) { return n < 10 ? "0" + n : "" + n }
+    if (hours > 0)
+      return hours + ":" + pad(minutes) + ":" + pad(whole % 60)
+    var tenths = Math.floor((Math.max(0, seconds) - whole) * 10)
+    return minutes + ":" + pad(whole % 60) + "." + tenths
   }
 
   // The page's own arrival. `slide` runs the offset home rather than a
@@ -2557,11 +2606,12 @@ Item {
                 // reads nothing at all. It is drawn here as well as on the
                 // HUD for the readout's reason: this is the page a clock is
                 // put on, and a page that looked different once it was on
-                // screen would be a page you had to learn twice.
+                // screen would be a page you had to learn twice. Drawn as a
+                // reading is - a name and a figure - because that is what it
+                // is (decision 104).
                 readonly property bool clock: tile.modelData.k === "clock"
-                // The same face with a stopwatch in it, which is what a
-                // chronograph is - and the one tile with nothing to press
-                // that has something to press. A is a pusher on it: start,
+                // A stopwatch, drawn as the clock is - and the one tile with
+                // nothing to press that has something to press. A is a pusher on it: start,
                 // stop, reset, and the legend under the card says which of
                 // the three the next press is.
                 readonly property bool chrono: tile.modelData.k === "chrono"
@@ -2784,9 +2834,9 @@ Item {
                     // is the page you come to in order to find out that a
                     // reading has no source on this machine.
                     // The one value on this surface the panel spells
-                    // rather than receives, and `Clock.qml`'s header says
-                    // why: a number that changes ten times a second cannot
-                    // come off a wire written twice a second.
+                    // rather than receives, and `chronoShown` says why: a
+                    // number that changes ten times a second cannot come off
+                    // a wire written twice a second.
                     // And the ring being turned is the other: a value
                     // followed rather than stepped changes on every frame a
                     // thumb moves, so it rides the short push beside the
@@ -2794,12 +2844,8 @@ Item {
                     // print one number. The words are still the daemon's -
                     // unlike the clock, a level has a unit the panel does
                     // not hold.
-                    // A face too small to draw says the measurement in its
-                    // own place instead, so this line stands down rather
-                    // than saying it twice.
                     text: tile.chrono
-                      ? (clockLoader.item && !clockLoader.item.digital
-                         ? clockLoader.item.words : "")
+                      ? root.chronoWords
                       : (tile.streaming && root.live.ht !== undefined
                          ? String(root.live.ht)
                          : (tile.modelData.t !== undefined
@@ -3725,7 +3771,7 @@ Item {
                       // which is why the box is the figure standing and the
                       // placement is its centre: a drawing positioned by its
                       // rotation as well as turned by it is arithmetic in two
-                      // places, and it is the rule the clock's hands are drawn
+                      // places, and it is the rule the knob's pointer is drawn
                       // under.
                       BadgeArt {
                         id: capCross
@@ -4250,7 +4296,7 @@ Item {
                         // the one somebody can act on - it says how long they
                         // have rather than merely that they are running out.
                         //
-                        // Held still with `tnum`, for the clock's reason: with
+                        // Held still with `tnum`, for the reading's reason: with
                         // proportional figures the line re-lays itself when a 1
                         // replaces an 8, which from across a room reads as the
                         // number twitching rather than as it changing.
@@ -4453,9 +4499,9 @@ Item {
                   }
 
                   // The same number the travel draws, turned. Sized off the
-                  // dial and the clock to the pixel, for their own reason:
-                  // three circles on one page drawn to three sizes read as a
-                  // fault rather than as three tiles.
+                  // dial to the pixel, for its own reason: two circles on one
+                  // page drawn to two sizes read as a fault rather than as two
+                  // tiles.
                   // Behind a Loader, and only built on a knob: every tile used
                   // to build a ring and a clock and hide them, and a page
                   // turn is every tile built again - 110 to 215 ms of a shell
@@ -4512,60 +4558,6 @@ Item {
                       }
                     }
                   }
-
-                  // The time, with hands on it. `Clock.qml` rather than a
-                  // drawing of this surface's own, because the HUD holds the
-                  // same tile over a game and a page has to read the same in
-                  // both places it appears - `Travel.qml`'s argument, one
-                  // control along.
-                  //
-                  // Sized off the dial above it, to the pixel: two circles on
-                  // one page drawn to two sizes read as a fault rather than
-                  // as two tiles.
-                  // Loaded for the knob's reason, above.
-                  Loader {
-                    id: clockLoader
-                    active: tile.clock || tile.chrono
-                    visible: clockLoader.active
-                    width: Math.min(parent.width,
-                                    tile.height - metrics.gap.huge)
-                    height: clockLoader.width
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    sourceComponent: Component {
-                      Clock {
-                        id: clockFace
-                        art: controlArt
-                        family: metrics.font.family
-                        figures: metrics.type.loud
-                        weight: metrics.weight.display
-                        minutes: tile.modelData.mn !== undefined
-                          ? tile.modelData.mn : 0
-                        // Nothing turns while the card is down: the delegates
-                        // outlive the window being closed, and a hand animating
-                        // behind one nobody can see is twenty wake-ups a second
-                        // spent on a drawing that is not on screen.
-                        awake: root.opened
-                        // Negative is a clock and nothing else, so a plain face
-                        // draws no complication - and a chronograph that has
-                        // never been started still draws one, standing at zero,
-                        // which is what says the tile has a stopwatch in it
-                        // before anybody presses anything.
-                        elapsed: (tile.chrono
-                                  && root.chronoState.el !== undefined)
-                          ? root.chronoState.el : -1
-                        ticking: root.chronoState.run === true
-                        ink: tile.ink
-                        // The dial's own number rather than one of the three
-                        // inks (qml.md 8.1.2): what recedes here is furniture
-                        // under a drawing, not a line of type, and the gauge's
-                        // face is the thing it has to match - a clock beside a
-                        // dial at a different strength is two circles rather
-                        // than two tiles.
-                        dim: Util.alpha(Color.menu.text, 0.3)
-                        mark: tile.mark
-                      }
-                    }
-                  }
                 }
 
                 // The same slot says two things, and they never both apply:
@@ -4591,7 +4583,7 @@ Item {
                 // in - where the tick and the chevron sit, neither of which
                 // can be true of a tile that is about to run. The row
                 // countdown's size, so one count is one size wherever it is
-                // drawn, held still with `tnum` for the clock's reason.
+                // drawn, held still with `tnum` for the reading's reason.
                 Text {
                   visible: tile.counting
                   text: tile.counting ? String(tile.remaining) : ""

@@ -88,7 +88,7 @@ the word no matter what the door's numbers say.
 ## Drawing a control part
 
 The menu's tiles hold values, and the parts they are drawn from live in the
-same `shapes/` directory - `dial-*`, `clock-*`, `switch-*`, `chev-*`,
+same `shapes/` directory - `dial-*`, `switch-*`, `chev-*`,
 `media-*`, `travel-*`, `key-*`, `grip`.
 They go in `CONTROLS_TO_DRAW`, `(family, name, shape.svg)`, and come out in
 `shell-plugin/ControlArt.qml`.
@@ -110,7 +110,6 @@ drawing. Leave what a number actually redraws:
 | the chevrons, the transport marks | which one is drawn or dimmed |
 | the strokes that stand on a line - a stop, an end, the value's own mark, the pair that bracket a row | the line itself, and how far along it anything stands |
 | the key at the head of a latching row, and what is in its window | which of the two is drawn |
-| the clock's rim, its twelve marks, the hub, both hands, the sweep, the register's ring and hand | which way each one points, and where the register sits and how big it is |
 | the knob's cap, its index, one mark of its scale and the longer mark at each end | the scale's arc and the run of it the value has covered - an arc that grows with the number - and how many marks there are |
 
 A shape parameterised by a number cannot be drawn once. Same split `BadgeArt`
@@ -135,16 +134,14 @@ that showed.
 
 **A turning figure is drawn standing at twelve, pinned at the middle of its
 own canvas**, and the panel gives it the whole face to fill and rotates it.
-That is why the hands are centred on 20,20 of a 40: a drawing positioned by
+That is why the knob's pointer is centred on 20,20 of a 40: a drawing positioned by
 its angle as well as turned by it is arithmetic in two places.
 
 `ShapesSitOnTheGrid` **exempts them**, and the exemption is the rule rather
 than a hole in it. A straight run parallel to an axis lands on half a pixel
-and is painted grey; a hand is parallel to one at four angles out of a full
-turn and antialiased at every other. Holding it to the grid would force an
-even width on a figure centred on its pivot, which would make the sweep hand
-and the minute hand the same weight - the one thing two hands on one face may
-not be.
+and is painted grey; a pointer is parallel to one at four angles out of a
+full turn and antialiased at every other. Holding it to the grid would force
+an even width on a figure centred on its pivot, and buy nothing.
 
 The shape rules below all apply. Two do **not**:
 

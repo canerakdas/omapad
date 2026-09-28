@@ -2203,6 +2203,25 @@ class GameBarPressTests(DaemonTestCase):
         self.daemon.set_mode("game")
         self.assertEqual(self.daemon.gamebar.pressed, ["Y"])
 
+    def test_bare_wallpaper_is_offered_no_clicks(self):
+        # The shipped X, Y and R3 are the middle click, the context menu and
+        # Back, and over an empty workspace none of them lands on anything.
+        self.daemon.set_focus("foot", "~")
+        clicks = [row["n"] for row in self.sent()["actions"]]
+        self.assertIn("Y", clicks)
+        self.daemon.set_focus("", "")
+        self.assertEqual(self.sent()["actions"], [])
+        self.assertEqual(self.sent()["note"], "")
+        self.daemon.set_focus("foot", "~")
+        self.assertEqual([row["n"] for row in self.sent()["actions"]], clicks)
+
+    def test_an_empty_answer_to_the_seed_is_an_empty_workspace(self):
+        # The window in front before the stream dropped is not any more.
+        self.daemon.set_focus("foot", "~")
+        self.hypr.answers["activewindow"] = {}
+        self.daemon.seed_active_window()
+        self.assertEqual(self.daemon.focus_class, "")
+
     def test_a_pad_that_goes_away_leaves_no_badge_lit(self):
         self.press("A")
         self.daemon.reset_state()
@@ -5028,6 +5047,28 @@ class ListedMenuTests(DaemonTestCase):
         # go of, so asking again here would race it.
         self.assertEqual([row["on"] for row in self.card("Output")["rs"]],
                          [False, True])
+
+    def test_once_the_pick_has_run_every_card_on_the_page_is_read_again(self):
+        # A resolution takes the rates beside it with it, so the card that
+        # was not pressed has to be asked too - after the command, not
+        # during it.
+        self.enter("Sound")
+        self.settle()
+        walk_menu(self.daemon, ["Output", "Television"],
+                  lambda: self.daemon.menu_command("press"))
+        before = len(self.listings())
+        self.session.lines = ["Speakers\t1\tanalog-out",
+                              "* Television\t7\thdmi-out",
+                              "Headphones\t9\tusb-out"]
+        self.daemon.menu_pick_settled(time.monotonic())
+        self.assertEqual(len(self.listings()), before + 2)
+        self.assertEqual([row["l"] for row in self.card("Microphone")["rs"]],
+                         ["Speakers", "Television", "Headphones"])
+        self.assertEqual([row["on"] for row in self.card("Output")["rs"]],
+                         [False, True, False])
+        # And once: the next turn of the loop has nothing left to read.
+        self.daemon.menu_pick_settled(time.monotonic())
+        self.assertEqual(len(self.listings()), before + 2)
 
     def test_a_listing_that_finds_nothing_says_so_and_runs_nothing(self):
         self.session.lines = []
@@ -9000,12 +9041,10 @@ class ChronographTests(DaemonTestCase):
         state = self.menu_client.sent[-1]
         self.assertTrue(state["chrono"]["run"])
         self.assertIn("el", state["chrono"])
-        # And nothing else: the clock's own seconds went with the register
-        # that drew them.
+        # And nothing else: the running seconds went with the face that
+        # drew them, and the tile carries no time of day of its own.
         self.assertNotIn("sc", state["chrono"])
-        # And the tile is a watch first: the time of day rides on it, because
-        # that changes once a minute and a page is worth rebuilding for it.
-        self.assertIn("mn", self.chrono_row())
+        self.assertNotIn("mn", self.chrono_row())
 
     def test_two_payloads_carry_the_same_tiles(self):
         # **The performance rule, at the surface that pays for it.** The panel

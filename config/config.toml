@@ -1417,18 +1417,17 @@ opacity = 0.9
 # socket = "/run/user/1000/omapad/guide.sock"  # defaults to $XDG_RUNTIME_DIR
 
 [chrono]
-# The stopwatch behind a `chrono` tile - one measurement, however many faces
-# draw it. The cycle (start, stop, reset) and the pusher (A) are the
+# The stopwatch behind a `chrono` tile - one measurement, however many tiles
+# show it. The cycle (start, stop, reset) and the pusher (A) are the
 # instrument rather than anything to choose, so this switch is the whole of
 # what there is to decide about it.
 #
-# A tick under the thumb every time the sweep hand comes back to twelve, so a
-# measurement can be followed without looking at it - which is most of what a
+# A tick under the thumb every time the measurement rolls over another minute,
+# so it can be followed without looking at it - which is most of what a
 # stopwatch left running while you do something else is worth. It strikes the
-# minute and only the minute: the mark is the hand coming round, not a length
-# of time you set, and an alarm you can set is a different instrument. Turn it
-# off for a stopwatch that is read rather than felt. `[rumble] enabled` still
-# wins - this asks for a tick, it does not turn the motor on.
+# minute and only the minute: an alarm you can set is a different instrument.
+# Turn it off for a stopwatch that is read rather than felt. `[rumble]
+# enabled` still wins - this asks for a tick, it does not turn the motor on.
 rumble = true
 
 [window]
@@ -4084,13 +4083,12 @@ detail = "How busy, how full, how hot"
   control = "readout"
   reads = "sys:disk"
 
-  # The time, with hands on it. Not a reading - nothing publishes it and
-  # nothing could fail to - and it is on this page because this is the page
-  # that is left on screen: game mode takes Omarchy's bar away, and the bar is
-  # where the time was.
+  # The time, printed the way a reading is. Not a reading - nothing publishes
+  # it and nothing could fail to - and it is on this page because this is the
+  # page that is left on screen: game mode takes Omarchy's bar away, and the
+  # bar is where the time was.
   #
-  # No icon. A control tile's picture is the control, and a clock face with a
-  # clock glyph beside it is the tile saying the same thing twice.
+  # No icon, for the readings' reason: the name says what the figure is.
   [[menu.items.items]]
   label = "Time"
   control = "clock"
@@ -4388,24 +4386,23 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
       omarchy-notification-send -g 󰂯 "Bluetooth panel unavailable" "It opens from Omarchy's bar, in desktop mode"
   '''
 
-  # A watch with a stopwatch in it. It tells the time because game mode takes
-  # Omarchy's bar away and the pad can reach no other clock; what it adds is
-  # the one thing a clock cannot do, which is measure - a turn on the sofa, a
-  # pot on the stove, how long that install has been going. It is on System
-  # because it belongs to no errand of its own, and System is the page of
-  # the machine rather than of any one thing on it.
+  # A stopwatch: the one thing a clock cannot do, which is measure - a turn on
+  # the sofa, a pot on the stove, how long that install has been going. It is
+  # on System because it belongs to no errand of its own, and System is the
+  # page of the machine rather than of any one thing on it.
   #
   # **One pusher, and A is it**: start, stop, reset, round again. B leaves this
-  # surface and X closes it in every layer, so the second pusher a wrist-worn
-  # chronograph has would have to come out of the face-button contract; a
-  # monopusher is what a chronograph was before it had two, and the legend
-  # under the card says which of the three the next press is. What it costs is
-  # resuming, which the monopusher on a wrist cannot do either.
+  # surface and X closes it in every layer, so a second pusher would have to
+  # come out of the face-button contract; the legend under the card says which
+  # of the three the next press is. What it costs is resuming.
   #
-  # No icon, and no `reads`: the control is the picture, and what it holds is
-  # a press somebody made rather than anything a table could be pointed at.
+  # No icon, and no `reads`: what it holds is a press somebody made rather
+  # than anything a table could be pointed at. Two rows tall though it needs
+  # one, so the band it shares with the pairing tile is full rather than
+  # holed.
   [[menu.items.items]]
   label = "Stopwatch"
+  span = [2, 2]
   control = "chrono"
 
   # Whether the machine is online, and through what: the first thing to ask

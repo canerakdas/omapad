@@ -260,26 +260,11 @@ class EveryControlIsDrawn(unittest.TestCase):
         # any size is, and it keeps a one-pixel outline one pixel wide at the
         # two-percent values this setting is actually set to.
         "gauge": ("dial:face", "dial:ticks", "dial:thumb"),
-        # The hands as well: what the time decides is the angle one is
-        # turned to, and an angle is a transform rather than a shape. The hub
-        # is here because the join under them is not parameterised by
-        # anything either.
-        "clock": ("clock:face", "clock:ticks", "clock:hub",
-                  "clock:hour", "clock:minute"),
-        # The clock's, and everything a chronograph adds on top. The register
-        # is a ring and a hand drawn on the register's own canvas, because
-        # what a panel decides about a register is where it sits and how big
-        # it is.
-        "chrono": ("clock:face", "clock:ticks", "clock:hub",
-                   "clock:hour", "clock:minute", "clock:sweep",
-                   "clock:register", "clock:register-hand"),
-        # **A Braun cap**, drawn in the clock's hairlines so the two circles
-        # a page may hold read as one panel, plus the three figures it turns:
-        # the index at the value, a mark of the printed scale, and the longer
-        # mark at each end of it.
+        # **A Braun cap**, plus the three figures it turns: the index at the
+        # value, a mark of the printed scale, and the longer mark at each end
+        # of it.
         #
-        # Its *scale* is still not art, which is the one place it parts
-        # company with the clock. The run of it the value has covered grows
+        # Its *scale* is not art. The run of it the value has covered grows
         # with the number, and a track drawn once with that run computed
         # against it would be two drawings of one figure - which is exactly
         # how two drawings of one thing quietly stop matching. How many
@@ -305,6 +290,10 @@ class EveryControlIsDrawn(unittest.TestCase):
         # itself once, on a card nothing can push, and read as a control that
         # had lost its thumb.
         "readout": (),
+        # Words as well, for the reading's reason: a name and a figure. Both
+        # were watch faces once, and nothing on them needs a drawing now.
+        "clock": (),
+        "chrono": (),
         # Nothing, and it reached for art three times to get here. A tick at
         # the far end of the row said nothing - a mark with no second state,
         # at the opposite end of the card from the words it is about. A radio
@@ -395,14 +384,11 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
     # And the key at the head of a latching row, which is the first one of
     # these that is not a circle: a rounded square with a rounded square out
     # of the middle of it is the same trap with corners on.
-    RINGS = ("dial-face.svg", "clock-face.svg", "key-ring.svg",
-             "dial-cap.svg")
+    RINGS = ("dial-face.svg", "key-ring.svg", "dial-cap.svg")
 
     def test_a_ring_is_wound_so_the_hole_survives(self):
-        # A drawing may be more than one ring - the clock's rim was a case
-        # and a chapter ring inside it for a while, which is two - so what has
-        # to hold
-        # is each pair on its own: an outer wound one way and its hole the
+        # A drawing may be more than one ring - the cap's edge is two - so
+        # what has to hold is each pair on its own: an outer wound one way and its hole the
         # other, in that order. A shape that came out odd is a ring somebody
         # drew without a hole, and it would paint as a disc over everything
         # the face is meant to show through.
@@ -430,17 +416,15 @@ class AnnuliSurviveEitherFillRule(unittest.TestCase):
         return total / 2
 
 
-class DialsShareTheClocksWeights(unittest.TestCase):
-    """The knob is drawn in the clock's weights, figure for figure.
+class KnobFiguresAreOneBaton(unittest.TestCase):
+    """The knob's end, index and detents are one baton, figure for figure.
 
-    A knob and a clock can share one page of tiles at one size, and the first
-    knob was drawn in weights of its own - single hairlines a shade under the
-    clock's - so beside the 6139 it was the faint one of the two drawings
-    rather than half of one panel. Nothing notices that by looking at one
-    file: each drawing is fine on its own. So each figure of the knob is
-    checked against the one on the clock it was taken from, and the numbers
-    are read off the clock's own paths rather than written down here - a
-    redrawn clock fails this until the knob follows it.
+    Each is its own file, and each is fine on its own - so nothing notices a
+    redrawn end whose index stayed behind by looking at one of them. The end
+    is the baton in outline with its foot left open, the index is the same
+    baton filled in, and a detent is the end shortened: the widths across
+    them are read off `dial-end.svg` rather than written down here, so
+    redrawing the end fails this until the rest follow it.
     """
 
     def verts(self, name):
@@ -448,54 +432,16 @@ class DialsShareTheClocksWeights(unittest.TestCase):
         return [p for data in shape.fills for poly in svgpath.flatten(data)
                 for p in poly]
 
-    def radii(self, name):
-        """The rings of a drawing centred on 20,20, outermost first."""
-        found = set()
-        for (x, y) in self.verts(name):
-            if abs(y - 20) < 1e-6:
-                found.add(round(abs(x - 20), 4))
-        return sorted(found, reverse=True)
-
-    def half_widths(self, name, near):
+    def half_widths(self, name):
         """How far either side of the axis a figure standing at twelve runs."""
-        return sorted(set(round(abs(x - 20), 4) for (x, y) in self.verts(name)
-                          if near(y)))
+        return sorted(set(round(abs(x - 20), 4) for (x, y) in self.verts(name)))
 
-    def test_the_caps_edge_is_the_clocks_case(self):
-        case = self.radii("clock-face.svg")
-        cap = self.radii("dial-cap.svg")
-        self.assertEqual(len(cap), len(case))
-        steps = lambda r: [round(a - b, 4) for a, b in zip(r, r[1:])]
-        self.assertEqual(steps(cap), steps(case))
-
-    def test_a_mark_is_the_sweeps_width(self):
-        # The sweep's long run is its narrowest part: the tip tapers into it
-        # and the counterweight past the pivot is wider. The run has corners
-        # only at its two ends, so the window takes both and leaves the tip.
-        sweep = self.half_widths("clock-sweep.svg", lambda y: 4 < y < 21)
-        notch = self.half_widths("dial-notch.svg", lambda y: True)
-        self.assertEqual(notch, sweep[:1])
-
-    def test_an_end_and_the_index_are_the_hour_baton(self):
-        # The baton at three, lying along the axis: its outer and inner
-        # half-widths across it are what the end is drawn to - with its foot
-        # left open, since the scale's arc closes it - and the index is the
-        # same baton filled in.
-        baton = sorted(set(round(abs(y - 20), 4)
-                           for (x, y) in self.verts("clock-ticks.svg")
-                           if 33 < x < 37.2 and abs(y - 20) > 0.15
-                           and abs(y - 20) < 0.5))
-        end = self.half_widths("dial-end.svg", lambda y: True)
-        self.assertEqual(end, baton)
-        pointer = self.half_widths("dial-pointer.svg", lambda y: True)
-        self.assertEqual(pointer, baton[-1:])
-        # A detent is the end shortened, and a place stood on is either of
-        # them filled - the index's reason.
-        self.assertEqual(self.half_widths("dial-detent.svg", lambda y: True),
-                         baton)
+    def test_the_index_and_the_detents_are_the_end_baton(self):
+        baton = self.half_widths("dial-end.svg")
+        self.assertEqual(self.half_widths("dial-pointer.svg"), baton[-1:])
+        self.assertEqual(self.half_widths("dial-detent.svg"), baton)
         for filled in ("dial-end-lit.svg", "dial-detent-lit.svg"):
-            self.assertEqual(self.half_widths(filled, lambda y: True),
-                             baton[-1:])
+            self.assertEqual(self.half_widths(filled), baton[-1:])
 
 
 class ShapesSitOnTheGrid(unittest.TestCase):
@@ -518,29 +464,25 @@ class ShapesSitOnTheGrid(unittest.TestCase):
 
     # **The figures that turn are exempt, and it is the rule rather than a
     # hole in it.** What this test is about is a straight run landing on half
-    # a pixel and being painted grey instead of drawn; a hand, a sweep, a
-    # register's hand, a knob's pointer, its notches, ends and detents are all
-    # drawn standing at twelve and then rotated to wherever a number puts
-    # them, so their long edges are parallel to an axis at four angles out of
-    # a full turn and antialiased at every other one. Holding them to the
-    # grid would buy nothing and would cost the drawing: a hand is centred on
-    # the pivot, so a whole-unit edge means an even width, and the sweep and
-    # the minute hand would have to be the same weight as each other - which
-    # is the one thing two hands on one face may not be.
-    TURNS = ("clock-hour.svg", "clock-minute.svg", "clock-sweep.svg",
-             "clock-register-hand.svg", "dial-pointer.svg", "dial-notch.svg",
-             "dial-end.svg", "dial-end-lit.svg", "dial-detent.svg",
-             "dial-detent-lit.svg")
+    # a pixel and being painted grey instead of drawn; a knob's pointer, its
+    # notches, ends and detents are all drawn standing at twelve and then
+    # rotated to wherever a number puts them, so their long edges are
+    # parallel to an axis at four angles out of a full turn and antialiased
+    # at every other one. Holding them to the grid would buy nothing and
+    # would cost the drawing: a figure is centred on the pivot, so a
+    # whole-unit edge means an even width.
+    TURNS = ("dial-pointer.svg", "dial-notch.svg", "dial-end.svg",
+             "dial-end-lit.svg", "dial-detent.svg", "dial-detent-lit.svg")
 
     # **And the dial's furniture, because nothing snaps the box it is drawn
     # in.** The rule holds for a badge because `Metrics.badge` rounds the unit
-    # so a whole unit is whole pixels. A clock is drawn at whatever square the
-    # tile leaves it - `Clock.qml` takes `min(width, height)` and divides by
+    # so a whole unit is whole pixels. A knob is drawn at whatever square the
+    # tile leaves it - `Knob.qml` takes `min(width, height)` and divides by
     # 40 - so a whole unit there is a fraction of a pixel anyway, and holding
     # the drawing to the grid would buy nothing while forbidding the one
     # thing a line drawing of a dial is made of: a hairline centred on an
     # axis, which on whole units would have to be two units wide.
-    UNSNAPPED = ("clock-ticks.svg", "clock-register.svg", "dial-cap.svg")
+    UNSNAPPED = ("dial-cap.svg",)
 
     def test_every_flat_edge_of_every_shape_is_on_a_whole_unit(self):
         for name in sorted(os.listdir(generate.SHAPES)):

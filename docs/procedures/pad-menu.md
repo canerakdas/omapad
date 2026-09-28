@@ -592,7 +592,7 @@ with nothing in it - `Previous` is four cells because the row is three verbs
 under a media tile, and it says its whole name at four.
 
 Two things that will not bend for the arithmetic. **A circle is two by two** -
-the knob, the dial, the clock and the stopwatch are one drawing at one size,
+the knob and the dial are one drawing at one size,
 and a page that holds two of them at two sizes reads as a fault. And **a span
 is never wider than six**: `build` refuses one wider than the columns there
 are, `[menu] columns` is a setting somebody may turn down, and six is the

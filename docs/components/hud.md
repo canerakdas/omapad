@@ -126,13 +126,12 @@ is where the clock belongs. A clock is also outside rule 2 without being an
 exception to it: nothing publishes the time and nothing could fail to, so
 there is no source to have gone quiet and no machine this tile is untrue on.
 It is never asked, and never dropped. See [`menu.md`](menu.md) for the tile
-itself, and `Clock.qml` for the drawing, which is the menu's own.
+itself: a name and the time, drawn the way a reading is.
 
-**A chronograph is the case that shows the rule is the press.** It is the same
-face with a stopwatch in it and it is not drawn here, because A on it starts,
-stops and resets a measurement - a pusher over a game is a control with no way
-to reach it, which is the switch's own argument on a tile that looks like the
-clock. Written onto this page it is packed like any other tile and simply not
+**A stopwatch is the case that shows the rule is the press.** It is drawn the
+way the clock is and it is not drawn here, because A on it starts, stops and
+resets a measurement - a pusher over a game is a control with no way to reach
+it, which is the switch's own argument on a tile that looks like the clock. Written onto this page it is packed like any other tile and simply not
 drawn. See [`chrono.md`](chrono.md).
 
 The **whole** page is still packed, including the tiles that will not be
@@ -225,7 +224,7 @@ moves:
             "k": "readout", "x": 0, "y": 0, "w": 2, "h": 1,
             "t": "37%", "v": 0.37},
            {"id": "time", "l": "Time", "k": "clock",
-            "x": 0, "y": 1, "w": 2, "h": 2, "mn": 825}]}
+            "x": 0, "y": 1, "w": 2, "h": 1, "t": "13:45"}]}
 ```
 
 `rows` is `[hud] rows` - how many the screen is cut into, **not** how tall
@@ -237,11 +236,11 @@ the shell cannot read the config. `v` is a share's place along its scale, absent
 for anything that is not a share, and nothing draws it (see above).
 
 `k` is which of the two kinds of tile this is, and it rides on every one of
-them rather than on the clock alone: the panel has two drawings to choose
-between and this is the whole of the choice. `mn` is the clock's own - both
-hands as one number, minutes since midnight, worked out here rather than
+them rather than on the clock alone. Both are drawn the same way now - a name
+and a figure - so nothing on the panel chooses by it, but it is still what says
+a tile is not a reading. A clock's `t` is the time, worked out here rather than
 asked of the daemon so the two surfaces that draw one page cannot be a minute
-apart. See [`menu.md`](menu.md) for why it is one number.
+apart.
 
 ## Changing it
 

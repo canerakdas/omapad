@@ -96,8 +96,12 @@ class Session:
         return os.path.basename(os.path.dirname(socket_path))
 
     def spawn(self, command):
-        """Run a shell command detached from the daemon."""
-        subprocess.Popen(
+        """Run a shell command detached from the daemon.
+
+        The process is returned for the one caller that wants to know when
+        it has finished (`Daemon.menu_pick`); everything else lets it go.
+        """
+        return subprocess.Popen(
             self.scope + ["/bin/sh", "-c", command],
             env=self.env,
             stdin=subprocess.DEVNULL,

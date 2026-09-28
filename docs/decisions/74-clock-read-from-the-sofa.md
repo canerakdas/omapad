@@ -1,4 +1,4 @@
-# 74. A clock you can read from the sofa · ✅ Done · S
+# 74. A clock you can read from the sofa · 🗑 Removed · S
 
 Asked for from the sofa: *analog bir saat eklemek istiyorum 2x2 olan bir kartin
 icinde kullanmak icin bir saat kadrani ciz fonta cevir, akrep ve yelkovan'i
@@ -48,3 +48,7 @@ two units thick against the dial's three, because this one has hands inside it
 and a rim as heavy as a hand draws a ring with sticks in it. Twelve marks: the
 quarters as bars, the hours between them as dots, which is also the one mark
 on this pad that could not stand on a whole unit and does not have to.
+
+**Removed by [104](104-a-clock-that-was-a-watch.md).** The face came off; the
+clock tile is a name and the time, drawn the way a reading is. The HUD half -
+a tile with nothing to press may stand over a game - is still the rule.

@@ -1,4 +1,4 @@
-# 84. The dial, redrawn from a watch · ✅ Done · S
+# 84. The dial, redrawn from a watch · 🗑 Removed · S
 
 Asked for from the sofa, with a drawing attached: *bu saati chrono'ya
 uyarlayabilir miyiz, ai oldugu icin biraz kotu gorunuyor ek olarak saat 3
@@ -72,3 +72,6 @@ Everything here is `assets/shapes/clock-*.svg` and one regeneration
 ([`../procedures/pad-badge-art.md`](../procedures/pad-badge-art.md)); no
 daemon code moved, and the chronograph's state, its pusher and its wire
 format are as 75 left them.
+
+**Removed by [104](104-a-clock-that-was-a-watch.md)**, with the face it
+redrew.

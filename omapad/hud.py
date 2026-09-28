@@ -29,7 +29,7 @@ moment it could take a press it would be in the way of the game it is over.
 """
 
 from .menu import (CLOCK, COLUMNS, adopted_items, arrange, given_away,
-                   minute_of_day, pages_of, place)
+                   pages_of, place, time_of_day)
 
 # What this surface draws, and the only things it draws. **The rule is that a
 # tile here has nothing to press**, not that it is a reading: a switch drawn
@@ -168,8 +168,8 @@ class HudModel:
             if item["control"] == CLOCK:
                 # Worked out here rather than asked of the daemon, exactly as
                 # the menu's own clock tile is: the two surfaces draw one page,
-                # so a face on one of them cannot be a minute behind the other.
-                row["mn"] = minute_of_day()
+                # so a time on one of them cannot be a minute behind the other.
+                row["t"] = time_of_day()
             row.update(found or {})
             items.append(row)
         return {

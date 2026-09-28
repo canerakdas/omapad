@@ -1,4 +1,4 @@
-# 88. A 6139, drawn in lines · ✅ Done · S
+# 88. A 6139, drawn in lines · 🗑 Removed · S
 
 Asked for from the sofa: *Kronografı minimal teknik line drawing stilinde yap
 seiko 6139'un kadranına benzesin ve logo olmasın. 3 tane circle'dan teke
@@ -66,3 +66,6 @@ draws a clock. The HUD's copy is due to be rewritten anyway.
 
 **Left out:** the day-date window (see above), the register's numerals, and
 the name on the dial, as asked.
+
+**Removed by [104](104-a-clock-that-was-a-watch.md)**, the dial and the
+figures under 140 pixels both. The stopwatch is a name and its measurement.

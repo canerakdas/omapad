@@ -108,7 +108,7 @@ and is in the order it was found.
 | 71 | [A card that could not name what it was closing](71-card-that-could-not-name-it.md) | ✅ Done | S | The card names the window it would close, because the blur hides it. |
 | 72 | [The one thing somebody wants the pad to do](72-scripts-folder-card.md) | ✅ Done | S | `System > Scripts` lists a folder, and A runs what is in it. |
 | 73 | [The sentence that had nowhere to go](73-sentence-with-nowhere-to-go.md) | ✅ Done | S | Dictation can go to the clipboard instead of the cursor under it. |
-| 74 | [A clock you can read from the sofa](74-clock-read-from-the-sofa.md) | ✅ Done | S | An analog clock tile: the face is furniture, the hands are geometry. |
+| 74 | [A clock you can read from the sofa](74-clock-read-from-the-sofa.md) | 🗑 Removed | S | An analog clock tile: the face is furniture, the hands are geometry. |
 | 75 | [The clock that could measure, and the pusher it had room for](75-clock-that-could-measure.md) | ✅ Done | M | The chronograph, a panda dial with its one pusher on A. |
 | 76 | [The value a thumb could turn rather than push](76-value-a-thumb-can-turn.md) | ✅ Done | M | A knob: relative, in whole steps, and it reads a list as well as a number. |
 | 77 | [A count on the bar that nothing on the page could take](77-count-on-the-bar.md) | ✅ Done | S | The waiting updates, on the bar, with the mark the drawing had. |
@@ -118,11 +118,11 @@ and is in the order it was found.
 | 81 | [The page that ended in half a tile](81-page-ending-in-half-a-tile.md) | ✅ Done | S | A page ends on a whole tile, measured against the screen it is on. |
 | 82 | [Somewhere for a tile to go](82-somewhere-for-a-tile-to-go.md) | ✅ Done | M | A strip along the foot holds a tile that is on no page. |
 | 83 | [Pages that came to whole rows](83-pages-of-whole-rows.md) | ✅ Done | S | A page comes to whole rows - the arithmetic is the design, not a tidy-up. |
-| 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | ✅ Done | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |
+| 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | 🗑 Removed | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |
 | 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. |
 | 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. |
 | 87 | [What the couch could not reach](87-what-the-couch-could-not-reach.md) | ✅ Done | M | Night light, stay awake, screens, Bluetooth, do not disturb, network and recording on the pad; omapad's own look moved to `Controller`. |
-| 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | ✅ Done | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |
+| 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | 🗑 Removed | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |
 | 89 | [A Braun knob, drawn in lines](89-a-braun-knob.md) | ✅ Done | S | The knob as a Braun T 1000 control: knurled cap, painted index, printed scale that lights to the value. |
 | 90 | [The chord is the pause](90-the-chord-is-the-pause.md) | ✅ Done | S | The workspace lock and its pair on the quick menu, and MINUS + PLUS opens the quick menu rather than the controller menu; the row trades brightness, screenshot and record for mic mute and deafen. |
 | 91 | [What the desktop gave up](91-what-the-desktop-gave-up.md) | ✅ Done | S | omapad asks the compositor for no blur: `[ui] blur` and the reload watcher behind it are gone, and whatever the desktop blurs is what applies. |
@@ -138,3 +138,4 @@ and is in the order it was found.
 | 101 | [A marimba and a vibraphone](101-a-marimba-and-a-vibraphone.md) | ✅ Done | S | The sounds are two modelled bars instead of sines: the walk and the tick a hard marimba, the show, commit, back and edge a vibraphone; D, E, F sharp and A, with direction carried by intervals rather than glides; levels and the vocabulary unchanged. |
 | 102 | [A page, not a second menu](102-a-page-not-a-second-menu.md) | ✅ Done | M | The quick menu is the menu's first page rather than a surface of its own: PLUS opens it at Resume (`menu:toggle=quick`), HOME and MINUS + PLUS the page last open; the menu's `when` gains `window` and `empty`; the row, its socket, its layer and 98's hand-over are gone, and an old config still loads. |
 | 103 | [All apps inside the menu](103-all-apps-inside-the-menu.md) | ✅ Done | S | `Apps > All apps` opens a page of the menu rather than Omarchy's launcher: `apps = "all"` is a card per kind and the installed apps behind each, read by the rules 100's picker reads by and launched or focused the same way; `apps = "<kind>"` opens one kind. |
+| 104 | [A clock that was a watch](104-a-clock-that-was-a-watch.md) | ✅ Done | S | The watch face comes off the clock and the stopwatch tiles, and so do the figures it fell back to when small: both are a name and a figure, the way a reading is; the time rides as `t`, the stopwatch still counts, strikes the minute and starts, stops and resets on A; `Clock.qml` and the `clock-*` shapes are gone. |

@@ -2696,11 +2696,11 @@ shows = "left"
 
 [[menu.items.items]]
 label = "Time"
-control = "clock"             # a face with two hands; it reads nothing
+control = "clock"             # the time, as a figure; it reads nothing
 
 [[menu.items.items]]
 label = "Stopwatch"
-control = "chrono"            # the same face with a stopwatch in it
+control = "chrono"            # a stopwatch: A starts, stops, resets
 ```
 
 `reads` names either one of the settings the pad can change — the same names a
@@ -2765,7 +2765,7 @@ share a drawing:
   and a ladder of five corners, already 67° a stop, turns as it always did.
   Neither number does anything under `aim`, which has no gearing to have.
 
-It is two cells square, like the dial and the clock, and it is the one control
+It is two cells square, like the dial, and it is the one control
 that also reads a **list**: its stops are the values, printed round the scale,
 which is what a selector knob has always been. Turning it stops at the ends
 rather than coming round — a press on a `choice` tile still wraps, because
@@ -2784,52 +2784,44 @@ once, each with its own sentence.
 
 **A `clock` reads nothing**, which makes it the one tile with no `reads` at
 all: the time is not a setting, not something the desktop is doing and not
-something the machine publishes. It is a face with an hour hand and a minute
-hand, two cells square like the dial, and A on it does nothing. The menu's own
-header prints the time in figures for somebody who has just opened the menu;
-this is for a glance from across a room, which is the other question — and it
-can be left on screen over a game, where there is no bar to glance at. It is
-the one control besides a reading that [the HUD
+something the machine publishes. It is drawn the way a reading is — its name
+and the time beside it, `13:30`, two cells wide and one tall — and A on it does
+nothing. It can be left on screen over a game, where there is no bar to glance
+at: it is the one control besides a reading that [the HUD
 draws](#the-readings-how-busy-how-full-how-hot).
 
-**A `chrono` is that face with a stopwatch in it**, which is what a chronograph
-is: the time of day on two hands, a sweep hand that measures, and one
-register at six counting the minutes measured to thirty — the Seiko 6139's
-dial, drawn in lines and with no name on it. The figures beside its name
-say the measurement to a tenth, because no hand can say *three minutes and
-twelve*.
+**A `chrono` is a stopwatch**, drawn the way the clock is: its name, and the
+measurement beside it — to a tenth of a second under the hour, `3:12.4`, and to
+the second over it, `1:03:12`.
 
 **A is the pusher**: press to start, press to stop, press to reset, round
 again. One button because a tile owns one — B leaves the menu and X closes it
-everywhere — and it is the cycle a monopusher chronograph has worn since before
-it had two pushers. The line under the card says which of the three the next
+everywhere. The line under the card says which of the three the next
 press is, so `Reset` is read rather than discovered. What it costs is
 resuming: a stopped measurement is thrown away by the next press, not
 restarted.
 
 **It strikes the minute.** A measurement that is running ticks the pad every
-time the sweep hand comes back to twelve, so it can be followed without looking
+time it rolls over another minute, so it can be followed without looking
 at it — which is most of what a stopwatch you are holding is worth over one on
 the wall. The menu can be shut and a game can have the pad; the measurement is
-yours either way. It marks the turn of the hand and only that: an alarm after a
+yours either way. It marks the minute and only that: an alarm after a
 length you set is a different instrument, and this one has no number to set it
 with. `[chrono] rumble = false` leaves it to be read rather than felt.
 
 ```toml
 [chrono]
-rumble = true                 # tick when the sweep hand comes round
+rumble = true                 # tick at every minute measured
 ```
 
 There is **one stopwatch**, however many tiles draw one: start it here, walk to
 another page, and it is the same measurement still running. It ships on
-`System`, and it is the one tile that may not be [left on
+`System`, two rows tall so the band it shares is full, and it is the one tile that may not be [left on
 screen](#the-readings-how-busy-how-full-how-hot) — a pusher over a game is a
 button you cannot reach.
 
 A control tile draws no icon: the control is the picture, and a glyph over a
 switch is the tile saying the same thing twice in the room it has for one.
-A clock is the clearest case — a clock glyph beside a clock face is the tile
-saying it twice.
 Give it a wider `span` when its name will not sit above the control in one
 cell; a bar is three cells and a media tile three by two, and neither needs
 one.
@@ -3163,7 +3155,10 @@ semicolon stays a name rather than becoming a second command.
 
 Picking a row here keeps the menu up and moves the tick to it, because
 choosing an output you cannot hear yet and being thrown back to the desktop
-means opening the menu again to try the other one.
+means opening the menu again to try the other one. Once the command has
+finished, every listing card on the page is read again, and so is the word
+under each card on the bar: picking a resolution changes which rates the
+card beside it offers.
 
 The press does not wait for the command. The page opens the moment the row is
 entered and the devices appear when the answer does, which for a page entered

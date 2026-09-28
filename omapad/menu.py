@@ -158,28 +158,33 @@ ROWS = "rows"
 # that had a twin would be two files to keep in step for one drawing.
 MANY = "many"
 
-# The time, drawn as a face rather than printed as a figure. It is the second
-# tile with nothing to press - `readout` is the first - and the only one that
-# reads nothing at all: what a clock is on is not a setting, not something the
-# desktop is doing and not something the kernel publishes, so it takes no
-# `reads` and the model renders the time itself.
+# The time, printed on a tile. It is the second tile with nothing to press -
+# `readout` is the first - and the only one that reads nothing at all: what a
+# clock is on is not a setting, not something the desktop is doing and not
+# something the kernel publishes, so it takes no `reads` and the model renders
+# the time itself.
 #
-# A face rather than a second `%H:%M` because of where this is looked at. The
-# head's clock is read by somebody who has just opened the menu and is already
-# reading words; a tile is glanced at from across a room, over a game, and
-# what a glance gets off two hands is *roughly when it is*, which is the whole
-# question anybody asks a clock from a sofa.
+# It was a face with two hands, and then a face that fell back to figures
+# when it was drawn too small to read. Both went (decision 104): a watch dial
+# was the one drawing on these surfaces that was about something other than
+# the pad and the desktop, and a tile that is a name and a figure is the shape
+# every reading already has.
 CLOCK = "clock"
 
-# The same face with a stopwatch in it, which is what a chronograph is. It is
-# the clock plus the one thing a clock cannot do - measure - and that is
-# exactly where the two part company: the time of day is rendered at the draw
-# and cannot be wrong, and a measurement is state somebody started. So this
-# one *is* asked of the daemon, where `chrono.py` holds it.
+# What a clock tile prints: the head's shipped format, so the two times on one
+# card never disagree about how a time is written. Not a setting, because the
+# tile is not where the time is configured - the head's `format` is, and a
+# tile that wants a different one is a head cell.
+CLOCK_FORMAT = "%H:%M"
+
+# A stopwatch, which is the one thing a clock cannot do - measure. The time of
+# day is rendered at the draw and cannot be wrong, and a measurement is state
+# somebody started, so this one *is* asked of the daemon, where `chrono.py`
+# holds it.
 #
 # **And it is the one tile with nothing to press that gained a press**, which
 # is why it is not simply an option on the clock: a clock may be drawn over a
-# game because there is nothing on it to reach for, and a chronograph may not
+# game because there is nothing on it to reach for, and a stopwatch may not
 # (see `hud.py`). One name each, and the two are told apart by what a payload
 # carries rather than by a flag somebody has to look up.
 CHRONO = "chrono"
@@ -302,17 +307,10 @@ SPANS = {
     # either side of it, and the thumb inside has to move the same distance
     # both ways or the reading is a lie about where the stick is.
     "gauge": (2, 2),
-    # Square for the same reason, and the same square: a page that holds both
-    # holds two circles, and two circles drawn at two sizes read as a fault
-    # rather than as two tiles. Smaller than this is a face whose hands are a
-    # few pixels apart at ten past two, which is a clock that can only be
-    # read by somebody who already knows the time.
-    "clock": (2, 2),
-    # The same square again, and it has more in it: a sweep hand, a counter
-    # dial and the figures the counter cannot say. Bigger is the obvious
-    # answer and the wrong one - a page where the stopwatch is the largest
-    # thing on it is a page about the stopwatch.
-    "chrono": (2, 2),
+    # A name and a figure on one line, which is a reading's shape and wants a
+    # reading's room: the time, and the measurement a stopwatch has made.
+    "clock": (2, 1),
+    "chrono": (2, 1),
     # Tall, because it is a stack: a heading, the rows under it and the line
     # along the foot. Two wide rather than one because the whole reason a verb
     # is a row here is that a cell could not hold its name.
@@ -363,14 +361,8 @@ class MenuError(ValueError):
     pass
 
 
-def minute_of_day(now=None):
-    """Where both hands of a clock stand, as minutes since midnight.
-
-    **One number rather than an hour and a minute.** An hour hand stands
-    between two hours by exactly how far round the minute hand has got, so a
-    payload carrying the two separately is one that can be sent disagreeing
-    with itself - and the panel would have to know that to draw it, which is
-    geometry this side does not owe it.
+def time_of_day(now=None):
+    """What a clock tile prints: the time, in `CLOCK_FORMAT`.
 
     Local time, because a clock in a room is the room's, and rendered here
     rather than asked of the daemon for the head clock's reason: what costs
@@ -378,7 +370,7 @@ def minute_of_day(now=None):
     has to be waited for.
     """
     stamp = time.localtime() if now is None else time.localtime(now)
-    return stamp.tm_hour * 60 + stamp.tm_min
+    return time.strftime(CLOCK_FORMAT, stamp)
 
 
 def slug(label):
@@ -3502,7 +3494,7 @@ class MenuModel:
         the next, and the panel decides whether to rebuild the page by
         comparing the tiles it was sent with the tiles it has - so a number
         that always differs is every delegate on the page rebuilt twice a
-        second to move one hand. It is the gauge's thumb one control along,
+        second to move one figure. It is the gauge's thumb one control along,
         and `menu_gauge` had already written the warning down.
 
         Asked only where a tile would draw it, and called rather than passed
@@ -3551,14 +3543,11 @@ class MenuModel:
                 row["ty"] = True
             if item["control"]:
                 row["k"] = item["control"]
-                if item["control"] in (CLOCK, CHRONO):
-                    # The time of day, on both faces that have hands. This
+                if item["control"] == CLOCK:
+                    # The time of day, as the figure a reading carries. This
                     # module works it out itself - it can, because a clock
-                    # reads nothing and there is no table to be handed;
-                    # `minute_of_day` says why it is one number and why it is
-                    # rendered on this side. A chronograph still tells the
-                    # time: what it adds is the thing a clock cannot do.
-                    row["mn"] = minute_of_day()
+                    # reads nothing and there is no table to be handed.
+                    row["t"] = time_of_day()
                 if item["shows"]:
                     row["s"] = item["shows"]
                 if item["id"] == self.taken:
@@ -3694,6 +3683,6 @@ class MenuModel:
             # Off the wire entirely for a page with no chronograph on it, so
             # every other page costs nothing for this one existing - and there
             # is one field rather than one per tile because there is one
-            # stopwatch, however many faces are drawn of it.
+            # stopwatch, however many tiles are drawn of it.
             state_out["chrono"] = measured
         return state_out

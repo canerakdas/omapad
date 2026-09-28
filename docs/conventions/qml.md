@@ -160,7 +160,7 @@ function applyState(text) {
 that differs on every push, carried inside a model, makes the whole model
 differ on every push - so `fresh()` answers true twice a second, the Repeater
 rebuilds every delegate, and the panel pays the full price of a page to move
-one hand. Measured on the menu: **13% of a core**, for a chronograph tile
+one hand. Measured on the menu: **13% of a core**, for a stopwatch tile
 whose seconds rode along with its own cells. The fix is where the value lives
 rather than anything here - it went to the surface level, beside `hd` and
 `count`, and the tiles went back to being identical between two payloads. The
@@ -439,8 +439,8 @@ colour it was drawn with.
 **8.4** Both are **generated**. Edit `assets/shapes/` or a table in
 `assets/generate.py` and re-run it. `ControlArt.qml` holds every figure of a
 control whose silhouette is the same at every value - a turning one included,
-because an angle is a transform and not a second drawing, so a clock's hands
-and a knob's pointer are drawings there. What is geometry, and so the panel's,
+because an angle is a transform and not a second drawing, so a knob's pointer
+is a drawing there. What is geometry, and so the panel's,
 is what a number redraws: an arc that grows along a ring, a disc whose radius
 is a setting, a track as wide as the tile.
 

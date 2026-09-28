@@ -47,6 +47,16 @@ and go back - so under the menu, the guide or the mapping wizard the numbers
 go with the badges that flanked them. A row of numbers no press steps through
 is the one thing this bar promised never to print.
 
+So does the row of hints over bare wallpaper. With no window in front, the
+shipped X, Y and R3 - the middle click, the context menu and Back - have
+nothing to land on, so a binding that only drives the pointer is left off
+there (`lands_nowhere`), unless it says `bar = true`. The row is empty then
+because nothing is in front, not because the pad has been handed to anything,
+so the "The pad is the game's" note stays off too. `Daemon.set_focus()`
+repaints the bar when focus moves between a window and nothing, because a
+window matching no profile and an empty workspace resolve the same bindings,
+so a profile swap would not trigger a repaint.
+
 A surface is a layer, so opening one rewrites every hint. A press repaints the
 bar on its way out of `handle_button`, but `omapad ctl menu open` and a shell
 keybind have no press behind them: `Daemon.relabel_gamebar()` is what the four

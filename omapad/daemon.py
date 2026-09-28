@@ -336,6 +336,12 @@ MENU_SCRUB_HOLD = 0.2
 # half a second here, most of it Omarchy's own hiding script.
 APPS_TIMEOUT = 10.0
 
+# How long a row a listing found is waited for before the page is read again
+# anyway, in seconds. Not a setting: it is a guard against a command that
+# does not come back, and the ones that ship - a mode, an output - take a
+# fraction of a second.
+PICK_WAIT = 10.0
+
 # Where a ring's scale starts and how far round it goes, in degrees clockwise
 # from three o'clock - the same convention `atan2(y, x)` answers in with `y`
 # down the screen. **Not a setting: it is the drawing's own geometry**, and an
@@ -819,6 +825,9 @@ class Daemon:
         # front is due to be asked. See `menu_cards_settled`.
         self._menu_cards_page = ""
         self._menu_cards_due = 0.0
+        # A row a listing found that has been run and not yet come back:
+        # (process, when to stop waiting for it). See `menu_pick`.
+        self._menu_pick = None
 
         # The keyboard on the desk. Opened only while one of our surfaces is
         # up, so a panel is never something you have to find the pad to send
@@ -1371,6 +1380,7 @@ class Daemon:
                 self.available_buttons(),
                 self.mode,
                 self.config.gamebar_omit,
+                bool(self.focus_class),
             ))
         )
 
@@ -2100,11 +2110,12 @@ class Daemon:
         if not isinstance(info, dict):
             return
         self.focus_pid = info.get("pid") or None
-        if info.get("class"):
-            self.set_focus(
-                str(info["class"]).strip(),
-                str(info.get("title") or "").strip(),
-            )
+        # An empty answer is an empty workspace, and that is news too: the
+        # window that was in front before the stream dropped is not any more.
+        self.set_focus(
+            str(info.get("class") or "").strip(),
+            str(info.get("title") or "").strip(),
+        )
         # Asked after the class and not before it: a profile may refuse the
         # hand-off outright, and the profile is what set_focus swaps in. The
         # other way round, every focus change answered for the window that
@@ -2185,9 +2196,15 @@ class Daemon:
 
     def set_focus(self, window_class, title):
         """Remember what is in front, and swap the profile that follows it."""
+        was_bare = not self.focus_class
         self.focus_class = window_class
         self.focus_title = title
         self.set_active_profile(window_class)
+        if was_bare != (not window_class) and self.gamebar_open:
+            # Bare wallpaper and a window that matches no profile resolve the
+            # same bindings, so the profile swap above repaints neither - but
+            # a click only has something to land on over one of them.
+            self.push_gamebar_view()
 
     def set_active_profile(self, window_class):
         """Swap the active app profile for the focused window's class."""
@@ -4935,6 +4952,45 @@ class Daemon:
         for tile in self.menu.tiles:
             self.menu_fill(tile["item"])
 
+    def menu_pick(self, action):
+        """Run a row a listing found, and read the page again once it is done.
+
+        **A pick changes more than the row it was made on.** A resolution
+        takes the rates beside it with it - they are the rates *that* size is
+        offered at - and the bar's `1080p · 60 Hz` is the same fact a third
+        time. `choose` moves the tick on the card that was pressed, at once;
+        what it cannot know is what the other cards should now say, and
+        reading them while the command is still running reads the mode it is
+        about to replace. So the process is kept, and `menu_pick_settled`
+        reads every listing card on the page, and every `meta`, when it has
+        exited - or after `PICK_WAIT`, for one that never does.
+        """
+        if not self.allowed(action, "menu"):
+            return
+        self.pointer_away(action)
+        self._menu_pick = (self.session.spawn(action.command),
+                           time.monotonic() + PICK_WAIT)
+
+    def menu_pick_settled(self, now):
+        """Read the page again once a picked row has run. Called from the loop."""
+        if self._menu_pick is None:
+            return
+        process, due = self._menu_pick
+        if process is not None and process.poll() is None and now < due:
+            return
+        self._menu_pick = None
+        if not self.menu_open:
+            return
+        for tile in self.menu.tiles:
+            # Cards only: a listed *page* on this page is read when it is
+            # entered, and asking it now would be a command for a page
+            # nobody has opened.
+            if tile["item"].get("control") == ROWS:
+                self.menu_fill(tile["item"])
+        # Stale now, whatever their ttl said.
+        self._menu_meta_due.clear()
+        self.menu_meta_refresh()
+
     def menu_select_group(self, index):
         """Name a chip outright - what a pointer clicking one asks for."""
         if not self.menu_open:
@@ -5261,7 +5317,11 @@ class Daemon:
                 # badge layout is in force, whether the motor is on. Picking
                 # one and being thrown back to the desktop to see what it did
                 # is how you end up opening the menu once per thing you try.
-                self.fire_once(item["action"], "menu")
+                if item.get("listed") and isinstance(
+                        item["action"], actions.ExecAction):
+                    self.menu_pick(item["action"])
+                else:
+                    self.fire_once(item["action"], "menu")
                 if item.get("listed"):
                     model.choose(item)
             elif kind == "run":
@@ -5294,8 +5354,8 @@ class Daemon:
 
         Asked of `current` rather than of `acting`: a card of rows is what
         `acting` exists for, and nothing inside one is a chronograph - a row
-        is a line of text and every control this surface has is a card's worth
-        of drawing.
+        is a line of text and every control this surface has is a card of its
+        own.
         """
         if not self.menu_open or self.menu.edit:
             return False
@@ -5322,7 +5382,7 @@ class Daemon:
         self.push_menu_view()
 
     def check_chrono(self, now):
-        """The minute mark: a tick when the sweep hand comes back to twelve.
+        """The minute mark: a tick each time the measurement rolls a minute.
 
         Here rather than beside the menu's own heartbeat, and asked whether
         the menu is open or not: the measurement outlives the page it was
@@ -5338,11 +5398,11 @@ class Daemon:
         was never asked.
 
         How late the mark is, is the loop's own idle poll - a quarter of a
-        second at worst, against a hand that takes a minute to come round.
+        second at worst, against a mark that comes once a minute.
         """
-        # The hand is asked whether the switch is on or not, so the count
+        # The stopwatch is asked whether the switch is on or not, so the count
         # follows the measurement rather than the setting: a switch turned on
-        # halfway through one waits for the next turn instead of answering a
+        # halfway through one waits for the next minute instead of answering a
         # mark that went by while nothing was listening.
         if self.chrono.strike(now) and self.config.chrono_rumble:
             self.rumble.play("tick")
@@ -7466,6 +7526,7 @@ class Daemon:
                 if self.menu_open:
                     self.menu_group_settled(now)
                     self.menu_cards_settled(now)
+                    self.menu_pick_settled(now)
                     self.menu_head_refresh()
                     self.menu_meta_refresh()
                     self.menu_text_refresh(now)

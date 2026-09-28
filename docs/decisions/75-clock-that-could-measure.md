@@ -79,3 +79,8 @@ six, saying nothing you could read off the face - so `[chrono] rumble` is a
 switch with no number beside it. An alarm you set is a different instrument,
 and it would want a face saying what it is counting to before it wanted a
 motor.
+
+**The face is gone ([104](104-a-clock-that-was-a-watch.md)); the stopwatch
+stays.** One measurement, one pusher on A, the legend's three words and the
+minute's tick are all still what this built - printed as figures beside the
+tile's name rather than drawn on a dial.

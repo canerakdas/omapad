@@ -187,7 +187,7 @@ buzz.
   `[snap] rumble` and from `[mode] rumble` - the mode switch, whose result is
   across the room rather than under the thumb.
 - **One of them answers no press at all**: `[chrono] rumble` ticks when a
-  running stopwatch's sweep hand comes back to twelve
+  running stopwatch rolls over another minute
   ([`chrono.md`](chrono.md)). The motor alone rather than `say()`, because
   there was nothing to answer: a noise made at somebody once a minute for as
   long as a measurement is left running is a machine talking to itself.

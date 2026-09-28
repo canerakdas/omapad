@@ -133,6 +133,14 @@ def _pointer_half(spec, row):
     return _tap_of(spec)
 
 
+def lands_nowhere(spec):
+    """True for a binding that only drives the pointer. See `actions`."""
+    actions = [a for a in _spec_actions(spec) if isinstance(a, str)]
+    return bool(actions) and all(
+        action.strip().startswith(POINTER) for action in actions
+    )
+
+
 def offered_to_a_pointer(spec, row):
     """Whether a click on this row may fire it at all. See POINTER."""
     action = _pointer_half(spec, row)
@@ -247,7 +255,16 @@ class GameBarModel:
             found.setdefault(side, (button, locked))
         return found
 
-    def actions(self, resolve, available, exclude=(), omit=COMMON):
+    def actions(self, resolve, available, exclude=(), omit=COMMON,
+                focused=True):
+        """The row of hints. `focused` is whether a window is in front.
+
+        With none, a click has nothing to land on: the middle click, the
+        context menu and Back over bare wallpaper do nothing, and three slots
+        spent saying so is the bar promising what a press will not do. The
+        pointer can still be over a window that is not focused, but not
+        often - Hyprland's focus follows it - so the wallpaper is the case.
+        """
         kinds = self.config.gamebar_kinds
         wanted = []
         rest = []
@@ -263,6 +280,8 @@ class GameBarModel:
                     continue  # not the half of the pad that changes; see HINTED
                 if _tap_of(spec) in omit:
                     continue  # the same everywhere: printing it says nothing
+                if not focused and lands_nowhere(spec):
+                    continue  # nothing in front for it to click on
             # The guide already turns a binding into words, and a hint that
             # disagreed with the guide would be worse than no hint. It is
             # asked for the short form of them: the guide is read from a page
@@ -286,8 +305,12 @@ class GameBarModel:
         chosen = chosen + rest[:MAX_ACTIONS - len(chosen)]
         return sorted(chosen, key=lambda row: PREFERRED.index(row["n"]))
 
-    def view_state(self, opened, resolve, available, mode, omit=COMMON):
-        """What the shell draws. `resolve` answers with the live binding."""
+    def view_state(self, opened, resolve, available, mode, omit=COMMON,
+                   focused=True):
+        """What the shell draws. `resolve` answers with the live binding.
+
+        `focused` is whether a window is in front; see `actions`.
+        """
         # The menu has its own place on the left, and a button printed in both
         # halves of the bar reads as two different things you can press.
         opener = self.menu_button(resolve, available)
@@ -295,7 +318,9 @@ class GameBarModel:
         # A button already drawn somewhere on the bar is not drawn again: one
         # printed twice reads as two different things you can press.
         spoken = (opener,) + tuple(button for button, _ in walkers.values())
-        actions = self.actions(resolve, available, exclude=spoken, omit=omit)
+        actions = self.actions(
+            resolve, available, exclude=spoken, omit=omit, focused=focused
+        )
         return {
             "open": opened,
             "mode": mode,
@@ -346,6 +371,8 @@ class GameBarModel:
             # same button does not flash a fill nobody was asking for.
             "fill_delay_ms": self.config.gamebar_fill_delay_ms,
             # Said out loud rather than left as an empty strip: an empty row is
-            # indistinguishable from a bar that has failed to load.
-            "note": "" if actions else "The pad is the game's",
+            # indistinguishable from a bar that has failed to load. Not over
+            # bare wallpaper, where the row is empty because there is nothing
+            # in front to act on, and the pad is nobody's.
+            "note": "" if actions or not focused else "The pad is the game's",
         }

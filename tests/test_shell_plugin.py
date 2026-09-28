@@ -693,10 +693,10 @@ class ShortPushTests(unittest.TestCase):
     """What a payload that carries almost nothing is not allowed to say.
 
     Three fields on this surface mean *gone* by being absent: the
-    chronograph, the row held towards running, the row counting down. The
+    stopwatch, the row held towards running, the row counting down. The
     short push carries none of them because it carries almost nothing, so
-    read as authoritative it ends all three - which on screen is a clock
-    losing its sub-dials for as long as a ring is being turned. The guard is
+    read as authoritative it ends all three - which on screen is a stopwatch
+    losing its figures for as long as a ring is being turned. The guard is
     one `var whole` and it is the kind of thing a later edit drops without
     noticing, so it is held here.
     """
