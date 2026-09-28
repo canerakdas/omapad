@@ -39,6 +39,7 @@ socket between them.
 | [Terminal](terminal.md) | `omapad/terminal.py` | Whether the window in front is running a command, or waiting at a prompt. |
 | [Live](live.md) | `omapad/live.py` | How loud it is, how bright, and what is playing. |
 | [Machine readings](hud.md) | `omapad/sysinfo.py` | How busy the machine is, how full, how hot - from the kernel rather than a helper. |
+| [Installed apps](apps.md) | `omapad/apps.py` | What the Add picker offers, read by the rules Omarchy's launcher reads by, and how one is started. |
 
 ## The surfaces
 

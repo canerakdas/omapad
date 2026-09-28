@@ -11,6 +11,7 @@ import stat
 import time
 
 from . import actions, keymap, linux_input as li
+from . import apps as apps_module
 from .actions import MappingAction
 from .config import (
     CHOSEN, DPAD_NAMES, SURFACES, layout_path, mapping_path, render_layout,
@@ -233,16 +234,19 @@ EDIT_KEYS = {
     "L": {"tap": "menu:group_prev", "desc": "Previous page",
           "short": "Previous"},
     "R": {"tap": "menu:group_next", "desc": "Next page", "short": "Next"},
-    # A heading goes on the page from here, over the tile in front. ZR because
-    # it is the one button this state has left: the triggers say shorter and
-    # taller with a tile in the hand and nothing at all with an empty one.
-    "ZR": {"tap": "menu:heading", "desc": "Add a heading here",
-           "short": "Heading"},
+    # **One button for everything that can be added**, and a picker under it:
+    # a heading, an installed app, a tile from any page of the menu. ZR
+    # because it is the one button this state has left - the triggers say
+    # shorter and taller with a tile in the hand and nothing at all with an
+    # empty one - and one rather than a button per kind of thing, because a
+    # mode that spent one on each would print a legend of them (decision
+    # 100). A heading was ZR's alone until the picker; it is its first row.
+    "ZR": {"tap": "menu:add", "desc": "Add to this page", "short": "Add"},
 }
 
 # And on a heading made from the pad, which is the one tile here with words
-# somebody typed: X takes it off for good rather than into the strip, since
-# the strip holds what the config has, and ZL types its words again.
+# somebody typed: X deletes it rather than taking it off, since `removed`
+# is a list of what the config has, and ZL types its words again.
 EDIT_HEADING_KEYS = dict(
     EDIT_KEYS,
     X={"tap": "menu:remove", "desc": "Delete the heading", "short": "Delete"},
@@ -268,22 +272,14 @@ EDIT_CARRY_KEYS = {
     "ZR": {"tap": "menu:taller", "desc": "Taller", "short": "Taller"},
 }
 
-# And in the strip along the foot, where what a press acts on is a tile that
-# is on no page at all. A still commits - putting one down on the page in
-# front is what commit is saying here - and X is still the verb that takes a
-# tile off a page and puts it back on one, one place along.
-EDIT_REMOVED_KEYS = {
-    "A": {"tap": "menu:place", "desc": "Put it on this page",
-          "short": "Place"},
-    "B": {"tap": "menu:edit_off", "desc": "Done rearranging",
-          "short": "Done"},
-    "X": {"tap": "menu:put_back", "desc": "Put it back where it was",
-          "short": "Return"},
-    "Y": {"tap": "menu:restore", "desc": "Back to the shipped page",
-          "short": "Reset"},
-    "L": {"tap": "menu:group_prev", "desc": "Previous page",
-          "short": "Previous"},
-    "R": {"tap": "menu:group_next", "desc": "Next page", "short": "Next"},
+# And in the picker ZR opens, where the page in front is choices rather than
+# tiles to arrange. A goes in or adds what is in front and B comes back out,
+# the contract exactly, and nothing else is spent: a picker page is not
+# walked away from sideways, and there is nothing on it to size or remove.
+EDIT_ADD_KEYS = {
+    "A": {"tap": "menu:add_pick", "desc": "Add it, or open the list",
+          "short": "Choose"},
+    "B": {"tap": "menu:add_back", "desc": "Back", "short": "Back"},
 }
 
 # Every button the mode borrows, whichever state it is in. `surface_override`
@@ -291,7 +287,7 @@ EDIT_REMOVED_KEYS = {
 # hand, and a press that fell through to the window layer while the menu was
 # being rearranged would be a layer opening silently underneath a card.
 EDIT_ANY = frozenset(EDIT_KEYS) | frozenset(EDIT_CARRY_KEYS) \
-    | frozenset(EDIT_REMOVED_KEYS) | frozenset(EDIT_HEADING_KEYS)
+    | frozenset(EDIT_ADD_KEYS) | frozenset(EDIT_HEADING_KEYS)
 
 # Which table is which, by the name `edit_state` answers with. A mapping
 # rather than a branch for `EDIT_KEYS`' own reason: the name is also the
@@ -299,7 +295,7 @@ EDIT_ANY = frozenset(EDIT_KEYS) | frozenset(EDIT_CARRY_KEYS) \
 EDIT_TABLES = {
     "edit": EDIT_KEYS,
     "edit-carry": EDIT_CARRY_KEYS,
-    "edit-removed": EDIT_REMOVED_KEYS,
+    "edit-add": EDIT_ADD_KEYS,
     "edit-heading": EDIT_HEADING_KEYS,
 }
 
@@ -331,6 +327,11 @@ _RESIZE = {
 # halves together. Not a setting: it is a property of the repeat rate rather
 # than anything to taste.
 MENU_SCRUB_HOLD = 0.2
+
+# How long reading what is installed may take, in seconds. Not a setting: it
+# is a guard against a hung script rather than a taste, and the reading takes
+# half a second here, most of it Omarchy's own hiding script.
+APPS_TIMEOUT = 10.0
 
 # Where a ring's scale starts and how far round it goes, in degrees clockwise
 # from three o'clock - the same convention `atan2(y, x)` answers in with `y`
@@ -598,6 +599,9 @@ class Daemon:
                               page_rows={config.hud_page: config.hud_rows})
         self.menu_client = ViewClient("menu.sock", config.menu_socket)
         self.menu_open = False
+        # Whether what is installed is being read right now, so rearranging
+        # begun twice in the half second it takes does not ask twice.
+        self._apps_asked = False
         # **One chronograph, however many tiles draw one.** A stopwatch is a
         # thing in the room rather than a property of a cell: start it on the
         # page you were on and it is the same measurement on the next one. It
@@ -1702,16 +1706,16 @@ class Daemon:
         self._focus_held.clear()
 
     def edit_state(self):
-        """Which of the three rearranging tables is in force, by name.
+        """Which of the rearranging tables is in force, by name.
 
         A name rather than the table itself, because it is also a **cache
         key**: `page_key_binding` holds one binding per page and button, and
-        while a page is being rearranged one button is three specs.
+        while a page is being rearranged one button is several specs.
         """
         if not self.menu_open or not self.menu.edit:
             return ""
-        if self.menu.in_removed:
-            return "edit-removed"
+        if self.menu.adding is not None:
+            return "edit-add"
         if self.menu.picked is not None:
             return "edit-carry"
         if self.menu.heading() is not None:
@@ -1721,12 +1725,13 @@ class Daemon:
     def edit_keys(self):
         """What the buttons mean while rearranging, for the state it is in.
 
-        **Three tables rather than one**, and the state is what the hand is
-        holding: nothing, a tile, or a tile out of the strip. Two of the
-        eight buttons say nothing at all in two of those states - a page is
-        not walked away from with a tile in the hand, and a tile that is on
-        no page has no cell to be made wider - so a single table would print
-        a legend of eight rows, half of which answer a press with nothing.
+        **A table per state rather than one**, and the state is what the
+        hand is holding: nothing, a tile, a heading made from the pad, or a
+        choice in the picker. Most of the eight buttons say nothing at all in
+        one state or another - a page is not walked away from with a tile in
+        the hand, and a choice in a picker has no cell to be made wider - so
+        a single table would print a legend of eight rows, half of which
+        answer a press with nothing.
 
         None where the mode is off, which is what the callers ask about.
         One function decides which state this is (`edit_state`) and this maps
@@ -3219,6 +3224,34 @@ class Daemon:
             fill(self.session.capture(
                 item["from"], self.config.menu_list_timeout
             ))
+
+    def apps_refresh(self):
+        """Read what is installed again, off the loop, and redraw on the answer.
+
+        `apps.py` is Omarchy's launcher's rules run as a command - half a
+        second, most of it Omarchy's own hiding script - so it goes to the
+        command worker like any listing. Asked when the daemon starts and
+        whenever rearranging begins, which is the moment somebody may be
+        about to open the picker: an app installed since is in it, and one
+        taken away leaves the page it was put on.
+        """
+        if self._apps_asked:
+            return
+        self._apps_asked = True
+
+        def done(lines):
+            self._apps_asked = False
+            self.menu.apps = apps_module.parse(lines)
+            log.info("apps: %d installed", len(self.menu.apps))
+            # Anything on the page in front that is an app was drawn without
+            # knowing, or knowing less.
+            self.menu.repack()
+            if self.menu_open:
+                self.push_menu_view()
+
+        command = apps_module.command()
+        if not self.submit_command(command, done, APPS_TIMEOUT):
+            done(self.session.capture(command, APPS_TIMEOUT))
 
     def menu_select(self, index):
         """Jump the selection to one row - what a pointer hovering asks for.
@@ -4824,7 +4857,8 @@ class Daemon:
                   if page and (plan.get("order") or plan.get("removed")
                                or plan.get("span") or plan.get("at")
                                or plan.get("adopted")
-                               or plan.get("headings"))}
+                               or plan.get("headings")
+                               or plan.get("apps"))}
         path = layout_path()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -4893,14 +4927,6 @@ class Daemon:
         self.menu_group_enter()
         self.push_menu_view()
 
-    def menu_select_removed(self, index):
-        """Name a tile in the strip - what a pointer clicking one asks for."""
-        if not self.menu_open:
-            return
-        if self.menu.select_removed(index):
-            self.say("move", rumble=False)
-        self.push_menu_view()
-
     def menu_command(self, command, repeat=False):
         """Drive the menu. True when holding the button should keep firing.
 
@@ -4955,10 +4981,41 @@ class Daemon:
         if command in ("edit", "edit_on", "edit_off"):
             want = (not model.edit if command == "edit"
                     else command == "edit_on")
-            if model.set_edit(want) and not want:
-                # Leaving is when it is written down, which is what B means
-                # here: the arrangement you walked away from is the one kept.
-                self.menu_layout_save()
+            if model.set_edit(want):
+                if want:
+                    # Read what is installed now, so the picker has it by
+                    # the time a thumb gets to it - a moment, off the loop.
+                    self.apps_refresh()
+                else:
+                    # Leaving is when it is written down, which is what B
+                    # means here: the arrangement you walked away from is
+                    # the one kept.
+                    self.menu_layout_save()
+            self.push_menu_view()
+            return False
+        if command in ("add", "add_pick", "add_back"):
+            if not model.edit:
+                return False
+            if command == "add":
+                if model.add_open():
+                    self.say("show")
+                else:
+                    self.menu_edge()
+            elif command == "add_back":
+                if model.add_back():
+                    self.say("back")
+            else:
+                done = model.add_choose()
+                if done is None:
+                    self.menu_edge()
+                elif done[0] == "enter":
+                    self.say("show")
+                else:
+                    self.say("commit")
+                    self.hud_rearranged()
+                    if done[0] == "heading":
+                        # The next thing a heading wants is its words.
+                        self.menu_type_start(done[1])
             self.push_menu_view()
             return False
         if command == "save":
@@ -4978,7 +5035,7 @@ class Daemon:
                 self.menu_type_start(name)
             self.push_menu_view()
             return False
-        if command in ("pick", "remove", "hide", "place", "put_back",
+        if command in ("pick", "remove", "hide",
                        "restore", "wider", "narrower", "taller", "shorter"):
             if not model.edit:
                 # Said rather than done quietly: every one of these is a
@@ -4992,18 +5049,6 @@ class Daemon:
                 # page had nowhere to go but the page it came off. A config
                 # or a script that still says it still means this.
                 if model.remove():
-                    self.say("commit")
-                    self.hud_rearranged()
-                else:
-                    self.menu_edge()
-            elif command == "place":
-                if model.removed_place():
-                    self.say("commit")
-                    self.hud_rearranged()
-                else:
-                    self.menu_edge()
-            elif command == "put_back":
-                if model.removed_return():
                     self.say("commit")
                     self.hud_rearranged()
                 else:
@@ -5022,40 +5067,14 @@ class Daemon:
             # What A and B are bound to while editing - but a press can also
             # arrive from the control socket, which has no bindings at all,
             # and `omapad ctl menu press` has to mean what the pad means.
-            # Which includes what it means in the strip, where the tile A
-            # commits is the one that is on no page yet.
+            # Which includes what it means in the picker, where A chooses
+            # and B comes back out.
+            if model.adding is not None:
+                return self.menu_command(
+                    "add_back" if command == "back" else "add_pick")
             if command == "back":
                 return self.menu_command("edit_off")
-            return self.menu_command("place" if model.in_removed else "pick")
-        if model.edit and command in ("up", "down", "left", "right"):
-            if model.in_removed:
-                # The strip runs along the foot of the card, so the page is
-                # above it: left and right walk it, up is the way back onto
-                # the page, and down is the bottom of the surface.
-                if command in ("left", "right"):
-                    if model.removed_step(command):
-                        self.say("move", rumble=False)
-                    else:
-                        self.menu_edge()
-                elif command == "up" and model.removed_leave():
-                    self.say("move", rumble=False)
-                else:
-                    self.menu_edge()
-                self.push_menu_view()
-                return True
-            if command == "down" and model.picked is None:
-                # **Down at the bottom of the page reaches the strip**, and
-                # only there: a press that left the page while there was
-                # still a row under it would be a page nobody could get to
-                # the end of. It costs no button, which is the whole
-                # argument - the mode already spends six, and a direction
-                # that did nothing at all is what was there before.
-                if model.step("down") or model.removed_enter():
-                    self.say("move", rumble=False)
-                else:
-                    self.menu_edge()
-                self.push_menu_view()
-                return True
+            return self.menu_command("pick")
         if command in ("up", "down", "left", "right") and model.picked:
             # A tile being carried takes the directions the selection would
             # have had: it is the thing the thumb is moving.
@@ -6230,14 +6249,6 @@ class Daemon:
                 except ValueError:
                     return "unknown menu command: group %s" % args[1]
                 self.menu_select_group(index)
-            elif command == "removed" and len(args) > 1:
-                # The tile a pointer clicked in the strip along the foot, the
-                # same way `select` names one on the page.
-                try:
-                    index = int(args[1])
-                except ValueError:
-                    return "unknown menu command: removed %s" % args[1]
-                self.menu_select_removed(index)
             elif command in MenuAction.SIMPLE:
                 self.menu_command(command)
             else:
@@ -7571,6 +7582,11 @@ class Daemon:
 
     def run(self):
         self.start()
+        # What is installed, for the apps a page was given from the pad. Here
+        # rather than in the constructor: it is a subprocess, and a daemon
+        # built only to be looked at - every test builds one - must not
+        # start one.
+        self.apps_refresh()
         interval = 1.0 / self.config.poll_hz
         last = time.monotonic()
         poller = select.poll()

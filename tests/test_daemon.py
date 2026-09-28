@@ -5727,10 +5727,14 @@ class HeadingTests(DaemonTestCase):
         self.release(name)
 
     def heading(self):
+        # ZR opens the picker, and a heading is its first row - where the
+        # selection lands - so A is the second press.
         self.tap("ZR")
+        self.assertIsNotNone(self.daemon.menu.adding)
+        self.tap("A")
         return self.daemon.menu.typing
 
-    def test_zr_puts_one_down_and_opens_the_keyboard_over_the_menu(self):
+    def test_zr_then_a_puts_one_down_and_opens_the_keyboard(self):
         first = self.daemon.menu.selected
         name = self.heading()
         self.assertEqual(name, "#1")
@@ -5802,7 +5806,7 @@ class HeadingTests(DaemonTestCase):
         self.assertEqual(self.daemon.menu.selected, "#1")
         self.assertEqual(self.legend(),
                          ["Move", "Done", "Delete", "Reset",
-                          "Previous", "Next", "Retype", "Heading"])
+                          "Previous", "Next", "Retype", "Add"])
         self.tap("ZL")
         self.assertEqual(self.daemon.menu.typing, "#1")
         self.tap("X")
@@ -5813,7 +5817,7 @@ class HeadingTests(DaemonTestCase):
         self.assertEqual(self.daemon.menu.heading("#1"), "New")
         self.tap("X")
         self.assertIsNone(self.daemon.menu.heading("#1"))
-        self.assertEqual(self.daemon.menu.removed(), [])
+        self.assertEqual(self.daemon.menu.plan()["removed"], [])
 
     def test_leaving_the_mode_walks_past_it(self):
         self.heading()
@@ -5884,11 +5888,11 @@ class EditModeTests(DaemonTestCase):
         # It is the discoverability surface, and it prints the state the
         # mode is in: with an empty hand the shoulders walk the bar, because
         # the page a tile is going to is not the page it came off - and ZR,
-        # which has nothing to size with an empty hand, puts a heading down.
+        # which has nothing to size with an empty hand, opens the picker.
         self.daemon.menu_command("edit")
         self.assertEqual(self.legend(),
                          ["Move", "Done", "Remove", "Reset",
-                          "Previous", "Next", "Heading"])
+                          "Previous", "Next", "Add"])
 
     def test_the_sizes_are_the_legend_with_a_tile_in_the_hand(self):
         # And the two triggers, which say nothing in either of the other
@@ -5899,13 +5903,10 @@ class EditModeTests(DaemonTestCase):
                          ["Drop", "Done", "Remove", "Reset",
                           "Narrower", "Wider", "Shorter", "Taller"])
 
-    def test_the_strip_has_a_legend_of_its_own(self):
+    def test_the_picker_has_a_legend_of_its_own(self):
         self.daemon.menu_command("edit")
-        self.daemon.menu_command("remove")
-        self.assertTrue(self.into_the_strip())
-        self.assertEqual(self.legend(),
-                         ["Place", "Done", "Return", "Reset",
-                          "Previous", "Next"])
+        self.daemon.menu_command("add")
+        self.assertEqual(self.legend(), ["Choose", "Back"])
 
     def test_what_the_legend_prints_is_what_a_press_does(self):
         # One table per state, read by both, so they cannot drift apart.
@@ -5926,12 +5927,10 @@ class EditModeTests(DaemonTestCase):
             self.assertEqual(
                 self.daemon.menu_key_spec(button)["tap"], command, button)
         self.daemon.menu_command("pick")
-        self.daemon.menu_command("remove")
-        self.assertTrue(self.into_the_strip())
-        for button, command in (("A", "menu:place"),
-                                ("X", "menu:put_back"),
-                                ("L", "menu:group_prev"),
-                                ("R", "menu:group_next")):
+        self.assertEqual(self.daemon.menu_key_spec("ZR")["tap"], "menu:add")
+        self.daemon.menu_command("add")
+        for button, command in (("A", "menu:add_pick"),
+                                ("B", "menu:add_back")):
             self.assertEqual(
                 self.daemon.menu_key_spec(button)["tap"], command, button)
 
@@ -6188,22 +6187,17 @@ class EditModeTests(DaemonTestCase):
         self.daemon.menu_command("left")     # already first
         self.assertIn(self.daemon.rumble.effects["edge"], self.device.played)
 
-    def into_the_strip(self):
-        """Walk down off the bottom of the page, the way a thumb does."""
-        for _ in range(20):
-            if self.daemon.menu.in_removed:
-                return True
-            self.daemon.menu_command("down")
-        return False
+    def choose(self, name):
+        """Put the selection on one choice of the picker and press A."""
+        self.assertTrue(self.daemon.menu.select_id(name), name)
+        self.daemon.menu_command("press")
 
-    def test_removing_takes_a_tile_off_the_page_and_into_the_strip(self):
+    def test_removing_takes_a_tile_off_the_page_and_writes_it_down(self):
         self.daemon.menu_command("edit")
         name = self.order()[0]
         self.daemon.menu_command("remove")
         self.assertNotIn(name, self.order())
-        sent = self.menu_client.sent[-1]
-        self.assertEqual([chip["id"] for chip in sent["rm"]],
-                         ["controller/" + name])
+        self.assertNotIn("rm", self.menu_client.sent[-1])
         self.daemon.menu_command("edit_off")
         self.assertNotIn(name, self.order())
         self.assertIn("removed = [", self.written())
@@ -6216,32 +6210,61 @@ class EditModeTests(DaemonTestCase):
         self.daemon.menu_command("hide")
         self.assertNotIn(name, self.order())
 
-    def test_down_at_the_bottom_of_the_page_reaches_the_strip(self):
+    def test_a_tile_is_taken_off_one_page_and_added_to_another(self):
         self.daemon.menu_command("edit")
         name = self.order()[0]
         self.daemon.menu_command("remove")
-        self.assertTrue(self.into_the_strip())
-        sent = self.menu_client.sent[-1]
-        self.assertEqual(sent["rmat"], 0)
-        self.daemon.menu_command("up")
-        self.assertFalse(self.daemon.menu.in_removed)
-        self.assertEqual(self.menu_client.sent[-1]["rmat"], -1)
-
-    def test_a_tile_is_taken_off_one_page_and_placed_on_another(self):
-        self.daemon.menu_command("edit")
-        name = self.order()[0]
-        self.daemon.menu_command("remove")
-        self.assertTrue(self.into_the_strip())
         page = self.daemon.menu.page()
         self.daemon.menu_command("group_next")
         self.assertNotEqual(self.daemon.menu.page(), page)
-        self.daemon.menu_command("press")
+        self.daemon.menu_command("add")
+        self.assertTrue(self.menu_client.sent[-1]["add"])
+        self.choose(menu_module.PICKER_MARK + "menu")
+        self.choose(menu_module.PICKER_MARK + "page-" + page)
         here = "%s/%s" % (page, name)
+        self.choose("tile:" + here)
+        self.assertIsNone(self.daemon.menu.adding)
         self.assertIn(here, self.order())
         self.assertEqual(self.daemon.menu.picked, here)
         self.daemon.menu_command("edit_off")
         self.assertIn("adopted = [", self.written())
         self.assertIn(here, self.order())
+
+    def test_b_comes_back_out_of_the_picker_a_page_at_a_time(self):
+        self.daemon.menu_command("edit")
+        page = self.daemon.menu.page()
+        self.daemon.menu_command("add")
+        self.choose(menu_module.PICKER_MARK + "menu")
+        self.daemon.menu_command("back")
+        self.assertIsNotNone(self.daemon.menu.adding)
+        self.daemon.menu_command("back")
+        self.assertIsNone(self.daemon.menu.adding)
+        # Still rearranging, on the page it was opened over.
+        self.assertTrue(self.daemon.menu.edit)
+        self.assertEqual(self.daemon.menu.page(), page)
+
+    def test_an_app_is_added_and_written_down(self):
+        self.daemon.menu_command("edit")
+        # After: rearranging reads what is installed afresh, and this suite's
+        # machine has nothing.
+        self.daemon.menu.apps = {
+            "steam": {"id": "steam", "name": "Steam", "icon": "steam",
+                      "wmclass": "steam", "kind": "games"}}
+        self.daemon.menu_command("add")
+        self.choose(menu_module.PICKER_MARK + "apps")
+        self.choose(menu_module.PICKER_MARK + "kind-games")
+        self.choose("app:steam")
+        self.assertIn("@steam", self.order())
+        self.daemon.menu_command("edit_off")
+        self.assertIn('"@steam" = "steam"', self.written())
+
+    def test_what_is_installed_is_read_off_the_loop(self):
+        commands = self.daemon.commands = FakeCommands(self.session)
+        self.daemon.apps_refresh()
+        self.daemon.apps_refresh()
+        # Once, however often it is asked while it is being read.
+        self.assertEqual(len(commands.submitted), 1)
+        self.assertIn("omapad.apps", commands.submitted[0][0])
 
     def test_reset_hands_the_page_back_and_writes_that_down(self):
         before = self.order()

@@ -537,8 +537,8 @@ than the rules above: a pinned tile is out of the flow entirely, so the order
 you write here decides only where the tiles *around* it go. That is the one
 case where the page somebody sees can have gaps the page you wrote does not -
 and it is their gap, so leave it alone. And **move a tile to another page
-entirely**: X takes it off into the strip along the foot of the card, the
-shoulders walk to another page, and A puts it there. So the page a row is
+entirely**: on the other page, RT opens Add, and `Menu` lists every tile of
+every page - A puts the one chosen there. So the page a row is
 written on is where it *ships*, not where it will be found - which is one
 more reason to place a row by how often a thumb reaches for it rather than
 by category, and no reason at all to write the same row on two pages.

@@ -159,6 +159,30 @@ class RoundTripTests(unittest.TestCase):
             handle.write(render_layout(layout))
         self.assertEqual(read_layout(path), layout)
 
+    def test_an_app_survives_the_trip(self):
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        path = os.path.join(directory, "layout.toml")
+        layout = {
+            "apps": {"order": ["@steam", "browser"], "removed": [],
+                     "span": {}, "at": {}, "adopted": [],
+                     "apps": {"@steam": "steam",
+                              "@telegram": "org.telegram.desktop"}},
+        }
+        with open(path, "w") as handle:
+            handle.write(render_layout(layout))
+        self.assertEqual(read_layout(path), layout)
+
+    def test_an_app_without_the_mark_is_not_read(self):
+        directory = tempfile.mkdtemp(prefix="omapad-layout-")
+        self.addCleanup(shutil.rmtree, directory, True)
+        path = os.path.join(directory, "layout.toml")
+        with open(path, "w") as handle:
+            handle.write('[layout.apps.apps]\n"steam" = "steam"\n'
+                         '"@zed" = "dev.zed.Zed"\n"@none" = ""\n')
+        self.assertEqual(read_layout(path)["apps"]["apps"],
+                         {"@zed": "dev.zed.Zed"})
+
     def test_a_heading_without_the_mark_is_not_read(self):
         directory = tempfile.mkdtemp(prefix="omapad-layout-")
         self.addCleanup(shutil.rmtree, directory, True)

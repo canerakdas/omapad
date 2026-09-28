@@ -29,7 +29,7 @@ selected  a tile id, never an index
 taken     None | id     the control being adjusted
 edit      False | True  the page is being rearranged
 picked    None | id     the tile being carried
-removed_at -1 = the page; >=0 = which tile in the strip has the focus
+adding    None | {page, depth, here}   the Add picker is open over `page`
 ```
 
 `taken` is an id like `selected`, and it is only ever the tile `selected`
@@ -49,17 +49,17 @@ from it.
 
 **The transition table.** A blank cell is a press that does nothing.
 
-| | browse | taken | edit | edit + picked | edit + in the strip |
+| | browse | taken | edit | edit + picked | edit + adding |
 |---|---|---|---|---|---|
-| D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place | walk the strip |
-| D-pad up/down | the same | - | the same, and **down at the bottom enters the strip** | carry it a row | up leaves the strip |
+| D-pad left/right | move the selection to the tile that way | adjust it, faster the longer it is held | move the selection | carry it one place | move the selection |
+| D-pad up/down | the same | - | the same | carry it a row | the same |
 | **Left stick** | the same as the D-pad, held rather than flicked | the same - or, on a **knob**, its angle turns the value | the same | the same | the same |
-| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | **ZR** a heading over this tile; **ZL** on a heading, type it again | shorter / taller | - |
-| **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** | **put it on this page**, in the hand |
-| **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save | leave edit, and save |
-| **X**, Escape | close outright, from any depth - or the page's own verb | close | **remove it** - off the page and into the strip; a heading made here is deleted | remove it | put it back on the page it came from |
-| **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page | reset the page |
-| **L / R**, Tab | previous / next group | - | previous / next page | narrower / wider | previous / next page |
+| **ZL / ZR**, as axes | sweep the tile in front, if it has a range | sweep it | **ZR** opens the Add picker; **ZL** on a heading, type it again | shorter / taller | - |
+| **A**, Enter, Space | fire it, drill in, or **take** a control | let go, keeping the value | **pick up** | **put down** | open that list, or **add it**, in the hand |
+| **B**, Backspace | up one level; at depth 0 the menu closes | let go, **putting the value back** | leave edit, and save | leave edit, and save | back one list; off the first, back on the page |
+| **X**, Escape | close outright, from any depth - or the page's own verb | close | **remove it** - off the page; a heading or an app made here is deleted | remove it | - |
+| **Y** | rearrange this page - or what the page reaches for; **held**, the bindings guide | the guide | reset the page | reset the page | - |
+| **L / R**, Tab | previous / next group | - | previous / next page | narrower / wider | - |
 
 `bindings.md`'s word for A is **commit**, and it stays that. What the table
 adds is which sentence commit is speaking in each state: fire it, drill in,
@@ -1337,7 +1337,7 @@ tap arranges, the hold opens the guide - which also has a row of its own on
 
 ### The gesture, as a table rather than a branch
 
-`EDIT_KEYS`, `EDIT_CARRY_KEYS` and `EDIT_REMOVED_KEYS` in `daemon.py` are
+`EDIT_KEYS`, `EDIT_CARRY_KEYS`, `EDIT_HEADING_KEYS` and `EDIT_ADD_KEYS` in `daemon.py` are
 ordinary binding specs, and `binding_for` consults whichever is in force
 before the page's own keys and before the layer's. **The legend is built from
 exactly those specs**, in `EDIT_ORDER`, so what it prints and what a press
@@ -1345,18 +1345,19 @@ does cannot drift apart - which is the whole reason the legend is worth
 having.
 
 The contract holds: A still commits (picking a tile up, putting it down, and
-putting one from the strip onto this page are all what commit is saying
-here), B still leaves (leaving edit mode is leaving), X is this surface's own
+adding one from the picker are all what commit is saying here), B still leaves (leaving edit mode is leaving), X is this surface's own
 verb one mode along (`close` becomes `remove`), and Y is still the reach -
 for the arrangement that is not on screen because it is the one the config
 shipped.
 
-**Three tables rather than one, and the state is what the hand is holding**:
-nothing, a tile, or a tile out of the strip. `edit_keys()` is the whole of
-that branch. Two of the eight buttons say nothing at all in two of the three
-states - a page is not walked away from with a tile in the hand, and a tile
-that is on no page has no cell to be made wider - so a single table would
-print a legend of eight rows, half of which answer a press with nothing.
+**A table per state rather than one, and the state is what the hand is
+holding**: nothing, a tile, a heading made from the pad, or a choice in the
+picker. `edit_keys()` is the whole of that branch. Most of the eight buttons
+say nothing at all in one state or another - a page is not walked away from
+with a tile in the hand, and a choice in a picker has no cell to be made
+wider - so a single table would print a legend of eight rows, half of which
+answer a press with nothing. The picker's table is two rows, A and B; the
+buttons it does not name fall through to what they mean on the menu.
 
 **The shoulders walk the bar, exactly as they do everywhere else in this
 layer.** That is what a page being *reachable* while rearranging costs, and
@@ -1470,48 +1471,88 @@ being pressed. The key is the id **and the cell** now. A guard on identity
 where the question was position - the same shape of mistake as an index for a
 tile id, one surface along, and `tests/test_shell_plugin.py` is what says so.
 
-### Removing, and the strip a removed tile stands in
+### Removing, and the one button that adds
 
-X takes the tile in front **off the page**, and it lands in the strip along
-the foot of the card: its name, the page it came from, and everything taken
-off every other page beside it. A is what puts one back - on the page in
-front, whichever page that is.
+X takes the tile in front **off the page**: an id in the `removed` list of
+the page that wrote it. What comes back is under **ZR**, which opens the
+picker - and everything else that can go on a page is under it too.
+Decision [100](../decisions/100-one-button-that-adds.md) is why.
 
-**It was faded in its own cell for a long time, and the argument for that was
-good.** Removing and restoring were the same press on the same tile, there
-was no page it had gone to and no second surface to build. What that cannot
-express is a tile on **another** page: a tile has to be somewhere while the
-shoulders walk the bar, and "faded where it used to be" is somewhere it can
-only come back to. Roadmap 82 is the reversal and why.
+**There was a strip along the foot of the card for three versions**, and the
+argument for it was good: a tile has to be somewhere while the shoulders walk
+the bar, and a row of names was the cheapest somewhere. It went when the
+picker could reach the same tiles. Two doors to one list is one too many,
+and the strip spent a band of the card on every page, every time the mode was
+on, to hold what was usually nothing.
 
-So there are three states rather than two, and one gesture each:
+So a tile is in one of three places, and one gesture says so:
 
-| | Where it is | What X does |
+| | Where it is | How it is reached |
 |---|---|---|
-| on the page | a cell | takes it off, into the strip |
-| in the strip | a chip along the foot | puts it back on the page it came from |
-| on another page | a cell there | takes it off, into the strip - and **home**: a tile is off its own page, never off somebody else's |
+| on its page | a cell | X takes it off; `Add > Menu > <page>` from any other page moves it there |
+| on no page | its page's `removed` list | `Add > Menu > <page>`, marked `Not on any page`, puts it back wherever the picker was opened |
+| on another page | a cell there | X takes it off and **home** into its own `removed`; the picker moves it on |
 
-**The strip is not a page.** It is one row of names, because the ask it
-answers is "where did that go" and a name answers it - a second grid of the
-same cells would be a second page to arrange on a surface whose whole
-argument is that there is one page in front of you.
+#### The picker
 
-**It costs no button.** Down at the bottom of the page reaches it and up
-comes back, which is what those two presses did before: nothing. The mode
-already spends six buttons, and a seventh for a direction that is already
-pointing at it would be the legend growing to say so.
+`add_open` pushes a page on the stack like any page drilled into, so the
+page it was opened over is restored exactly by going back to it. Its pages
+are made rather than written - `_made`, every field a tile has - and their
+ids start with `PICKER_MARK` (`+`), which `build` refuses in a written id: a
+picker page sharing a name with a real one would draw that page's
+arrangement over the choices. Three rows on its first page:
 
-**On the wire it is `rm` and `rmat`** - the chips as `{id, l, p}` and which
-one the focus is on, -1 for the page. Both are sent only while the mode is
-on, so an absent `rm` on a whole payload is what empties the strip in the
-panel, the same contract `chrono`, `confirm` and `count` are read under.
+- **Heading** - `add_heading`, then the keyboard (below).
+- **Apps** - one page per kind in `apps.KINDS`, each of what is installed.
+  The index is the daemon's (`apps.md`), handed in as `MenuModel.apps`.
+- **Menu** - one page per page `pages_of` knows, each of that page's tiles
+  but its row breaks and its config headings. The line under each is where
+  it stands now, read off `adoptions` and `removed` - which is the whole of
+  what adding it will change.
 
-**What it holds outlives the mode.** Leaving edit mode leaves the strip's
-focus, not its contents: a tile taken off is a tile off that page, which is
-the whole of what hiding one ever was. That is also what makes a *submenu*
-reachable - A picks up rather than drills in while editing, so a tile bound
-for a page two levels down is taken off, B, walked to, Y, and placed.
+**Only what adding would change is offered.** `adding["here"]` is what the
+page held when the picker opened, by the name it answers to there; a tile
+already on it, and an app already on it, are left out, and a kind or a page
+with nothing left in it is not a door.
+
+A picks the choice in front: a page of the picker goes in (`press`), a leaf
+closes the picker **first** and then acts on the page underneath, so the
+thing added is placed on that page and selected there. It arrives **picked
+up**, just before the tile the selection was on - the same `_insert` a
+heading uses - because somebody who walked a picker for it has said where
+they want it, and the next press is a direction. A heading is the exception
+for the reason it always was: the next thing it wants is its words.
+
+`adding` is also what `edit_state` answers `edit-add` for, and
+`EDIT_ADD_KEYS` spends two buttons - A chooses, B backs out one list and off
+the first one back onto the page. The payload says `add` and sends `edit`
+false while it is up: its pages are choices, and outlined as tiles to arrange
+they would say the opposite. Leaving the mode (`set_edit(False)`) and walking
+the bar (`enter_group` empties the stack) both put it away.
+
+#### Apps on a page
+
+An app added from the picker is part of the arrangement rather than the tree,
+the way a heading made from the pad is: `plan["apps"]` maps a name under
+`APP_MARK` (`@`) to a desktop id, and `apps_of` makes the tiles `arrange`
+merges. The name is the slug of the desktop id, so an app taken off and
+added again is the same name, and whatever cell or size it had in `at` and
+`span` is dropped with it.
+
+- **Launched the way Omarchy's launcher launches it** -
+  `uwsm-app -- gtk-launch <id>.desktop` - and wrapped in
+  `omarchy-launch-or-focus <StartupWMClass>` where the entry names a window
+  class, the shipped rows' launch-or-focus rule.
+- **Drawn with its own icon.** The row carries `ai`, the icon's name, and the
+  panel resolves it in the theme in force (`appIcon`, after Omarchy's
+  `AppLibrary.iconSource`); every other mark on the card is a glyph.
+- **Not drawn while it is not installed**, and not forgotten either: an id
+  the index has not got is left off the page, the way an id the config lost
+  is left out of `order`, and one reinstalled comes back. `apps` is None
+  until the index first arrives, and nothing is drawn rather than
+  everything dropped in that moment.
+- **X deletes it**, as it does a heading: `removed` is a list of tiles the
+  config has, and an app is found again in the picker, not in a list.
 
 ### Headings, and the keyboard over the menu
 
@@ -1541,18 +1582,20 @@ like any other, with two exceptions:
   would have the tiles under it flow around the pin and up past it - which is
   the one thing a heading is there to stop. It is the reorder decision 52
   replaced, kept for the one tile it was right for.
-- **X deletes one made from the pad** rather than putting it in the strip. The
-  strip holds what the config has so it can be put somewhere else; a heading
-  made on a page is words and a place, and both go with it. So there is a
-  fourth table, `EDIT_HEADING_KEYS`, and `edit_state` answers `edit-heading`
+- **X deletes one made from the pad** rather than taking it off. `removed`
+  holds what the config has so the picker can find it again; a heading made
+  on a page is words and a place, and both go with it. So there is a table
+  of its own, `EDIT_HEADING_KEYS`, and `edit_state` answers `edit-heading`
   while the selection is on one: X says `Delete`, and ZL - which says nothing
-  with an empty hand - says `Retype`. A heading the config wrote is removed
-  into the strip like any tile and has no ZL: its words are the config's.
+  with an empty hand - says `Retype`. A heading the config wrote is taken off
+  like any tile and has no ZL: its words are the config's.
 
-**ZR puts one down**, in `EDIT_KEYS`, for the reason ZL retypes: the triggers
-are the one pair the empty-handed state had left. `add_heading` inserts it into
-`order` just before the tile in front and selects it; it is not picked up,
-because the next press is typing and carrying it is A after that.
+**It is the picker's first row**, `Add > Heading`. It was ZR's alone until
+the picker took the button for everything that can be added (decision 100).
+`add_heading` inserts it into `order` just before the tile in front and
+selects it; it is not picked up, because the next press is typing and
+carrying it is A after that. `menu:heading` still makes one in one step, for
+a script.
 
 **The words are typed on the keyboard, over the menu, into the menu.**
 `menu_type_start` opens the keyboard without closing the menu - the one time
@@ -1636,13 +1679,13 @@ structure: a layout that will not parse must not take the settings down with
 it. See [`../conventions/data.md`](../conventions/data.md) for how it is read,
 and `omapad check --layout` for what a saved one still resolves to.
 
-Six parts per page, and `read_layout` reads each one on its own so a mistake
+Seven parts per page, and `read_layout` reads each one on its own so a mistake
 in one costs only that one:
 
 ```toml
 [layout.hud]
 order = ["processor", "memory", "disk"]   # the flow, in names
-removed = ["fan"]                         # off the page, in the strip
+removed = ["fan"]                         # off the page; Add finds it
 adopted = ["now/clock"]                   # given to this page by another
 
 [layout.hud.span]
@@ -1653,7 +1696,14 @@ memory = [3, 3]                           # the cell somebody put it in
 
 [layout.hud.headings]
 "#1" = "Heat"                             # made from the pad; placed by `order`
+
+[layout.apps.apps]
+"@steam" = "steam"                        # an app added from the pad: a desktop id
 ```
+
+`apps` is read the way `headings` is - only where there are some, and only a
+name carrying `@`, which `build` refuses in a written id - and the value is a
+desktop id whose being installed is asked where the page is drawn.
 
 `headings` is read only where it has something in it, so a page without any
 reads back exactly as it always did, and an id without the `#` is dropped - it
@@ -1677,9 +1727,9 @@ page holding a tile hands it straight home and a hand-edited file cannot say
 two contradictory things about where one tile is. Two pages claiming one is
 the pin collision rule: the first by name keeps it.
 
-`removed` was `hidden` until the strip gave a tile somewhere to be. The old
-name is still read, so a file written before it keeps everything somebody put
-away.
+`removed` was `hidden` until a removed tile could be put somewhere else. The
+old name is still read, so a file written before it keeps everything somebody
+put away.
 
 Written when edit mode is left, which is what B means there: the arrangement
 you walked away from is the one kept. Inline rather than on the worker thread,
@@ -2219,10 +2269,16 @@ shipped config leaves empty because the head carries the time now.
 
 ```
 open, title, clock, depth, sel, row, g, n, hit, groups, head, headrows, keys,
-cols, rows,
-items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?} ]
+cols, rows, edit, add, pick,
+items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?, ai?} ]
 scr?, swap?
 ```
+
+`edit` is whether the page in front is being rearranged and `add` whether
+the Add picker is what is in front; `edit` is false while `add` is true, so
+the picker's choices are not outlined as tiles to arrange. `ai` rides on an
+app added from the pad: its icon's name, which `appIcon` resolves in the
+theme in force. Off the wire on every other row.
 
 `swap` rides only on the push that opens the menu in the quick menu's place
 or shuts it for the quick menu. The panel hands it to `Backdrop.qml` before it

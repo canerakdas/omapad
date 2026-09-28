@@ -27,6 +27,7 @@ import shlex
 import time
 
 from . import actions
+from . import apps as apps_module
 from . import snap
 from .viewsock import drawable
 
@@ -203,6 +204,16 @@ TEXT = "text"
 # be taken for a tile the config has - `#` is to a heading what `REF` is to a
 # tile a page was given.
 HEADING_MARK = "#"
+
+# And what the id of an application put on a page from the pad starts with,
+# for the same reason: a name no tile the config has can answer to.
+APP_MARK = "@"
+
+# What the id of a page of the picker starts with. The picker is pages that
+# are in no tree and in no arrangement, so their names must be ones no page
+# the config has can be called - a picker page that shared a name with a real
+# one would draw that page's arrangement over the choices.
+PICKER_MARK = "+"
 
 # How long a row that counts down counts for, where it does not say. Seconds,
 # and a whole number of them because the row prints it: a count that went
@@ -558,13 +569,16 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
         item["open_on"] = bool(entry.get("open_on", False))
         if item["open_on"] and not item["when"]:
             raise MenuError("%s: 'open_on' needs a 'when'" % path)
-        if item["id"].startswith(HEADING_MARK):
-            # What a heading made from the pad is called, so an id written
-            # with it could be one the pad later makes as well.
-            raise MenuError(
-                "%s: an id cannot start with %r - it is what names a heading "
-                "made from the pad" % (path, HEADING_MARK)
-            )
+        for mark, what in ((HEADING_MARK, "a heading made from the pad"),
+                           (APP_MARK, "an app put on a page from the pad"),
+                           (PICKER_MARK, "a page of the Add picker")):
+            if item["id"].startswith(mark):
+                # What something the pad makes is called, so an id written
+                # with it could be one the pad later makes as well.
+                raise MenuError(
+                    "%s: an id cannot start with %r - it is what names %s"
+                    % (path, mark, what)
+                )
         if REF in item["id"]:
             # Said here rather than found later: this is the character that
             # names a tile on another page, and an id holding one would make
@@ -1324,7 +1338,8 @@ def pages_of(root):
     out = {}
 
     def add(item, items):
-        out.setdefault(item["id"], {"label": item["label"], "items": items})
+        out.setdefault(item["id"], {"label": item["label"], "items": items,
+                                    "icon": item["icon"]})
 
     def walk(items):
         for item in items:
@@ -1429,18 +1444,11 @@ def heading_item(name, text, columns=COLUMNS):
 
     Built rather than written in the tree, because it is not in the tree: it
     is part of one page's arrangement, and the arrangement is what `arrange`
-    merges. Every field a tile has, so nothing that walks a page has to ask
-    whether this one is real.
+    merges.
     """
-    return {
-        "label": str(text), "icon": "", "icon_font": "", "detail": "",
-        "meta": _group_meta(None, ""), "items": None, "action": None,
-        "repeat": False, "stay": False, "from": None, "template": None,
-        "empty": "", "when": (), "control": HEADING, "rows": None,
-        "many": False, "confirm": False, "countdown": 0, "id": name,
-        "span": (columns, 1), "open_on": False, "keys": {}, "reads": (),
-        "shows": "",
-    }
+    item = _made(name, text, (columns, 1))
+    item["control"] = HEADING
+    return item
 
 
 def headings_of(plan, columns=COLUMNS):
@@ -1463,6 +1471,87 @@ def _heading_number(name):
         return int(str(name)[len(HEADING_MARK):])
     except ValueError:
         return 0
+
+
+def _made(name, label, span, icon="", detail="", action=None, items=None):
+    """A tile nobody wrote in the config, with every field a written one has.
+
+    So nothing that walks a page has to ask whether a tile is real: the pad's
+    headings, its applications and every tile of the picker are built here.
+    """
+    return {
+        "label": str(label), "icon": icon, "icon_font": "", "detail": detail,
+        "meta": _group_meta(None, ""), "items": items, "action": action,
+        "repeat": False, "stay": False, "from": None, "template": None,
+        "empty": "", "when": (), "control": "", "rows": None,
+        "many": False, "confirm": False, "countdown": 0, "id": name,
+        "span": span, "open_on": False, "keys": {}, "reads": (),
+        "shows": "",
+    }
+
+
+def app_span(columns=COLUMNS):
+    """The cells an application takes: a quarter of the page, two rows.
+
+    The shipped `Apps` page's size, for its reason - three cells of twelve is
+    where a name stops being cut in half and the mark has room over it - so
+    an app put there from the pad stands in line with the ones that shipped.
+    """
+    return (max(1, columns // 4), 2)
+
+
+def app_action(entry):
+    """What pressing an application does: focus it, or start it.
+
+    **Launch or focus**, the shipped rows' rule: with a pointer this slow a
+    second copy of something already open is never what was asked for. Only
+    where the entry names its window class, since that is what finds the
+    window; without one it can only be started, the way Omarchy's launcher
+    starts it.
+    """
+    start = apps_module.launch(entry["id"])
+    if entry.get("wmclass"):
+        start = "omarchy-launch-or-focus %s %s" % (
+            shlex.quote(entry["wmclass"]), shlex.quote(start))
+    return actions.parse("exec:" + start)
+
+
+def app_item(name, entry, columns=COLUMNS):
+    """An application put on a page from the pad, as a tile the page can place.
+
+    `entry` is its line in the installed index; the mark it draws is the
+    icon's name, which the panel looks up in the theme in force.
+    """
+    item = _made(name, entry["name"], app_span(columns),
+                 action=app_action(entry))
+    item["image"] = entry.get("icon") or ""
+    return item
+
+
+def apps_of(plan, index, columns=COLUMNS):
+    """The applications a page was given from the pad, by name.
+
+    **Only what is still installed.** An app that has gone is an id nothing
+    resolves, and a tile that runs nothing is worse from a sofa than no tile -
+    so it is left off the page the way an id the config no longer has is left
+    out of `order`. It stays in the file, so one reinstalled comes back.
+
+    `index` is None until the daemon has read what is installed. Until then
+    nothing is drawn rather than everything being dropped: the answer is a
+    moment away, and a page that lost its apps for that moment would also
+    write that loss down if anybody moved a tile in it.
+    """
+    out = []
+    if index is None:
+        return out
+    for name, ident in sorted(((plan or {}).get("apps") or {}).items()):
+        if not str(name).startswith(APP_MARK):
+            continue
+        entry = index.get(ident)
+        if entry is None:
+            continue
+        out.append(app_item(name, entry, columns))
+    return out
 
 
 def arrange(items, plan, extra=(), gone=()):
@@ -1491,9 +1580,10 @@ def arrange(items, plan, extra=(), gone=()):
 
     A tile that has been removed is **not drawn faded in its place** while a
     page is being rearranged, which it was until there was somewhere for it
-    to go: it is in the strip along the foot of the card, by name, with the
-    tiles removed from every other page. One tile in two places at once is
-    what a page it could be put back onto from anywhere would have made.
+    to go: the picker lists it under the page that wrote it, and it is put
+    back from there onto whichever page is in front. One tile in two places
+    at once is what a page it could be put back onto from anywhere would
+    have made.
     """
     if not plan and not extra and not gone:
         return items
@@ -1737,15 +1827,14 @@ class MenuModel:
         self.picked = None
         # The arrangement, page by page, as it came off layout.toml.
         self.layout = dict(layout or {})
-        # Which tile in the strip of removed ones the focus is on, and -1 for
-        # the grid. A second cursor rather than a second kind of `selected`,
-        # for `row`'s reason: everything the page does is still being done to
-        # a tile on the page, and this is a place in a list that is not one.
-        self.removed_at = -1
-        # The last tile taken off, so walking down into the strip lands on
-        # the one somebody just put there rather than at the far end of a
-        # list they have not looked at.
-        self._removed_last = ""
+        # The picker a thing is being added from, or None: which page it is
+        # being added to, how deep the stack stood when it opened, and what
+        # that page already has. See `add_open`.
+        self.adding = None
+        # What is installed, by desktop id, or None until the daemon has read
+        # it. The daemon reads it - `apps.py` runs as a command, off the loop
+        # - and hands it here, so this module still touches nothing.
+        self.apps = None
         # Every page in the tree, by the name a saved arrangement calls it.
         # Worked out once: a reloaded config is a new model, so there is
         # nothing here to go stale.
@@ -1947,6 +2036,8 @@ class MenuModel:
                         else (1 if self.group > was else -1))
         self._group_way = 0
         self.stack = []
+        # A picker is pushed on the stack, and the stack has just gone.
+        self.adding = None
         self.page_item = self.groups[self.group]
         # The title line stays the root's word: the bar is already saying
         # which group this is, and printing it twice says it once.
@@ -2030,7 +2121,8 @@ class MenuModel:
         self.items = arrange(
             items, plan,
             adopted_items(self.pages(), self.layout, page, self.conditions)
-            + headings_of(plan, self.columns),
+            + headings_of(plan, self.columns)
+            + apps_of(plan, self.apps, self.columns),
             given_away(self.layout, page),
         )
         self.tiles, self.rows = place(self.items, self.columns, plan,
@@ -2366,6 +2458,10 @@ class MenuModel:
         on = bool(on)
         if on == self.edit:
             return False
+        if not on:
+            # The picker is a place inside the mode, so leaving the mode
+            # leaves it - back on the page it was opened over.
+            self.add_close()
         self.edit = on
         # Both are a finger's: a control being adjusted and a tile being
         # carried are things you are in the middle of, and this is the moment
@@ -2373,9 +2469,6 @@ class MenuModel:
         self.taken = None
         self.picked = None
         self.typing = None
-        # The strip is a place inside the mode, so leaving the mode leaves
-        # it: what it holds is still held, and the focus is back on the page.
-        self.removed_at = -1
         # A heading the selection was on is walked past from here on, so the
         # repack hands the selection to the tile it heads.
         self.repack()
@@ -2527,8 +2620,8 @@ class MenuModel:
         it was aimed at. Selected and not picked up - what the next press
         does is type its words, and carrying it is A after that.
         """
-        if (not self.edit or self.in_removed or self.picked is not None
-                or not self.page()):
+        if (not self.edit or self.adding is not None
+                or self.picked is not None or not self.page()):
             return None
         plan = self._plan()
         headings = plan["headings"]
@@ -2569,9 +2662,9 @@ class MenuModel:
     def drop_heading(self, name):
         """Take a heading made from the pad off the page, for good.
 
-        Not into the strip: the strip holds tiles the config has, so that
-        they can be put somewhere else. A heading made here is words and a
-        place, and both go with it.
+        Not into `removed`: that list is of tiles the config has, which the
+        picker can find again. A heading made here is words and a place, and
+        both go with it.
         """
         plan = self.plan()
         if plan is None or name not in (plan.get("headings") or {}):
@@ -2613,23 +2706,30 @@ class MenuModel:
         return True
 
     def remove(self):
-        """Take the tile in front off the page. It goes into the strip.
+        """Take the tile in front off the page.
 
         **Off the page, not out of the tree.** What a removed tile *is*, is
-        an id in the `removed` list of the page that wrote it; the strip
-        along the foot of the card is that list read across every page. So
-        there is one place to find what has been taken off, whichever page it
-        came off, and one place to pick it up from to put it somewhere else.
+        an id in the `removed` list of the page that wrote it, and the way
+        back is the picker: `Add > Menu` lists every tile the tree has,
+        wherever it is or is not standing. There was a strip along the foot
+        of the card holding what had been taken off, and it went when the
+        picker could reach the same tiles - two doors to one list, one of
+        them spending a row of the card on every page (decision 100).
 
         A tile standing here because somebody moved it goes **home**: the
         page holding it stops holding it and it is removed from the page that
         wrote it, because a tile is off exactly one page and that is its own.
+
+        Something the pad made - a heading, an app - is deleted instead: it
+        is in no tree, so there is no list for it to be off.
         """
-        if not self.edit or self.current is None:
+        if not self.edit or self.adding is not None or self.current is None:
             return False
         name = self.selected
         if self.heading(name) is not None:
             return self.drop_heading(name)
+        if name in ((self.plan() or {}).get("apps") or {}):
+            return self.drop_app(name)
         home, bare = split_ref(name)
         if home is None:
             home, bare = self.page(), name
@@ -2643,170 +2743,274 @@ class MenuModel:
         plan = self._plan_for(home)
         if bare not in plan["removed"]:
             plan["removed"].append(bare)
-        self._removed_last = ref_of(home, bare)
         self.picked = None
         # Where it was, so the selection lands on what has closed up into its
-        # cell rather than at the top of the page. A removed tile is not
-        # drawn where it stood any more - it is in the strip - so something
-        # has to say where the thumb is left.
+        # cell rather than at the top of the page.
         where = self.index
         self.repack()
         self.select(where)
         return True
 
-    def removed(self):
-        """Every tile that is off a page: what it is called, and from where.
+    def drop_app(self, name):
+        """Take an application put here from the pad off the page, for good."""
+        plan = self.plan()
+        if plan is None or name not in (plan.get("apps") or {}):
+            return False
+        del plan["apps"][name]
+        if name in plan.get("order", ()):
+            plan["order"].remove(name)
+        for part in ("span", "at"):
+            (plan.get(part) or {}).pop(name, None)
+        if self.picked == name:
+            self.picked = None
+        where = self.index
+        self.repack()
+        self.select(where)
+        return True
 
-        Read across the whole arrangement rather than held as a list of its
-        own, for the reason the pages themselves are: a tile off a page is an
-        id in that page's `removed` list, and a second list saying the same
-        thing is a second list to keep in step with the first.
+    # -- adding: the picker ---------------------------------------------------
 
-        Only what still resolves. An id the config no longer has is not drawn
-        in the strip, exactly as it no longer takes anything off a page.
+    def add_open(self):
+        """Open the picker over the page in front. False where it cannot.
+
+        **One button, and a page of choices under it**, rather than a button
+        per kind of thing: a heading, an application and every tile the tree
+        has are three answers to one question - what goes here - and a mode
+        that spent a button on each would print a legend of them. So the
+        picker is pages, walked the way every page is, with A going in and B
+        coming back out, and what it ends on is put on the page it was opened
+        over.
+
+        The picker is **pushed on the stack** like any page drilled into, so
+        the page it was opened over is restored exactly by going back to it.
+        Its pages are in no tree and have no arrangement: their ids start
+        with `PICKER_MARK`, which no page the config has can be called.
         """
-        out = []
-        pages = self.pages()
-        for page in sorted(self.layout):
-            found = pages.get(page)
-            if not found:
-                continue
-            by_id = {}
-            for item in found["items"]:
-                by_id.setdefault(item["id"], item)
-            for name in (self.layout[page] or {}).get("removed", ()):
-                item = by_id.get(name)
-                if item is None or item["control"] == ROW_BREAK:
-                    continue
-                out.append({"ref": ref_of(page, name),
-                            "label": item["label"],
-                            "page": found["label"]})
+        page = self.page()
+        if (not self.edit or self.adding is not None
+                or self.picked is not None or not page):
+            return False
+        self.adding = {
+            "page": page,
+            "label": (self.page_item or {}).get("label", ""),
+            "depth": self.depth,
+            # What is on the page already, by the name it answers to here -
+            # the picker offers what adding would change, and a tile that is
+            # already here is not one.
+            "here": set(item["id"] for item in self.items),
+        }
+        root = _made(PICKER_MARK + "add", "Add", (self.columns, 1),
+                     items=self._picker())
+        self.stack.append(
+            (self.source, self.selected, self.title, self.page_item))
+        self.page_item = root
+        self.turned(1)
+        self._show(root["items"], root["label"])
+        return True
+
+    def _picker(self):
+        """The picker's first page: a heading, the apps, the menu's tiles."""
+        span = app_span(self.columns)
+        out = [_made(PICKER_MARK + "heading", "Heading", span, icon="󰉿",
+                     detail="Words over the tiles below")]
+        out[0]["add"] = ("heading", "")
+        kinds = self._picker_apps(span)
+        if kinds:
+            out.append(_made(PICKER_MARK + "apps", "Apps", span, icon="󰀻",
+                             detail="Installed apps", items=kinds))
+        pages = self._picker_pages(span)
+        if pages:
+            out.append(_made(PICKER_MARK + "menu", "Menu", span, icon="󰍜",
+                             detail="Tiles from every page", items=pages))
         return out
 
-    @property
-    def in_removed(self):
-        """Whether the focus is in the strip rather than on the page."""
-        return self.removed_at >= 0
+    def _picker_apps(self, span):
+        """One page per kind of application, each of what is installed.
 
-    def removed_enter(self):
-        """Step down off the page into the strip. False where it is empty.
-
-        No button of its own: the strip is drawn under the page, so down at
-        the bottom of the page is what reaches it and up is what comes back.
-        Down there did nothing at all before, and a mode that already spends
-        eight buttons is not one to spend a ninth on a direction.
+        An app already on the page is not offered: adding it again would be
+        a second tile running the same thing, a cell apart.
         """
-        chips = self.removed()
-        if not self.edit or self.in_removed or not chips:
-            return False
-        names = [chip["ref"] for chip in chips]
-        self.removed_at = (names.index(self._removed_last)
-                           if self._removed_last in names else 0)
-        return True
+        on = set(((self.plan() or {}).get("apps") or {}).values())
+        out = []
+        for kind, words, found in apps_module.by_kind(self.apps or {}):
+            tiles = []
+            for entry in found:
+                if entry["id"] in on:
+                    continue
+                tile = _made("app:" + entry["id"], entry["name"], span)
+                tile["image"] = entry.get("icon") or ""
+                tile["add"] = ("app", entry["id"])
+                tiles.append(tile)
+            if tiles:
+                out.append(_made(PICKER_MARK + "kind-" + kind, words, span,
+                                 detail="%d apps" % len(tiles)
+                                 if len(tiles) != 1 else "1 app",
+                                 items=tiles))
+        return out
 
-    def removed_leave(self):
-        """Back up onto the page. False where the focus was there already."""
-        if not self.in_removed:
-            return False
-        self.removed_at = -1
-        return True
+    def _picker_pages(self, span):
+        """One page per page of the menu, each of the tiles it wrote.
 
-    def removed_step(self, direction):
-        """Walk the strip. No wrapping, for the reason the grid does not."""
-        if not self.in_removed or direction not in ("left", "right"):
-            return False
-        landed = self.removed_at + (1 if direction == "right" else -1)
-        chips = self.removed()
-        if landed < 0 or landed >= len(chips):
-            return False
-        self.removed_at = landed
-        self._removed_last = chips[landed]["ref"]
-        return True
+        **Every tile the tree has, wherever it is standing now**, which is
+        the whole of what makes a tile movable and a removed one findable:
+        one on another page is moved here, one on no page is put back. Only
+        what adding would change - a tile already on this page is not
+        offered - and never a row break, which is punctuation, or a heading
+        the config wrote, which names a run on its own page.
 
-    def select_removed(self, index):
-        """Put the strip's focus on one tile - what a pointer names.
-
-        Clamped to the nearest rather than refused, for `select`'s reason: a
-        pointer is aiming at something, and an index that landed nowhere
-        would read as a mistake.
+        The line under each says where it is now, since that is what adding
+        it will change: taken from there, or found.
         """
-        chips = self.removed()
-        if not self.edit or not chips:
+        target = self.adding["page"]
+        here = self.adding["here"]
+        held = adoptions(self.layout)
+        pages = self.pages()
+        out = []
+        for page, found in pages.items():
+            tiles = []
+            removed = set((self.layout.get(page) or {}).get("removed", ()))
+            for item in found["items"]:
+                if item["control"] in (ROW_BREAK, HEADING):
+                    continue
+                ref = ref_of(page, item["id"])
+                name = item["id"] if page == target else ref
+                if name in here:
+                    continue
+                where = held.get(ref)
+                if where is not None and where != page:
+                    said = "On %s" % pages.get(where, {}).get("label", where)
+                elif item["id"] in removed:
+                    said = "Not on any page"
+                else:
+                    said = "On %s" % found["label"]
+                tile = _made("tile:" + ref, item["label"], span,
+                             icon=item["icon"], detail=said)
+                tile["icon_font"] = item.get("icon_font", "")
+                tile["image"] = item.get("image", "")
+                tile["add"] = ("tile", ref)
+                tiles.append(tile)
+            if tiles:
+                out.append(_made(PICKER_MARK + "page-" + page, found["label"],
+                                 span, icon=found.get("icon", ""),
+                                 detail="%d tiles" % len(tiles)
+                                 if len(tiles) != 1 else "1 tile",
+                                 items=tiles))
+        return out
+
+    def add_back(self):
+        """B in the picker: one page back out, and off it from its first page."""
+        if self.adding is None:
             return False
-        index = max(0, min(int(index), len(chips) - 1))
-        self.removed_at = index
-        self._removed_last = chips[index]["ref"]
+        if self.depth > self.adding["depth"] + 1:
+            return self.back()
+        return self.add_close()
+
+    def add_close(self):
+        """Put the picker away, back on the page it was opened over."""
+        if self.adding is None:
+            return False
+        base = self.adding["depth"]
+        self.adding = None
+        if len(self.stack) <= base:
+            return False
+        source, selected, title, self.page_item = self.stack[base]
+        del self.stack[base:]
+        self.turned(-1)
+        self._show(source, title, selected)
         return True
 
-    def removed_chip(self):
-        """The tile the strip's focus is on, or None."""
-        chips = self.removed()
-        if not self.in_removed or self.removed_at >= len(chips):
+    def add_choose(self):
+        """A in the picker: go into a page of it, or add what is in front.
+
+        ("enter", item) for a page of choices, (kind, name) for something
+        added - `heading`, `app` or `tile`, and the name it answers to on the
+        page now - and None for nothing. What is added arrives **in the
+        hand**: somebody who has walked a picker for it has said where they
+        want it, and the next press is a direction. A heading is the exception: the next thing it wants is
+        words.
+        """
+        if self.adding is None:
             return None
-        return chips[self.removed_at]
-
-    def _removed_settle(self):
-        """Keep the strip's focus somewhere real, or hand it back to the page."""
-        chips = self.removed()
-        if not chips:
-            self.removed_at = -1
-        elif self.in_removed:
-            self.removed_at = min(self.removed_at, len(chips) - 1)
-
-    def removed_place(self):
-        """Put the tile the strip is on onto the page in front, in the hand.
-
-        **This is what moving a tile to another page is made of**: it is
-        taken off `Apps`, the shoulders walk the bar to `System`, and this
-        lands it there. The page holding it says so and the page that wrote
-        it says nothing, which is `adoptions`' one fact in one place.
-
-        It arrives **picked up**. Somebody who has carried a tile across the
-        bar has already said where they want it, and the press after this one
-        is a direction.
-        """
-        chip = self.removed_chip()
-        page = self.page()
-        if chip is None or not page:
-            return False
-        home, name = split_ref(chip["ref"])
-        plan = self._plan_for(home)
-        if name in plan["removed"]:
-            plan["removed"].remove(name)
-        here = ref_of(home, name)
-        if home == page:
-            # Put back where it was written, which is no loan at all: a page
-            # holding its own tile is the one thing `adoptions` will not
-            # record, so the tile is simply on its page again.
-            here = name
+        item = self.current
+        if item is None:
+            return None
+        if item["items"] is not None:
+            return self.press()
+        kind, what = item.get("add") or ("", "")
+        self.add_close()
+        if kind == "heading":
+            name = self.add_heading()
+            return None if name is None else ("heading", name)
+        if kind == "app":
+            name = self.add_app(what)
+        elif kind == "tile":
+            name = self.add_tile(what)
         else:
-            mine = self._plan_for(page)
-            if here not in mine["adopted"]:
-                mine["adopted"].append(here)
-        # The tile is on the page now, so the focus is too.
-        self.removed_at = -1
-        self.repack()
-        if self.select_id(here):
-            self.picked = here
-        return True
+            return None
+        if name is None:
+            return None
+        if self.select_id(name):
+            self.picked = name
+        return (kind, name)
 
-    def removed_return(self):
-        """Put the tile the strip is on back on the page that wrote it.
+    def _insert(self, plan, name):
+        """Put a name in the page's order just before the tile in front."""
+        order = [item["id"] for item in self.items
+                 if item["control"] != ROW_BREAK and item["id"] != name]
+        spot = order.index(self.selected) if self.selected in order \
+            else len(order)
+        order.insert(spot, name)
+        plan["order"] = order
 
-        The strip's own version of what X has always meant here, and the
-        answer to a tile taken off a page you are nowhere near: it goes back
-        where it came from without anybody having to walk there.
+    def add_app(self, ident):
+        """Put an installed application on the page in front. Its name, or None.
+
+        Named by its desktop id under `APP_MARK`, so the same app is the same
+        name on a page however many times it is taken off and put back.
         """
-        chip = self.removed_chip()
-        if chip is None:
-            return False
-        home, name = split_ref(chip["ref"])
-        plan = self._plan_for(home)
-        if name in plan["removed"]:
-            plan["removed"].remove(name)
-        self._removed_settle()
+        if (self.apps or {}).get(ident) is None or not self.page():
+            return None
+        plan = self._plan()
+        launchers = plan.setdefault("apps", {})
+        name = APP_MARK + (slug(ident) or "app")
+        launchers[name] = ident
+        self._insert(plan, name)
         self.repack()
-        return True
+        return name
+
+    def add_tile(self, ref):
+        """Put a tile the tree has on the page in front. Its name, or None.
+
+        From wherever it is: off the page holding it, or out of the `removed`
+        list of its own. **This is what moving a tile to another page is
+        made of**, and putting one back: the page holding a tile says so and
+        the page that wrote it says nothing, which is `adoptions`' one fact in
+        one place.
+        """
+        page = self.page()
+        home, name = split_ref(ref)
+        found = self.pages().get(home or "")
+        if not page or not name or found is None or not any(
+                item["id"] == name for item in found["items"]):
+            return None
+        whole = ref_of(home, name)
+        for plan in self.layout.values():
+            # Wherever it was on loan, it is not any more.
+            if whole in (plan or {}).get("adopted", ()):
+                plan["adopted"].remove(whole)
+        own = self._plan_for(home)
+        if name in own["removed"]:
+            own["removed"].remove(name)
+        here = name if home == page else whole
+        plan = self._plan()
+        if here != name and here not in plan["adopted"]:
+            # A page holding its own tile is the one thing `adoptions` will
+            # not record, so a tile put back where it was written is simply
+            # on its page again.
+            plan["adopted"].append(here)
+        self._insert(plan, here)
+        self.repack()
+        return here
 
     def resize(self, wider, taller):
         """Make the carried tile bigger or smaller, in whole cells.
@@ -2845,14 +3049,12 @@ class MenuModel:
 
         Which hands back what this page was **given** as well: the page
         holding a tile is the only one that says so, so dropping its
-        arrangement is the tile going home. The strip settles afterwards for
-        the same reason - what it holds may have just changed under it.
+        arrangement is the tile going home.
         """
         page = self.page()
         if page not in self.layout:
             return False
         del self.layout[page]
-        self._removed_settle()
         self.repack()
         return True
 
@@ -2954,8 +3156,11 @@ class MenuModel:
         self.press_seq += 1
         self.press_hit = item["id"]
         if item["items"] is not None:
+            # The page as the tree holds it rather than as it was arranged,
+            # so coming back arranges it afresh: a tile taken off or a
+            # heading deleted after coming back must not survive in a copy.
             self.stack.append(
-                (self.items, self.selected, self.title, self.page_item)
+                (self.source, self.selected, self.title, self.page_item)
             )
             self.page_item = item
             self.turned(1)
@@ -3174,6 +3379,12 @@ class MenuModel:
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
             }
+            if item.get("image"):
+                # An icon by the name an icon theme knows it by, where the
+                # tile is an application: the panel finds it in the theme in
+                # force, the way Omarchy's launcher does. Off the wire
+                # everywhere else, for `f`'s reason.
+                row["ai"] = item["image"]
             if item.get("icon_font"):
                 # Off the wire where there is none, so the panel's test for
                 # "is this glyph somebody else's" is one `undefined` check and
@@ -3299,7 +3510,10 @@ class MenuModel:
             # the place those two answers could disagree.
             "row": self.row or "",
             "hd": self.taken or "",
-            "edit": self.edit,
+            # Not while the picker is up: its pages are choices, not tiles to
+            # arrange, and drawing them outlined would say the opposite.
+            "edit": self.edit and self.adding is None,
+            "add": self.adding is not None,
             "pick": self.picked or "",
             "g": self.group,
             # Which tile the last press landed on, and which press that was.
@@ -3331,15 +3545,6 @@ class MenuModel:
             "rows": self.rows,
             "items": items,
         }
-        if self.edit:
-            # The strip along the foot, and which of it the focus is on. Off
-            # the wire entirely while nobody is rearranging: it is a part of
-            # that mode, and every other payload this surface sends is one
-            # somebody is looking at a page through.
-            state_out["rm"] = [{"id": chip["ref"], "l": chip["label"],
-                                "p": chip["page"]}
-                               for chip in self.removed()]
-            state_out["rmat"] = self.removed_at
         if read:
             # Off the wire where no text tile is on the page.
             state_out["scr"] = read

@@ -2371,31 +2371,44 @@ leave the press silent.
 means something else while you are there, and the legend says which — and it
 says what they mean **now**, because that depends on what is in your hand:
 
-| | nothing in your hand | carrying a tile | standing in the strip |
+| | nothing in your hand | carrying a tile | in the Add picker |
 |---|---|---|---|
-| **A** | pick a tile up | put it down | put it on this page |
-| **B** | done — and that is when it is written down | done | done |
-| **X** | take a tile off the page | take it off | put it back where it came from |
-| **Y** | reset the page to the one that shipped | reset | reset |
-| **LB / RB** | previous / next page | narrower / wider | previous / next page |
-| **LT / RT** | RT: a heading over this tile | shorter / taller | — |
+| **A** | pick a tile up | put it down | open the list / add it |
+| **B** | done — and that is when it is written down | done | back one list |
+| **X** | take a tile off the page | take it off | — |
+| **Y** | reset the page to the one that shipped | reset | — |
+| **LB / RB** | previous / next page | narrower / wider | — |
+| **LT / RT** | RT: **Add** | shorter / taller | — |
 
 Both axes, because a cell is a shape rather than a width: a card of rows with
 a row too many, a reading you want to see from further away, a media tile
 that wants two rows rather than four. On the page the readings are drawn from,
 a tile stops at the last row that page has.
 
-**A tile you take off goes to the strip along the foot of the card** — its
-name, the page it came from, and everything you have taken off every other
-page beside it. Press **down** past the bottom row to walk into the strip and
-**up** to come back out.
+**RT is Add**, and everything that can go on a page is under it — one
+button, and lists under it that are walked the way pages are:
 
-So a tile is **moved to another page** rather than only taken off one: X on
-`Apps`, the shoulders to `System`, down into the strip, and A puts it there —
-in your hand, so the next press is a direction. A tile you leave in the strip
-stays there, which is what hiding one is, and it is still there the next time
-you press Y anywhere. That is also how a tile reaches a page inside a page:
-take it off, press B, walk in, press Y, and place it.
+- **Heading** — words over the tiles below (see further down).
+- **Apps** — everything installed, cut into Games, Music and video,
+  Internet, Office, Graphics, Development, System and Other. It is the list
+  Omarchy's own app launcher shows: an app hidden there is hidden here too,
+  it starts the way that launcher starts it, and a tile shows the app's own
+  icon. Pressing one brings an app that is already open to the front rather
+  than opening a second copy, wherever the app says which window is its.
+- **Menu** — every page of this menu, and every tile on each. Each says
+  where it is now: on a page, or on none.
+
+Whatever you add arrives **in your hand**, just before the tile you were
+standing on, so the next press is a direction. An app already on the page,
+or a tile already there, is not offered again.
+
+**X takes a tile off the page**, and **Add > Menu** is how it comes back: it
+is listed under the page it belongs to, marked `Not on any page`. The same
+list is how a tile is **moved to another page** — on `System`, RT, `Menu`,
+`Apps`, `Steam`, and Steam leaves `Apps` for `System`. It is also how a tile
+reaches a page inside a page: walk in, press Y, and add it there. An app or a
+heading you added is **deleted** by X rather than taken off, since there is
+no list for it to go back to — add it again from `Apps`.
 
 **A tile goes in the cell you put it in**, including one with nothing leading
 to it: carry it three across and three down on an otherwise empty page and
@@ -2410,8 +2423,8 @@ A tile will not walk onto another one you placed — the press does nothing and
 the motor says so. One you have not placed it walks straight through, because
 that one moves out of the way.
 
-**RT puts a heading on the page**, over the tile you are standing on, and the
-keyboard comes up over the menu to type its words. The keyboard is the same
+**Add > Heading puts a heading on the page**, over the tile you are
+standing on, and the keyboard comes up over the menu to type its words. The keyboard is the same
 one that types into windows and it is walked the same way; what it types goes
 into the heading instead. **B or Enter** is done, and a heading you typed
 nothing into is not kept. A heading is words across the row with nothing
@@ -2421,8 +2434,7 @@ heading starts under it — nothing climbs over one into a hole above.
 
 A heading is **walked past** everywhere but here: the D-pad, the stick and the
 pointer never stop on one outside this mode. Standing on one, **X deletes it**
-(it does not go to the strip — it is not a tile anybody can put somewhere
-else) and **LT types its words again**. Carried, it moves past one tile with
+and **LT types its words again**. Carried, it moves past one tile with
 left and right and past a whole row with up and down, rather than into a cell,
 because a heading pinned to a cell could have tiles flow over it. A config can
 write one too, as `control = "heading"` with a `label`.
@@ -2433,7 +2445,7 @@ prints the cells and says which ones that would happen to.
 
 What you do lands in `~/.config/omapad/layout.toml` — the order, what you
 took off, what each page was given, any size you changed, the cells you put
-tiles in, and the words of your headings — and it and `config.toml` cannot break each other. A tile a new
+tiles in, the words of your headings and the apps you added — and it and `config.toml` cannot break each other. A tile a new
 version ships appears at the end of your page rather than being invisible; a
 tile that goes away is dropped from your order rather than leaving a hole;
 and a tile you took off is off only while it still exists. Where a moved tile

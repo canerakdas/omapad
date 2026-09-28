@@ -9,7 +9,8 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from omapad import actions, config as config_module
-from omapad.menu import (MenuError, MenuModel, ROOT_TITLE, TAKEABLE,
+from omapad.menu import (MenuError, MenuModel, PICKER_MARK, ROOT_TITLE,
+                         TAKEABLE,
                          adoptions, arrange, build, build_head,
                          effective_span, head_sources, listed, minute_of_day,
                          pages_of, place, slug)
@@ -1820,10 +1821,10 @@ class ArrangeTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in out], ["one"])
 
     def test_a_removed_tile_is_off_the_page_while_it_is_rearranged_too(self):
-        # It is in the strip along the foot of the card, which is where it
-        # can be put back or put on another page. Drawn faded in its own cell
-        # is what it was while there was nowhere for it to go, and one tile
-        # in two places is what that would be now.
+        # The Add picker is where it is found again, and put back or put on
+        # another page. Drawn faded in its own cell is what it was while
+        # there was nowhere for it to go, and one tile in two places is what
+        # that would be now.
         items = self.page("One", "Two")
         out = arrange(items, {"order": [], "removed": ["two"]})
         self.assertEqual([item["id"] for item in out], ["one"])
@@ -1964,14 +1965,12 @@ class RearrangeTests(unittest.TestCase):
         self.assertIsNone(model.picked)
         self.assertFalse(model.edit)
 
-    def test_removing_takes_a_tile_off_the_page_and_into_the_strip(self):
+    def test_removing_takes_a_tile_off_the_page(self):
         model = self.model()
         model.set_edit(True)
         model.select_id("three")
         self.assertTrue(model.remove())
         self.assertNotIn("three", self.order(model))
-        self.assertEqual([chip["ref"] for chip in model.removed()],
-                         ["group/three"])
         self.assertEqual(model.layout["group"]["removed"], ["three"])
 
     def test_the_selection_lands_on_what_closed_up_into_the_cell(self):
@@ -2051,15 +2050,7 @@ class RearrangeTests(unittest.TestCase):
         state = model.view_state(True)
         self.assertTrue(state["edit"])
         self.assertNotIn("two", [row["id"] for row in state["items"]])
-        self.assertEqual(state["rm"],
-                         [{"id": "group/two", "l": "Two", "p": "Group"}])
-        self.assertEqual(state["rmat"], -1)
-
-    def test_the_strip_is_off_the_wire_while_nobody_is_rearranging(self):
-        # It is a part of that mode, and every other payload this surface
-        # sends is one somebody is looking at a page through.
-        model = self.model()
-        self.assertNotIn("rm", model.view_state(True))
+        self.assertFalse(state["add"])
 
 
 class HeadingTests(unittest.TestCase):
@@ -2144,13 +2135,13 @@ class HeadingTests(unittest.TestCase):
         self.assertEqual(self.order(model), ["one", "two", "three", "#1",
                                              "four"])
 
-    def test_x_deletes_it_rather_than_putting_it_in_the_strip(self):
+    def test_x_deletes_it_rather_than_taking_it_off(self):
         model = self.model()
         model.set_edit(True)
         model.add_heading()
         self.assertTrue(model.remove())
         self.assertNotIn("#1", self.order(model))
-        self.assertEqual(model.removed(), [])
+        self.assertEqual(model.plan()["removed"], [])
         self.assertEqual(model.plan()["headings"], {})
 
     def test_its_words_are_carried_to_the_panel(self):
@@ -2192,7 +2183,7 @@ class HeadingTests(unittest.TestCase):
 
 
 class MovingATileToAnotherPage(unittest.TestCase):
-    """The strip along the foot, and what a tile on no page is."""
+    """The picker's `Menu` page, and what a tile on no page is."""
 
     def model(self, layout=None):
         return MenuModel(build([
@@ -2208,34 +2199,37 @@ class MovingATileToAnotherPage(unittest.TestCase):
     def ids(self, model):
         return [tile["item"]["id"] for tile in model.tiles]
 
-    def taken_off(self, model):
-        return [chip["ref"] for chip in model.removed()]
+    def labels(self, model):
+        return [tile["item"]["label"] for tile in model.tiles]
 
-    def test_the_strip_says_what_was_taken_off_and_where_from(self):
+    def walk(self, model, *labels):
+        """Open the picker and choose each label in turn. The last answer."""
+        self.assertTrue(model.add_open())
+        done = None
+        for label in labels:
+            names = [tile["item"]["id"] for tile in model.tiles
+                     if tile["item"]["label"] == label]
+            self.assertTrue(names, "%s not in %s"
+                            % (label, self.labels(model)))
+            model.select_id(names[0])
+            done = model.add_choose()
+        return done
+
+    def test_it_is_moved_from_one_page_to_another(self):
         model = self.model()
         model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        self.assertEqual(model.removed(), [
-            {"ref": "apps/steam", "label": "Steam", "page": "Apps"},
-        ])
-
-    def test_it_is_taken_off_one_page_and_put_on_another(self):
-        model = self.model()
-        model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        model.removed_enter()
         model.group_move(1)
         self.assertEqual(model.page(), "system")
-        self.assertTrue(model.removed_place())
+        done = self.walk(model, "Menu", "Apps", "Steam")
+        self.assertEqual(done, ("tile", "apps/steam"))
+        # Back on the page it was opened over, the picker gone.
+        self.assertEqual(model.page(), "system")
+        self.assertIsNone(model.adding)
         self.assertIn("apps/steam", self.ids(model))
-        # In the hand, because somebody who has carried a tile across the bar
-        # has already said where they want it.
+        # In the hand, because somebody who has walked a picker for it has
+        # already said where they want it.
         self.assertEqual(model.picked, "apps/steam")
         self.assertEqual(model.layout["system"]["adopted"], ["apps/steam"])
-        self.assertEqual(model.layout["apps"]["removed"], [])
-        self.assertEqual(self.taken_off(model), [])
         model.group_move(-1)
         self.assertNotIn("steam", self.ids(model))
 
@@ -2244,13 +2238,42 @@ class MovingATileToAnotherPage(unittest.TestCase):
         # knows, so there is nothing that can disagree with it.
         model = self.model()
         model.set_edit(True)
+        model.group_move(1)
+        self.walk(model, "Menu", "Apps", "Steam")
+        self.assertNotIn("steam", (model.layout.get("apps") or {})
+                         .get("removed", ()))
+        self.assertNotIn("apps/steam", (model.layout.get("apps") or {})
+                         .get("adopted", ()))
+
+    def test_a_removed_tile_is_found_again_and_put_back(self):
+        model = self.model()
+        model.set_edit(True)
         model.select_id("steam")
         model.remove()
-        model.removed_enter()
-        model.group_move(1)
-        model.removed_place()
-        self.assertNotIn("steam", model.layout["apps"]["removed"])
-        self.assertNotIn("apps/steam", model.layout["apps"].get("adopted"))
+        self.assertNotIn("steam", self.ids(model))
+        self.assertTrue(model.add_open())
+        model.select_id(PICKER_MARK + "menu")
+        model.add_choose()
+        model.select_id(PICKER_MARK + "page-apps")
+        model.add_choose()
+        # It says where it is, which is nowhere.
+        found = [tile["item"] for tile in model.tiles
+                 if tile["item"]["label"] == "Steam"][0]
+        self.assertEqual(found["detail"], "Not on any page")
+        model.select_id(found["id"])
+        self.assertEqual(model.add_choose(), ("tile", "steam"))
+        self.assertIn("steam", self.ids(model))
+        self.assertEqual(model.layout["apps"]["removed"], [])
+        # Its own page, which is no loan at all.
+        self.assertEqual(model.layout["apps"]["adopted"], [])
+
+    def test_what_is_already_on_the_page_is_not_offered(self):
+        model = self.model()
+        model.set_edit(True)
+        self.walk(model, "Menu")
+        # Apps holds nothing that is not already on Apps, so its page is not
+        # a door; System's Power is.
+        self.assertEqual(self.labels(model), ["System"])
 
     def test_resetting_the_page_holding_it_hands_it_home(self):
         # Y on the page it was moved to. The page it came from never wrote
@@ -2262,29 +2285,6 @@ class MovingATileToAnotherPage(unittest.TestCase):
         self.assertEqual(self.ids(model), ["power"])
         model.group_move(-1)
         self.assertIn("steam", self.ids(model))
-        self.assertEqual(model.removed(), [])
-
-    def test_putting_it_back_from_the_strip_needs_no_walking(self):
-        model = self.model()
-        model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        model.group_move(1)
-        model.removed_enter()
-        self.assertTrue(model.removed_return())
-        self.assertEqual(self.taken_off(model), [])
-        model.group_move(-1)
-        self.assertIn("steam", self.ids(model))
-
-    def test_putting_it_back_on_its_own_page_holds_nothing(self):
-        model = self.model()
-        model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        model.removed_enter()
-        self.assertTrue(model.removed_place())
-        self.assertIn("steam", self.ids(model))
-        self.assertEqual(model.layout["apps"]["adopted"], [])
 
     def test_a_tile_taken_off_a_page_it_was_given_to_goes_home(self):
         model = self.model({"system": {"adopted": ["apps/steam"]}})
@@ -2294,58 +2294,79 @@ class MovingATileToAnotherPage(unittest.TestCase):
         self.assertTrue(model.remove())
         self.assertEqual(model.layout["system"]["adopted"], [])
         self.assertEqual(model.layout["apps"]["removed"], ["steam"])
-        self.assertEqual(self.taken_off(model), ["apps/steam"])
 
-    def test_the_focus_walks_the_strip_and_comes_back_up(self):
+    def test_a_tile_on_loan_is_taken_from_where_it_stands(self):
+        # On System, and asked for on Apps' neighbour - it leaves System.
+        model = MenuModel(build([
+            {"label": "Apps", "items": [
+                {"label": "Steam", "action": "nop"},
+            ]},
+            {"label": "System", "items": [
+                {"label": "Power", "action": "nop"},
+            ]},
+            {"label": "Room", "items": [
+                {"label": "Lamp", "action": "nop"},
+            ]},
+        ], settings={}), columns=6,
+            layout={"system": {"adopted": ["apps/steam"]}})
+        model.set_edit(True)
+        model.group_move(2)
+        self.assertTrue(model.add_open())
+        model.select_id(PICKER_MARK + "menu")
+        model.add_choose()
+        model.select_id(PICKER_MARK + "page-apps")
+        model.add_choose()
+        found = [tile["item"] for tile in model.tiles][0]
+        self.assertEqual(found["detail"], "On System")
+        model.select_id(found["id"])
+        model.add_choose()
+        self.assertEqual(model.layout["system"]["adopted"], [])
+        self.assertEqual(model.layout["room"]["adopted"], ["apps/steam"])
+        self.assertEqual(adoptions(model.layout), {"apps/steam": "room"})
+
+    def test_b_walks_back_out_of_the_picker(self):
         model = self.model()
         model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
         model.select_id("music")
-        model.remove()
-        self.assertFalse(model.in_removed)
-        self.assertTrue(model.removed_enter())
-        # On the one just put there, not at the far end of a list nobody has
-        # looked at.
-        self.assertEqual(model.removed_chip()["ref"], "apps/music")
-        self.assertTrue(model.removed_step("left"))
-        self.assertEqual(model.removed_chip()["ref"], "apps/steam")
-        self.assertFalse(model.removed_step("left"))
-        self.assertTrue(model.removed_leave())
-        self.assertFalse(model.in_removed)
-        self.assertIsNone(model.removed_chip())
+        self.assertTrue(model.add_open())
+        model.select_id(PICKER_MARK + "menu")
+        model.add_choose()
+        self.assertEqual(model.depth, 2)
+        self.assertTrue(model.add_back())
+        self.assertEqual(model.depth, 1)
+        self.assertTrue(model.add_back())
+        self.assertIsNone(model.adding)
+        self.assertEqual(model.depth, 0)
+        # Where it was opened, on the tile it was opened on.
+        self.assertEqual(model.page(), "apps")
+        self.assertEqual(model.selected, "music")
 
-    def test_an_empty_strip_is_not_a_place(self):
+    def test_leaving_the_mode_puts_the_picker_away(self):
         model = self.model()
         model.set_edit(True)
-        self.assertFalse(model.removed_enter())
-        self.assertFalse(model.in_removed)
-
-    def test_leaving_the_mode_leaves_the_strip(self):
-        model = self.model()
-        model.set_edit(True)
-        model.remove()
-        model.removed_enter()
+        model.add_open()
+        model.select_id(PICKER_MARK + "menu")
+        model.add_choose()
         model.set_edit(False)
-        self.assertFalse(model.in_removed)
-        # And what it holds is still held: this is how a tile is hidden.
-        self.assertEqual(model.layout["apps"]["removed"], ["steam"])
+        self.assertIsNone(model.adding)
+        self.assertEqual(model.page(), "apps")
+        self.assertEqual(model.depth, 0)
 
-    def test_resetting_a_page_settles_the_focus_in_the_strip(self):
-        # Y hands back what this page took off as well as how it was laid
-        # out, so what the strip holds can change under the thumb standing
-        # in it.
+    def test_the_picker_is_not_drawn_as_tiles_to_arrange(self):
         model = self.model()
         model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        model.select_id("music")
-        model.remove()
-        model.removed_enter()
-        self.assertEqual(model.removed_at, 1)
-        self.assertTrue(model.restore())
-        self.assertEqual(model.removed(), [])
-        self.assertEqual(model.removed_at, -1)
+        model.add_open()
+        state = model.view_state(True)
+        self.assertFalse(state["edit"])
+        self.assertTrue(state["add"])
+        self.assertEqual(state["title"], "Add")
+
+    def test_the_picker_opens_only_with_an_empty_hand(self):
+        model = self.model()
+        self.assertFalse(model.add_open())
+        model.set_edit(True)
+        model.pick()
+        self.assertFalse(model.add_open())
 
     def test_a_reference_the_config_lost_resolves_to_nothing(self):
         model = self.model({"system": {"adopted": ["apps/gone",
@@ -2404,15 +2425,125 @@ class MovingATileToAnotherPage(unittest.TestCase):
     def test_the_tiles_of_the_tree_are_never_mutated(self):
         model = self.model()
         model.set_edit(True)
-        model.select_id("steam")
-        model.remove()
-        model.removed_enter()
         model.group_move(1)
-        model.removed_place()
+        self.walk(model, "Menu", "Apps", "Steam")
         self.assertEqual(
             [item["id"] for item in model.root[0]["items"]],
             ["steam", "music"],
         )
+
+
+class AnAppPutOnAPage(unittest.TestCase):
+    """The picker's `Apps` page: what is installed, as a tile."""
+
+    INDEX = {
+        "steam": {"id": "steam", "name": "Steam", "icon": "steam",
+                  "wmclass": "steam", "kind": "games"},
+        "org.gnome.Nautilus": {"id": "org.gnome.Nautilus", "name": "Files",
+                               "icon": "org.gnome.Nautilus", "wmclass": "",
+                               "kind": "system"},
+    }
+
+    def model(self, layout=None, index=INDEX):
+        model = MenuModel(build([
+            {"label": "Apps", "items": [
+                {"label": "Browser", "action": "nop"},
+            ]},
+        ], settings={}), columns=12, layout=layout)
+        model.apps = dict(index) if index is not None else None
+        model.reset()
+        return model
+
+    def choose(self, model, name):
+        self.assertTrue(model.select_id(name), name)
+        return model.add_choose()
+
+    def test_it_is_chosen_by_kind_and_arrives_in_the_hand(self):
+        model = self.model()
+        model.set_edit(True)
+        model.add_open()
+        self.choose(model, PICKER_MARK + "apps")
+        self.assertEqual([tile["item"]["label"] for tile in model.tiles],
+                         ["Games", "System"])
+        self.choose(model, PICKER_MARK + "kind-games")
+        self.assertEqual(self.choose(model, "app:steam"), ("app", "@steam"))
+        self.assertEqual(model.layout["apps"]["apps"], {"@steam": "steam"})
+        self.assertEqual(model.picked, "@steam")
+        tile = [tile for tile in model.tiles
+                if tile["item"]["id"] == "@steam"][0]
+        # The size the shipped apps are, so it stands in line with them.
+        self.assertEqual(tile["size"], (3, 2))
+
+    def test_it_launches_the_way_omarchy_launches_it(self):
+        model = self.model({"apps": {"apps": {"@steam": "steam",
+                                              "@files": "org.gnome.Nautilus"}}})
+        items = dict((tile["item"]["id"], tile["item"])
+                     for tile in model.tiles)
+        # Focused where it names a window class, started where it does not.
+        self.assertEqual(
+            items["@steam"]["action"].command,
+            "omarchy-launch-or-focus steam "
+            "'uwsm-app -- gtk-launch steam.desktop'")
+        self.assertEqual(items["@files"]["action"].command,
+                         "uwsm-app -- gtk-launch org.gnome.Nautilus.desktop")
+
+    def test_its_icon_is_sent_by_name(self):
+        model = self.model({"apps": {"apps": {"@steam": "steam"}}})
+        rows = dict((row["id"], row) for row in model.view_state(True)["items"])
+        self.assertEqual(rows["@steam"]["ai"], "steam")
+        self.assertEqual(rows["@steam"]["l"], "Steam")
+        self.assertNotIn("ai", rows["browser"])
+
+    def test_one_that_is_gone_is_not_drawn_and_not_forgotten(self):
+        model = self.model({"apps": {"apps": {"@gone": "gone"}}})
+        self.assertEqual([tile["item"]["id"] for tile in model.tiles],
+                         ["browser"])
+        self.assertEqual(model.layout["apps"]["apps"], {"@gone": "gone"})
+
+    def test_nothing_is_drawn_before_the_index_arrives(self):
+        model = self.model({"apps": {"apps": {"@steam": "steam"}}},
+                           index=None)
+        self.assertEqual([tile["item"]["id"] for tile in model.tiles],
+                         ["browser"])
+        model.apps = dict(self.INDEX)
+        model.repack()
+        self.assertIn("@steam", [tile["item"]["id"] for tile in model.tiles])
+
+    def test_one_already_on_the_page_is_not_offered_again(self):
+        model = self.model({"apps": {"apps": {"@steam": "steam"}}})
+        model.set_edit(True)
+        model.add_open()
+        self.choose(model, PICKER_MARK + "apps")
+        self.assertEqual([tile["item"]["label"] for tile in model.tiles],
+                         ["System"])
+
+    def test_x_deletes_it(self):
+        model = self.model({"apps": {"apps": {"@steam": "steam"},
+                                     "order": ["@steam", "browser"]}})
+        model.set_edit(True)
+        model.select_id("@steam")
+        self.assertTrue(model.remove())
+        self.assertEqual(model.layout["apps"]["apps"], {})
+        self.assertNotIn("@steam", model.layout["apps"]["order"])
+        self.assertEqual(model.layout["apps"].get("removed", []), [])
+        self.assertEqual([tile["item"]["id"] for tile in model.tiles],
+                         ["browser"])
+
+    def test_the_heading_is_the_first_row(self):
+        model = self.model()
+        model.set_edit(True)
+        model.add_open()
+        self.assertEqual(self.choose(model, PICKER_MARK + "heading"),
+                         ("heading", "#1"))
+        self.assertIsNone(model.adding)
+        self.assertEqual(model.selected, "#1")
+
+    def test_an_id_cannot_take_a_mark_the_pad_uses(self):
+        for name in ("@steam", "+add"):
+            with self.assertRaises(MenuError):
+                build([{"label": "Apps", "items": [
+                    {"label": "Steam", "id": name, "action": "nop"}]}],
+                    settings={})
 
 
 class APageIsAGridNotAList(unittest.TestCase):

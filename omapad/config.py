@@ -659,6 +659,32 @@ def read_layout(path):
         headings = _layout_headings(plan.get("headings"))
         if headings:
             out[str(page)]["headings"] = headings
+        # And the applications put on it from the pad, each a desktop id
+        # under a name of its own. The same rule as the headings: part of
+        # the arrangement, and only where there are some.
+        launchers = _layout_apps(plan.get("apps"))
+        if launchers:
+            out[str(page)]["apps"] = launchers
+    return out
+
+
+def _layout_apps(value):
+    """The applications that are shaped like one. One bad one costs only itself.
+
+    The name has to carry `APP_MARK` for the heading's reason, and the value
+    is a desktop id - whether it is still installed is asked where the page
+    is drawn, the way an id in `order` is resolved against the tree.
+    """
+    if not isinstance(value, dict):
+        return {}
+    out = {}
+    for name, ident in value.items():
+        name = str(name).strip()
+        if not name.startswith(menu_module.APP_MARK):
+            continue
+        if not isinstance(ident, str) or not ident.strip():
+            continue
+        out[name] = ident.strip()
     return out
 
 
@@ -766,18 +792,18 @@ def render_layout(layout):
         "# editing config.toml can never break this file, and this file can",
         "# never hide a tile that did not exist when it was written.",
         "#",
-        "# A tile under `removed` is off its page and stands in the strip",
-        "# along the foot of the card, where it can be put back or put on",
-        "# another page. A page's `adopted` names the tiles it was given",
-        "# that way, as `page/id`; the page they came from says nothing, so",
-        "# there is one place saying where a tile is.",
+        "# A tile under `removed` is off its page; Add puts it back on one.",
+        "# A page's `adopted` names the tiles it was given from another page,",
+        "# as `page/id`; the page they came from says nothing, so there is",
+        "# one place saying where a tile is.",
         "#",
         "# A tile under `at` was put in that cell and stays in it; everything",
         "# else flows around those, in the order above. A cell off the edge of",
         "# a narrower screen is pulled back onto it rather than lost.",
         "#",
         "# `headings` are the words put over a run of tiles from the pad, by",
-        "# id; where one stands is its place in `order`.",
+        "# id; where one stands is its place in `order`. `apps` are the",
+        "# applications put on a page from the pad, each a desktop id.",
         "#",
         "# Delete a page's table to hand that page back to the config, or the",
         "# file to hand back every page.",
@@ -787,7 +813,8 @@ def render_layout(layout):
         plan = layout[page]
         if not plan.get("order") and not plan.get("removed") \
                 and not plan.get("span") and not plan.get("at") \
-                and not plan.get("adopted") and not plan.get("headings"):
+                and not plan.get("adopted") and not plan.get("headings") \
+                and not plan.get("apps"):
             continue
         lines.append("[layout.%s]" % page)
         if plan.get("order"):
@@ -818,6 +845,12 @@ def render_layout(layout):
             for name in sorted(plan["headings"]):
                 lines.append("%s = %s" % (toml_string(name),
                                           toml_string(plan["headings"][name])))
+        if plan.get("apps"):
+            lines.append("")
+            lines.append("[layout.%s.apps]" % page)
+            for name in sorted(plan["apps"]):
+                lines.append("%s = %s" % (toml_string(name),
+                                          toml_string(plan["apps"][name])))
         lines.append("")
     return "\n".join(lines)
 

@@ -66,8 +66,13 @@ and nowhere else: it is how a tile that was moved is said to be here.
 Which page a moved tile is on is written **once**, by the page holding it.
 The page it came from says nothing at all, and what it has lost is derived
 from every `adopted` list there is (`menu.adoptions`). Two tables that each
-had a say could disagree; one cannot. `removed` was called `hidden` until the
-strip gave a tile somewhere to be, and the old name is still read.
+had a say could disagree; one cannot. `removed` was called `hidden` until a
+removed tile could be put somewhere else, and the old name is still read.
+
+`headings` and `apps` are the two parts the pad **makes** rather than
+arranges - words over a run, and an installed app by its desktop id - and
+both are keyed under a mark (`#`, `@`) that `build` refuses in a written id,
+so neither can be taken for a tile the config has.
 
 ## The socket payloads - line-delimited JSON
 

@@ -151,12 +151,6 @@ Item {
   property int pressMs: 160
   property bool editing: false
   property string picked: ""
-  // The tiles that are off every page, as `{ id, l, p }` - what it is
-  // called and the page it came from - and which of them the focus is on,
-  // -1 for the page itself. Off the wire entirely while nobody is
-  // rearranging, so an empty list is what the rest of the time looks like.
-  property var removed: []
-  property int removedAt: -1
   // Which way a badge is drawn, from the daemon: the same question the guide
   // and the bar answer, and it has to be answered the same way here or one
   // surface prints its buttons unlike the other two.
@@ -386,20 +380,6 @@ Item {
     root.lede.length > 0 || root.clock.length > 0
   readonly property int headerSpace: root.titled
     ? root.headerHeight + root.contentSpacing : 0
-  // **The strip of removed tiles, along the foot of the page.** One row of
-  // chips: a tile taken off a page is not drawn where it stood any more, so
-  // this is where it is - by name, with the page it came from beside it, and
-  // with everything taken off every other page.
-  //
-  // Only while rearranging, and only while it holds something: a band saying
-  // "nothing here" is a band a page is shorter for, every time the menu is
-  // opened.
-  readonly property int chipHeight:
-    metrics.type.fine + metrics.space(10)
-  readonly property int removedHeight:
-    (root.editing && root.removed.length > 0) ? root.chipHeight : 0
-  readonly property int removedBand: root.removedHeight <= 0 ? 0
-    : root.removedHeight + root.contentSpacing
   readonly property int legendHeight: root.keys.length > 0
     ? Math.max(root.badgeUnit, metrics.type.fine) + metrics.space(6) : 0
   // What the legend takes off the bottom. On a card it is its own height and
@@ -448,13 +428,6 @@ Item {
   // percent of the ink, the card to its line another seven.
   readonly property color cellEdge:
     Qt.tint(root.cellGround, Util.alpha(Color.menu.text, 0.07))
-  // A fifth of the accent over the cell's own colour, resolved to a solid the
-  // way `cellGround` is: the ground of the chip the focus is on, in the strip
-  // of tiles taken off every page. It was also the ground of a toggle that is
-  // on, until that read as a faded second nav card - a toggle is a key that
-  // goes down now (`tile.sunk`), and says so without a colour.
-  readonly property color cellLit:
-    Qt.tint(root.cellGround, Util.alpha(Color.accent, 0.20))
   // **The three inks, and they are contrast ratios rather than fades.** The
   // design publishes exactly three levels over a card - primary, muted and
   // dim - and publishes them as *measured* colours, each at least 4.5:1 on
@@ -493,6 +466,22 @@ Item {
   // taken from. Loud enough to find, quiet enough that
   // what the value has *settled* on stays the thing being read.
   readonly property color ghostInk: Util.alpha(Color.accent, 0.5)
+
+  // **Where an application's icon is**, found the way Omarchy's launcher
+  // finds it (`AppLibrary.iconSource`): a path is a file, a name is looked up
+  // in the icon theme in force, and nothing found is the generic program
+  // mark rather than an empty square. The daemon sends the name the desktop
+  // entry wrote; which file that is depends on the theme, and the theme is
+  // this side's.
+  function appIcon(name) {
+    var value = String(name || "")
+    if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0)
+      return value
+    if (value.charAt(0) === "/") return "file://" + value
+    var themed = value.length > 0 ? Quickshell.iconPath(value, true) : ""
+    if (themed.length > 0) return themed
+    return Quickshell.iconPath("application-x-executable", true)
+  }
 
   // **Which font a glyph is set in.** The surface's own, unless the row that
   // carries it named another: a glyph only exists in the font that drew it,
@@ -597,7 +586,6 @@ Item {
            ? root.headHeight(root.headRows) + root.contentSpacing : 0)
         - root.headerSpace
         - root.navHeight - root.navGap - root.contentSpacing
-        - root.removedBand
         - root.legendBand
       // **The silver split of the screen**, not a decimal somebody liked: a
       // card that swallowed the screen would read as a page rather than as a
@@ -722,16 +710,6 @@ Item {
       if (s.cell !== undefined) root.cellUnit = Number(s.cell) || 34
       if (s.edit !== undefined) root.editing = !!s.edit
       if (s.pick !== undefined) root.picked = String(s.pick)
-      // The strip, which is absent from every payload sent while nobody is
-      // rearranging - so absent means empty, and only the whole surface may
-      // say so.
-      if (whole)
-        root.removedAt = (s.rmat !== undefined) ? Number(s.rmat) : -1
-      // Through `fresh` like the tiles, because it is a model too: a `var`
-      // assigned again never compares equal to itself and rebuilds every
-      // delegate under it.
-      var off = (s.rm !== undefined) ? s.rm : []
-      if (whole && root.fresh("rm", off)) root.removed = off
       // Every line, absent meaning no, and before `open`, which reads it.
       root.swap = !!s.swap
       if (s.open !== undefined) {
@@ -1213,7 +1191,6 @@ Item {
           + root.headerSpace
           + root.navHeight + root.navGap + root.contentSpacing
           + root.gridHeight
-          + root.removedBand
           + root.legendBand,
         parent.height - Style.gapsOut * 2)
       // Nothing of its own when it is the screen: the scrim behind is what
@@ -1992,8 +1969,14 @@ Item {
                 // key that is down too: its state is a position and a word,
                 // so the accent on its edge still means one thing only.
                 readonly property color mark: Color.accent
-                readonly property bool hasIcon: tile.modelData.i !== undefined
-                  && tile.modelData.i.length > 0
+                // An application carries its icon by name (`ai`) rather than a
+                // glyph, and it is still a mark: everything that asks whether
+                // there is room for one asks the same question of both.
+                readonly property bool hasImage: tile.modelData.ai !== undefined
+                  && tile.modelData.ai.length > 0
+                readonly property bool hasIcon: tile.hasImage
+                  || (tile.modelData.i !== undefined
+                      && tile.modelData.i.length > 0)
                 // Whether this tile is tall enough to stack the icon over the
                 // label. `menu.cell_height` is a setting, so a tile can be
                 // shorter than the two of them together - and a glyph that
@@ -2984,13 +2967,34 @@ Item {
                   Text {
                     id: iconText
                     anchors.fill: parent
+                    visible: !tile.hasImage
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
-                    text: tile.hasIcon ? tile.modelData.i : ""
+                    text: tile.hasIcon && !tile.hasImage ? tile.modelData.i : ""
                     textFormat: Text.PlainText
                     color: tile.ink
                     font.family: root.glyphFont(tile.modelData)
                     font.pixelSize: tile.iconSize
+                  }
+
+                  // **The app's own picture, in its own colours**, where every
+                  // other mark on the card is a glyph in the card's ink. An
+                  // application is recognised by its icon before its name is
+                  // read, which is the whole of what a launcher's grid is - and
+                  // a glyph standing in for Steam would be a tile somebody has
+                  // to read.
+                  Image {
+                    anchors.fill: parent
+                    visible: tile.hasImage
+                    source: tile.hasImage ? root.appIcon(tile.modelData.ai) : ""
+                    fillMode: Image.PreserveAspectFit
+                    // Decoded at physical pixels, for Omarchy's launcher's
+                    // reason: a logical-size decode leaves a PNG icon upscaled
+                    // and soft on a television.
+                    sourceSize.width: width * Screen.devicePixelRatio
+                    sourceSize.height: height * Screen.devicePixelRatio
+                    asynchronous: true
+                    smooth: true
                   }
                 }
 
@@ -4707,134 +4711,6 @@ Item {
             }
           }
         }
-
-
-        // **The tiles that are off every page**, drawn along the foot while
-        // the page is being rearranged. A tile taken off is not faded in the
-        // cell it stood in any more - it is here, by name, with the page it
-        // came from beside it and with everything taken off every other
-        // page. That is what makes moving one to another page possible at
-        // all: it has to be somewhere while the shoulders walk the bar.
-        //
-        // A row of chips rather than a page of tiles, and the ask is the
-        // measure of it: the name is enough. A second grid of the same cells
-        // would be a second page to arrange, on a surface whose whole
-        // argument is that there is one page in front of you.
-        Item {
-          id: removedStrip
-          width: parent.width
-          height: root.removedHeight
-          visible: root.removedHeight > 0
-
-          Text {
-            id: removedName
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: "Removed"
-            textFormat: Text.PlainText
-            color: Color.menu.text
-            // The caption's register, the same one a card's heading and a
-            // tile's name-over-a-value are set in: this band names what is
-            // in it and the chips are the things being read.
-            opacity: root.inkMuted
-            font.family: metrics.font.family
-            font.weight: metrics.weight.body
-            font.pixelSize: metrics.type.fine
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
-          }
-
-          ListView {
-            id: removedList
-            anchors.left: removedName.right
-            anchors.leftMargin: metrics.space(12)
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            height: root.chipHeight
-            orientation: ListView.Horizontal
-            spacing: metrics.space(6)
-            clip: true
-            // The focus lives in the daemon, here as everywhere on this
-            // surface: a drag would be a second answer to where it is.
-            interactive: false
-            boundsBehavior: Flickable.StopAtBounds
-            model: root.removed
-            currentIndex: root.removedAt
-            // Follow the focus, for the reason `reveal` does on the grid: a
-            // chip walked to off the right-hand end of the strip is a chip
-            // nobody can see they are standing on.
-            onCurrentIndexChanged: if (removedList.currentIndex >= 0)
-              removedList.positionViewAtIndex(removedList.currentIndex,
-                                              ListView.Contain)
-
-            delegate: Rectangle {
-              id: chip
-              required property var modelData
-              required property int index
-              readonly property bool here: chip.index === root.removedAt
-
-              height: root.chipHeight
-              width: chipRow.width + metrics.space(12) * 2
-              radius: metrics.radius.tile
-              // The grid's own two grounds, one level along: a chip is a
-              // cell that is not on the page, and the one the focus is on
-              // takes a fifth of the accent under its ring.
-              color: chip.here ? root.cellLit : root.cellGround
-              border.width: Math.max(1, metrics.space(2))
-              border.color: chip.here ? Color.accent : root.cellEdge
-              Behavior on color {
-                ColorAnimation { duration: metrics.time.follow }
-              }
-
-              Row {
-                id: chipRow
-                anchors.centerIn: parent
-                spacing: metrics.space(8)
-
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  text: chip.modelData.l
-                  textFormat: Text.PlainText
-                  color: Color.menu.text
-                  opacity: chip.here ? 1 : root.inkMuted
-                  font.family: metrics.font.family
-                  font.weight: metrics.weight.body
-                  font.pixelSize: metrics.type.fine
-                }
-
-                Text {
-                  anchors.verticalCenter: parent.verticalCenter
-                  // Where it came from, which is the half of a chip that
-                  // says what putting it back would mean - and on a strip
-                  // holding tiles off four pages it is the only thing
-                  // telling two `Volume`s apart.
-                  text: chip.modelData.p
-                  textFormat: Text.PlainText
-                  color: Color.menu.text
-                  opacity: root.inkDim
-                  font.family: metrics.font.family
-                  font.weight: metrics.weight.body
-                  font.pixelSize: metrics.type.fine
-                  font.capitalization: Font.AllUppercase
-                  font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
-                }
-              }
-
-              MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                // Two presses, the way A is two presses here: the first puts
-                // the focus on the chip and the second puts the tile on the
-                // page in front. A click that placed a tile the pointer had
-                // not stopped on first would be a page rearranged by a
-                // misclick.
-                onClicked: root.send(
-                  chip.here ? "menu place" : "menu removed " + chip.index)
-              }
-            }
-          }
-        }
-
       }
 
       // What the face buttons do here, page-scoped: the game bar says the

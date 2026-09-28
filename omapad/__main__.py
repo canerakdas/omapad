@@ -52,7 +52,7 @@ def build_parser():
         nargs="*",
         help="for ctl: osk <toggle|open|close>, "
         "menu <toggle|open|close|up|down|left|right|press|back"
-        "|group_prev|group_next|select N|group N|row ID|removed N"
+        "|group_prev|group_next|select N|group N|row ID"
         "|scroll ID N>, "
         "quick <toggle|open|close|left|right|up|down|press|back|select N>, "
         "guide <toggle|open|close|next|prev>, "
@@ -243,6 +243,10 @@ def cmd_check_layout(config):
         # the config, so it is this page's as long as the file says so.
         headings = plan.get("headings") or {}
         known.update(headings)
+        # And so is an app put on it from the pad, installed or not: whether
+        # it still is is the daemon's question, asked where the page is drawn.
+        launchers = plan.get("apps") or {}
+        known.update(launchers)
         lost = [name for name in plan["order"] if name not in known]
         removed = [name for name in plan["removed"] if name in names]
         added = [name for name in names
@@ -255,7 +259,7 @@ def cmd_check_layout(config):
             print("    new since it was saved, added at the end: %s"
                   % ", ".join(sorted(added)))
         if removed:
-            print("    off the page, in the strip: %s" % ", ".join(removed))
+            print("    off the page: %s" % ", ".join(removed))
         if given:
             print("    on another page now: %s"
                   % ", ".join("%s (on %s)" % (name, given[name])
@@ -265,6 +269,10 @@ def cmd_check_layout(config):
         if headings:
             print("    headings: %s" % ", ".join(
                 "%s %r" % (name, headings[name]) for name in sorted(headings)))
+        if launchers:
+            print("    apps: %s" % ", ".join(
+                "%s (%s)" % (name, launchers[name])
+                for name in sorted(launchers)))
         if unresolved:
             print("    named a tile that is not there, ignored: %s"
                   % ", ".join(unresolved))
