@@ -3153,100 +3153,6 @@ Item {
                   font.letterSpacing: metrics.tracking.caps(metrics.type.fine)
                 }
 
-                // **The ends of the spine**: the line carries on a little
-                // past the first row and the last one, and is capped at
-                // both. A line that began exactly at the first row's top edge
-                // began nowhere - it read as the edge of the ground behind it
-                // rather than as a thing of its own - and an end cap is what
-                // says *this is where the list starts* without saying
-                // anything else.
-                //
-                // **A cross, not a corner.** Both turned right at first, which
-                // made the two of them a bracket round the rows - and a
-                // bracket is a thing that *holds* what is inside it, which is
-                // a claim about the rows. A cross is a stop: it says the line
-                // ends here and nothing about what the line is next to. The
-                // two arms are the same length, so the cap is centred on the
-                // line rather than hanging off one face.
-                //
-                // Siblings of the stack rather than children of it: a
-                // `Column` lays its children out, so a child that wanted to
-                // sit above the first row would be the first row.
-                //
-                // **The arms do not cross the line**, and that is not
-                // tidiness: every ink on this surface is the theme's own at a
-                // share of itself, so a square painted twice is a square
-                // painted brighter. The line takes the crossing and the arms
-                // start either side of it.
-                Repeater {
-                  model: rowStack.visible && rowStack.height > 0
-                    && tile.railed ? 2 : 0
-
-                  delegate: Item {
-                    id: cap
-                    required property int index
-                    // The head, then the foot.
-                    readonly property bool head: cap.index === 0
-                    // Where the cap's own edge sits.
-                    readonly property real edge: cap.head
-                      ? rowStack.y - tile.spineArm
-                      : rowStack.y + rowStack.height + tile.spineArm
-                        - tile.spineWeight
-
-                    // **The cap itself, a drawing turned a quarter.**
-                    // `travel-end-open.svg`, the long stroke with the line's
-                    // own weight of air through the middle, because here the
-                    // line carries on past the crossing and a stroke drawn
-                    // whole over it would paint the same ink twice.
-                    //
-                    // **Eleven weights across**, which is a slider's end
-                    // (twelve) to the nearest length that leaves the two arms
-                    // equal round the line - so a card and a slider on one
-                    // page end their lines at one size. It was seven, and
-                    // beside a slider's ends it read as the smaller of two
-                    // scales.
-                    //
-                    // Drawn along its own axis and rotated about its middle,
-                    // which is why the box is the figure standing and the
-                    // placement is its centre: a drawing positioned by its
-                    // rotation as well as turned by it is arithmetic in two
-                    // places, and it is the rule the clock's hands are drawn
-                    // under.
-                    BadgeArt {
-                      id: capCross
-                      // The middle of the line, which is what the figure is
-                      // centred on at both ends.
-                      readonly property real mid: rowStack.x
-                        + tile.spineWeight / 2
-                      // Standing, like the drawing: the width is the line's
-                      // own weight and the height follows the figure's aspect.
-                      // The quarter turn then lays that across the line,
-                      // centred on the same point.
-                      width: tile.spineWeight
-                      height: capCross.implicitHeight
-                      x: capCross.mid - capCross.width / 2
-                      y: cap.edge + tile.spineWeight / 2
-                        - capCross.height / 2
-                      rotation: 90
-                      drawn: controlArt.find("travel", "end-open")
-                      fill: root.spineInk
-                    }
-
-                    // And the line's own run past the rows, which is what
-                    // the cap caps: the arms take the crossing at the far
-                    // end of it, so nothing here is painted twice.
-                    Rectangle {
-                      x: rowStack.x
-                      y: cap.head
-                        ? cap.edge
-                        : rowStack.y + rowStack.height
-                      width: tile.spineWeight
-                      height: tile.spineArm
-                      color: root.spineInk
-                    }
-                  }
-                }
-
                 // What the card has to say that is not one of its rows -
                 // `AUTO-SLEEP 30 MIN` in the design, which is a fact about
                 // the whole card rather than about any one verb in it. It is
@@ -3683,215 +3589,444 @@ Item {
                   elide: Text.ElideRight
                 }
 
-                Column {
-                  id: rowStack
+                // How far down the rows are, where there are more than the
+                // card holds - the reader's bar, for the same reason and in
+                // the same place. Outside the window, because the window
+                // clips and the bar sits in the card's margin.
+                Rectangle {
+                  visible: rowWindow.visible && rowWindow.reach > 0
+                  anchors.right: parent.right
+                  anchors.top: rowWindow.top
+                  anchors.bottom: rowWindow.bottom
+                  anchors.rightMargin: tile.pad - metrics.spine.weight
+                  width: metrics.spine.weight
+                  color: root.spineInk
+
+                  Rectangle {
+                    width: parent.width
+                    height: Math.max(metrics.gap.md, parent.height
+                      * rowWindow.height / Math.max(1, rowWindow.span))
+                    y: (parent.height - height) * rowWindow.share
+                    color: tile.taken ? tile.mark : tile.ink
+                    opacity: tile.taken ? 1.0 : root.inkMuted
+                    Behavior on y {
+                      enabled: rowWindow.settled
+                      NumberAnimation {
+                        duration: metrics.time.follow
+                        easing.type: Easing.OutCubic
+                      }
+                    }
+                  }
+                }
+
+                // **The window the rows are seen through.** A card is as tall
+                // as its `span` says and the rows are as many as somebody
+                // wrote, so there is no promise the one fits the other - and
+                // a stack centred on a card it is taller than ran out through
+                // the heading and the foot both. Between the two, then, and
+                // clipped once there is more than it holds.
+                //
+                // What is in view is the row that matters: the one A would
+                // run once somebody is inside, the one in force before that,
+                // and the top of the list where there is neither. Worked out
+                // from the rows rather than kept, like every cursor here - the
+                // daemon walks the rows and this only follows.
+                //
+                // It starts at the card's left edge rather than at its margin,
+                // so the crosses capping the spine still have their left arm
+                // while the window clips.
+                Item {
+                  id: rowWindow
                   z: 1
                   visible: tile.column && !tile.lone
                   anchors.left: parent.left
                   anchors.right: parent.right
-                  anchors.leftMargin: tile.pad
+                  anchors.top: columnHead.bottom
+                  anchors.bottom: columnFoot.visible
+                    ? columnFoot.top : parent.bottom
                   anchors.rightMargin: tile.pad
-                  // Between the heading and the foot rather than under one of
-                  // them: the card is as tall as its `span` says and the rows
-                  // are as many as there are, so what is left over is air at
-                  // both ends. A stack pinned under the heading would leave
-                  // all of it at the bottom, which reads as a card that has
-                  // been cut short.
-                  anchors.verticalCenter: parent.verticalCenter
-                  // **Nothing between the rows**, and that is what makes the
-                  // spine one line rather than a dashed one: each row draws
-                  // its own full-height segment of it, so the segments meet.
-                  // A Column child cannot be the whole spine - a Column lays
-                  // its children out, so a child asking for the Column's
-                  // height is a binding loop, and the one that happened drew
-                  // a line down the whole card with no rows on it.
+                  anchors.topMargin: metrics.gap.md
+                  anchors.bottomMargin: columnFoot.visible
+                    ? metrics.gap.md : tile.pad
+                  clip: rowWindow.reach > 0
+
+                  // The spine's run past the first row and the last, which
+                  // the window has to hold as well as the rows.
+                  readonly property real arm: tile.railed ? tile.spineArm : 0
+                  readonly property real span: rowStack.height + rowWindow.arm * 2
+                  readonly property real reach:
+                    Math.max(0, rowWindow.span - rowWindow.height)
+
+                  readonly property var aim: {
+                    var kids = rowStack.children
+                    var ticked = null
+                    for (var i = 0; i < kids.length; i++) {
+                      if (kids[i].here === true) return kids[i]
+                      if (ticked === null && kids[i].ticked === true)
+                        ticked = kids[i]
+                    }
+                    return ticked
+                  }
+                  readonly property real offset: rowWindow.aim === null ? 0
+                    : Math.max(0, Math.min(rowWindow.reach,
+                        rowWindow.aim.y + rowWindow.aim.height / 2
+                        + rowWindow.arm - rowWindow.height / 2))
+                  readonly property real share: rowWindow.reach > 0
+                    ? rowWindow.offset / rowWindow.reach : 0
+
+                  // Where the stack stands. While it fits, centred on the
+                  // **card** rather than on the window, as it always was -
+                  // a heading and a foot of different heights would
+                  // otherwise pull the rows off the card's middle - and held
+                  // inside the window only where that would reach past it.
+                  readonly property real place: rowWindow.reach > 0
+                    ? rowWindow.arm - rowWindow.offset
+                    : Math.max(rowWindow.arm, Math.min(
+                        rowWindow.height - rowWindow.arm - rowStack.height,
+                        (tile.height - rowStack.height) / 2 - rowWindow.y))
+
+                  function shows(row) {
+                    var mid = rowStack.y + row.y + row.height / 2
+                    return mid >= 0 && mid <= rowWindow.height
+                  }
+
+                  // Moved rather than jumped, once the card is standing; the
+                  // reader's rule.
+                  property bool settled: false
+                  Component.onCompleted: Qt.callLater(function() {
+                    rowWindow.settled = true
+                  })
+
+                  // **The ends of the spine**: the line carries on a little
+                  // past the first row and the last one, and is capped at
+                  // both. A line that began exactly at the first row's top edge
+                  // began nowhere - it read as the edge of the ground behind it
+                  // rather than as a thing of its own - and an end cap is what
+                  // says *this is where the list starts* without saying
+                  // anything else.
                   //
-                  // The rows do not run into each other for it: each already
-                  // holds its name off its own top and bottom by a rung, so
-                  // what was between them was air twice over.
-                  spacing: 0
-
+                  // **A cross, not a corner.** Both turned right at first, which
+                  // made the two of them a bracket round the rows - and a
+                  // bracket is a thing that *holds* what is inside it, which is
+                  // a claim about the rows. A cross is a stop: it says the line
+                  // ends here and nothing about what the line is next to. The
+                  // two arms are the same length, so the cap is centred on the
+                  // line rather than hanging off one face.
+                  //
+                  // Siblings of the stack rather than children of it: a
+                  // `Column` lays its children out, so a child that wanted to
+                  // sit above the first row would be the first row.
+                  //
+                  // **The arms do not cross the line**, and that is not
+                  // tidiness: every ink on this surface is the theme's own at a
+                  // share of itself, so a square painted twice is a square
+                  // painted brighter. The line takes the crossing and the arms
+                  // start either side of it.
                   Repeater {
-                    model: tile.lines
+                    model: rowStack.visible && rowStack.height > 0
+                      && tile.railed ? 2 : 0
 
-                    delegate: Rectangle {
-                      id: line
-                      required property var modelData
+                    delegate: Item {
+                      id: cap
+                      required property int index
+                      // The head, then the foot.
+                      readonly property bool head: cap.index === 0
+                      // Where the cap's own edge sits.
+                      readonly property real edge: cap.head
+                        ? rowStack.y - tile.spineArm
+                        : rowStack.y + rowStack.height + tile.spineArm
+                          - tile.spineWeight
 
-                      // A row is in front only while somebody is **inside**
-                      // the card. Selected is not enough: until A is pressed
-                      // up and down belong to the page, and a row drawn as
-                      // the one in front would be promising a walk that press
-                      // does not make. So a card standing in the grid shows
-                      // its rows and which of them is in force, and no cursor
-                      // at all.
-                      // **Two marks, and they answer two questions that are
-                      // often two different rows.**
+                      // **The cap itself, a drawing turned a quarter.**
+                      // `travel-end-open.svg`, the long stroke with the line's
+                      // own weight of air through the middle, because here the
+                      // line carries on past the crossing and a stroke drawn
+                      // whole over it would paint the same ink twice.
                       //
-                      // `ticked` is the row in force, and it is a *state*: it
-                      // is true whether or not this card is the one selected,
-                      // let alone the one somebody is inside. So the mark for
-                      // it is drawn always - the pointer, and the row's length
-                      // of the spine lit behind it.
+                      // **Eleven weights across**, which is a slider's end
+                      // (twelve) to the nearest length that leaves the two arms
+                      // equal round the line - so a card and a slider on one
+                      // page end their lines at one size. It was seven, and
+                      // beside a slider's ends it read as the smaller of two
+                      // scales.
                       //
-                      // `here` is the row A would run, which only exists once
-                      // A has gone in: up and down belong to the page until
-                      // then, so a mark for it outside the card would be
-                      // promising a walk that press does not make.
-                      readonly property bool here: tile.selected && tile.taken
-                        && root.selRow === line.modelData.id
-                      readonly property bool ticked: line.modelData.on === true
-                      // **Whether the row was asked**, which is not whether
-                      // the answer was yes: a key is drawn for every row on
-                      // a latching card that has an answer at all, because a
-                      // bank with a gap in it is a bank whose gap means
-                      // something. A row nothing could answer for - a verb
-                      // among switches, a reading the mixer has not sent yet
-                      // - leaves the slot empty rather than drawing a key
-                      // that can never go down.
-                      readonly property bool asked:
-                        line.modelData.on !== undefined
-                      readonly property bool marked:
-                        line.modelData.i !== undefined
-                        && line.modelData.i.length > 0
-                      readonly property bool flashing:
-                        tile.selected && root.flashed === line.modelData.id
-                      // The hold on a row that cannot be taken back. The
-                      // daemon names the row rather than the card, so Logout
-                      // fills and the three verbs beside it do not.
-                      readonly property bool holding: root.holding !== null
-                        && root.holding !== undefined
-                        && root.holding.id === line.modelData.id
-                      readonly property bool armed:
-                        line.holding && !!root.holding.armed
-                      // Counting down to running, and how long is left. The
-                      // daemon names the row rather than the card, so one row
-                      // counts and the verbs beside it do not.
-                      readonly property bool counting: root.counting !== null
-                        && root.counting !== undefined
-                        && root.counting.id === line.modelData.id
-                      // **Not `left`.** An `Item` has one and it is FINAL,
-                      // so declaring it here fails the whole component - and
-                      // the way that fails is the panel never coming up at
-                      // all, with one line about it in the shell's log.
-                      readonly property int remaining: line.counting
-                        ? (Number(root.counting.left) || 0) : 0
-                      // Never through `metrics.ms` - a countdown is not
-                      // motion, and somebody who asked the screen to hold
-                      // still has not asked for a shorter wait in front of
-                      // something irreversible. The tile's rule, one level in.
-                      readonly property int lapMs:
-                        line.holding ? (Number(root.holding.ms) || 0) : 0
+                      // Drawn along its own axis and rotated about its middle,
+                      // which is why the box is the figure standing and the
+                      // placement is its centre: a drawing positioned by its
+                      // rotation as well as turned by it is arithmetic in two
+                      // places, and it is the rule the clock's hands are drawn
+                      // under.
+                      BadgeArt {
+                        id: capCross
+                        // The middle of the line, which is what the figure is
+                        // centred on at both ends.
+                        readonly property real mid: rowStack.x
+                          + tile.spineWeight / 2
+                        // Standing, like the drawing: the width is the line's
+                        // own weight and the height follows the figure's aspect.
+                        // The quarter turn then lays that across the line,
+                        // centred on the same point.
+                        width: tile.spineWeight
+                        height: capCross.implicitHeight
+                        x: capCross.mid - capCross.width / 2
+                        y: cap.edge + tile.spineWeight / 2
+                          - capCross.height / 2
+                        rotation: 90
+                        drawn: controlArt.find("travel", "end-open")
+                        fill: root.spineInk
+                      }
 
-                      readonly property bool explained:
-                        line.modelData.d !== undefined
-                        && line.modelData.d.length > 0
-
-                      width: rowStack.width
-                      height: lineName.implicitHeight
-                        + (line.explained
-                           ? lineWhy.implicitHeight + metrics.gap.xxs : 0)
-                        + metrics.gap.lg * 2
-                      // The row itself draws nothing: it is the box the rest
-                      // is laid out in, and what fills it starts a spine's
-                      // width along - see `lineGround`.
-                      color: "transparent"
-
-                      // Two rungs under the card's own corner - the design's
-                      // radius for a row against its radius for the card that
-                      // holds it - and **square down the left** where there is
-                      // a spine, so whatever is filled meets it instead of
-                      // curving away and leaving a sliver of card between the
-                      // two. A card with no state has no spine, and the row
-                      // takes its corner on all four.
-                      readonly property real corner:
-                        metrics.rung(metrics.radius.tile, -2)
-                      // How far in everything the row fills starts: the
-                      // spine's own width where there is one, and the row's
-                      // own edge where there is not.
-                      readonly property int inset:
-                        tile.railed ? tile.spineWeight : 0
-
-                      // **The ground is the cursor**, and only while the card
-                      // has been entered. It said which row was in force for
-                      // a while, and then the pointer said that too - which
-                      // is one thing drawn twice, and the ground was the half
-                      // that could not also say where A would land.
-                      //
-                      // It starts where the spine ends rather than under it.
-                      // Every ink here is the theme's own at a share of
-                      // itself, so a line drawn over a ground is a different
-                      // line from the one drawn over the card beside it - and
-                      // a spine that changed colour for the length of one row
-                      // read as the two of them overlapping, which is exactly
-                      // what it was.
+                      // And the line's own run past the rows, which is what
+                      // the cap caps: the arms take the crossing at the far
+                      // end of it, so nothing here is painted twice.
                       Rectangle {
-                        id: lineGround
-                        anchors.fill: parent
-                        anchors.leftMargin: tile.railed ? tile.spineWeight : 0
-                        color: line.here ? root.rowGround : "transparent"
-                        topRightRadius: line.corner
-                        bottomRightRadius: line.corner
-                        // Square down the left only where there is a spine
-                        // for it to meet. With none, the row is a shape of
-                        // its own and takes its corner on all four.
-                        topLeftRadius: tile.railed ? 0 : line.corner
-                        bottomLeftRadius: tile.railed ? 0 : line.corner
+                        x: rowStack.x
+                        y: cap.head
+                          ? cap.edge
+                          : rowStack.y + rowStack.height
+                        width: tile.spineWeight
+                        height: tile.spineArm
+                        color: root.spineInk
                       }
+                    }
+                  }
 
-                      // The countdown, swept across the row the way it is
-                      // swept across a tile - clipped rather than stretched,
-                      // and entered from wherever it has got to, because this
-                      // grid is a Repeater and a delegate rebuilt mid-hold is
-                      // born past the transition it needed to see (qml.md
-                      // 5.5).
-                      function enterHold() {
-                        lineLap.stop()
-                        if (!line.holding) {
-                          lineFill.swept = 0
-                          return
-                        }
-                        if (line.armed) {
-                          // The fill runs back out over the confirm window,
-                          // so the row is empty at the moment it runs.
-                          lineFill.swept = 1
-                          lineLap.from = 1
-                          lineLap.to = 0
-                        } else {
-                          lineLap.from = lineFill.swept
-                          lineLap.to = 1
-                        }
-                        lineLap.duration = line.lapMs
-                        if (lineLap.duration > 0) lineLap.start()
-                        else lineFill.swept = lineLap.to
+                  Column {
+                    id: rowStack
+                    x: tile.pad
+                    width: rowWindow.width - tile.pad
+                    y: rowWindow.place
+                    Behavior on y {
+                      enabled: rowWindow.settled && rowWindow.reach > 0
+                      NumberAnimation {
+                        duration: metrics.time.follow
+                        easing.type: Easing.OutCubic
                       }
+                    }
+                    // Between the heading and the foot rather than under one of
+                    // them: the card is as tall as its `span` says and the rows
+                    // are as many as there are, so what is left over is air at
+                    // both ends. A stack pinned under the heading would leave
+                    // all of it at the bottom, which reads as a card that has
+                    // been cut short.
+                    // **Nothing between the rows**, and that is what makes the
+                    // spine one line rather than a dashed one: each row draws
+                    // its own full-height segment of it, so the segments meet.
+                    // A Column child cannot be the whole spine - a Column lays
+                    // its children out, so a child asking for the Column's
+                    // height is a binding loop, and the one that happened drew
+                    // a line down the whole card with no rows on it.
+                    //
+                    // The rows do not run into each other for it: each already
+                    // holds its name off its own top and bottom by a rung, so
+                    // what was between them was air twice over.
+                    spacing: 0
 
-                      onHoldingChanged: line.enterHold()
-                      onArmedChanged: line.enterHold()
-                      Component.onCompleted: line.enterHold()
+                    Repeater {
+                      model: tile.lines
 
-                      // Clipped rather than stretched, the way the tile's
-                      // own sweep is: the ground has corners and a rectangle
-                      // laid over it would fill corners the row does not
-                      // have. The clip is square and the fill inside it
-                      // carries the row's radius, so the trailing edge is
-                      // rounded and the leading edge is not - which is what a
-                      // sweep looks like.
-                      Item {
-                        id: lineFill
-                        property real swept: 0
-                        anchors.left: parent.left
-                        anchors.leftMargin: line.inset
-                        anchors.top: parent.top
-                        width: Math.round(
-                          (line.width - line.inset) * lineFill.swept)
-                        height: line.height
-                        clip: true
-                        visible: line.holding
+                      delegate: Rectangle {
+                        id: line
+                        required property var modelData
 
+                        // A row is in front only while somebody is **inside**
+                        // the card. Selected is not enough: until A is pressed
+                        // up and down belong to the page, and a row drawn as
+                        // the one in front would be promising a walk that press
+                        // does not make. So a card standing in the grid shows
+                        // its rows and which of them is in force, and no cursor
+                        // at all.
+                        // **Two marks, and they answer two questions that are
+                        // often two different rows.**
+                        //
+                        // `ticked` is the row in force, and it is a *state*: it
+                        // is true whether or not this card is the one selected,
+                        // let alone the one somebody is inside. So the mark for
+                        // it is drawn always - the pointer, and the row's length
+                        // of the spine lit behind it.
+                        //
+                        // `here` is the row A would run, which only exists once
+                        // A has gone in: up and down belong to the page until
+                        // then, so a mark for it outside the card would be
+                        // promising a walk that press does not make.
+                        readonly property bool here: tile.selected && tile.taken
+                          && root.selRow === line.modelData.id
+                        readonly property bool ticked: line.modelData.on === true
+                        // **Whether the row was asked**, which is not whether
+                        // the answer was yes: a key is drawn for every row on
+                        // a latching card that has an answer at all, because a
+                        // bank with a gap in it is a bank whose gap means
+                        // something. A row nothing could answer for - a verb
+                        // among switches, a reading the mixer has not sent yet
+                        // - leaves the slot empty rather than drawing a key
+                        // that can never go down.
+                        readonly property bool asked:
+                          line.modelData.on !== undefined
+                        readonly property bool marked:
+                          line.modelData.i !== undefined
+                          && line.modelData.i.length > 0
+                        readonly property bool flashing:
+                          tile.selected && root.flashed === line.modelData.id
+                        // The hold on a row that cannot be taken back. The
+                        // daemon names the row rather than the card, so Logout
+                        // fills and the three verbs beside it do not.
+                        readonly property bool holding: root.holding !== null
+                          && root.holding !== undefined
+                          && root.holding.id === line.modelData.id
+                        readonly property bool armed:
+                          line.holding && !!root.holding.armed
+                        // Counting down to running, and how long is left. The
+                        // daemon names the row rather than the card, so one row
+                        // counts and the verbs beside it do not.
+                        readonly property bool counting: root.counting !== null
+                          && root.counting !== undefined
+                          && root.counting.id === line.modelData.id
+                        // **Not `left`.** An `Item` has one and it is FINAL,
+                        // so declaring it here fails the whole component - and
+                        // the way that fails is the panel never coming up at
+                        // all, with one line about it in the shell's log.
+                        readonly property int remaining: line.counting
+                          ? (Number(root.counting.left) || 0) : 0
+                        // Never through `metrics.ms` - a countdown is not
+                        // motion, and somebody who asked the screen to hold
+                        // still has not asked for a shorter wait in front of
+                        // something irreversible. The tile's rule, one level in.
+                        readonly property int lapMs:
+                          line.holding ? (Number(root.holding.ms) || 0) : 0
+
+                        readonly property bool explained:
+                          line.modelData.d !== undefined
+                          && line.modelData.d.length > 0
+
+                        width: rowStack.width
+                        height: lineName.implicitHeight
+                          + (line.explained
+                             ? lineWhy.implicitHeight + metrics.gap.xxs : 0)
+                          + metrics.gap.lg * 2
+                        // The row itself draws nothing: it is the box the rest
+                        // is laid out in, and what fills it starts a spine's
+                        // width along - see `lineGround`.
+                        color: "transparent"
+
+                        // Two rungs under the card's own corner - the design's
+                        // radius for a row against its radius for the card that
+                        // holds it - and **square down the left** where there is
+                        // a spine, so whatever is filled meets it instead of
+                        // curving away and leaving a sliver of card between the
+                        // two. A card with no state has no spine, and the row
+                        // takes its corner on all four.
+                        readonly property real corner:
+                          metrics.rung(metrics.radius.tile, -2)
+                        // How far in everything the row fills starts: the
+                        // spine's own width where there is one, and the row's
+                        // own edge where there is not.
+                        readonly property int inset:
+                          tile.railed ? tile.spineWeight : 0
+
+                        // **The ground is the cursor**, and only while the card
+                        // has been entered. It said which row was in force for
+                        // a while, and then the pointer said that too - which
+                        // is one thing drawn twice, and the ground was the half
+                        // that could not also say where A would land.
+                        //
+                        // It starts where the spine ends rather than under it.
+                        // Every ink here is the theme's own at a share of
+                        // itself, so a line drawn over a ground is a different
+                        // line from the one drawn over the card beside it - and
+                        // a spine that changed colour for the length of one row
+                        // read as the two of them overlapping, which is exactly
+                        // what it was.
                         Rectangle {
-                          width: line.width - line.inset
+                          id: lineGround
+                          anchors.fill: parent
+                          anchors.leftMargin: tile.railed ? tile.spineWeight : 0
+                          color: line.here ? root.rowGround : "transparent"
+                          topRightRadius: line.corner
+                          bottomRightRadius: line.corner
+                          // Square down the left only where there is a spine
+                          // for it to meet. With none, the row is a shape of
+                          // its own and takes its corner on all four.
+                          topLeftRadius: tile.railed ? 0 : line.corner
+                          bottomLeftRadius: tile.railed ? 0 : line.corner
+                        }
+
+                        // The countdown, swept across the row the way it is
+                        // swept across a tile - clipped rather than stretched,
+                        // and entered from wherever it has got to, because this
+                        // grid is a Repeater and a delegate rebuilt mid-hold is
+                        // born past the transition it needed to see (qml.md
+                        // 5.5).
+                        function enterHold() {
+                          lineLap.stop()
+                          if (!line.holding) {
+                            lineFill.swept = 0
+                            return
+                          }
+                          if (line.armed) {
+                            // The fill runs back out over the confirm window,
+                            // so the row is empty at the moment it runs.
+                            lineFill.swept = 1
+                            lineLap.from = 1
+                            lineLap.to = 0
+                          } else {
+                            lineLap.from = lineFill.swept
+                            lineLap.to = 1
+                          }
+                          lineLap.duration = line.lapMs
+                          if (lineLap.duration > 0) lineLap.start()
+                          else lineFill.swept = lineLap.to
+                        }
+
+                        onHoldingChanged: line.enterHold()
+                        onArmedChanged: line.enterHold()
+                        Component.onCompleted: line.enterHold()
+
+                        // Clipped rather than stretched, the way the tile's
+                        // own sweep is: the ground has corners and a rectangle
+                        // laid over it would fill corners the row does not
+                        // have. The clip is square and the fill inside it
+                        // carries the row's radius, so the trailing edge is
+                        // rounded and the leading edge is not - which is what a
+                        // sweep looks like.
+                        Item {
+                          id: lineFill
+                          property real swept: 0
+                          anchors.left: parent.left
+                          anchors.leftMargin: line.inset
+                          anchors.top: parent.top
+                          width: Math.round(
+                            (line.width - line.inset) * lineFill.swept)
                           height: line.height
+                          clip: true
+                          visible: line.holding
+
+                          Rectangle {
+                            width: line.width - line.inset
+                            height: line.height
+                            // The row's own corners: square where it meets the
+                            // spine, rounded where it leaves the card - and
+                            // rounded at both ends where there is no spine.
+                            topRightRadius: line.corner
+                            bottomRightRadius: line.corner
+                            topLeftRadius: tile.railed ? 0 : line.corner
+                            bottomLeftRadius: tile.railed ? 0 : line.corner
+                            color: Util.alpha(tile.mark, 0.35)
+                          }
+                        }
+
+                        NumberAnimation {
+                          id: lineLap
+                          target: lineFill
+                          property: "swept"
+                          easing.type: Easing.Linear
+                        }
+
+                        // The press, as the tile answers one: a ring inside the
+                        // row's own edge, clear of it, so a row being pressed
+                        // reads as two lines rather than one thick one.
+                        Rectangle {
+                          anchors.fill: parent
+                          anchors.leftMargin: line.inset
                           // The row's own corners: square where it meets the
                           // spine, rounded where it leaves the card - and
                           // rounded at both ends where there is no spine.
@@ -3899,314 +4034,294 @@ Item {
                           bottomRightRadius: line.corner
                           topLeftRadius: tile.railed ? 0 : line.corner
                           bottomLeftRadius: tile.railed ? 0 : line.corner
-                          color: Util.alpha(tile.mark, 0.35)
+                          color: "transparent"
+                          border.color: tile.mark
+                          // The design's `inset 0 0 0 2px`, off the ladder for
+                          // the reason every stroke weight is - qml.md 8.2.1.
+                          border.width: Math.max(1, metrics.space(2))
+                          // A binding rather than something the timer starts:
+                          // a delegate rebuilt mid-flash is born where the
+                          // state already is.
+                          opacity: line.flashing ? 1 : 0
+                          visible: opacity > 0
+                          Behavior on opacity {
+                            NumberAnimation { duration: metrics.time.brisk }
+                          }
                         }
-                      }
 
-                      NumberAnimation {
-                        id: lineLap
-                        target: lineFill
-                        property: "swept"
-                        easing.type: Easing.Linear
-                      }
-
-                      // The press, as the tile answers one: a ring inside the
-                      // row's own edge, clear of it, so a row being pressed
-                      // reads as two lines rather than one thick one.
-                      Rectangle {
-                        anchors.fill: parent
-                        anchors.leftMargin: line.inset
-                        // The row's own corners: square where it meets the
-                        // spine, rounded where it leaves the card - and
-                        // rounded at both ends where there is no spine.
-                        topRightRadius: line.corner
-                        bottomRightRadius: line.corner
-                        topLeftRadius: tile.railed ? 0 : line.corner
-                        bottomLeftRadius: tile.railed ? 0 : line.corner
-                        color: "transparent"
-                        border.color: tile.mark
-                        // The design's `inset 0 0 0 2px`, off the ladder for
-                        // the reason every stroke weight is - qml.md 8.2.1.
-                        border.width: Math.max(1, metrics.space(2))
-                        // A binding rather than something the timer starts:
-                        // a delegate rebuilt mid-flash is born where the
-                        // state already is.
-                        opacity: line.flashing ? 1 : 0
-                        visible: opacity > 0
-                        Behavior on opacity {
-                          NumberAnimation { duration: metrics.time.brisk }
+                        // **The spine, and the row in force on it.** It says
+                        // *this is the row in force*; the ground says which row
+                        // A would act on, which is a different question and
+                        // often a different row - `Start in` shows both at
+                        // once.
+                        //
+                        // **The spine**, one row's worth of it. Every row draws
+                        // it, so a stack of words reads as a list rather than
+                        // as four labels that happen to be under one another -
+                        // and the row in force lights its own length of it.
+                        // Full height and no gap between rows, so the segments
+                        // meet and the line is one line.
+                        //
+                        // **The row in force is the slider's needle laid along
+                        // the line**: its length of it three weights wide, one
+                        // either side of the line, solid in the accent. A
+                        // slider says *here* with a figure heavier than
+                        // anything else on its scale, and a card is a stepped
+                        // slider stood up, so it says it the same way - where
+                        // it was a lit hairline bracketed by two strokes, a
+                        // `[` the eye had to assemble. The accent is opaque, so
+                        // it covers the line under it rather than tinting it
+                        // twice.
+                        Rectangle {
+                          visible: tile.railed
+                          x: line.ticked ? -tile.spineWeight : 0
+                          anchors.top: parent.top
+                          anchors.bottom: parent.bottom
+                          width: line.ticked
+                            ? tile.spineWeight * 3 : tile.spineWeight
+                          color: line.ticked ? Color.accent : root.spineInk
                         }
-                      }
 
-                      // **The spine, and the row in force on it.** It says
-                      // *this is the row in force*; the ground says which row
-                      // A would act on, which is a different question and
-                      // often a different row - `Start in` shows both at
-                      // once.
-                      //
-                      // **The spine**, one row's worth of it. Every row draws
-                      // it, so a stack of words reads as a list rather than
-                      // as four labels that happen to be under one another -
-                      // and the row in force lights its own length of it.
-                      // Full height and no gap between rows, so the segments
-                      // meet and the line is one line.
-                      //
-                      // **The row in force is the slider's needle laid along
-                      // the line**: its length of it three weights wide, one
-                      // either side of the line, solid in the accent. A
-                      // slider says *here* with a figure heavier than
-                      // anything else on its scale, and a card is a stepped
-                      // slider stood up, so it says it the same way - where
-                      // it was a lit hairline bracketed by two strokes, a
-                      // `[` the eye had to assemble. The accent is opaque, so
-                      // it covers the line under it rather than tinting it
-                      // twice.
-                      Rectangle {
-                        visible: tile.railed
-                        x: line.ticked ? -tile.spineWeight : 0
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        width: line.ticked
-                          ? tile.spineWeight * 3 : tile.spineWeight
-                        color: line.ticked ? Color.accent : root.spineInk
-                      }
+                        // **The slot at the head of the row**: the row's
+                        // glyph where it carries one, and the card's key where
+                        // the card latches. A fixed slot rather than a mark
+                        // measured at the call site, so every row's name starts
+                        // in the same place whatever is beside it - and one
+                        // slot rather than two, because a row that carried
+                        // both would be asking a reader to learn which of two
+                        // marks at its head means which.
+                        Item {
+                          id: lineMark
+                          // The slot is the card's and what is in it is the
+                          // row's, so an unmarked row among marked ones is a
+                          // gap in the column rather than a name out of line.
+                          // It clears the rail: the rail is two pixels at the
+                          // row's own edge and this is a rung further in. A card
+                          // with no state has no rail to clear, so the words sit
+                          // a rung nearer their own ground - the column moved
+                          // left with the line that was holding it out.
+                          width: tile.slotted ? metrics.gap.xl : 0
+                          height: metrics.gap.xl
+                          anchors.left: parent.left
+                          anchors.leftMargin: tile.railed
+                            ? metrics.gap.xxl : metrics.gap.lg
+                          anchors.verticalCenter: lineName.verticalCenter
 
-                      // **The slot at the head of the row**: the row's
-                      // glyph where it carries one, and the card's key where
-                      // the card latches. A fixed slot rather than a mark
-                      // measured at the call site, so every row's name starts
-                      // in the same place whatever is beside it - and one
-                      // slot rather than two, because a row that carried
-                      // both would be asking a reader to learn which of two
-                      // marks at its head means which.
-                      Item {
-                        id: lineMark
-                        // The slot is the card's and what is in it is the
-                        // row's, so an unmarked row among marked ones is a
-                        // gap in the column rather than a name out of line.
-                        // It clears the rail: the rail is two pixels at the
-                        // row's own edge and this is a rung further in. A card
-                        // with no state has no rail to clear, so the words sit
-                        // a rung nearer their own ground - the column moved
-                        // left with the line that was holding it out.
-                        width: tile.slotted ? metrics.gap.xl : 0
-                        height: metrics.gap.xl
-                        anchors.left: parent.left
-                        anchors.leftMargin: tile.railed
-                          ? metrics.gap.xxl : metrics.gap.lg
-                        anchors.verticalCenter: lineName.verticalCenter
+                          Text {
+                            visible: line.marked
+                            anchors.fill: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: line.marked ? line.modelData.i : ""
+                            textFormat: Text.PlainText
+                            color: line.here ? Color.accent : tile.ink
+                            opacity: line.here ? 1 : root.inkMuted
+                            font.family: root.glyphFont(line.modelData)
+                            font.pixelSize: metrics.type.body
+                          }
+
+                          // **The key, on a card whose rows latch.** It is the
+                          // one drawing this card was right to refuse while
+                          // its state was a length of line - a ring at the
+                          // head of every row was tried and dropped, because
+                          // the line already changed colour at the row it
+                          // meant and a second mark saying the same thing is a
+                          // mark to learn for nothing. A bank of switches has
+                          // no such line: there is no *one* row to point at,
+                          // so what says a row is on has to be on the row.
+                          //
+                          // A key rather than a tick. A tick is a mark made in
+                          // a box by somebody filling a form in; a key is a
+                          // thing on the front of a radio that is down or up,
+                          // and this is a bank of them - the state is the
+                          // key's own, and reading it is reading whether
+                          // anything is lit in the window rather than reading
+                          // a glyph. It also keeps the card to the two figures
+                          // it already has: a rectangle and a stroke.
+                          //
+                          // **The slot and what is in it are two drawings**
+                          // (`key-ring.svg`, `key-lit.svg`), on one canvas and
+                          // one box, the way a button and the label punched
+                          // through it are. Two because they are painted in two
+                          // colours: the ring takes the card's own line ink and
+                          // does not light with the row, and the window does.
+                          //
+                          // The key's corner is **the drawing's** rather than
+                          // the ladder's, which is the one thing it gave up by
+                          // becoming art. It had already stopped following the
+                          // ladder in the place that mattered: a rung under the
+                          // row's corner, then capped at a quarter of its own
+                          // side, because past that a 16-pixel square is not a
+                          // rounder key, it is a pill - a different shape, and
+                          // the shape of the switch on a tile rather than of a
+                          // key on a bank. What is drawn is that cap. A theme
+                          // that rounds nothing at all now keeps a rounded key,
+                          // which is the trade: the figure is one a hand reads
+                          // at 16 pixels, and it is redrawn in `shapes/` rather
+                          // than computed here.
+                          Item {
+                            id: lineKey
+                            visible: tile.many && line.asked
+                            anchors.centerIn: parent
+                            width: metrics.gap.xl
+                            height: metrics.gap.xl
+
+                            // The card's own line, at the card's own weight:
+                            // the keys are what makes this stack a list, which
+                            // is the job the line has on every other card.
+                            BadgeArt {
+                              anchors.fill: parent
+                              drawn: controlArt.find("key", "ring")
+                              fill: root.spineInk
+                            }
+
+                            // **What is in the window when the key is down.**
+                            // The state is a thing that is *there* rather than
+                            // a colour the key turns, which is qml.md 8.1.1
+                            // read at a key's size: a theme whose accent sits
+                            // close to its card exists, and on one of those the
+                            // difference between an empty window and a full one
+                            // is still a difference.
+                            //
+                            // One stroke of air inside the ring, and square
+                            // where the ring is round - a shape drawn that far
+                            // inside another takes that much less corner
+                            // (qml.md 8.2.6), and at this size two equal radii
+                            // read as the inner one bulging. Both of those are
+                            // in the drawing now.
+                            BadgeArt {
+                              visible: line.ticked
+                              anchors.fill: parent
+                              drawn: controlArt.find("key", "lit")
+                              fill: Color.accent
+                            }
+                          }
+                        }
 
                         Text {
-                          visible: line.marked
-                          anchors.fill: parent
-                          horizontalAlignment: Text.AlignHCenter
-                          verticalAlignment: Text.AlignVCenter
-                          text: line.marked ? line.modelData.i : ""
+                          id: lineName
+                          anchors.left: lineMark.right
+                          anchors.right: parent.right
+                          // Nothing where the card has no slot: an empty
+                          // `Item` is still anchored, so its right edge is
+                          // already the inset the row is written to and a
+                          // second one would indent every row twice.
+                          anchors.leftMargin: tile.slotted
+                            ? metrics.gap.sm : 0
+                          // The mark slot starts clear of the pointer, so this
+                          // needs nothing of its own - see `lineMark`.
+                          // Out of the number's way while one is counting: a
+                          // name running under the seconds left is the one
+                          // row on the page where both matter at once.
+                          anchors.rightMargin: line.counting
+                            ? metrics.gap.huge : metrics.gap.lg
+                          // Placed from the top rather than centred: a row with
+                          // a line under it is two lines centred *together*,
+                          // and an anchor switched by a ternary leaves both
+                          // unset - which is a thing that happens silently.
+                          y: metrics.gap.lg
+                          text: line.modelData.l
                           textFormat: Text.PlainText
-                          color: line.here ? Color.accent : tile.ink
-                          opacity: line.here ? 1 : root.inkMuted
-                          font.family: root.glyphFont(line.modelData)
+                          color: tile.ink
+                          // **Full ink for the row in front and for the row
+                          // in force**, muted for the rest - the design's own
+                          // two levels, saying two different things at once.
+                          // The cursor is already a ground and a ring, so what
+                          // the ink adds is the second half of the radio's
+                          // answer: the chosen row reads as chosen from across
+                          // a room whether or not anybody is standing on it.
+                          opacity: (line.here || line.ticked) ? 1 : root.inkMuted
+                          font.family: metrics.font.family
                           font.pixelSize: metrics.type.body
+                          font.weight: (line.here || line.ticked)
+                            ? metrics.weight.strong : metrics.weight.body
+                          elide: Text.ElideRight
                         }
 
-                        // **The key, on a card whose rows latch.** It is the
-                        // one drawing this card was right to refuse while
-                        // its state was a length of line - a ring at the
-                        // head of every row was tried and dropped, because
-                        // the line already changed colour at the row it
-                        // meant and a second mark saying the same thing is a
-                        // mark to learn for nothing. A bank of switches has
-                        // no such line: there is no *one* row to point at,
-                        // so what says a row is on has to be on the row.
+                        // **The line a choice tile had nowhere to put.** A
+                        // choice shows one value, so the sentence saying *how*
+                        // the values differ was the price of converting a tick
+                        // submenu into one - and it is why `Button labels` and
+                        // `Profile` kept their submenus. A row has the width
+                        // for it, so a card of rows is the shape those wanted:
+                        // the values in front of you, each with its own line.
                         //
-                        // A key rather than a tick. A tick is a mark made in
-                        // a box by somebody filling a form in; a key is a
-                        // thing on the front of a radio that is down or up,
-                        // and this is a bank of them - the state is the
-                        // key's own, and reading it is reading whether
-                        // anything is lit in the window rather than reading
-                        // a glyph. It also keeps the card to the two figures
-                        // it already has: a rectangle and a stroke.
-                        //
-                        // **The slot and what is in it are two drawings**
-                        // (`key-ring.svg`, `key-lit.svg`), on one canvas and
-                        // one box, the way a button and the label punched
-                        // through it are. Two because they are painted in two
-                        // colours: the ring takes the card's own line ink and
-                        // does not light with the row, and the window does.
-                        //
-                        // The key's corner is **the drawing's** rather than
-                        // the ladder's, which is the one thing it gave up by
-                        // becoming art. It had already stopped following the
-                        // ladder in the place that mattered: a rung under the
-                        // row's corner, then capped at a quarter of its own
-                        // side, because past that a 16-pixel square is not a
-                        // rounder key, it is a pill - a different shape, and
-                        // the shape of the switch on a tile rather than of a
-                        // key on a bank. What is drawn is that cap. A theme
-                        // that rounds nothing at all now keeps a rounded key,
-                        // which is the trade: the figure is one a hand reads
-                        // at 16 pixels, and it is redrawn in `shapes/` rather
-                        // than computed here.
-                        Item {
-                          id: lineKey
-                          visible: tile.many && line.asked
-                          anchors.centerIn: parent
-                          width: metrics.gap.xl
-                          height: metrics.gap.xl
+                        // Optional, and most rows have none: a verb whose name
+                        // says what it does does not need a sentence under it.
+                        Text {
+                          id: lineWhy
+                          visible: line.explained
+                          anchors.left: lineName.left
+                          anchors.right: lineName.right
+                          anchors.top: lineName.bottom
+                          anchors.topMargin: metrics.gap.xxs
+                          text: line.explained ? line.modelData.d : ""
+                          textFormat: Text.PlainText
+                          color: tile.ink
+                          // One level, not two. It was 0.36 while the row was
+                          // not in front, which is a sentence nobody can read
+                          // from a sofa - and a line you have to walk onto in
+                          // order to read is a line not doing the job it is
+                          // there for, which is saying what walking onto it
+                          // would mean.
+                          opacity: root.inkDim
+                          font.family: metrics.font.family
+                          font.weight: metrics.weight.body
+                          font.pixelSize: metrics.type.fine
+                          elide: Text.ElideRight
+                        }
 
-                          // The card's own line, at the card's own weight:
-                          // the keys are what makes this stack a list, which
-                          // is the job the line has on every other card.
-                          BadgeArt {
-                            anchors.fill: parent
-                            drawn: controlArt.find("key", "ring")
-                            fill: root.spineInk
+                        // **The number, and it is the whole of the count.** A
+                        // row about to take the screen away says how long is
+                        // left, at the end of the row where a value goes on
+                        // every other tile here. No bar drains beside it: a bar and a
+                        // number are one answer drawn twice, and the number is
+                        // the one somebody can act on - it says how long they
+                        // have rather than merely that they are running out.
+                        //
+                        // Held still with `tnum`, for the clock's reason: with
+                        // proportional figures the line re-lays itself when a 1
+                        // replaces an 8, which from across a room reads as the
+                        // number twitching rather than as it changing.
+                        Text {
+                          visible: line.counting
+                          anchors.right: parent.right
+                          anchors.rightMargin: metrics.gap.lg
+                          anchors.verticalCenter: parent.verticalCenter
+                          text: line.counting ? String(line.remaining) : ""
+                          textFormat: Text.PlainText
+                          color: Color.accent
+                          font.family: metrics.font.family
+                          font.weight: metrics.weight.body
+                          // **The name's size, not the value size the rest of
+                          // this surface answers in.** A value is read against
+                          // the words beside it and is sized to be picked out
+                          // from among them; a countdown has nothing to be
+                          // picked out from, and a rung above the row it
+                          // belongs to read as the row shouting seconds at
+                          // somebody who is already watching them.
+                          font.pixelSize: metrics.type.body
+                          font.features: metrics.figures
+                        }
+
+                        MouseArea {
+                          id: linePicker
+                          anchors.fill: parent
+                          hoverEnabled: true
+                          // A row scrolled out of the window is still under
+                          // the heading as far as the pointer is concerned.
+                          enabled: rowWindow.shows(line)
+                          cursorShape: Qt.PointingHandCursor
+                          onEntered: root.pointerSelectRow(
+                            tile.index, line.modelData.id, line,
+                            { x: linePicker.mouseX, y: linePicker.mouseY })
+                          onPositionChanged: function(mouse) {
+                            root.pointerSelectRow(tile.index,
+                                                  line.modelData.id, line, mouse)
                           }
-
-                          // **What is in the window when the key is down.**
-                          // The state is a thing that is *there* rather than
-                          // a colour the key turns, which is qml.md 8.1.1
-                          // read at a key's size: a theme whose accent sits
-                          // close to its card exists, and on one of those the
-                          // difference between an empty window and a full one
-                          // is still a difference.
-                          //
-                          // One stroke of air inside the ring, and square
-                          // where the ring is round - a shape drawn that far
-                          // inside another takes that much less corner
-                          // (qml.md 8.2.6), and at this size two equal radii
-                          // read as the inner one bulging. Both of those are
-                          // in the drawing now.
-                          BadgeArt {
-                            visible: line.ticked
-                            anchors.fill: parent
-                            drawn: controlArt.find("key", "lit")
-                            fill: Color.accent
-                          }
+                          onClicked: root.pointerActivateRow(
+                            tile.index, line.modelData.id)
                         }
-                      }
-
-                      Text {
-                        id: lineName
-                        anchors.left: lineMark.right
-                        anchors.right: parent.right
-                        // Nothing where the card has no slot: an empty
-                        // `Item` is still anchored, so its right edge is
-                        // already the inset the row is written to and a
-                        // second one would indent every row twice.
-                        anchors.leftMargin: tile.slotted
-                          ? metrics.gap.sm : 0
-                        // The mark slot starts clear of the pointer, so this
-                        // needs nothing of its own - see `lineMark`.
-                        // Out of the number's way while one is counting: a
-                        // name running under the seconds left is the one
-                        // row on the page where both matter at once.
-                        anchors.rightMargin: line.counting
-                          ? metrics.gap.huge : metrics.gap.lg
-                        // Placed from the top rather than centred: a row with
-                        // a line under it is two lines centred *together*,
-                        // and an anchor switched by a ternary leaves both
-                        // unset - which is a thing that happens silently.
-                        y: metrics.gap.lg
-                        text: line.modelData.l
-                        textFormat: Text.PlainText
-                        color: tile.ink
-                        // **Full ink for the row in front and for the row
-                        // in force**, muted for the rest - the design's own
-                        // two levels, saying two different things at once.
-                        // The cursor is already a ground and a ring, so what
-                        // the ink adds is the second half of the radio's
-                        // answer: the chosen row reads as chosen from across
-                        // a room whether or not anybody is standing on it.
-                        opacity: (line.here || line.ticked) ? 1 : root.inkMuted
-                        font.family: metrics.font.family
-                        font.pixelSize: metrics.type.body
-                        font.weight: (line.here || line.ticked)
-                          ? metrics.weight.strong : metrics.weight.body
-                        elide: Text.ElideRight
-                      }
-
-                      // **The line a choice tile had nowhere to put.** A
-                      // choice shows one value, so the sentence saying *how*
-                      // the values differ was the price of converting a tick
-                      // submenu into one - and it is why `Button labels` and
-                      // `Profile` kept their submenus. A row has the width
-                      // for it, so a card of rows is the shape those wanted:
-                      // the values in front of you, each with its own line.
-                      //
-                      // Optional, and most rows have none: a verb whose name
-                      // says what it does does not need a sentence under it.
-                      Text {
-                        id: lineWhy
-                        visible: line.explained
-                        anchors.left: lineName.left
-                        anchors.right: lineName.right
-                        anchors.top: lineName.bottom
-                        anchors.topMargin: metrics.gap.xxs
-                        text: line.explained ? line.modelData.d : ""
-                        textFormat: Text.PlainText
-                        color: tile.ink
-                        // One level, not two. It was 0.36 while the row was
-                        // not in front, which is a sentence nobody can read
-                        // from a sofa - and a line you have to walk onto in
-                        // order to read is a line not doing the job it is
-                        // there for, which is saying what walking onto it
-                        // would mean.
-                        opacity: root.inkDim
-                        font.family: metrics.font.family
-                        font.weight: metrics.weight.body
-                        font.pixelSize: metrics.type.fine
-                        elide: Text.ElideRight
-                      }
-
-                      // **The number, and it is the whole of the count.** A
-                      // row about to take the screen away says how long is
-                      // left, at the end of the row where a value goes on
-                      // every other tile here. No bar drains beside it: a bar and a
-                      // number are one answer drawn twice, and the number is
-                      // the one somebody can act on - it says how long they
-                      // have rather than merely that they are running out.
-                      //
-                      // Held still with `tnum`, for the clock's reason: with
-                      // proportional figures the line re-lays itself when a 1
-                      // replaces an 8, which from across a room reads as the
-                      // number twitching rather than as it changing.
-                      Text {
-                        visible: line.counting
-                        anchors.right: parent.right
-                        anchors.rightMargin: metrics.gap.lg
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: line.counting ? String(line.remaining) : ""
-                        textFormat: Text.PlainText
-                        color: Color.accent
-                        font.family: metrics.font.family
-                        font.weight: metrics.weight.body
-                        // **The name's size, not the value size the rest of
-                        // this surface answers in.** A value is read against
-                        // the words beside it and is sized to be picked out
-                        // from among them; a countdown has nothing to be
-                        // picked out from, and a rung above the row it
-                        // belongs to read as the row shouting seconds at
-                        // somebody who is already watching them.
-                        font.pixelSize: metrics.type.body
-                        font.features: metrics.figures
-                      }
-
-                      MouseArea {
-                        id: linePicker
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onEntered: root.pointerSelectRow(
-                          tile.index, line.modelData.id, line,
-                          { x: linePicker.mouseX, y: linePicker.mouseY })
-                        onPositionChanged: function(mouse) {
-                          root.pointerSelectRow(tile.index,
-                                                line.modelData.id, line, mouse)
-                        }
-                        onClicked: root.pointerActivateRow(
-                          tile.index, line.modelData.id)
                       }
                     }
                   }

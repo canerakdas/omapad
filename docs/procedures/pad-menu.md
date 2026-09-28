@@ -382,7 +382,9 @@ A row that sets something answers the same question a tile does, and in a card
 it is said by **filling the row** rather than by a mark: the one in force has a
 ground and the rest are words on the card. `stay` is what keeps the menu up
 while you watch it move. Give a card carrying detail lines **three cells** -
-forty characters do not fit in two.
+forty characters do not fit in two. Rows that outnumber the card scroll inside
+it. That is a safety net for a listing whose length is the machine's to decide,
+not a reason to write a card shorter than the rows it holds.
 
 What a card may not do, each of which `omapad check` names:
 

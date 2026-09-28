@@ -409,6 +409,16 @@ tile's icon is the big mark in its top corner and a card of rows has no corner
 to spare, so a glyph would land at the heading's size in front of tracked
 capitals and read as a bullet. Marks belong to the rows.
 
+**More rows than the card holds scroll inside it** rather than running out
+through its heading and its foot. The card is as tall as its `span` and a list
+of refresh rates is as long as the screen makes it, so nothing promises the one
+fits the other. The panel clips the rows to the space between heading and foot
+and keeps the row that matters in view: the one A would run while somebody is
+inside, the one in force before that. A bar along the right edge shows how far
+down it is, the same way a page of words does. Like every cursor here, that
+position is worked out from the rows the daemon sends rather than kept, so the
+daemon neither knows about the scroll nor needs to.
+
 **The row cursor is a second cursor, not a second kind of `selected`.**
 `self.row` is an id inside `self.selected`'s tile, and everything the page does
 to a tile - carry it, remove it, resize it, scroll to it, ring it - is still
