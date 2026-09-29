@@ -3535,7 +3535,7 @@ still has to be the place, so the lock is
 `when = ["window", "game", "handed_over"]`.
 
 It was a row of its own, on a surface of its own, until
-[decision 102](docs/decisions/102-a-page-not-a-second-menu.md). A config from
+decision 102. A config from
 then still loads: `quick:toggle` means the page, and `[[quick.items]]` and
 `[bindings.quick]` are no longer read — `omapad check` says so.
 
@@ -4418,8 +4418,7 @@ neither real hardware nor permission on `/dev/uinput`.
 |---|---|
 | `docs/components/README.md` | The map: which file belongs to which component, and one document per component — what it owns, what it may assume, what breaks it |
 | `docs/conventions/` | How to write in each language the project uses, and `naming.md` for file names and folder structure |
-| `docs/decisions/` | One file per decision, numbered — what the problem turned out to be, what was built, what was rejected |
-| `docs/roadmap.md` | The short list of what those decisions leave unfinished |
+| `docs/roadmap.md` | The short list of what the decisions leave unfinished |
 
 The badges are generated rather than drawn in QML. `assets/shapes/*.svg` is the
 source; `python3 assets/generate.py` sets the labels into them in Fira Code and

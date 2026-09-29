@@ -191,7 +191,7 @@ Four things worth knowing before changing any of it:
 - **A reading is words.** The tile is its name and its figure on one line,
   and the menu's readout tile is the same two things - a page of readings has
   to read the same in both places it appears. A share drew the menu's slider
-  line under itself until [92](../decisions/92-a-tuning-scale.md), and on a
+  line under itself until decision 92, and on a
   surface nothing can push it read as a control that had lost its thumb.
 
   `fraction()` still answers a share for anything with a `full` in

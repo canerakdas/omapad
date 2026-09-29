@@ -100,7 +100,7 @@ rides on the surface beside it**:
 `run` and `el` are the stopwatch - whether it was going when the line was
 written and how long it had measured by then. The tile carried `mn`, the minute
 of the day, while it was a watch face that also told the time; that went with
-the face ([104](../decisions/104-a-clock-that-was-a-watch.md)).
+the face (decision 104).
 
 **Why it is not on the tile** is the whole performance story, and it cost 13%
 of a core to learn: the panel decides whether to rebuild the page by comparing
@@ -171,7 +171,7 @@ and simply not drawn, exactly as a switch is.
   the place to start it.
 - **A face is not coming back without a decision.** It was a watch dial with
   hands and a register, and then one that fell back to figures when drawn
-  small; both went ([104](../decisions/104-a-clock-that-was-a-watch.md)).
+  small; both went (decision 104).
 - The tile's own shape, span and validation are the menu's:
   [`menu.md`](menu.md), and [`../procedures/pad-setting.md`](../procedures/pad-setting.md)
   if any of these numbers ever becomes a setting.

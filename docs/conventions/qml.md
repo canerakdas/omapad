@@ -190,7 +190,7 @@ the hold.
 and a page turn builds every tile again. The menu's tile built a ring, a
 clock, a travel and a switch plate on every tile of the page and hid what it
 was not, and LB/RB froze the shell 110 to 215 ms at every turn - longer than
-the slide it swallowed ([93](../decisions/93-the-shell-that-stopped-reading.md)).
+the slide it swallowed (decision 93).
 A kind's drawing goes behind a `Loader` whose `active` is that kind, with
 `visible` following it so a `Column` gives it no room. The component is
 **inline** (`sourceComponent: Component { … }`), which keeps the delegate's

@@ -4,14 +4,17 @@
 does, how it is bound, how to configure it. Everything under `docs/` is for
 whoever is changing the code.
 
+The decision log - what each problem turned out to be, what was built, what was
+rejected - and the research it was made against are kept outside this
+repository. A number cited as *decision NN* in the code or here names an entry
+in that log.
+
 | Path | What it is |
 |---|---|
-| [`decisions/`](decisions/) | One file per decision, numbered: what the problem turned out to be, what was built, and what was rejected. Cited by number from the components and from each other. |
-| [`roadmap.md`](roadmap.md) | The short list of what those decisions leave unfinished. |
+| [`roadmap.md`](roadmap.md) | The short list of what the decisions leave unfinished. |
 | [`conventions/`](conventions/) | How to write in each language this project uses, and how files and folders are named. |
 | [`components/`](components/) | One document per component: what it owns, what it may assume, what breaks it. |
 | [`procedures/`](procedures/) | One document per recurring job that spans several files and fails silently: bindings, surfaces, settings, menu rows, wording, badge art, diagnosis. Adding one: [`conventions/procedures.md`](conventions/procedures.md). |
-| [`research/`](research/) | Documents written outside this project that a decision inside it was made against. Evidence, never a rule. |
 
 ## Conventions
 

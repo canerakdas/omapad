@@ -113,7 +113,7 @@ pays.
 ## The shell is timed from its own socket
 
 The daemon stopped waiting on a shell that is not reading
-([93](../decisions/93-the-shell-that-stopped-reading.md)), so a control round
+(decision 93), so a control round
 trip no longer shows a shell that froze - and that freeze is most of what a
 thumb feels. `ShellWatch` knocks on `status.sock` with an empty line every
 `SHELL_KNOCK` (20 ms) and asks the kernel (`TIOCOUTQ`) how long each knock

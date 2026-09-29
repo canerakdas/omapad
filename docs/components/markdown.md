@@ -9,10 +9,10 @@
 | **Verb** | A takes it, up and down scroll it, B lets go; `omapad ctl menu scroll ID N` |
 
 A card of somebody else's words. It is the heading one level up
-([95](../decisions/95-words-over-a-run.md)) - words that say something rather
+(decision 95) - words that say something rather
 than name a run of tiles - and it is what a model's answer will be drawn on,
 which is why it reads a **file**: what writes the words is something else, as
-often as it likes, and the card only has to look. [97](../decisions/97-a-page-of-words.md)
+often as it likes, and the card only has to look. Decision 97
 is the decision.
 
 ## Why the panel is not allowed to render it

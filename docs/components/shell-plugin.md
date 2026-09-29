@@ -39,7 +39,7 @@ showing, and its next heartbeat would take it away again.
 `summonable` maps a payload name to a surface; `surfaceNames` accepts both the
 control verb and the obvious word for it (`keyboard` → `osk`), and
 `surfacePages` the one name that opens a surface on a page: `quick` is the
-menu's quick page ([102](../decisions/102-a-page-not-a-second-menu.md)). A summon with
+menu's quick page (decision 102). A summon with
 no payload means the menu - the door the pad's own button opens. The game bar
 is deliberately not summonable: it follows game mode, and
 `omapad ctl mode` is its door.
@@ -103,7 +103,7 @@ missing optional package must cost one feature rather than the keyboard.
   the needle - solid, with its detents filled, where it has stops, a tint at
   half where it has none. Two opaque layers faded once, `Knob.qml`'s way. A
   reading is not drawn here: it is words, on both surfaces
-  ([92](../decisions/92-a-tuning-scale.md)). The caller hands it `ladder`
+  (decision 92). The caller hands it `ladder`
   (the surface's `Metrics`), the value, the stops and the four colours; it
   decides nothing.
 - **`Knob.qml`** - the same question drawn as a ring, for the one control a

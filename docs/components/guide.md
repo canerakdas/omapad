@@ -100,7 +100,7 @@ This is the surface where that matters most, because here a page turn **is** a
 direction: it is a literal L or R. `Guide.qml` slides the columns in from the
 side the shoulder pushed from, by one `columnGap` - the card's own unit of
 horizontal separation, `metrics.gap.xxxl` on the silver ladder since
-[96](../decisions/96-a-weight-asked-for.md) - over `time.follow`. A `Translate`
+decision 96 - over `time.follow`. A `Translate`
 rather than an assigned `x`, because the Row is laid out by a Column and an
 assigned x would be fighting the layout for the same property.
 

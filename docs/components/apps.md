@@ -4,7 +4,7 @@ The applications the Add picker offers, what an app put on a page runs, and
 what an `apps` tile (`Apps > All apps`) opens.
 A **source rather than a surface**, the shape [`live.md`](live.md) and
 [`snap.md`](snap.md) have: no socket and no control verb, because nothing
-here is drawn. Decision [100](../decisions/100-one-button-that-adds.md) is
+here is drawn. Decision 100 is
 why it exists.
 
 ## Omarchy's rules, not the shell's list

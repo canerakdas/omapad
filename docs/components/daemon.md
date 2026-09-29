@@ -57,7 +57,7 @@ poll at frame rate while any line is waiting, so a panel that was busy being
 built draws the current state the moment it is back. `VIEWS` names the
 clients by attribute because the tests put recorders in their place. See
 [viewsock](viewsock.md) and
-[93](../decisions/93-the-shell-that-stopped-reading.md).
+decision 93.
 
 **Talking to Hyprland is not shelling out.** `hypr.query()` goes down the IPC
 socket in well under a millisecond; spawning `hyprctl` for the same answer
@@ -189,7 +189,7 @@ colour change costs a file read.
 
 omapad asks the compositor for nothing a reload could throw away: there is no
 runtime rule of ours for `hyprctl reload` to take, which is why nothing
-watches `~/.config/hypr` ([91](../decisions/91-what-the-desktop-gave-up.md)).
+watches `~/.config/hypr` (decision 91).
 
 **Polled, not subscribed to.** One `stat` every `THEME_POLL` on the beat the
 surfaces already heartbeat at is cheaper than a second socket to keep alive,

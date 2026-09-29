@@ -10,7 +10,7 @@ rather than assumed.
 - `active_layout(devices)` reads which layout and variant are in force out of
   Hyprland's `j/devices` answer, which the caller asks over the IPC socket.
   It used to spawn `hyprctl` itself, on the loop, at every opening of the
-  keyboard ([93](../decisions/93-the-shell-that-stopped-reading.md)).
+  keyboard (decision 93).
 - `compile_command(layout, variant, model, options)` is the `xkbcli` line for
   a shell, quoted; the daemon runs it in its command worker and hands what it
   printed to `parse_keymap`. `compile_labels(...)` runs the same line and

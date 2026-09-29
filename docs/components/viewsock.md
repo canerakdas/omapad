@@ -30,7 +30,7 @@ ripple.sock
 - **A shell that stops reading costs the loop nothing.** Quickshell is one
   thread for every panel, and it stops reading whenever it is busy: measured
   under `budget stress`, every omapad socket sat unread for 0.3 to 1.2 s at a
-  time around a surface opening ([93](../decisions/93-the-shell-that-stopped-reading.md)).
+  time around a surface opening (decision 93).
   What the socket will not take waits in the client, and **only the newest of
   it** - every line is the whole surface, so one that has been overtaken is
   one nobody needs. A line the socket took half of is finished first, so the

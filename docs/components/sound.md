@@ -59,7 +59,7 @@ a control put back with B, and either kind of countdown backed out of
 does **not** come through any of them - it has an answer of its own, and two
 sounds for one press is one of them arguing with the other.
 
-**`show` is the arrival** ([94](../decisions/94-sounds-measured-where-heard.md)).
+**`show` is the arrival** (decision 94).
 A low D and its octave on the vibraphone, soft, swelling in over 25 ms: the
 deepest thing a surface says and the slowest to arrive, which is what tells
 it from a press landing. A rolled D, F sharp, A was tried first and heard as
@@ -170,7 +170,7 @@ rather than recorded: a sample is a licence to carry and a file nobody can
 edit, while these are a table of numbers, so a different commit sound is a
 different number in `VOICES` and a re-run.
 
-**They are two bars** ([101](../decisions/101-a-marimba-and-a-vibraphone.md)), modelled
+**They are two bars** (decision 101), modelled
 rather than sampled, and which one a voice is on says what kind of thing
 happened. **Walking is the marimba** - the move, the page turns and the
 tick: a bar with a marimba's carved overtones, the resonator tube under it
@@ -200,7 +200,7 @@ measured over one 400 ms block and **through a television**: a fourth-order
 high-pass at 200 Hz standing in for a set's own drivers. `render()` scales
 each voice until it reads its number. They rise in `VOICES` order, two LU
 apart at the least, and `prev` / `next` share one because they are one
-gesture ([94](../decisions/94-sounds-measured-where-heard.md)).
+gesture (decision 94).
 `tests/test_sound.py` holds the files to their numbers, the order, a peak
 ceiling, and a meter that reproduces the standard's own coefficients and its
 -3.01 check tone.

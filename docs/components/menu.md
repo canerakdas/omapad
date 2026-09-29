@@ -88,7 +88,7 @@ while rearranging - which is also the one place a held modifier no longer
 reaches the window layer over a surface; the card is over what it would move.
 `TRIGGERS_KEPT` names the surfaces that keep them, and the menu is the one
 left since the quick menu became its page
-([decision 102](../decisions/102-a-page-not-a-second-menu.md)).
+(decision 102).
 
 **Left and right are not a second way to say Back and Pick.** They were, while
 this was one column and both were free to be. A grid spends both axes on
@@ -348,7 +348,7 @@ reading's figure rides in.
 reading's two cells by one. It was a watch face with two hands, and then a face
 that fell back to figures when drawn too small to read; both went, because a
 dial was the one drawing on these surfaces that was about something other than
-the pad and the desktop ([104](../decisions/104-a-clock-that-was-a-watch.md)).
+the pad and the desktop (decision 104).
 
 It is drawn by `Hud.qml` too, and that is what widened the rule over there:
 what a tile needs in order to be allowed over a game is **nothing to press**,
@@ -544,7 +544,7 @@ slider on one page end their lines at one size. It was seven, which beside a
 slider read as the smaller of two scales.
 
 A slider's scale shared these strokes until
-[92](../decisions/92-a-tuning-scale.md), and the card took the slider's new
+decision 92, and the card took the slider's new
 figures for one pass - an end baton at each end, a detent per row, the row in
 force's filled. It read worse than what it replaced and went back out, and so
 did a heavier cap after it - two weights solid, then a box in outline. What was
@@ -751,8 +751,8 @@ only way to write a row that both flips and answers would be two rows saying
 A slider is drawn by `Travel.qml`, for a value with a distance to cover and
 for one with places to stand, and it is the knob's printed scale laid flat -
 the T 1000's tuning scale beside its bandspread knob
-([92](../decisions/92-a-tuning-scale.md)). It was the row card's spine turned
-on its side until then ([65](../decisions/65-one-line-three-drawings.md)), a
+(decision 92). It was the row card's spine turned
+on its side until then (decision 65), a
 line with crosses on it, and beside a knob it was the plainer of two drawings
 of one value. Every figure on it is now one the ring has, at whole line
 weights (`travel-*.svg`):
@@ -1193,10 +1193,10 @@ than how fast to move a pointer.
 ### A page of words, read from a file
 
 `control = "text"` with a `file` is a card of somebody else's words: the
-heading ([95](../decisions/95-words-over-a-run.md)) one level up, and what a
+heading (decision 95) one level up, and what a
 model's answer will be drawn on. [`markdown.md`](markdown.md) is the whole of
 it - the parser, why Qt's renderer is refused, how the file is watched - and
-[97](../decisions/97-a-page-of-words.md) the decision. What it adds to this
+decision 97 the decision. What it adds to this
 surface's state machine is one row:
 
 | | browse | reading |
@@ -1277,7 +1277,7 @@ is how a warm palette goes grey.
 behind its own `omapad-.*` surfaces; it no longer talks to the compositor
 about how anything looks. Whether the desktop blurs is the desktop's call -
 Omarchy turned `decoration.blur.enabled` off for the GPU it costs - and
-[91](../decisions/91-what-the-desktop-gave-up.md) is the whole of it. `dim`
+decision 91 is the whole of it. `dim`
 carries the contrast, which is why it went from 0.6 to 0.75 when the blur went,
 and why it is on the pad as `Controller > Background dim` beside `Tile fill`:
 how much of the desktop is too much is a question about the room, and the
@@ -1328,7 +1328,7 @@ whose whole life is one opening.
 `menu:open=<chip>` and `menu:toggle=<chip>` open the menu **on that chip's
 first tile**, whatever it was doing last. It is what PLUS is:
 `menu:toggle=quick`, the quick menu, which was a surface of its own until
-[decision 102](../decisions/102-a-page-not-a-second-menu.md) made it the
+decision 102 made it the
 first page here. A pause offers to stop pausing first, so the page opens on
 Resume every time and PLUS then A is always back.
 
@@ -1467,7 +1467,7 @@ somewhere real, and a layout written as names survives a different column
 count, a new tile and another screen. What an order cannot express is an
 **empty cell**: with one tile on a page there is nothing to be third in, so
 there was no gesture that put it anywhere but the top left - and the page the
-HUD draws is one whose whole content is where it sits. Decision [52](../decisions/52-cell-with-nothing-leading-to-it.md)
+HUD draws is one whose whole content is where it sits. Decision 52
 is the reversal and why.
 
 `place()` is therefore two passes, and the order of them is the design:
@@ -1534,7 +1534,7 @@ tile id, one surface along, and `tests/test_shell_plugin.py` is what says so.
 X takes the tile in front **off the page**: an id in the `removed` list of
 the page that wrote it. What comes back is under **ZR**, which opens the
 picker - and everything else that can go on a page is under it too.
-Decision [100](../decisions/100-one-button-that-adds.md) is why.
+Decision 100 is why.
 
 **There was a strip along the foot of the card for three versions**, and the
 argument for it was good: a tile has to be somewhere while the shoulders walk
@@ -1618,7 +1618,7 @@ A **heading** (`control = "heading"`, `HEADING`) is words across a run of
 tiles, saying what the run is. Two ways to have one, for the rule that
 anything the pad can make the config can write: a tile in `config.toml` whose
 `label` is the words, and one put on a page from the pad while it is being
-rearranged. Decision [95](../decisions/95-words-over-a-run.md) is why.
+rearranged. Decision 95 is why.
 
 **It is a paragraph mark with a name on it.** `place` starts a heading on a
 row of its own, the way a `row_break` starts one, and raises the floor under
@@ -2074,7 +2074,7 @@ uses, one surface along - but the two share syntax and validation, not
 internals: a submenu source turns lines into selectable tiles, a head source
 turns output into one drawn string.
 
-**Why the weather is here at all**, when [23](../decisions/23-game-bar.md)
+**Why the weather is here at all**, when decision 23
 refused it. It was
 refused because *"putting it here means network I/O in an input daemon, with
 caching, failures and a location to own"*, and none of that lands here.
@@ -2322,7 +2322,7 @@ flicking across five cards should spawn one command rather than five.
 `items` and `from`: the installed applications, read by
 [`apps.py`](apps.md) under Omarchy's launcher's rules. `All apps` was
 `exec:omarchy-menu toggle apps` until decision
-[103](../decisions/103-all-apps-inside-the-menu.md) - a search box over the
+103 - a search box over the
 menu's own backdrop, which is a keyboard's list in a thumb's place.
 
 `press()` fills the page from `MenuModel.apps` as it enters it (`library()`),
