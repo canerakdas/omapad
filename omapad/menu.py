@@ -50,6 +50,11 @@ NOTHING_LISTED = "Nothing found"
 # that says what the buttons do, so the opening it appears in is the opening
 # that explains it.
 #
+# It is also why the tiles that wait for it do not keep their cells once it is
+# over (`vacate`): a cell is held for a tile that is coming back, and the
+# first start is not.
+ONCE = ("first_run",)
+#
 # `window` and `empty` are a second kind: not a state but what is in front -
 # a window, or a bare workspace. They came with the quick page (decision
 # 102), whose Resume and Close window would offer to go back to, or close,
@@ -1801,6 +1806,54 @@ def place(items, columns, plan=None, rows=None):
     return tiles, used
 
 
+def vacate(tiles, rows, keep):
+    """The tiles left once those `keep` refuses have gone, and the rows.
+
+    **A tile that is not offered keeps its cells.** The page is placed whole
+    and then emptied, rather than placed from what is offered, because a
+    tile that comes and goes with a state would otherwise move every tile
+    after it - the lock on the quick page slid `Keep the controller` into its
+    place, and the thumb that learnt where one was pressed the other.
+
+    A row left with nothing in it closes, since a band of nothing is not a
+    place anybody aims at - and only a row this emptied: one somebody left
+    empty by carrying a tile below it stays, or that tile would move.
+
+    Returns (tiles, rows, closed), `closed` being the rows of the whole page
+    that are not drawn, in order.
+    """
+    kept = [tile for tile in tiles if keep(tile["item"])]
+    if len(kept) == len(tiles):
+        return tiles, rows, ()
+
+    def spans(some):
+        out = set()
+        for tile in some:
+            for down in range(tile["size"][1]):
+                out.add(tile["at"][1] + down)
+        return out
+
+    closed = tuple(sorted(spans(tiles) - spans(kept)))
+    out = []
+    for tile in kept:
+        x, y = tile["at"]
+        above = sum(1 for row in closed if row < y)
+        out.append(dict(tile, at=(x, y - above)))
+    return out, rows - len(closed), closed
+
+
+def whole_row(y, closed):
+    """A drawn row as the row of the page placed whole, which a pin is in.
+
+    `vacate` backwards: every row it closed at or above the one drawn is a
+    row the pin has to be written below.
+    """
+    for row in closed:
+        if row <= y:
+            y += 1
+    return y
+
+
 def _first_fit(taken, columns, width, height, floor):
     """The topmost, then leftmost, free box of that size at or below `floor`.
 
@@ -1855,6 +1908,10 @@ class MenuModel:
         # selection would move every tile after it while a thumb was aiming at
         # one.
         self.conditions = frozenset()
+        # The `live:` readings the machine has said it does not have - the
+        # brightness of a television with no DDC. Set by the daemon, which
+        # asks; a tile reading one is not on the page.
+        self.absent = frozenset()
         # The name of the app in front, set by the daemon when the menu
         # opens, for a chip that `names = "window"`. Empty is the chip's own
         # label.
@@ -1893,6 +1950,7 @@ class MenuModel:
         self.items = []
         self.tiles = []
         self.rows = 0
+        self.closed = ()
         self.title = title
         # The model's own identity, and the reason it is a name rather than a
         # number: a tile changing size re-packs the page under it, so an index
@@ -2081,9 +2139,50 @@ class MenuModel:
         one. The bar holds places, and the shipped tree puts no verb there -
         but a config that does still has somewhere to draw it.
         """
+        return self.visible(self._whole_page(item))
+
+    @staticmethod
+    def _whole_page(item):
+        """A chip's tiles, offered or not - what `_show` places."""
         if item["items"] is None:
             return [item]
-        return self.visible(item["items"])
+        return item["items"]
+
+    def has(self, item):
+        """Whether the machine has what this tile reads.
+
+        Not a `when`: a state comes and goes between two openings, and its
+        tile keeps its cells for the next. A reading the machine does not have
+        is the page being a different page on this screen - the slider for a
+        brightness that will not move is left out, and the page packs without
+        it, rather than standing as a bar reading nothing or as a hole.
+        """
+        reads = item.get("reads")
+        return not (reads and reads[0] == "live" and reads[1] in self.absent)
+
+    def spent(self, item):
+        """A tile only a state that does not come back offered, now over.
+
+        Left out before the page is placed rather than holding its cells: a
+        hole kept for a first start is a hole for good.
+        """
+        when = item["when"]
+        return (bool(when) and all(name in ONCE for name in when)
+                and not offered(when, self.conditions))
+
+    def absent_readings(self):
+        """The readings on the page in front that were left off it.
+
+        Still asked for, by the daemon: the screen changes, and the only way
+        to find the slider can move again is to ask.
+        """
+        names = []
+        for item in self.items:
+            reads = item.get("reads")
+            if (reads and reads[0] == "live" and not self.has(item)
+                    and reads[1] not in names):
+                names.append(reads[1])
+        return names
 
     def chip_label(self, item):
         """What a nav card is called: its label, or the app it names."""
@@ -2135,7 +2234,8 @@ class MenuModel:
         self.page_item = self.groups[self.group]
         # The title line stays the root's word: the bar is already saying
         # which group this is, and printing it twice says it once.
-        self._show(self.group_page(self.groups[self.group]), self.root_title)
+        self._show(self._whole_page(self.groups[self.group]),
+                   self.root_title)
 
     def open_at(self):
         """(group, tile id) the menu should open on.
@@ -2214,13 +2314,21 @@ class MenuModel:
         page = self.page()
         self.items = arrange(
             items, plan,
-            adopted_items(self.pages(), self.layout, page, self.conditions)
+            adopted_items(self.pages(), self.layout, page)
             + headings_of(plan, self.columns)
             + apps_of(plan, self.apps, self.columns),
             given_away(self.layout, page),
         )
-        self.tiles, self.rows = place(self.items, self.columns, plan,
-                                      self.rows_limit())
+        # Rearranging sees the page as it is drawn, not the page whole: a
+        # tile nobody is offered appearing because somebody pressed Y would
+        # be the page moving under the thumb that came to move one tile.
+        # `closed` is what makes a cell written down here a cell on the page
+        # as placed whole (`whole_row`).
+        self.tiles, self.rows, self.closed = vacate(
+            *place([item for item in self.items
+                    if self.has(item) and not self.spent(item)],
+                   self.columns, plan, self.rows_limit()),
+            keep=lambda item: offered(item["when"], self.conditions))
         every = [tile["item"] for tile in self.tiles]
         names = [item["id"] for item in every if self.selectable(item)]
         if select in names:
@@ -2643,7 +2751,7 @@ class MenuModel:
         if not self._room(x, y, width, height):
             return False
         plan = self._plan()
-        plan["at"][self.picked] = (x, y)
+        plan["at"][self.picked] = (x, whole_row(y, self.closed))
         self.repack()
         return True
 
@@ -3298,7 +3406,7 @@ class MenuModel:
             )
             self.page_item = item
             self.turned(1)
-            self._show(self.visible(item["items"]), item["label"])
+            self._show(item["items"], item["label"])
             return ("enter", item)
         return ("run", item)
 

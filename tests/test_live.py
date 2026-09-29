@@ -236,6 +236,33 @@ class StaleReadTests(unittest.TestCase):
         live.took("volume", VOLUME, live.generation)
         self.assertFalse(live.took("volume", [], live.generation))
         self.assertAlmostEqual(live.value("volume"), 0.60)
+        self.assertNotIn("volume", live.missing)
+
+
+class AbsentTests(unittest.TestCase):
+    """`none`: the machine saying it has no such thing, which is not silence."""
+
+    def test_none_takes_the_reading_away_and_an_answer_brings_it_back(self):
+        # Laptop, then the television, then the laptop again: the bar left
+        # at 65% must not stand over a screen it cannot move.
+        live = Live(shipped())
+        self.assertTrue(live.took("brightness", ["65"], live.generation))
+        self.assertTrue(live.took("brightness", ["none"], live.generation))
+        self.assertIn("brightness", live.missing)
+        self.assertIsNone(live.value("brightness"))
+        self.assertFalse(live.took("brightness", ["none"], live.generation))
+        self.assertTrue(live.took("brightness", ["65"], live.generation))
+        self.assertNotIn("brightness", live.missing)
+
+    def test_the_shipped_brightness_says_none_when_its_helper_fails(self):
+        self.assertIn("|| echo none", shipped().live_reads["brightness"])
+
+    def test_a_reading_with_neither_command_is_missing_from_the_start(self):
+        config = shipped()
+        config.live_reads["volume"] = ""
+        config.live_writes["volume"] = ""
+        self.assertIn("volume", Live(config).missing)
+        self.assertNotIn("mute", Live(config).missing)
 
 
 class ShippedCommandTests(unittest.TestCase):

@@ -1955,7 +1955,7 @@ class KeepingThePadTests(DaemonTestCase):
         self.daemon.menu.conditions = self.daemon.menu_conditions()
         self.daemon.menu.build_groups()
         walk_menu(self.daemon, ["Quick"], lambda: None)
-        return [item["label"] for item in self.daemon.menu.items]
+        return [tile["item"]["label"] for tile in self.daemon.menu.tiles]
 
     def test_the_row_is_offered_where_there_is_a_pad_to_keep(self):
         # On a desktop the pad is already ours, and a row that changes nothing

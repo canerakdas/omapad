@@ -13,7 +13,7 @@ from omapad.menu import (MenuError, MenuModel, PICKER_MARK, ROOT_TITLE,
                          TAKEABLE,
                          adoptions, arrange, build, build_head,
                          effective_span, head_sources, listed, pages_of,
-                         place, slug, time_of_day)
+                         place, slug, time_of_day, vacate, whole_row)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -2937,6 +2937,26 @@ class PlaceTests(unittest.TestCase):
         self.assertEqual([b[1] for b in boxes], [(0, 0), (0, 1)])
         self.assertEqual(rows, 2)
 
+    def test_a_tile_not_offered_keeps_its_cells(self):
+        items = self.page((2, 1), (2, 1), (2, 1), (3, 1))
+        gone = items[1]["id"]
+        tiles, rows, closed = vacate(*place(items, 6),
+                                     keep=lambda item: item["id"] != gone)
+        self.assertEqual([t["at"] for t in tiles], [(0, 0), (4, 0), (0, 1)])
+        self.assertEqual((rows, closed), (2, ()))
+
+    def test_a_row_emptied_by_it_closes_and_a_pin_under_it_is_written_below(
+            self):
+        items = self.page((6, 1), (3, 1))
+        first = items[0]["id"]
+        tiles, rows, closed = vacate(*place(items, 6),
+                                     keep=lambda item: item["id"] != first)
+        self.assertEqual([t["at"] for t in tiles], [(0, 0)])
+        self.assertEqual((rows, closed), (1, (0,)))
+        # Carried to the drawn row 0, it is row 1 of the page placed whole.
+        self.assertEqual(whole_row(0, closed), 1)
+        self.assertEqual(whole_row(0, ()), 0)
+
     def test_a_small_tile_backfills_the_hole_a_big_one_left(self):
         # The order is authorial, so the packing keeps it rather than being
         # rewritten to avoid holes.
@@ -3104,8 +3124,43 @@ class ShippedPageTests(unittest.TestCase):
     reaches, and a tile you can see and cannot select is worse than any
     crooked jump. So the shipped tree answers for itself, in every state a
     `when` can put it in - `Workspace lock` and `Keep the controller` appear
-    and disappear, and the page repacks around them.
+    and disappear, and leave their cells empty when they do.
     """
+
+    def test_the_quick_page_keeps_its_cells_whichever_rows_are_offered(self):
+        # The lock slid `Keep the controller` into its cell, and the thumb
+        # that had learnt where one was pressed the other.
+        config = self.shipped()
+
+        def cells(conditions):
+            model = self.model(config, conditions)
+            model.enter_group([group["id"] for group in model.groups]
+                              .index("quick"))
+            return dict((tile["item"]["id"], tile["at"])
+                        for tile in model.tiles)
+
+        both = cells(("window", "game", "handed_over"))
+        keep = cells(("window", "kept"))
+        self.assertIn("workspace-lock", both)
+        self.assertNotIn("workspace-lock", keep)
+        self.assertEqual(keep["keep-the-controller"],
+                         both["keep-the-controller"])
+        self.assertEqual(cells(("window",))["volume"], both["volume"])
+
+    def test_brightness_leaves_the_page_where_the_screen_has_none(self):
+        config = self.shipped()
+        model = self.model(config, ())
+        model.enter_group([group["id"] for group in model.groups]
+                          .index("display"))
+        self.assertIn("brightness",
+                      [tile["item"]["id"] for tile in model.tiles])
+        model.absent = frozenset(["brightness"])
+        model.repack()
+        ids = [tile["item"]["id"] for tile in model.tiles]
+        self.assertNotIn("brightness", ids)
+        # Packed rather than a hole: the switches beside it move over.
+        self.assertEqual(model.tiles[0]["at"], (0, 0))
+        self.assertEqual(model.absent_readings(), ["brightness"])
 
     def shipped(self):
         missing = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")

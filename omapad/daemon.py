@@ -2879,6 +2879,7 @@ class Daemon:
             # What a row is allowed to ask about is read here, before the
             # first level is built, and stands for as long as the menu is up.
             self.menu.conditions = self.menu_conditions()
+            self.menu_absent()
             self.menu.window_name = self.window_name()
             # A first start is answered once, and being shown it is what
             # answers it: the conditions a line above are already read and
@@ -2944,6 +2945,14 @@ class Daemon:
                     or ident.rsplit(".", 1)[-1] == tail):
                 return entry["name"]
         return (self.focus_title or "").strip() or window_class
+
+    def menu_absent(self):
+        """Tell the menu which readings the machine lacks. True on a change."""
+        absent = frozenset(self.live.missing)
+        if absent == self.menu.absent:
+            return False
+        self.menu.absent = absent
+        return True
 
     def menu_conditions(self):
         """Which of the states a menu row may wait for are true right now.
@@ -3499,6 +3508,13 @@ class Daemon:
                 continue
             if item["reads"][1] not in names:
                 names.append(item["reads"][1])
+        # And what was left off the page for not being there: asked the way a
+        # tile is when it appears, so the slider comes back with the screen
+        # that has it.
+        if not selected_only:
+            for name in self.menu.absent_readings():
+                if name not in names:
+                    names.append(name)
         return names
 
     def live_read(self, names):
@@ -3525,6 +3541,10 @@ class Daemon:
             self._live_asking.discard(name)
             if not self.live.took(name, lines, generation):
                 return
+            if self.menu_absent():
+                # A reading came or went, and a tile with it: the page is
+                # placed again rather than drawn around a hole.
+                self.menu.repack()
             if self.menu_open:
                 self.push_menu_view()
         return took

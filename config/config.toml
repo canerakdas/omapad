@@ -1201,8 +1201,9 @@ click = true
 # and parses what comes back; it knows nothing about PulseAudio, backlights or
 # MPRIS, and a machine that answers these questions some other way answers them
 # by editing this table. `%1` is where the new value goes, as a whole percent.
-# An empty string is a reading this machine does not have: nothing is asked
-# for it, and a tile that reads it draws blank.
+# An empty string is not asked. A read that prints `none` is a reading the
+# machine does not have right now, and a tile that reads it is left off the
+# page until it answers again; a reading with neither command is never there.
 #
 # Nothing here is asked while the menu is shut, and nothing is asked at frame
 # rate: a reading is read once when its tile appears, again after a press has
@@ -1235,7 +1236,13 @@ deafen_set = 'pactl set-sink-mute "$(omarchy-audio-output-sink)" %1; pactl set-s
 # Brightness keeps its helper: DDC, Apple displays and backlights are three
 # code paths omapad must not reimplement. `--no-osd` is the same argument as
 # above, and this one the helper offers.
-brightness_read = "omarchy-brightness-display"
+#
+# A television mostly speaks no DDC, and the helper then fails with nothing to
+# say. `none` is how a read says the machine does not have the thing right
+# now: the tile leaves the page, and comes back when the screen in front
+# answers again. Silence is not the same word - a helper that timed out keeps
+# its tile.
+brightness_read = "omarchy-brightness-display || echo none"
 brightness_set = "omarchy-brightness-display --no-osd %1%"
 
 # What is playing, as one line of JSON. The write takes one of MPRIS's own

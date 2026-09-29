@@ -23,8 +23,14 @@ cannot have.
 answers these questions some other way answers them by editing that table, not
 by patching this file. `%1` is where the new value goes, as a whole percent -
 the same numbered-field substitution a listed submenu's template uses. An
-**empty string is a reading this machine does not have**: nothing is asked for
-it, nothing can be written, and a tile pointed at it draws blank.
+empty string is not asked. **A read that prints `none` is a reading the machine
+does not have right now**, and so is one with neither command: `Live.missing`
+holds it, the tile reading it is left off the page and the page packs without
+it, and it is still asked whenever that page is drawn, so the tile comes back
+with the screen that has it. Silence is not the same word - a helper that timed
+out prints nothing too, and must not take a tile away. The shipped brightness
+read is `omarchy-brightness-display || echo none`, because a television mostly
+speaks no DDC and the helper then fails without a word.
 
 | Reading | Kind | Shipped read | Shipped write |
 |---|---|---|---|
@@ -32,7 +38,7 @@ it, nothing can be written, and a tile pointed at it draws blank.
 | `mute` | bool | `pactl get-sink-mute …` | `pactl set-sink-mute … %1` |
 | `mic` | bool | `pactl get-source-mute @DEFAULT_SOURCE@` | `pactl set-source-mute … %1`, and the laptop's mic-mute LED |
 | `deafen` | bool | on while the sink **and** the source are muted, said as a word | both muted or both unmuted, and the LED |
-| `brightness` | number | `omarchy-brightness-display` | `omarchy-brightness-display --no-osd %1%` |
+| `brightness` | number | `omarchy-brightness-display \|\| echo none` | `omarchy-brightness-display --no-osd %1%` |
 | `media` | media | `omarchy-shell media status` | `omarchy-shell media %1` |
 | `vrr` | bool | `hyprctl getoption misc:vrr` | `hyprctl eval "hl.config({ misc = { vrr = $(( %1 * 2 )) } })"` |
 | `stay_awake` | bool | `omarchy-toggle-idle status` | `omarchy-toggle-idle stay-awake\|allow-idle` |

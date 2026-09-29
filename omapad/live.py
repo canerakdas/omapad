@@ -282,6 +282,17 @@ def text(name, value):
     return ("%g %s" % (round(amount, 2), unit)).strip()
 
 
+def absent(lines):
+    """Whether a read said `none`: this machine has no such thing right now.
+
+    A word of its own rather than no answer, because no answer is also what a
+    helper that timed out gives, and a slow helper must not take a tile off
+    the page. A read that can fail - brightness on a television that speaks
+    no DDC - says so with `|| echo none`.
+    """
+    return any(line.strip().lower() == "none" for line in lines)
+
+
 class Live:
     """The last answer to each question, and the command that asks it again.
 
@@ -293,12 +304,23 @@ class Live:
 
     def __init__(self, config):
         self.values = {}
+        # What the machine has said it does not have, as against what has not
+        # answered yet: a tile for one of these is left off the page.
+        self.missing = set()
         self.generation = 0
         self.configure(config)
 
     def configure(self, config):
         self.reads = dict(config.live_reads)
         self.writes = dict(config.live_writes)
+        # Neither asked nor told is a reading this machine does not have.
+        self.missing = set(
+            name for name in self.missing
+            if self.reads.get(name) or self.writes.get(name)
+        ) | set(
+            name for name in READINGS
+            if not self.reads.get(name) and not self.writes.get(name)
+        )
 
     def value(self, name):
         """The last thing read, or None where nothing has answered yet."""
@@ -307,9 +329,10 @@ class Live:
     def ask(self, name):
         """(command, generation) for one reading, or (None, 0) where it is off.
 
-        A command set to the empty string is a reading this machine does not
-        have. Nothing asks, and the tile draws whatever it drew before -
-        which, having never been read, is nothing.
+        A command set to the empty string is not asked. With no write either
+        it is a reading this machine does not have, and its tile is left off
+        the page; with one, the tile draws whatever it drew before - which,
+        having never been read, is nothing.
         """
         command = self.reads.get(name) or ""
         if not command:
@@ -322,17 +345,25 @@ class Live:
         A reading that times out keeps its last value rather than blanking the
         tile: a tile that empties because a helper was slow is worse than one
         that is a second stale, and a helper that hangs must never be able to
-        empty the HUD.
+        empty the HUD. Only `none` takes one away (`absent`), and True is then
+        the page changing rather than a number.
         """
         if generation < self.generation:
             return False
         parse = PARSERS.get(name)
         if parse is None:
             return False
+        if absent(lines):
+            changed = name not in self.missing
+            self.missing.add(name)
+            self.values.pop(name, None)
+            return changed
         value = parse(lines)
         if value is None:
             return False
-        changed = self.values.get(name) != value
+        changed = (self.values.get(name) != value
+                   or name in self.missing)
+        self.missing.discard(name)
         self.values[name] = value
         return changed
 

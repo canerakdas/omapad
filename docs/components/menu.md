@@ -191,6 +191,17 @@ not the answer: Omarchy defaults that key to the accent itself.
 is not offered, and neither is one whose every tile is unmet, because a card
 that opens an empty page says the menu has somewhere to go and then does not.
 
+**A tile whose `when` is unmet keeps its cells.** `_show` places the page whole
+and `vacate()` then empties it, so the quick page's lock coming and going no
+longer slides `Keep the controller` into its cell between two openings. A row
+that emptying leaves with nothing in it closes; `whole_row()` turns a cell a
+tile is carried to in rearranging back into the row of the page placed whole,
+which is where a pin lives. Two things are left out *before* placing instead,
+and the page packs without them: a tile only `first_run` offered, once that is
+over (`ONCE` - a hole kept for a first start is a hole for good), and a tile
+reading a `live:` value the machine said it does not have (`absent`, set by
+the daemon from `Live.missing` - see [`live.md`](live.md)).
+
 `group_move(step)` **wraps** - it is a short strip, not a page of tiles, so
 there is no edge to be lost at and walking off one end is how you reach the
 other. `enter_group(n)` resets the stack: the bar is not a level to climb to,
