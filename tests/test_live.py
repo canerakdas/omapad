@@ -174,6 +174,17 @@ class CommandTests(unittest.TestCase):
         self.assertAlmostEqual(value, 0.65)
         self.assertIn(" 65%", command)
 
+    def test_a_step_off_the_grid_lands_on_the_next_mark(self):
+        # Moved from elsewhere to 38%: a notch up is 40, not 43, and a notch
+        # down is 35, not 33. Two notches are the mark and one more.
+        for asked, landed in ((1, 0.40), (-1, 0.35), (2, 0.45), (-2, 0.30)):
+            live = self.live()
+            live.took("volume", ["Volume: front-left: 0 /  38% / 0 dB"],
+                      live.generation)
+            command, value = live.apply("volume", ("step", asked))
+            self.assertAlmostEqual(value, landed)
+            self.assertIn(" %d%%" % round(landed * 100), command)
+
     def test_the_end_of_the_travel_sends_nothing_and_says_so(self):
         live = self.live()
         live.took("volume", ["Volume: 100%"], live.generation)

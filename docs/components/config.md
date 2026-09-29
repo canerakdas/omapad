@@ -127,8 +127,8 @@ resolved bindings hold the old number until `apply_setting()` clears
   shipped defaults always hold the current names and are merged *under* the
   user's sources, so a fallback inside `Config` would never see an old key -
   the rename has to happen to the user's data on the way in. The dead zones
-  are the case: one number per role (`deadzone` under `[pointer]` and
-  `[scroll]`) became one per stick.
+  and the response curves are the case: one number per role (`deadzone` and
+  `accel` under `[pointer]` and `[scroll]`) became one per stick.
 - `APP_PAGE_TTL` / `APP_PAGE_LIMIT` bound the keyboard page an app profile can
   lend; `parse_app_page` builds it.
 - `SURFACES` and `KEYBOARD_SURFACES` are the surface names in binding tables -

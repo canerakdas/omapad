@@ -70,12 +70,17 @@ question from which physical button a name means:
 
 Rows are grouped by the **region of the pad a thumb finds them in**
 (`REGIONS`), not by layer order, because that is how you look for a button you
-are holding. `build_pages(config, available, layout)` groups
-(`_groups_for`), paginates (`_paginate`, `COLUMN_ROWS`) and balances the
-columns (`_balance`). The guide's own layer is not a page and is not
+are holding. `build_pages(config, available, layout, menu_keys, menu_page)`
+groups (`_groups_for`), paginates (`_paginate`, `COLUMN_ROWS`) and balances
+the columns (`_balance`). The guide's own layer is not a page and is not
 printed: those bindings are how you are reading the page. `available` is which
 buttons the connected pad actually has, so a pad with no Capture does not have
-it printed.
+it printed. `menu_keys` and `menu_page` are what the menu page the guide was
+opened from spends X and Y on, and which page that was: the guide is reached
+from the menu with Y, so its Menu page answers about the page just left.
+
+It reads `[bindings.*]` and nothing else, so inside an application profile it
+prints the base map - open on the [roadmap](../roadmap.md), under 18 and 11.
 
 ## Payload - `guide.sock`
 
@@ -94,8 +99,8 @@ right that looks like a jump to the left.
 This is the surface where that matters most, because here a page turn **is** a
 direction: it is a literal L or R. `Guide.qml` slides the columns in from the
 side the shoulder pushed from, by one `columnGap` - the card's own unit of
-horizontal separation, since this surface is one of the ones still built from
-`space()` rather than the menu's ladder - over `time.follow`. A `Translate`
+horizontal separation, `metrics.gap.xxxl` on the silver ladder since
+[96](../decisions/96-a-weight-asked-for.md) - over `time.follow`. A `Translate`
 rather than an assigned `x`, because the Row is laid out by a Column and an
 assigned x would be fighting the layout for the same property.
 

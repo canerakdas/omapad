@@ -54,6 +54,9 @@
 #   pad:left_deadzone=up|down|<0..0.5>     how much of the left stick does
 #                                          nothing
 #   pad:right_deadzone=up|down|<0..0.5>    the same, for the right one
+#   pad:left_accel=up|down|<1..4>          how the left stick's speed builds
+#                                          with how far it is pushed; 1 is off
+#   pad:right_accel=up|down|<1..4>         the same, for the right one
 #
 #                                          Every `pad:` value also takes
 #                                          `next`/`prev` to step through what
@@ -332,7 +335,6 @@ right_stick = "focus"
 
 [pointer]
 speed = 1100.0                # pixels per second at full stick deflection
-accel = 2.2                   # response curve; 1.0 linear, higher = finer control near center
 # How much of each stick's travel does nothing, as a fraction of it. The
 # question is asked of the stick rather than of what the stick is doing,
 # because the slop is in the hardware: the right one carries the same zone
@@ -355,6 +357,22 @@ accel = 2.2                   # response curve; 1.0 linear, higher = finer contr
 # its role.
 left_deadzone = 0.10
 right_deadzone = 0.18
+# Acceleration: how the speed builds with how far each stick is pushed. 1.0
+# is off - a straight line, so half the push is half the speed and the first
+# nudge past the dead zone already moves the pointer a visible step. Raise it
+# and the first half of the travel crawls while the last half catches up:
+# 2.0 puts a half push at a quarter of full speed, 3.0 at an eighth, which is
+# what lets a thumb land on a close button without walking past it. Too high
+# and the stick feels dead until it is well over, then lurches. Controller >
+# Sticks moves both from the pad, with the pointer live under the menu.
+#
+# Per stick, like the dead zones, and whatever the stick is doing: the right
+# one's number is the wheel's while it scrolls and the window's while it
+# drags one. These were `accel` here and under [scroll] - one per role - and
+# a config that still sets those is read, each for the stick that ships in
+# its role.
+left_accel = 2.2
+right_accel = 2.0
 # Bear the pad that lies about its sticks. A Beitong KP20 in NS mode rests
 # every axis half a range off the centre it advertises and then uses only that
 # half (X spans -32767..0, Y spans 0..32767), so an untouched stick reads as a
@@ -470,15 +488,14 @@ texture_strength = 0.25
 
 [scroll]
 speed = 8.0                   # wheel notches per second at full deflection
-# Two different things get called acceleration, and both are here. This one is
-# the response curve - how far the stick is over, into how fast it goes. 1.0
-# is linear; higher gives finer control near the centre.
-accel = 2.0
-# And this one is time: a page is long and a thumb is not, so a stick held one
-# way keeps getting faster, up to `ramp` times the speed above, reached after
-# `ramp_ms` of holding. Letting go hands it back, and so does reversing - a
-# reversal is somebody who has gone too far, and the speed they overshot at is
-# the last thing they want. 1.0 is off, which is what a mouse wheel does.
+# Two different things get called acceleration. The one about how far the
+# stick is pushed belongs to the stick and lives under [pointer] as
+# `left_accel` / `right_accel`. This one is time: a page is long and a thumb
+# is not, so a stick held one way keeps getting faster, up to `ramp` times
+# the speed above, reached after `ramp_ms` of holding. Letting go hands it
+# back, and so does reversing - a reversal is somebody who has gone too far,
+# and the speed they overshot at is the last thing they want. 1.0 is off,
+# which is what a mouse wheel does.
 ramp = 3.0
 ramp_ms = 900
 natural = false               # true inverts the direction
@@ -3872,18 +3889,21 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   # list nobody reads from across a room. Four sliders is not that list: each
   # one shows where its number is and where the ends are, which is the whole
   # of what eight rows saying "faster" and "slower" could not. The speeds are
-  # the first line and the dead zones the second, so the page is still two
-  # answers rather than one heap.
+  # the first line, the dead zones the second and the acceleration the third,
+  # so the page is still three answers rather than one heap.
   #
   # **And the two dials stand where the two thumbs do**, one at each end of
   # the page with the four bars between them: the left stick's dial on the
   # left, the right stick's on the right, which is a page somebody can point
   # at while they complain about a thumb. Four cells a bar and a square at
-  # each end comes to twenty-four, so the page is two whole rows - it was
-  # three, with the dials in a corner of a row that was two thirds empty.
-  # No row break anywhere on it: a break counts from the foot of everything
-  # flowed before it, and a dial two rows tall would push the line under it
-  # down past its own second row.
+  # each end comes to twenty-four, so the dials and the four bars are two
+  # whole rows - they were three, with the dials in a corner of a row that
+  # was two thirds empty. The two acceleration bars are the third, six cells
+  # each, which is the widest a span goes and exactly what is left: the dials
+  # end where the second row does, so the third flows the full twelve. No row
+  # break anywhere on it: a break counts from the foot of everything flowed
+  # before it, and a dial two rows tall would push the line under it down
+  # past its own second row.
   #
   # A dead zone is the other end of the same stick: travel that does nothing.
   # By stick rather than by what the stick is doing, because that is where the
@@ -3891,13 +3911,18 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   # you are holding, not about a role you would have to look up. A stick that
   # wanders on its own wants a wider zone; aim that starts late a narrower one.
   #
+  # Acceleration is how the rest of that travel is spent, and per stick for
+  # the same reason. It is the one to raise when the pointer will not stop on
+  # something small - a close button, a link in a line of them - because it
+  # slows the first half of the push and leaves full speed where it was.
+  #
   # It heads the column beside the cards, three cells wide like everything
   # under it: the page's one door in, over the two switches that are the rest
   # of what it holds.
   [[menu.items.items]]
   icon = "󰍽"
   label = "Sticks"
-  detail = "Speed, and travel that does nothing"
+  detail = "Speed, acceleration, dead zones"
   span = [3, 1]
 
     # And the same two numbers again, as the thing they are about: a dial per
@@ -3944,6 +3969,18 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
     span = [4, 1]
     control = "slider"
     reads = "pad:right_deadzone"
+
+    [[menu.items.items.items]]
+    label = "Left acceleration"
+    span = [6, 1]
+    control = "slider"
+    reads = "pad:left_accel"
+
+    [[menu.items.items.items]]
+    label = "Right acceleration"
+    span = [6, 1]
+    control = "slider"
+    reads = "pad:right_accel"
 
   # The pointer is the one thing on screen a press cannot push out of the way,
   # so the press puts it away instead. Under Controller rather than Display:

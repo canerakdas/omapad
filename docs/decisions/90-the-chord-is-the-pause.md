@@ -63,3 +63,8 @@ switch gets the same, since the rule is the reading's and not the tile's.
 - **A second chord for the row**, leaving MINUS + PLUS on the menu. A chord is
   two buttons a game never asks for, and there are few of them; spending one on
   what HOME already reaches over a game is a door twice over.
+
+**Since [102](102-a-page-not-a-second-menu.md)** the row is the menu's quick
+page, and the chord opens the page last open rather than the pause every time:
+PLUS is what always lands on the pause. The lock and its pair are on that page
+only, no longer on `Spaces` too, and without `stay`.

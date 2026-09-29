@@ -445,6 +445,45 @@ class PointerTests(DaemonTestCase):
         self.tick(1.0, steps=100)
         self.assertTrue(self.mouse.moves)
 
+    def test_acceleration_slows_a_small_push_and_leaves_a_full_one(self):
+        # A half push is half the speed with the curve off and an eighth of
+        # it at 3.0 - which is the whole of what makes a small move possible -
+        # while a full push reaches the same speed either way.
+        self.config.left_deadzone = 0.0
+        # The first reading of an axis is taken as where it rests, so the
+        # stick is shown centred before it is pushed.
+        self.feed((li.EV_ABS, li.ABS_X, 0))
+        travelled = {}
+        for accel in (1.0, 3.0):
+            self.config.left_accel = accel
+            del self.mouse.moves[:]
+            self.feed((li.EV_ABS, li.ABS_X, int(32767 * 0.5)))
+            self.tick(1.0, steps=100)
+            travelled[accel] = sum(dx for dx, _ in self.mouse.moves)
+            self.feed((li.EV_ABS, li.ABS_X, 0))
+            self.tick(0.1)
+        speed = self.config.pointer_speed
+        self.assertAlmostEqual(travelled[1.0], speed * 0.5, delta=5)
+        self.assertAlmostEqual(travelled[3.0], speed * 0.125, delta=5)
+        del self.mouse.moves[:]
+        self.feed((li.EV_ABS, li.ABS_X, 32767))
+        self.tick(1.0, steps=100)
+        self.assertAlmostEqual(sum(dx for dx, _ in self.mouse.moves), speed,
+                               delta=5)
+
+    def test_each_stick_carries_its_own_acceleration_into_any_role(self):
+        # The right stick handed the aiming role aims on its own curve, not on
+        # the left one's.
+        self.config.right_stick = "cursor"
+        self.config.left_accel = 3.0
+        self.config.right_accel = 1.0
+        self.config.right_deadzone = 0.0
+        self.feed((li.EV_ABS, li.ABS_RX, 0))
+        self.feed((li.EV_ABS, li.ABS_RX, int(32767 * 0.5)))
+        self.tick(1.0, steps=100)
+        self.assertAlmostEqual(sum(dx for dx, _ in self.mouse.moves),
+                               self.config.pointer_speed * 0.5, delta=5)
+
     def test_a_stick_that_rests_off_centre_does_not_drift(self):
         # The Beitong KP20 in NS mode: every axis rests half a range off the
         # advertised centre and uses only that half - X spans -32767..0. Read

@@ -6920,16 +6920,7 @@ class Daemon:
             self.axes[code_x],
             self.axes[code_y],
             self.config.stick_deadzone(stick),
-            self.config.pointer_accel,
-        )
-
-    def scroll_vector(self, stick):
-        code_x, code_y = STICK_AXES[stick]
-        return apply_curve(
-            self.axes[code_x],
-            self.axes[code_y],
-            self.config.stick_deadzone(stick),
-            self.config.scroll_accel,
+            self.config.stick_accel(stick),
         )
 
     def needs_tick(self):
@@ -6993,7 +6984,7 @@ class Daemon:
             if role == "cursor":
                 cursor = self.stick_vector(stick)
             elif role == "scroll":
-                scroll = self.scroll_vector(stick)
+                scroll = self.stick_vector(stick)
             elif role == "resize":
                 resize = self.stick_vector(stick)
             elif role == "move":

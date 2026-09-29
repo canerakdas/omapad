@@ -237,7 +237,12 @@ class BuildTests(unittest.TestCase):
         bars = [row for row in sticks if row["control"] == "slider"]
         self.assertEqual([row["reads"] for row in bars],
                          ["pad:pointer_speed", "pad:scroll_speed",
-                          "pad:left_deadzone", "pad:right_deadzone"])
+                          "pad:left_deadzone", "pad:right_deadzone",
+                          "pad:left_accel", "pad:right_accel"])
+        # Two dials of two by two and four bars of four are the first two
+        # rows; the acceleration pair is the third, and has to come to twelve
+        # on its own or the page ends in half a tile.
+        self.assertEqual(sum(bar["span"][0] for bar in bars[4:]), 12)
         # ...and the dead zones say it twice: a bar sets the number, a dial
         # shows what it did to the stick you are holding.
         dials = [row for row in sticks if row["control"] == "gauge"]

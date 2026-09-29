@@ -71,6 +71,15 @@ for exactly this, since `exec:` gets a scope of its own.
 **Why brightness keeps its helper.** DDC, Apple displays and backlights are
 three code paths omapad must not reimplement, and that helper offers the flag.
 
+## A step lands on the grid
+
+A number's `step` is a grid as well as a distance. The machine is moved from
+elsewhere too - a keyboard's volume key, a player's own slider - so a reading
+is as often 38% as 40%, and a notch added to that walks 43, 48, 53. So the
+first notch goes to the **next mark that way**: 38 goes up to 40 and down to
+35, and every notch after it is a whole one. A value already on the grid moves
+a whole notch. Only `step` does this; `set` goes where it is told.
+
 ## The stale-read race
 
 A read started *before* a write can land *after* it and rewind the bar for a

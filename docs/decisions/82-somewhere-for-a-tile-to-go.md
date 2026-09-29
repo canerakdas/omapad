@@ -1,4 +1,4 @@
-# 82. Somewhere for a tile to go · ✅ Done · M
+# 82. Somewhere for a tile to go · 🗑 Removed · M
 
 Asked for from the sofa, after a year of arranging pages: *menude gizleme var
 ama kaldirma veya farkli bir navigasyon altina tasimak yok, kaldirilan oge bir
@@ -78,3 +78,8 @@ test presses the button rather than calling the command.
 is holding what, what this page has lost, and a reference that names nothing
 - and lost a phantom: it slugged an explicit `id`, and counted a `row_break`
 as a tile called `row`.
+
+**Removed by [100](100-one-button-that-adds.md).** The strip is gone: X still
+takes a tile into its page's `removed`, and `Add > Menu` lists it as `Not on
+any page`. The cache keyed by the table's name and `check --layout`'s report
+are still what this built.

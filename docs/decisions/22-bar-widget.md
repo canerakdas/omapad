@@ -1,4 +1,4 @@
-# 22. A bar that knows about the pad · ✅ Done (unverified on screen) · S
+# 22. A bar that knows about the pad · ✅ Done · S
 
 Everything omapad draws is summoned and then goes away, which leaves no
 standing answer to *is the pad mine?* — the question you ask before pressing

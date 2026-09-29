@@ -56,3 +56,8 @@ class** is, and it is not built. Measured far enough to be sure of the shape:
 Discord runs here as an Omarchy webapp, class
 `chrome-discord.com__channels_@me-Default`, and it holds the pad only while
 focused - which is exactly when handover fires.
+
+**Since [42](42-app-opens-unplayed-pad.md)** Discord is answered: `handover =
+false` on `[profile.discord]`, a profile key rather than a second matcher by
+window class. The chord drawn nowhere is still open, on the
+[roadmap](../roadmap.md).

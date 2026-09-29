@@ -42,6 +42,14 @@ the outside as an argument.
 | `test_unit.py` | installing the user unit: which checkout paths can be baked into it, a symlink or a directory sitting at the destination, and a write interrupted before the rename |
 | `test_packaging.py`, `test_shell_plugin.py` | what a release and the plugin look like with nothing running: the version, the boot pin, the udev rule the installer writes from its own bytes, and that every `Text` says `textFormat: Text.PlainText` |
 | `test_cli.py` | what `omapad budget` reads out of `/proc`, the price it puts on the shipped menu, that `budget stress` sends nothing that runs a row or moves a value, and that `ShellWatch` times a shell that stops reading |
+| `test_control.py` | the control socket: one connection carrying many commands, and a loop that never waits on an idle one |
+| `test_paths.py` | the socket directory, and the fallback when `$XDG_RUNTIME_DIR` is not there to be private |
+| `test_layout.py` | `layout.toml`, the arrangement written from the pad: one that will not parse cannot take the settings down, and a config that moved on cannot break it |
+| `test_sound.py`, `test_ripple.py` | the two surfaces with nothing to navigate: what a press says or leaves behind, and what is deliberately left silent or undrawn |
+| `test_hud.py` | the readings left on screen: the same grid, arrangement and ids as the menu page they are, and the two rules the HUD keeps alone |
+| `test_chrono.py`, `test_markdown.py` | the stopwatch's three states against a `now` handed in, and Markdown read into the blocks a text tile draws |
+| `test_live.py`, `test_sysinfo.py` | the readings, parsed from canned `pactl`, backlight, MPRIS and kernel text - never from the machine the suite runs on |
+| `test_apps.py`, `test_terminal.py` | what is installed, by the launcher's rules, and whether the terminal in front is running a command - both against fake trees |
 
 ## What costs something is tested as a count, never as a clock
 

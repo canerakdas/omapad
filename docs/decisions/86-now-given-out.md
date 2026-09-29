@@ -43,3 +43,9 @@ there is to start.
 **Rejected:** keeping the page under a better name - `Playing`, `Media`.
 Without the keyboard and the lock tiles it would have been the top half of
 `Sound` on a page of its own, one shoulder away from the bottom half.
+
+**Since [90](90-the-chord-is-the-pause.md) and
+[102](102-a-page-not-a-second-menu.md)** the lock and its pair are on the
+quick page only, not on `Spaces`, and HOME's first opening lands on that page
+rather than on `Apps` - over an empty workspace, where the quick page is not
+offered, it still lands on `Apps`.

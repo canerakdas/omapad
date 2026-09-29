@@ -134,11 +134,13 @@ event and `dump` therefore cannot see one.
 
 ## Sticks
 
-`stick_vector()` and `scroll_vector()` apply `apply_curve()` - deadzone plus an
-exponent - and then whichever role the layer gave the stick. The deadzone comes
-from `config.stick_deadzone(stick)`, which is per stick rather than per role:
-the slop is in the hardware, so the right one carries the same zone scrolling
-the desktop as it does walking a game's controls. Roles:
+`stick_vector()` applies `apply_curve()` - deadzone plus an exponent - and
+then whichever role the layer gave the stick. Both numbers are per stick rather
+than per role: the deadzone from `config.stick_deadzone(stick)`, because the
+slop is in the hardware, so the right one carries the same zone scrolling the
+desktop as it does walking a game's controls; the exponent from
+`config.stick_accel(stick)`, because a thumb that cannot make a small move
+cannot make one whatever the stick is doing. Roles:
 `cursor`, `scroll`, `resize`, `move`, `snap`, `focus`, `swap`, `menu`
 (`STICK_ROLES`). Each has its own emitter: `emit_cursor`, `emit_scroll` (with
 the ramp), `emit_window`, `snap_cursor`, `check_focus_stick`, `check_swap`,

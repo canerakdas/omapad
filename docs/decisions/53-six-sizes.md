@@ -133,3 +133,7 @@ without a tile's ground behind it, which put the clock four pixels right of
 the first chip and the first tile. A head cell prints on nothing, so it lines
 up with the cell's own edge; only the far side is held off, far enough that a
 line elides before it reaches the cell beside it.
+
+**Since [96](96-a-weight-asked-for.md)** the guide, the mapping screen, the
+keyboard, the game bar and the HUD are on the silver ladder too, at the
+nearest rung.

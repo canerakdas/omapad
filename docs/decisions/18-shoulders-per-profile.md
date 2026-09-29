@@ -1,4 +1,4 @@
-# 18. Shoulders that are global except where they aren't · ✅ Done (browser pilot) · M
+# 18. Shoulders that are global except where they aren't · ✅ Done · M
 
 In Chromium — and in anything else built for a pad — L and R are the app's own
 tab switcher. Ours took them outright, so inside those apps the app's own
@@ -30,3 +30,8 @@ And the cheaper alternative is worth remembering: ask once, on screen, the first
 time a claiming app takes focus — *this app uses L/R; hand them over?* — a
 decision made once per app rather than a gesture repeated. If the hold turns out
 to feel like a chore, that is the fallback.
+
+**Since [24](24-game-mode-shape.md)** `[profile.steam]` carries the same
+shoulders - a confirmed hold on each, reaching past a Steam that holds the pad -
+so the pilot is no longer one. What this entry leaves is the guide, which is on
+the [roadmap](../roadmap.md).

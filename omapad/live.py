@@ -20,6 +20,7 @@ tile is for.
 
 import json
 import logging
+import math
 import re
 
 log = logging.getLogger("omapad")
@@ -370,7 +371,7 @@ class Live:
                     # from. Stepping from a guess would jump the volume to
                     # somewhere nobody asked for.
                     return (None, None)
-                value = clamp(spec, float(current) + spec["step"] * argument)
+                value = clamp(spec, _stepped(spec, float(current), argument))
             if value == current and kind != "do":
                 # Already there: the end of the travel, or a switch told to be
                 # what it is. Nothing to send, and the caller says so.
@@ -380,6 +381,29 @@ class Live:
         if value is not None:
             self.values[name] = value
         return (template.replace("%1", word), value)
+
+
+def _stepped(spec, current, steps):
+    """Where `steps` notches from `current` land, on the reading's own grid.
+
+    A reading is the machine's number, and the machine gets moved from
+    elsewhere too - a keyboard's volume key, a player's own slider - so it is
+    as often 38% as 40%. Adding a notch to that walks 43, 48, 53, a ladder
+    nobody chose. The first notch goes to the next mark that way instead, so
+    38 goes up to 40 and down to 35, and every notch after it is a whole one.
+    """
+    step = spec["step"]
+    units = (current - spec["min"]) / step
+    # A value read back as a whole percent is on the grid in principle and a
+    # hair off it in floating point: 0.6 / 0.05 is 11.999999999999998.
+    nearest = round(units)
+    if abs(units - nearest) < 1e-6:
+        base = nearest
+    elif steps > 0:
+        base = math.floor(units)
+    else:
+        base = math.ceil(units)
+    return spec["min"] + (base + steps) * step
 
 
 def _word(spec, value):

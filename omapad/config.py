@@ -397,6 +397,33 @@ CHOSEN = {
         "kind": "number", "step": 0.01, "min": 0.0, "max": 0.50,
         "unit": "%", "scale": 100,
     },
+    # And how the travel between the dead zone and the rim is spent: the
+    # response curve, which is what lets a thumb make a small move at all. At
+    # 1.0 the speed follows the stick in a straight line, so the first
+    # millimetre past the zone is already a tenth of full speed; raised, the
+    # first half of the travel is spent crawling and the last half catching
+    # up. Per stick for the reason the dead zones are - the complaint is
+    # always about the thumb you are holding - and on the pad because whether
+    # the pointer can land on a close button is answered by trying, with the
+    # pointer live under the open menu.
+    "left_accel": {
+        "attr": "left_accel", "table": "pointer", "key": "left_accel",
+        # A tenth per step: the difference between 2.0 and 2.1 is just
+        # felt, and thirty places from off to the ceiling is a bar, not a
+        # count. Four is where the first half of the travel stops moving
+        # anything you can see, so past it the stick is a switch again.
+        "kind": "number", "step": 0.1, "min": 1.0, "max": 4.0,
+        "unit": "×",
+        # A straight line is the curve switched off, and the stop somebody
+        # goes looking for when a pointer feels slow to start, so it says so.
+        "words": {1.0: "Off"},
+    },
+    "right_accel": {
+        "attr": "right_accel", "table": "pointer", "key": "right_accel",
+        "kind": "number", "step": 0.1, "min": 1.0, "max": 4.0,
+        "unit": "×",
+        "words": {1.0: "Off"},
+    },
     # Whether a press puts the pointer away. It is on the pad because it is
     # only ever wrong from the couch: a ring left over the thing a press just
     # opened is a complaint you have while looking at it, and one that
@@ -567,10 +594,19 @@ def setting_text(name, value):
         word = words.get(stops[_nearest_stop(stops, value)])
         if word and abs(float(value) - stops[_nearest_stop(stops, value)]) < 1e-9:
             return word
+    else:
+        # A swept number can still have one value that is a place rather than
+        # an amount - the end where the thing it sets is switched off.
+        word = (spec.get("words") or {}).get(round(float(value), 3))
+        if word:
+            return word
     amount = float(value) * spec.get("scale", 1)
     unit = spec.get("unit", "")
     if unit == "%":
         return "%g%%" % round(amount)
+    if unit == "×":
+        # A ratio sits against its number, the way a percentage does.
+        return "%g×" % round(amount, 2)
     return ("%g %s" % (round(amount, 2), unit)).strip()
 
 
@@ -1206,7 +1242,6 @@ class Config:
 
         pointer = data.get("pointer", {})
         self.pointer_speed = float(pointer.get("speed", 1100.0))
-        self.pointer_accel = float(pointer.get("accel", 2.2))
         # The dead zone belongs to the stick, not to what the stick is doing:
         # the slop is in the hardware, and the right stick has the same wear
         # walking a game's controls as it has scrolling the desktop. The right
@@ -1224,6 +1259,24 @@ class Config:
             if not 0.0 <= getattr(self, "%s_deadzone" % side) < 1.0:
                 raise ConfigError(
                     "pointer.%s_deadzone must be 0 or more and under 1" % side
+                )
+        # The response curve belongs to the stick for the same reason: the
+        # thumb that cannot land a small move is the one somebody is holding,
+        # not a role they would have to look up. Each ships at what its role
+        # used to carry - `accel` under [pointer] and under [scroll] - and a
+        # config that still says it that way is renamed on the way in.
+        self.left_accel = float(pointer.get("left_accel", 2.2))
+        self.right_accel = float(pointer.get("right_accel", 2.0))
+        # 1.0 is a straight line, which is the curve switched off. Under it the
+        # curve bends the other way - half the speed in the first tenth of the
+        # travel - which is the opposite of the thing this is for, and at 0 or
+        # below `apply_curve` stops meaning anything.
+        for side in ("left", "right"):
+            if getattr(self, "%s_accel" % side) < 1.0:
+                raise ConfigError(
+                    "pointer.%s_accel is a curve that starts at 1.0 (off), "
+                    "so it cannot be below it (got %r)"
+                    % (side, getattr(self, "%s_accel" % side))
                 )
         self.precision_button = pointer.get("precision_button", "ZL") or None
         self.precision_factor = float(pointer.get("precision_factor", 0.28))
@@ -1500,11 +1553,11 @@ class Config:
 
         scroll = data.get("scroll", {})
         self.scroll_speed = float(scroll.get("speed", 8.0))
-        self.scroll_accel = float(scroll.get("accel", 2.0))
         self.scroll_natural = bool(scroll.get("natural", False))
-        # Two different things are called acceleration, and this file has both.
-        # `accel` above is the response curve: how far the stick is over, into
-        # how fast it goes. `ramp` is the one a long page asks for: a stick
+        # Two different things are called acceleration. The response curve -
+        # how far the stick is over, into how fast it goes - is the stick's,
+        # and lives under [pointer] as `left_accel` / `right_accel`. `ramp` is
+        # the one a long page asks for: a stick
         # held over keeps getting faster, up to this many times the speed,
         # reached after ramp_ms of holding. 1.0 is off, and is what a mouse
         # wheel does.
@@ -2425,6 +2478,17 @@ class Config:
             return self.right_deadzone
         return self.left_deadzone
 
+    def stick_accel(self, stick):
+        """How one stick spends its travel between the dead zone and the rim.
+
+        By stick rather than by role, for the reason `stick_deadzone` is: a
+        thumb that cannot make a small move cannot make one whatever the
+        stick happens to be doing.
+        """
+        if stick == "right":
+            return self.right_accel
+        return self.left_accel
+
     def stick_roles(self, layer_name, profile=None):
         """What a layer's sticks do, under the app in front of you.
 
@@ -2624,15 +2688,19 @@ def _renamed(data):
     carry the current names, and they are merged *under* the user's, so a
     fallback inside `Config` would never see the old key at all.
 
-    The dead zones are the case: they were one number per role - `deadzone`
-    under [pointer] for whatever was aiming, under [scroll] for whatever was
-    scrolling - and are now one per stick. Each old key answers for the stick
-    that ships in its role, and an explicit new one wins over it.
+    The dead zones and the response curves are the case: each was one number
+    per role - `deadzone` and `accel` under [pointer] for whatever was aiming,
+    under [scroll] for whatever was scrolling - and is now one per stick. Each
+    old key answers for the stick that ships in its role, and an explicit new
+    one wins over it.
     """
     pointer = dict(data.get("pointer", {}))
+    scroll = data.get("scroll", {})
     legacy = (
         ("left_deadzone", pointer.pop("deadzone", None)),
-        ("right_deadzone", data.get("scroll", {}).get("deadzone")),
+        ("right_deadzone", scroll.get("deadzone")),
+        ("left_accel", pointer.pop("accel", None)),
+        ("right_accel", scroll.get("accel")),
     )
     if not any(value is not None for _, value in legacy):
         return data
@@ -2644,6 +2712,7 @@ def _renamed(data):
     if "scroll" in data:
         scroll = dict(data["scroll"])
         scroll.pop("deadzone", None)
+        scroll.pop("accel", None)
         data["scroll"] = scroll
     return data
 

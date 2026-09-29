@@ -1,4 +1,4 @@
-# 99. No notification over an open menu · ✅ Done · XS
+# 99. No notification over an open menu · ✅ Done · S
 
 Asked for from the sofa: *menu acikken bazen sag ustten bi notification
 penceresi gibi bir pencere gorunuyor bu neden?* - with the menu open, a

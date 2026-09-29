@@ -5,8 +5,8 @@ decision, numbered. This is the short list of what those files leave unfinished:
 each row says which decision it belongs to, because the reasoning is there and
 is not repeated here.
 
-Nothing below is scheduled. The order is the order the numbers happened in, not
-a priority.
+Nothing below is scheduled. Within each section the order is the order the
+numbers happened in, not a priority.
 
 ## Waiting on a decision, not on work
 
@@ -30,7 +30,9 @@ element's place on screen; ours are mono on purpose, because a cue *happened
 nowhere* - true of a commit, not of a move. The work is small, a pan in
 `Sound.qml` from the ring's position. What is missing is deciding what a cue
 is. The same entry owes the set its listen: every level is measured through a
-model of a television, and none has been heard on one.
+model of a television, and none has been heard on one -
+[101](decisions/101-a-marimba-and-a-vibraphone.md)'s marimba and vibraphone
+included.
 
 **[97](decisions/97-a-page-of-words.md) · an answer on the card · Buildable ·
 S.** The card reads a file and draws Markdown; nothing writes one yet. What it
@@ -50,8 +52,14 @@ a hold would have somewhere to draw itself.
 **[18](decisions/18-shoulders-per-profile.md) /
 [11](decisions/11-bindings-guide.md) · the guide does not know about
 profiles.** `build_pages()` reads `[bindings.*]`, so inside the browser the
-guide prints the base map - the shoulders it shows are
-not the shoulders the press would use. As much 10's territory as 11's.
+guide prints the base map - the shoulders it shows are not the shoulders the
+press would use. The game bar already prints through the profile in front; the
+guide is the one surface that does not. As much 10's territory as 11's.
+
+**[22](decisions/22-bar-widget.md) · the desktop widget is one icon.** Either
+exactly right or too quiet to be worth a slot. The payload already carries the
+mode, the pad's name and the active profile, so a label costs nothing but bar
+width.
 
 **[36](decisions/36-cloud-session-menu.md) · the chord is drawn nowhere.** The
 one gesture that reaches past an app holding the pad is in `[chords]`, and
@@ -59,47 +67,6 @@ nothing on screen mentions it: the guide has a page per layer and reads
 `[bindings.*]`, and the game bar's hint strip withdraws entirely while an app
 has the pad. The gesture that matters most over a game is the one nothing
 announces.
-
-**[22](decisions/22-bar-widget.md) · the desktop widget is one icon.** Either
-exactly right or too quiet to be worth a slot. The payload already carries the
-mode, the pad's name and the active profile, so a label costs nothing but bar
-width.
-
-**[93](decisions/93-the-shell-that-stopped-reading.md) · the latency the
-daemon stopped paying for is still on screen.** The loop no longer waits on a
-stalled shell, and four things were left - all four now measured, and
-the two worth a change made:
-
-- **Why the shell stopped, for 0.3 to 1.2 s, around a surface opening ·
-  measured away.** Not reproducible once the menu's tiles stopped building
-  every kind (qml.md 5.6): on a shell restarted a few seconds earlier, the
-  first opening of each surface froze it 10 to 49 ms and the second 4 to 31,
-  menu with the game bar standing down included. The second-long freezes
-  are `budget stress`'s own first second - eighteen opens and closes sent
-  back to back, which no hand makes. What is left is memory: under selection
-  churn at 30 ms a command the quick menu - a surface of its own until 102 -
-  kept 36 MB over forty cycles and
-  the guide 16, which the menu and the keyboard do not, and at a thumb's
-  pace (150 ms) none of them kept anything. Worth watching with the tool
-  below, not worth a change yet.
-- **The rest of a page turn · measured, and left.** 110 to 215 ms before the
-  ring, the clock and the travel went behind `Loader`s (qml.md 5.6); after,
-  on a warm shell, 17 to 24 ms into most pages and a median of 33 to 37 into
-  the Controller page, the slowest at fifteen tiles - two frames. What else
-  every tile builds was tried one at a time: the row stack of a card of rows
-  builds nothing off a card (its repeater is over `rs`, empty there), the
-  `figureHead` is two `Text`s, and the halo, sheen and hit shapes left out
-  altogether bought 4 ms, inside the noise - not worth a fade they would have
-  to be born halfway through (qml.md 5.5). The rest is the tile itself.
-- **The keyboards on the desk were let go of on the loop · done.** Closing
-  an evdev node waits out an RCU grace period, 3 to 11 ms a keyboard here, at
-  every surface closing. `KeyboardWatch.stop()` hands them to `close_aside`
-  now, a thread of their own (kbd.md); the slowest tenth of `budget stress`
-  went from 8-12 ms to 2-5 on every surface.
-- **`budget stress` could not see the shell · done.** It prints `stalls:`
-  now, timed by `ShellWatch` from the bar widget's socket, and `budget
-  pages` times the shell at every menu page turn (cli.md). The mapping screen
-  stays out of both: a thumb on the pad during a run would be recorded.
 
 ## Caveats worth knowing before touching the area
 
@@ -116,9 +83,20 @@ reading the pad directly sees them too.
 
 **[21](decisions/21-pad-answered-neighbours-name.md) · a fresh KP20 is still
 wrong until someone runs the mapping screen.** The shipped `nintendo_pro`
-profile names its face buttons by Nintendo printing. The fix is splitting a
-profile into *protocol* - codes, whether the triggers are analog - and
-*printing* - which letter sits at which position - with
-`[device] labels = "xbox" | "nintendo"`, which would make the screen unnecessary
-for pads we already know. The screen also cannot map the D-pad: it is a hat, not
-a button, on every pad seen so far.
+profile names its face buttons by Nintendo printing. What a badge prints is
+already a setting of its own - `[device] layout`, chosen from the menu since
+[34](decisions/34-mapping-screen-badges.md) - but which name a code gets is
+not. The fix is splitting a profile into *protocol* - codes, whether the
+triggers are analog - and *printing* - which letter sits at which position -
+with `[device] labels = "xbox" | "nintendo"`, which would make the screen
+unnecessary for pads we already know. The screen also cannot map the D-pad: it
+is a hat, not a button, on every pad seen so far.
+
+**[93](decisions/93-the-shell-that-stopped-reading.md) · what selection churn
+leaves in the shell · measured, and left.** The four things 93 left are taken
+and recorded there. What remains is a number to watch: at 30 ms a command the
+guide kept 16 MB over forty cycles, and at a thumb's pace (150 ms) no surface
+kept anything. The quick menu's 36 MB was measured while it was a surface of
+its own; as a page of the menu ([102](decisions/102-a-page-not-a-second-menu.md))
+it has not been measured again. `budget stress` is the tool
+([cli.md](components/cli.md)); nothing here is worth a change yet.

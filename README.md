@@ -906,13 +906,13 @@ keeps what you land on and writes it to `settings.toml`; **B puts it back**.
 ```toml
 [pointer]
 speed = 1100.0      # pixels per second at full deflection
-accel = 2.2         # the response curve: 1.0 linear, higher = finer near centre
 left_deadzone = 0.10   # how much of each stick's travel does nothing
 right_deadzone = 0.18  # wider, because the right one ships scrolling
+left_accel = 2.2       # acceleration: 1.0 is off, higher = finer near centre
+right_accel = 2.0
 
 [scroll]
 speed = 8.0         # wheel notches per second at full deflection
-accel = 2.0         # the same curve, for the wheel
 ramp = 3.0          # …and how much faster a stick held one way gets
 ramp_ms = 900       # after this long holding it. 1.0 = off
 natural = false     # true inverts the direction
@@ -947,9 +947,24 @@ asked costs more than a notch that arrives late; hand it `right_stick =
 against the old per-job keys (`deadzone` under `[pointer]` and `[scroll]`) is
 still read, each for the stick that ships in its role.
 
-Two different things get called acceleration and `[scroll]` has both. `accel` is
-the **response curve** — how far the stick is over, into how fast it goes.
-`ramp` is **time**: a page is long and a thumb is not, so a stick held one way
+**Acceleration is for the small moves.** How fast the pointer goes is not only
+a top speed: it is how that speed builds as the stick goes over. At `1.0` it is
+**off** — a straight line, half the push is half the speed, and the first nudge
+past the dead zone is already a visible step. Raised, the first half of the
+travel crawls and the last half catches up: at `2.0` a half push is a quarter of
+full speed, at `3.0` an eighth, which is what lets a thumb stop on a close
+button instead of walking past it. Full deflection is full speed whatever it is
+set to. Too high and the stick feels dead until it is well over and then
+lurches. It is per stick, like the dead zone, and set the same way: the last
+two bars on **Controller › Sticks**, which print `Off` at the bottom and the
+ratio above it, or `pad:left_accel=up` / `pad:right_accel=down` on a button.
+`left_accel` and `right_accel` sit under `[pointer]`; the old per-job `accel`
+under `[pointer]` and `[scroll]` is still read, each for the stick that ships
+in its role.
+
+Two different things get called acceleration, and that one is **distance**. The
+wheel has the other, `[scroll] ramp`, which is **time**: a page is long and a
+thumb is not, so a stick held one way
 keeps getting faster until it is `ramp` times the speed above. Letting go hands
 the speed straight back, and so does reversing — a reversal is somebody who has
 gone too far, and the speed they overshot at is the last thing they want. A
@@ -1276,6 +1291,8 @@ restart — so every config change would close your Steam.
 | `pad:scroll_speed=up\|down\|<1..40>` | how fast the wheel turns |
 | `pad:left_deadzone=up\|down\|<0..0.5>` | how much of the left stick does nothing |
 | `pad:right_deadzone=up\|down\|<0..0.5>` | the same, for the right one |
+| `pad:left_accel=up\|down\|<1..4>` | how the left stick's speed builds with how far it is pushed; 1 is off |
+| `pad:right_accel=up\|down\|<1..4>` | the same, for the right one |
 | `pad:dictate_clipboard=on\|off\|toggle` | whether dictation lands on the clipboard instead of at the cursor |
 | `live:volume=up\|down\|<0..1>` | how loud the machine is — the twin of `pad:`, for what the machine holds rather than what omapad does |
 | `live:mute=on\|off\|toggle` | the speakers |
@@ -1963,9 +1980,9 @@ do not see the notification but you do feel the rumble — and that situation is
 the whole reason the countdown exists. Another is the **mode switch**
 (`[mode] rumble`), which is the same problem: what changes is across the room,
 so one tick goes in and one comes back out. The third is the one nobody
-presses: a running [stopwatch](#tiles-that-hold-a-value) ticks every time
-its sweep hand comes back to twelve, so a measurement can be followed without
-looking at it (`[chrono] rumble`).
+presses: a running [stopwatch](#tiles-that-hold-a-value) ticks at every
+whole minute it measures, so a measurement can be followed without looking at
+it (`[chrono] rumble`).
 
 **Controller › Vibration** in the menu turns it on and off and steps the
 strength, ticking the motor at each step so you set it by feel rather than by
@@ -3373,7 +3390,7 @@ Everything about the pad itself is one row, because a controller is one thing:
 | Button labels | **a card** — [which console the badges print](#which-console-the-badges-are-printed-for): follow the pad, Nintendo, Xbox, PlayStation |
 | Profile | **a card** — which codes this pad is read with: detect it, Nintendo Pro, Xbox |
 | Buttons | **a card** — the [bindings guide](#the-bindings-guide), and the [mapping screen](#controller-mapping) |
-| Sticks | **four bars and two dials** — pointer speed, scroll speed, how much of each stick does nothing, and where each thumb is right now |
+| Sticks | **six bars and two dials** — pointer speed, scroll speed, how much of each stick does nothing, each stick's acceleration, and where each thumb is right now |
 | Hide the pointer | **a switch** — whether [a press puts the pointer away](#not-having-to-aim-the-pointer-and-snap) until something points again |
 | Button style | **walked in place** — [how they are drawn](#how-the-badges-are-drawn): Filled or Stencil |
 
@@ -4463,6 +4480,11 @@ it, lower `pointer.recenter_limit` and reconnect.
 **The pointer drifts** — not enough dead zone on that stick: raise
 `pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller
 › Sticks**, where you can watch the pointer settle as you move the bar.
+
+**The pointer will not stop on something small** — it walks past a close
+button, or a nudge moves it a step instead of a pixel. Raise that stick's
+acceleration (`pointer.left_accel`, 2.2 → 3.0) or its bar on **Controller ›
+Sticks**: a small push gets slower, a full one stays as fast.
 
 **A control in the menu climbs on its own — the volume goes up with the pad on
 the table** — a trigger resting off its minimum. The sticks are not the only

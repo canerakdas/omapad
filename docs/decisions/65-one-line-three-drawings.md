@@ -128,3 +128,8 @@ kinds and at 0, mid and full - and then headless through `grabToImage`, which
 is the cheaper loop: it costs no shell restart and no screen, so the crossings
 were compared at four times life size and the three trail strengths on one
 sheet, instead of squinted at.
+
+**Since [92](92-a-tuning-scale.md)** the slider is the knob's scale unrolled
+rather than the card of rows seen sideways: the cross went, and with it this
+entry's idea that the two are one line. What stayed is one drawing for both
+kinds of slider, `Travel.qml`; a reading became words in the same pass.

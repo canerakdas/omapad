@@ -247,6 +247,24 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(self.set("left_deadzone", "0"), 0.0)
         self.assertEqual(self.set("left_deadzone", "down"), 0.0)
 
+    def test_acceleration_steps_per_stick_and_bottoms_out_at_off(self):
+        self.assertEqual(self.set("left_accel", "up"),
+                         round(shipped().left_accel + 0.1, 3))
+        self.assertEqual(self.config.stick_accel("left"),
+                         round(shipped().left_accel + 0.1, 3))
+        self.assertEqual(self.config.stick_accel("right"),
+                         shipped().right_accel)
+        self.assertEqual(self.set("right_accel", "9"), 4.0)  # clamped
+        self.assertEqual(self.set("right_accel", "1.1"), 1.1)
+        self.assertEqual(self.set("right_accel", "down"), 1.0)
+        self.assertEqual(self.set("right_accel", "down"), 1.0)
+        self.assertEqual(self.config.stick_accel("right"), 1.0)
+
+    def test_acceleration_says_off_at_the_bottom_and_a_ratio_above_it(self):
+        self.assertEqual(config_module.setting_text("left_accel", 1.0), "Off")
+        self.assertEqual(config_module.setting_text("left_accel", 2.2), "2.2×")
+        self.assertEqual(config_module.setting_text("right_accel", 3.0), "3×")
+
     def test_a_stepping_row_says_where_the_number_is(self):
         self.set("scroll_speed", "9")
         self.assertEqual(
@@ -281,6 +299,7 @@ class ApplyTests(unittest.TestCase):
         self.assertEqual(swept, {"sound_volume", "rumble_strength",
                                  "scroll_speed", "pointer_speed",
                                  "left_deadzone", "right_deadzone",
+                                 "left_accel", "right_accel",
                                  "tile_fill", "dim"})
 
     def test_motion_is_worded_because_off_is_the_stop_that_matters(self):
@@ -459,6 +478,26 @@ class FileTests(unittest.TestCase):
             with self.assertRaises(config_module.ConfigError) as caught:
                 self.load_with("", user="[pointer]\n%s = 1.0\n" % key)
             self.assertIn("pointer.%s" % key, str(caught.exception))
+
+    def test_an_acceleration_under_off_is_named(self):
+        for key in ("left_accel", "right_accel"):
+            with self.assertRaises(config_module.ConfigError) as caught:
+                self.load_with("", user="[pointer]\n%s = 0.5\n" % key)
+            self.assertIn("pointer.%s" % key, str(caught.exception))
+
+    def test_an_acceleration_written_per_role_still_answers(self):
+        # `accel` was the curve of whatever was aiming under [pointer] and of
+        # whatever was scrolling under [scroll]; each now answers for the
+        # stick that ships in that role, and a per-stick key wins over it.
+        config = self.load_with(
+            "", user="[pointer]\naccel = 3.0\n\n[scroll]\naccel = 1.5\n"
+        )
+        self.assertEqual(config.stick_accel("left"), 3.0)
+        self.assertEqual(config.stick_accel("right"), 1.5)
+        config = self.load_with(
+            "", user="[pointer]\naccel = 3.0\nleft_accel = 1.2\n"
+        )
+        self.assertEqual(config.stick_accel("left"), 1.2)
 
     def test_a_dead_zone_written_under_its_old_name_still_answers(self):
         # Both halves of the rename: a config file that still says what the

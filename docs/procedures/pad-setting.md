@@ -128,6 +128,11 @@ somebody reads it, beside the choices rather than in a table of its own. A
 value with no word prints itself, which is right for the ones that already
 read as words.
 
+A swept number can carry `words` as well, for the one value on it that is a
+place rather than an amount: `left_accel` and `right_accel` print `Off` at
+1.0, where the curve is a straight line, and a ratio (`unit = "×"`) above it.
+The word is printed only when the value is exactly that one.
+
 Then give it a tile, and it becomes reachable from a binding as
 `pad:<name>=...` for free. **What `kind` it is decides what the tile is:**
 

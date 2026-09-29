@@ -10,8 +10,11 @@ daemon (`omapad/config.py` on 17's rule, `docs/components/osk.md` on 29). A
 file gets renamed when a better name turns up; it never gets renumbered, and a
 number is never reused.
 
-Nothing here is a plan. What is still open - and the three items below that are
-not finished - is [`../roadmap.md`](../roadmap.md).
+Nothing here is a plan. What is still open - the rows below not marked done,
+and what a done one left behind - is [`../roadmap.md`](../roadmap.md). A
+decision a later one changed keeps its row and its file; the file ends with a
+**Since** or **Removed by** paragraph naming the later one, and the row here
+says so.
 
 | Status | Meaning |
 |---|---|
@@ -52,11 +55,11 @@ and is in the order it was found.
 | 15 | [The keyboard that looked like a controller to Steam](15-keyboard-seen-as-controller.md) | ✅ Done | S | The virtual keyboard declared `BTN_*` codes, so every scan found a phantom pad. |
 | 16 | [Apps launched from the pad died with the daemon](16-launched-apps-died.md) | ✅ Done | S | A launched app gets its own scope, so restarting the daemon stops killing it. |
 | 17 | [A tick when the workspace changes](17-workspace-tick.md) | ✅ Done | S | A rumble tick on the workspace walk, because an empty workspace says nothing. |
-| 18 | [Shoulders that are global except where they aren't](18-shoulders-per-profile.md) | ✅ Done (browser pilot) | M | The shoulders go to the profile where the app has a tab switcher of its own. |
+| 18 | [Shoulders that are global except where they aren't](18-shoulders-per-profile.md) | ✅ Done | M | The shoulders go to the profile where the app has a tab switcher of its own; Steam's table followed in 24. |
 | 19 | [The stick that rested half a range off centre](19-stick-resting-off-centre.md) | ✅ Done | S | The KP20 rests half a range off centre on every axis - measured, then corrected. |
 | 20 | [Left click in a browser the pad had been handed to](20-left-click-after-handover.md) | ✅ Done | S | Game mode stopped swallowing everything that was not a `mode:` action. |
 | 21 | [The pad that answered to its neighbour's name](21-pad-answered-neighbours-name.md) | ✅ Done (screen; profile still assumed) | M | Names come from the pad's print, the profile from the driver: the mapping screen. |
-| 22 | [A bar that knows about the pad](22-bar-widget.md) | ✅ Done (unverified on screen) | S | A widget in Omarchy's bar, rather than a second bar fighting it for the edge. |
+| 22 | [A bar that knows about the pad](22-bar-widget.md) | ✅ Done | S | A widget in Omarchy's bar, rather than a second bar fighting it for the edge. |
 | 23 | [A bar for game mode, and item 10 arriving through the side door](23-game-bar.md) | ✅ Done | M | The game bar is a readout, not a bar: nothing in game mode has a pointer to click. |
 | 24 | [Game mode was the wrong shape](24-game-mode-shape.md) | ✅ Done | L | Handing over is asked of the program through `/proc`, not guessed from a mode. |
 | 25 | [The band of nothing under the menu](25-band-under-the-menu.md) | ✅ Done | S | The menu card's uneven band, measured off screenshots and evened up. |
@@ -99,7 +102,7 @@ and is in the order it was found.
 | 62 | [A bar that came off its own edge](62-bar-off-its-own-edge.md) | ✅ Done | S | The game bar came back to its own edge, at its own width. |
 | 63 | [A corner nobody could argue with](63-tile-corner-radius.md) | ✅ Done | S | The tile corner follows `decoration:rounding`, and the menu can move it. |
 | 64 | [Four verbs drawn as four squares](64-four-verbs-four-squares.md) | ✅ Done | M | A card of verbs is a spine and a pointer, not four squares in a row. |
-| 65 | [One line, and three drawings of it](65-one-line-three-drawings.md) | ✅ Done | S | The slider is the card of rows seen sideways: one line, three drawings of it. |
+| 65 | [One line, and three drawings of it](65-one-line-three-drawings.md) | ✅ Done | S | The slider is the card of rows seen sideways: one line, three drawings of it. Since 92 the slider is the knob's scale unrolled instead. |
 | 66 | [A hum that said nothing about the value under it](66-hum-without-a-value.md) | ✅ Done | S | The rumble tracks the value under the thumb, scaled to the current strength. |
 | 67 | [The instrument, read off a Braun meter](67-braun-instrument.md) | 🗑 Removed | M | Five passes at the meter, then taken back out the same evening it landed. |
 | 68 | [Three pages that were a heap of tiles](68-heap-of-tiles.md) | ✅ Done | M | Three pages of cards in bands of one height, read off the mockups. |
@@ -109,33 +112,34 @@ and is in the order it was found.
 | 72 | [The one thing somebody wants the pad to do](72-scripts-folder-card.md) | ✅ Done | S | `System > Scripts` lists a folder, and A runs what is in it. |
 | 73 | [The sentence that had nowhere to go](73-sentence-with-nowhere-to-go.md) | ✅ Done | S | Dictation can go to the clipboard instead of the cursor under it. |
 | 74 | [A clock you can read from the sofa](74-clock-read-from-the-sofa.md) | 🗑 Removed | S | An analog clock tile: the face is furniture, the hands are geometry. |
-| 75 | [The clock that could measure, and the pusher it had room for](75-clock-that-could-measure.md) | ✅ Done | M | The chronograph, a panda dial with its one pusher on A. |
+| 75 | [The clock that could measure, and the pusher it had room for](75-clock-that-could-measure.md) | ✅ Done | M | The chronograph, a panda dial with its one pusher on A. Since 104 the dial is gone and the stopwatch is a name and its measurement. |
 | 76 | [The value a thumb could turn rather than push](76-value-a-thumb-can-turn.md) | ✅ Done | M | A knob: relative, in whole steps, and it reads a list as well as a number. |
 | 77 | [A count on the bar that nothing on the page could take](77-count-on-the-bar.md) | ✅ Done | S | The waiting updates, on the bar, with the mark the drawing had. |
 | 78 | [The bar that was on the wrong page](78-bar-on-the-wrong-page.md) | ✅ Done | S | Brightness moved under `Display`. |
 | 79 | [Four words that never changed](79-four-words-never-changed.md) | ✅ Done | S | The legend names what the button does on the tile under the cursor. |
 | 80 | [Four strokes where there was one rectangle](80-four-strokes-one-rectangle.md) | ✅ Done | S | The sliders and the checkbox became font strokes, split into parts. |
 | 81 | [The page that ended in half a tile](81-page-ending-in-half-a-tile.md) | ✅ Done | S | A page ends on a whole tile, measured against the screen it is on. |
-| 82 | [Somewhere for a tile to go](82-somewhere-for-a-tile-to-go.md) | ✅ Done | M | A strip along the foot holds a tile that is on no page. |
+| 82 | [Somewhere for a tile to go](82-somewhere-for-a-tile-to-go.md) | 🗑 Removed | M | A strip along the foot holds a tile that is on no page. Removed by 100: `Add > Menu` finds a removed tile. |
 | 83 | [Pages that came to whole rows](83-pages-of-whole-rows.md) | ✅ Done | S | A page comes to whole rows - the arithmetic is the design, not a tidy-up. |
 | 84 | [The dial, redrawn from a watch](84-dial-redrawn-from-a-watch.md) | 🗑 Removed | S | Twelve batons and a doubled twelve: the clock reads as a watch at tile size. |
-| 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. |
-| 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. |
+| 85 | [Two menus, two buttons](85-two-menus-two-buttons.md) | ✅ Done | M | HOME opens the controller menu, PLUS a row of tiles drawn from `Console Overlay`. Since 102 the row is the menu's quick page. |
+| 86 | [The page that was given out](86-now-given-out.md) | ✅ Done | S | `Now` is gone: sound to `Sound`, the lock to `Spaces`, `Start here` to `Controller`. Since 102 the lock is on the quick page only. |
 | 87 | [What the couch could not reach](87-what-the-couch-could-not-reach.md) | ✅ Done | M | Night light, stay awake, screens, Bluetooth, do not disturb, network and recording on the pad; omapad's own look moved to `Controller`. |
 | 88 | [A 6139, drawn in lines](88-a-6139-drawn-in-lines.md) | 🗑 Removed | S | The chronograph as the Seiko 6139's dial in line, to a reference drawing: double case, slim batons, one register at six. |
 | 89 | [A Braun knob, drawn in lines](89-a-braun-knob.md) | ✅ Done | S | The knob as a Braun T 1000 control: knurled cap, painted index, printed scale that lights to the value. |
-| 90 | [The chord is the pause](90-the-chord-is-the-pause.md) | ✅ Done | S | The workspace lock and its pair on the quick menu, and MINUS + PLUS opens the quick menu rather than the controller menu; the row trades brightness, screenshot and record for mic mute and deafen. |
+| 90 | [The chord is the pause](90-the-chord-is-the-pause.md) | ✅ Done | S | The workspace lock and its pair on the quick menu, and MINUS + PLUS opens the quick menu rather than the controller menu; the row trades brightness, screenshot and record for mic mute and deafen. Since 102 the chord opens the page last open, and PLUS the pause. |
 | 91 | [What the desktop gave up](91-what-the-desktop-gave-up.md) | ✅ Done | S | omapad asks the compositor for no blur: `[ui] blur` and the reload watcher behind it are gone, and whatever the desktop blurs is what applies. |
 | 92 | [A tuning scale, and a reading in words](92-a-tuning-scale.md) | ✅ Done | S | The slider as the knob's scale unrolled - printed graduations, open-footed ends, a needle across the line, detents filled once stood on; the stepped knob takes the detents, the quick menu draws the same slider, a card of rows keeps its crosses at a slider's length, and a reading is words on the HUD and in the menu. |
 | 93 | [The shell that stopped reading](93-the-shell-that-stopped-reading.md) | ✅ Done | S | Nothing on the loop waits on the shell: a view socket that will not take a line keeps the newest one and the loop offers it again; the keyboard's layout is asked over IPC and compiled in the worker; a menu tile builds only its own kind's drawing, so a page turn stops freezing the shell; the menu and the quick menu keep both triggers from the window layer. |
 | 94 | [Sounds measured where they are heard](94-sounds-measured-where-heard.md) | ✅ Done | S | Each sound is a measured loudness (BS.1770, through a television's drivers) rising in the order it costs; `show` for a surface coming up, `next` / `prev` for which way a page turned. |
 | 95 | [Words over a run of tiles](95-words-over-a-run.md) | ✅ Done | M | A heading on a menu page: RT puts one down while arranging and the keyboard types it over the menu; it is walked past outside that mode, carried through the order, drawn with no ground at its own height over the silver ratio, and `control = "heading"` writes one in the config. |
 | 96 | [A weight asked for is not a weight drawn](96-a-weight-asked-for.md) | ✅ Done | M | `Font.Medium` was drawn Regular on the shipped face, so the row in force looked like its neighbours; `metrics.weight` names four jobs and checks each against the faces the family has, the theme and `[ui] weight` move them, and every surface is on the silver ladder. |
-| 97 | [A page of words, read from a file](97-a-page-of-words.md) | ✅ Done | M | `control = "text"` shows a Markdown file on a menu card: read into blocks by the daemon and drawn in plain text, since Qt's own renderer fetches what it names; A takes it, up and down scroll it a block at a time, a wheel scrolls it untaken, and words that grow keep the reading place. |
+| 97 | [A page of words, read from a file](97-a-page-of-words.md) | ✅ Done | M | `control = "text"` shows a Markdown file on a menu card: read into blocks by the daemon and drawn in plain text, since Qt's own renderer fetches what it names; A takes it, up and down scroll it a line at a time, a wheel scrolls it untaken, and words that grow keep the reading place. |
 | 98 | [One backdrop under two menus](98-one-backdrop-two-menus.md) | 🗑 Removed | S | HOME and PLUS trade the menu and the quick menu over one backdrop: the push that trades them carries `swap`, the arriving panel takes the scrim without fading it in, and the leaving one holds its own until the other window is on screen and a fade longer, so the desktop no longer shows between the two. |
-| 99 | [No notification over an open menu](99-no-notification-over-the-menu.md) | ✅ Done | XS | Settings, lock, keep and mode changes go through `daemon.announce()`, which stays quiet while the menu or the quick menu is open because the row already shows the answer; the counted and held menu rows no longer notify at all. |
+| 99 | [No notification over an open menu](99-no-notification-over-the-menu.md) | ✅ Done | S | Settings, lock, keep and mode changes go through `daemon.announce()`, which stays quiet while the menu or the quick menu is open because the row already shows the answer; the counted and held menu rows no longer notify at all. |
 | 100 | [One button that adds](100-one-button-that-adds.md) | ✅ Done | M | RT while arranging opens Add: a heading, an installed app (by Omarchy's launcher's rules, with its own icon) or any tile of any page; the strip of removed tiles is gone, since Add > Menu finds them. |
 | 101 | [A marimba and a vibraphone](101-a-marimba-and-a-vibraphone.md) | ✅ Done | S | The sounds are two modelled bars instead of sines: the walk and the tick a hard marimba, the show, commit, back and edge a vibraphone; D, E, F sharp and A, with direction carried by intervals rather than glides; levels and the vocabulary unchanged. |
 | 102 | [A page, not a second menu](102-a-page-not-a-second-menu.md) | ✅ Done | M | The quick menu is the menu's first page rather than a surface of its own: PLUS opens it at Resume (`menu:toggle=quick`), HOME and MINUS + PLUS the page last open; the menu's `when` gains `window` and `empty`; the row, its socket, its layer and 98's hand-over are gone, and an old config still loads. |
 | 103 | [All apps inside the menu](103-all-apps-inside-the-menu.md) | ✅ Done | S | `Apps > All apps` opens a page of the menu rather than Omarchy's launcher: `apps = "all"` is a card per kind and the installed apps behind each, read by the rules 100's picker reads by and launched or focused the same way; `apps = "<kind>"` opens one kind. |
 | 104 | [A clock that was a watch](104-a-clock-that-was-a-watch.md) | ✅ Done | S | The watch face comes off the clock and the stopwatch tiles, and so do the figures it fell back to when small: both are a name and a figure, the way a reading is; the time rides as `t`, the stopwatch still counts, strikes the minute and starts, stops and resets on A; `Clock.qml` and the `clock-*` shapes are gone. |
+| 105 | [Acceleration, per stick and on the pad](105-acceleration-per-stick.md) | ✅ Done | S | The response curve moved from the role to the stick - `[pointer] left_accel` / `right_accel`, 1.0 is off - and onto Controller › Sticks as two bars printing `Off` or a ratio; the old per-role `accel` keys still load. |

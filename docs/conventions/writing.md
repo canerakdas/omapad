@@ -150,6 +150,7 @@ not the meaning, because the game bar prints only that word
 | `Sticks` | *(was two pages: Speed, Dead zone)* | Speed, and travel that does nothing | 1, 5 |
 | `Pointer`, `Scroll` | Pointer faster / Pointer slower | Pointer, Scroll | 6 |
 | `Left dead zone` | Left stick wider / Left stick narrower | Left dead zone | 6 |
+| `Sticks` | Speed, and travel that does nothing | Speed, acceleration, dead zones | 14 |
 | `Scale up` | Bigger desktop, for the couch | Bigger text and windows | 2 |
 | `Apps` | Open something | Steam, chat, music, video | 1 |
 | `Filled` | The label set on a washed shape | Letter on a soft-filled shape | 3 |
