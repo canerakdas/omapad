@@ -129,11 +129,14 @@ and leaves with it.
 
 Which one a thing wants:
 
-| Give it a **button** | Give it a **page entry** |
-|---|---|
-| pressed *while doing something else* - a mute mid-sentence, an interrupt, an erase | typed at or aimed at anyway - a URL, a command, a search, a sentence |
-| has to be instant | you were already going to open the keyboard |
-| a pointer cannot reach it | the keyboard is where the caret already is |
+| Give it a **button** | Give it a **page entry** | Give it a **card row** |
+|---|---|---|
+| pressed *while doing something else* - a mute mid-sentence, an interrupt, an erase | typed at or aimed at anyway - a URL, a command, a search, a sentence | done *instead of* the app for a moment - close a tab, open a list, change the text size |
+| has to be instant | you were already going to open the keyboard | you were already going to pause |
+| a pointer cannot reach it | the keyboard is where the caret already is | it reaches past a game holding the pad |
+
+A card row is `[profile.<app>.menu]`, drawn on the quick page's card that
+holds the app's rows; `pad-menu.md` says how one is written.
 
 ```toml
 [profile.shell.osk]

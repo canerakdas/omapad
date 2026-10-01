@@ -190,7 +190,9 @@ come to.
 
 An app whose bindings are more than a page of keys wants a **keyboard page**
 (`[profile.<app>.osk]`) rather than more buttons. Four rows, eight short
-entries, and the pad keeps its scheme.
+entries, and the pad keeps its scheme. What it does while you pause rather
+than while you type - close a tab, open a list - wants its **quick page card**
+(`[profile.<app>.menu]`) instead: five rows, and none of them a button.
 
 ## A menu page, which may spend two of them
 

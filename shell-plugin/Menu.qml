@@ -72,6 +72,9 @@ Item {
   // being read would lose its place in the rebuild.
   property var scrolls: ({})
   property var items: []
+  // The run under each heading, as rows, while the page is being arranged.
+  // Empty everywhere else, which is the daemon's to decide: it sends none.
+  property var sections: []
   property var groups: []
   property var head: []
   // What each face button does on this page, already worded by the daemon.
@@ -540,13 +543,48 @@ Item {
     return root.haloReach + x * (root.cellWidth + root.cellGap)
   }
   function cellY(y) {
-    return root.haloReach + y * (root.cellHeight + root.cellGap)
+    return root.haloReach + root.rowTop(y)
   }
   function cellSpan(n) {
     return n * root.cellWidth + (n - 1) * root.cellGap
   }
+  // The height of a whole module's rows - what a heading's type is sized
+  // from, so a half row does not halve the words in it.
   function rowsHeight(n) {
     return n > 0 ? n * root.cellHeight + (n - 1) * root.cellGap : 0
+  }
+  // The height of `n` rows from row `y`, as they are drawn.
+  function spanHeight(y, n) {
+    return n > 0 ? root.rowTop(y + n) - root.rowTop(y) - root.cellGap : 0
+  }
+
+  // **A row that holds only a heading is half a tile tall.** A heading is
+  // one line of words, and a whole module for it was a band of air over
+  // every run - the page read as more gap than tiles. Only the drawing
+  // knows: the daemon still counts it as a row, so the selection, the pins
+  // and the arrangement are the grid they were. A row with any tile in it
+  // keeps the full module, so a tile is never squeezed into a heading's row.
+  readonly property int headingRow: Math.round(root.cellHeight / 2)
+  readonly property var rowTops: {
+    var tall = []
+    var named = []
+    for (var i = 0; i < root.items.length; i++) {
+      var item = root.items[i]
+      for (var r = item.y; r < item.y + item.h; r++) {
+        if (item.k === "heading") named[r] = true
+        else tall[r] = true
+      }
+    }
+    var tops = [0]
+    for (var y = 0; y < root.rows; y++)
+      tops.push(tops[y] + root.cellGap
+        + (named[y] && !tall[y] ? root.headingRow : root.cellHeight))
+    return tops
+  }
+  function rowTop(y) {
+    var last = root.rowTops.length - 1
+    if (y <= last) return root.rowTops[Math.max(0, y)]
+    return root.rowTops[last] + (y - last) * (root.cellHeight + root.cellGap)
   }
 
   // **The fold falls between two cells, never through one.** A tile centres
@@ -565,9 +603,12 @@ Item {
     return Math.max(1, Math.floor(
       (room + root.cellGap) / (cell + root.cellGap)))
   }
+  // Rows are not one height - a heading's is half (`rowTops`) - so the
+  // rows are walked rather than divided; the fold still falls between two.
   function shownRows(room) {
-    return root.rowsHeight(
-      Math.min(root.rows, root.wholeCells(room, root.cellHeight)))
+    var n = 1
+    while (n < root.rows && root.spanHeight(0, n + 1) <= room) n++
+    return root.spanHeight(0, Math.min(root.rows, n))
   }
   function shownCols(room) {
     return root.cellSpan(
@@ -677,6 +718,11 @@ Item {
       // The same, for how far each text tile has been read.
       if (whole)
         root.scrolls = s.scr !== undefined ? s.scr : ({})
+      // And the frames, which are absent rather than empty outside the mode.
+      if (whole) {
+        var sec = s.sec !== undefined ? s.sec : []
+        if (root.fresh("sec", sec)) root.sections = sec
+      }
       if (s.groups !== undefined && root.fresh("groups", s.groups))
         root.groups = s.groups
       if (s.head !== undefined && root.fresh("head", s.head))
@@ -857,8 +903,17 @@ Item {
       // the resting page is the same page these sums ask for, `contentX` 0
       // for column 0 and the full `contentWidth` for the last.
       var top = root.cellY(root.items[i].y) - root.haloReach
+      // **A tile on the first row of a run brings its heading with it.** The
+      // selection walks past headings, so climbing back up a page stopped on
+      // the run's first tile with the words naming it a row above the fold -
+      // going down they were passed on the way, going up they never came.
+      for (var j = 0; j < root.items.length; j++) {
+        var over = root.items[j]
+        if (over.k === "heading" && over.y + over.h === root.items[i].y)
+          top = root.cellY(over.y) - root.haloReach
+      }
       var bottom = root.cellY(root.items[i].y)
-        + root.rowsHeight(root.items[i].h) + root.haloReach
+        + root.spanHeight(root.items[i].y, root.items[i].h) + root.haloReach
       if (top < grid.contentY)
         grid.contentY = top
       else if (bottom > grid.contentY + grid.height)
@@ -869,7 +924,11 @@ Item {
       var left = root.cellX(root.items[i].x) - root.haloReach
       var right = root.cellX(root.items[i].x)
         + root.cellSpan(root.items[i].w) + root.haloReach
-      if (left < grid.contentX)
+      // **A tile wider than the card shows where it starts.** Both edges
+      // cannot be in view, and scrolled to its right edge a heading across
+      // the whole page arrived as the end of a line with its words off the
+      // left - the one part of it worth seeing.
+      if (left < grid.contentX || right - left > grid.width)
         grid.contentX = left
       else if (right > grid.contentX + grid.width)
         grid.contentX = right - grid.width
@@ -1854,7 +1913,7 @@ Item {
             // shorter than the page scrolls down - a module that shrank to fit
             // would be the stretched cell this surface just stopped having.
             contentWidth: root.gridWidth + root.haloReach * 2
-            contentHeight: root.rowsHeight(root.rows) + root.haloReach * 2
+            contentHeight: root.spanHeight(0, root.rows) + root.haloReach * 2
             clip: true
             interactive: false
             boundsBehavior: Flickable.StopAtBounds
@@ -2022,7 +2081,7 @@ Item {
                 x: root.cellX(tile.modelData.x) + root.shift
                 y: root.cellY(tile.modelData.y)
                 width: root.cellSpan(tile.modelData.w)
-                height: root.rowsHeight(tile.modelData.h)
+                height: root.spanHeight(tile.modelData.y, tile.modelData.h)
                 // A heading is drawn by the Repeater after this one, with none
                 // of what a tile is drawn with.
                 visible: tile.modelData.k !== "heading"
@@ -4653,6 +4712,57 @@ Item {
               }
             }
 
+            // **The sections**: a hairline down the middle of the gutter
+            // round the run each heading names, so a tile being carried can
+            // be seen to cross from one into the next. Only while arranging,
+            // and the daemon is what says so: walking a page, a frame round a
+            // run is a second hairline beside the one that says *here*, and
+            // a figure that means two things means neither.
+            //
+            // The heading stands outside it, between one frame and the next,
+            // so two runs one above the other never share a line. Across the
+            // whole page rather than round the tiles, because a run is a band
+            // of rows - the order fills it from the left - and a frame that
+            // hugged its tiles would move every time one was carried.
+            Repeater {
+              model: root.sections
+
+              delegate: Rectangle {
+                id: section
+                required property var modelData
+
+                // Half the gutter, so the line is as far from the tiles in
+                // it as from the heading over it. At the page's two sides
+                // there is less than that before the clip, and the line
+                // stops at it rather than being cut away.
+                readonly property int inset: Math.round(root.cellGap / 2)
+                readonly property int near:
+                  Math.max(0, root.cellX(0) - section.inset)
+                readonly property int far: Math.min(
+                  root.gridWidth + root.haloReach * 2,
+                  root.cellX(0) + root.gridWidth + section.inset)
+                // The heading in the hand carries the run with it, so the
+                // run is what lights.
+                readonly property bool carried:
+                  section.modelData.id === root.picked
+
+                x: section.near + root.shift
+                y: root.cellY(section.modelData.y) - section.inset
+                width: section.far - section.near
+                height: root.spanHeight(section.modelData.y, section.modelData.h)
+                  + section.inset * 2
+                color: "transparent"
+                // Concentric with the tiles inside it: a corner `inset` out
+                // takes `inset` more radius, or the two part at the corners.
+                radius: Math.max(0, metrics.radius.tile + section.inset)
+                border.width: metrics.gap.hairline
+                border.color: section.carried ? Color.accent : root.cellEdge
+                Behavior on border.color {
+                  ColorAnimation { duration: metrics.time.brisk }
+                }
+              }
+            }
+
             // **The headings**, drawn apart from the tiles because they share
             // nothing with one but the cell they are placed in: no ground, no
             // ring, no light and no mark. A heading is words over a run of
@@ -4691,8 +4801,13 @@ Item {
                 // heading at twice the size of anything else on the card, and
                 // a heading that outshouts the tiles it names reads as the
                 // page's title rather than as a section of it.
+                //
+                // From the rows it would take at a tile's height rather than
+                // the half row it is drawn in (`rowTops`): the row came down
+                // to lose the air, not the words.
                 readonly property int size: Math.max(metrics.type.fine,
-                  Math.round(heading.height / metrics.silver / metrics.silver))
+                  Math.round(root.rowsHeight(heading.modelData.h)
+                             / metrics.silver / metrics.silver))
                 // And the air split the same way, the smaller share under the
                 // words: a heading belongs to the tiles below it, so it sits
                 // nearer to them than to the ones above.
@@ -4703,7 +4818,7 @@ Item {
                 x: root.cellX(heading.modelData.x) + root.shift
                 y: root.cellY(heading.modelData.y)
                 width: root.cellSpan(heading.modelData.w)
-                height: root.rowsHeight(heading.modelData.h)
+                height: root.spanHeight(heading.modelData.y, heading.modelData.h)
 
                 // The box it stands in, while there is a page to arrange: an
                 // outline and nothing inside it, so it can be found and

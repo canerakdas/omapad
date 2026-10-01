@@ -74,6 +74,12 @@ POINTER_STAYS = (actions.ClickAction, actions.ScrollAction,
 # a stick with nothing to do.
 STICK_ROLES = ("cursor", "scroll", "resize", "move", "snap", "focus",
                "swap")
+
+# Each stick's own click, by the name the pad's printing gives it. A click is
+# not a push, and pressing a stick tilts it: while it is down that stick's
+# wheel stands still. The terminal's R3 is Copy, a held Ctrl+Shift+C, and the
+# tilt under it reached foot as Ctrl+wheel - the text growing at every copy.
+STICK_CLICKS = {"left": "LSTICK", "right": "RSTICK"}
 def ramped(rate, ramp, ramp_time, held):
     """The gap before the next step of a direction held `held` seconds.
 
@@ -341,6 +347,15 @@ APPS_TIMEOUT = 10.0
 # does not come back, and the ones that ship - a mode, an output - take a
 # fraction of a second.
 PICK_WAIT = 10.0
+
+# The menu's layer, as `Menu.qml` names it, and how long a key a row sends
+# waits for the compositor to say that layer has gone, in seconds. The panel
+# holds the keyboard while it is up, so a key sent the moment the menu is
+# told to close lands in the menu rather than the app. `closelayer` is the
+# answer and arrives within a frame; the wait is a guard for a shell that is
+# not drawing and so never closes anything - not a setting.
+MENU_LAYER = "omapad-menu"
+KEY_WAIT = 0.5
 
 # Where a ring's scale starts and how far round it goes, in degrees clockwise
 # from three o'clock - the same convention `atan2(y, x)` answers in with `y`
@@ -769,6 +784,12 @@ class Daemon:
         # lock is, and exclusive with it: two overrides arguing about one pad
         # is a state nobody could name. See `set_keeping`.
         self.keeping = False
+        # The window either was set over, by its Hyprland address, or None.
+        # Both are answers about one window, so neither outlives it: a lock
+        # left on after the game closed held the pad for whatever came to the
+        # front next, and the tile that turns it off is on a page that asks
+        # for a window. See `window_closed`.
+        self._override_window = None
         self.pad_nodes = frozenset()
         self.focus_pid = None
         self._next_handover_check = 0.0
@@ -828,6 +849,9 @@ class Daemon:
         # A row a listing found that has been run and not yet come back:
         # (process, when to stop waiting for it). See `menu_pick`.
         self._menu_pick = None
+        # A key a row sent, waiting for the menu's layer to go:
+        # (action, when to stop waiting). See `menu_run`.
+        self._menu_key = None
 
         # The keyboard on the desk. Opened only while one of our surfaces is
         # up, so a panel is never something you have to find the pad to send
@@ -1245,6 +1269,7 @@ class Daemon:
         if locked == self.locked:
             return
         self.locked = locked
+        self._override_window = self._hypr_window if locked else None
         if locked:
             # The two overrides are one question with two answers, so the
             # second one asked is the one that stands. Silently, because the
@@ -1256,6 +1281,18 @@ class Daemon:
             "Workspace lock on - unlock it from the quick menu" if locked
             else "Workspace lock off"
         )
+
+    def window_closed(self, address):
+        """A window went: the lock or the keep set over it goes with it."""
+        if address and address == self._override_window:
+            self.end_overrides()
+
+    def end_overrides(self):
+        """Turn the lock and the keep off, each saying so if it was on."""
+        if self.locked:
+            self.set_locked(False)
+        if self.keeping:
+            self.set_keeping(False)
 
     def set_keeping(self, keeping):
         """Keep the pad ours over an app that has opened it, or stop.
@@ -1282,6 +1319,7 @@ class Daemon:
         if keeping == self.keeping:
             return
         self.keeping = keeping
+        self._override_window = self._hypr_window if keeping else None
         if keeping:
             self.locked = False
         log.info("keep: %s", "on" if keeping else "off")
@@ -2165,6 +2203,10 @@ class Daemon:
                     # The event carries no pid, and who owns the pad is a
                     # question about the process rather than the class.
                     self.seed_active_window()
+            elif text.startswith("closewindow>>"):
+                self.window_closed(text[len("closewindow>>"):].strip())
+            elif text == "closelayer>>" + MENU_LAYER:
+                self.menu_key_due(time.monotonic(), closed=True)
             elif self.gamebar_open:
                 self.handle_workspace_event(text)
         return True
@@ -2199,6 +2241,10 @@ class Daemon:
         was_bare = not self.focus_class
         self.focus_class = window_class
         self.focus_title = title
+        if not window_class:
+            # Nothing in front is nothing to lock the pad to, and nowhere the
+            # quick page - which holds both tiles - is offered.
+            self.end_overrides()
         self.set_active_profile(window_class)
         if was_bare != (not window_class) and self.gamebar_open:
             # Bare wallpaper and a window that matches no profile resolve the
@@ -2881,6 +2927,11 @@ class Daemon:
             self.menu.conditions = self.menu_conditions()
             self.menu_absent()
             self.menu.window_name = self.window_name()
+            # And what it lends the card that holds its rows - the profile
+            # that follows focus, so over a game Steam started it is Steam's.
+            # Nothing in front is nothing lent, whatever profile was last.
+            self.menu.lent = ((self.active_profile or {}).get("menu")
+                              if self.focus_class else None)
             # A first start is answered once, and being shown it is what
             # answers it: the conditions a line above are already read and
             # stand for as long as this menu is up, so the `Start here` tile
@@ -4972,6 +5023,39 @@ class Daemon:
         for tile in self.menu.tiles:
             self.menu_fill(tile["item"])
 
+    def menu_run(self, action):
+        """Close the menu, then run a row - a key once the menu has gone.
+
+        Tagged with the menu, so game mode lets it run: the menu can be
+        opened from [bindings.game], and a row that closes the menu and then
+        does nothing is worse than no menu at all.
+
+        **A key waits for the layer to close.** The panel holds the keyboard
+        while it is up, and the view is told to close over a socket the shell
+        reads when it next gets to it - so a key sent now reaches the menu, and
+        a browser's `Close tab` closed nothing. Anything else goes at once:
+        a command does not care who has the keyboard.
+        """
+        self.set_menu(False)
+        if isinstance(action, actions.KeyAction) and self.hypr_ev is not None:
+            self._menu_key = (action, time.monotonic() + KEY_WAIT)
+            return
+        self.fire_once(action, "menu")
+
+    def menu_key_due(self, now, closed=False):
+        """Send the key a row is holding, once its menu has gone."""
+        if self._menu_key is None:
+            return
+        action, due = self._menu_key
+        if not closed and now < due:
+            return
+        self._menu_key = None
+        if self.menu_open:
+            # Opened again before the old one had gone: the key would land in
+            # the new one, which nobody pressed it in.
+            return
+        self.fire_once(action, "menu")
+
     def menu_pick(self, action):
         """Run a row a listing found, and read the page again once it is done.
 
@@ -5348,11 +5432,7 @@ class Daemon:
                 # Otherwise the menu goes away before the entry fires: whatever
                 # it opens should not come up behind a scrim, and a command that
                 # takes a moment should not leave the menu looking stuck.
-                self.set_menu(False)
-                # Tagged with the menu, so game mode lets it run: the menu can
-                # be opened from [bindings.game], and a row that closes the
-                # menu and then does nothing is worse than no menu at all.
-                self.fire_once(item["action"], "menu")
+                self.menu_run(item["action"])
                 return False
         self.push_menu_view()
         return held
@@ -5530,9 +5610,10 @@ class Daemon:
         # ordinary path - the same three lines a held row takes when its own
         # wait is over.
         self.menu.choose(item)
-        if not item["stay"]:
-            self.set_menu(False)
-        self.fire_once(item["action"], "menu")
+        if item["stay"]:
+            self.fire_once(item["action"], "menu")
+        else:
+            self.menu_run(item["action"])
 
     def menu_disarm(self, cancelled=False):
         """Let go of a row that was counting down. True if one was.
@@ -5599,9 +5680,10 @@ class Daemon:
         # does not come up behind a scrim, and the action is tagged with the
         # menu so game mode lets it through.
         self.menu.choose(item)
-        if not item["stay"]:
-            self.set_menu(False)
-        self.fire_once(item["action"], "menu")
+        if item["stay"]:
+            self.fire_once(item["action"], "menu")
+        else:
+            self.menu_run(item["action"])
 
     # -- bindings guide ----------------------------------------------------
 
@@ -7004,7 +7086,8 @@ class Daemon:
             if role == "cursor":
                 cursor = self.stick_vector(stick)
             elif role == "scroll":
-                scroll = self.stick_vector(stick)
+                if STICK_CLICKS[stick] not in self.pressed:
+                    scroll = self.stick_vector(stick)
             elif role == "resize":
                 resize = self.stick_vector(stick)
             elif role == "move":
@@ -7520,6 +7603,7 @@ class Daemon:
                 self.check_hold_timers(now)
                 self.check_menu_confirm(now)
                 self.check_menu_countdown(now)
+                self.menu_key_due(now)
                 self.check_awake(now)
                 self.fire_repeats(now)
                 # The stopwatch's minute mark, whether or not the surface

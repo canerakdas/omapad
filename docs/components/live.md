@@ -46,6 +46,11 @@ speaks no DDC and the helper then fails without a word.
 | `bluetooth` | bool | `omarchy-bluetooth-power is-on`, said as a word | `omarchy-bluetooth-power on\|off` |
 | `dnd` | bool | `omarchy-shell notifications isDnd` | `omarchy-shell notifications setDnd %1` |
 
+**Why brightness stops at 1%.** On a backlight 0% is off, and a black screen
+is one the slider that would bring it back can no longer be seen on. The floor
+is the reading's `min`; its `grid` keeps the notches on the fives, so 1% goes
+up to 5% rather than walking 1, 6, 11.
+
 **Why volume bypasses `omarchy-audio-output-volume`.** That helper always ends
 in `omarchy-osd`, so every press from the HUD would raise Omarchy's own overlay
 **over the tile showing the same number** - the opposite of what putting volume

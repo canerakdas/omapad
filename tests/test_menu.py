@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from omapad import actions, config as config_module
 from omapad.menu import (MenuError, MenuModel, PICKER_MARK, ROOT_TITLE,
                          TAKEABLE,
-                         adoptions, arrange, build, build_head,
+                         adoptions, arrange, build, build_head, build_rows,
                          effective_span, head_sources, listed, pages_of,
                          place, slug, time_of_day, vacate, whole_row)
 
@@ -163,7 +163,8 @@ class BuildTests(unittest.TestCase):
                                     settings=missing, layout=missing)
         apps = [row for row in config.menu_items if row.get("label") == "Apps"]
         self.assertEqual(len(apps), 1)
-        labels = [row["label"] for row in apps[0]["items"]]
+        labels = [row["label"] for row in apps[0]["items"]
+                  if row.get("control") != "heading"]
         self.assertEqual(
             labels[:4], ["Steam", "Discord", "Spotify", "YouTube"]
         )
@@ -180,7 +181,8 @@ class BuildTests(unittest.TestCase):
         system = [row for row in config.menu_items
                   if row.get("label") == "System"]
         self.assertEqual(len(system), 1)
-        rows = system[0]["items"]
+        rows = [row for row in system[0]["items"]
+                if row.get("control") != "heading"]
         self.assertEqual(rows[0]["label"], "Start in")
         # A card of rows rather than a chevron: both values are on screen,
         # each with the line saying how it differs, and the tick says which
@@ -198,7 +200,7 @@ class BuildTests(unittest.TestCase):
         # accepts inside a card rather than only TOML that looks right.
         built = build(config.menu_items)
         card = [item for item in built
-                if item["label"] == "System"][0]["items"][0]
+                if item["label"] == "System"][0]["items"][1]
         self.assertEqual(len(card["rows"]), 2)
         self.assertIsNone(card["items"])
 
@@ -216,15 +218,16 @@ class BuildTests(unittest.TestCase):
         rows = controller[0]["items"]
         labels = [row.get("label") for row in rows]
         start = labels.index("Sticks")
-        self.assertEqual(labels[start:start + 3],
-                         ["Sticks", "Hide the pointer", "Button style"])
-        # And the band under them is what omapad draws rather than what the
-        # pad does - the three that were on Display reading as questions
+        self.assertEqual(labels[start:start + 2],
+                         ["Sticks", "Hide the pointer"])
+        # And the section under them is what omapad draws rather than what
+        # the pad does - the three that were on Display reading as questions
         # about the television, how heavy the words are, and how dark the
-        # desktop goes behind them.
-        self.assertEqual(labels[start + 3:],
-                         ["Motion", "Corners", "Text weight", "Tile fill",
-                          "Background dim"])
+        # desktop goes behind them. The badges' style leads it: it is how a
+        # badge looks, not what a button does.
+        self.assertEqual(labels[start + 2:],
+                         ["Appearance", "Button style", "Motion", "Corners",
+                          "Text weight", "Tile fill", "Background dim"])
         pointer = rows[labels.index("Hide the pointer")]
         # A switch rather than two rows that both ticked: it has two states,
         # and the tile draws which one it is in.
@@ -249,6 +252,83 @@ class BuildTests(unittest.TestCase):
         self.assertEqual([row["shows"] for row in dials], ["left", "right"])
         self.assertEqual([row["reads"] for row in dials],
                          ["pad:left_deadzone", "pad:right_deadzone"])
+
+
+class HeldCardTests(unittest.TestCase):
+    """`holds = "window"`: a card whose rows the app in front lends."""
+
+    PAGE = [{"label": "Quick", "items": [
+        {"label": "Resume", "action": "menu:close", "span": [3, 1]},
+        {"label": "Shortcuts", "control": "rows", "holds": "window",
+         "span": [3, 3]},
+        {"label": "Volume up", "action": "exec:true", "span": [3, 1]},
+    ]}]
+
+    LENT = {"label": "Tabs and page", "detail": "",
+            "rows": build_rows([
+                {"label": "Close tab", "action": "key:CTRL+W"},
+                {"label": "Reopen tab", "action": "key:CTRL+SHIFT+T"},
+            ], "profile.browser.menu.items")}
+
+    def model(self, lent):
+        model = MenuModel(build(self.PAGE))
+        model.lent = lent
+        model.reset()
+        return model
+
+    def tile(self, model, name):
+        return next((tile for tile in model.tiles
+                     if tile["item"]["id"] == name), None)
+
+    def test_it_draws_what_the_app_lends(self):
+        model = self.model(self.LENT)
+        card = self.tile(model, "shortcuts")["item"]
+        self.assertEqual([row["label"] for row in model.rows_of(card)],
+                         ["Close tab", "Reopen tab"])
+        drawn = next(row for row in model.view_state(True)["items"]
+                     if row["id"] == "shortcuts")
+        self.assertEqual(drawn["l"], "Tabs and page")
+        self.assertEqual([row["l"] for row in drawn["rs"]],
+                         ["Close tab", "Reopen tab"])
+
+    def test_an_app_that_lends_nothing_leaves_its_cells(self):
+        # Which app is in front changes between two pauses; the tile beside
+        # the card must not move with it.
+        lent = self.model(self.LENT)
+        bare = self.model(None)
+        self.assertIsNone(self.tile(bare, "shortcuts"))
+        self.assertEqual(self.tile(bare, "volume-up")["at"],
+                         self.tile(lent, "volume-up")["at"])
+
+    def test_a_press_runs_the_lent_row(self):
+        model = self.model(self.LENT)
+        model.select_id("shortcuts")
+        model.take()
+        model.select_row("reopen-tab")
+        self.assertEqual(model.acting["label"], "Reopen tab")
+
+    def test_it_writes_no_rows_of_its_own(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "x", "control": "rows", "holds": "window",
+                    "items": [{"label": "y", "action": "exec:true"}]}])
+        self.assertIn("writes none of its own", str(caught.exception))
+
+    def test_only_a_card_holds(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "x", "holds": "window", "action": "exec:true"}])
+
+    def test_it_holds_only_what_there_is(self):
+        with self.assertRaises(MenuError):
+            build([{"label": "x", "control": "rows", "holds": "game"}])
+
+    def test_a_key_cannot_stay(self):
+        # The panel holds the keyboard while it is up: a key from a menu that
+        # stays would be typed into the menu.
+        for keys in ({"stay": True}, {"repeat": True}):
+            with self.assertRaises(MenuError) as caught:
+                build([dict({"label": "Zoom", "action": "key:CTRL+EQUAL"},
+                            **keys)])
+            self.assertIn("closed", str(caught.exception))
 
 
 class WhenTests(unittest.TestCase):
@@ -2177,14 +2257,10 @@ class HeadingTests(unittest.TestCase):
         self.assertEqual(self.order(model), ["one", "two", "#1", "three",
                                              "four"])
         self.assertNotIn("#1", model.plan()["at"])
-        self.assertTrue(model.carry("up"))
+        self.assertTrue(model.carry("left"))
+        self.assertTrue(model.carry("left"))
         self.assertEqual(self.order(model)[0], "#1")
-        self.assertFalse(model.carry("up"))
-        self.assertTrue(model.carry("down"))
-        # Past the whole row that stood under it: three across, so all of
-        # One, Two and Three.
-        self.assertEqual(self.order(model), ["one", "two", "three", "#1",
-                                             "four"])
+        self.assertFalse(model.carry("left"))
 
     def test_x_deletes_it_rather_than_taking_it_off(self):
         model = self.model()
@@ -2231,6 +2307,120 @@ class HeadingTests(unittest.TestCase):
         with self.assertRaises(MenuError):
             build([{"label": "One", "id": "#1", "action": "nop"}],
                   settings={})
+
+
+class SectionTests(unittest.TestCase):
+    """A heading and its run, carried together and framed while arranging."""
+
+    def model(self):
+        # Three across: One alone, then Games over Two and Three, then
+        # Tools over Four and Five.
+        return MenuModel(build([{"label": "Group", "items": [
+            {"label": "One", "action": "nop"},
+            {"label": "Games", "control": "heading"},
+            {"label": "Two", "action": "nop"},
+            {"label": "Three", "action": "nop"},
+            {"label": "Tools", "control": "heading"},
+            {"label": "Four", "action": "nop"},
+            {"label": "Five", "action": "nop"},
+        ]}], settings={}), columns=3)
+
+    def cells(self, model):
+        return dict((tile["item"]["id"], tile["at"]) for tile in model.tiles)
+
+    def order(self, model):
+        return [tile["item"]["id"] for tile in model.tiles]
+
+    def carry_section(self, model, name, direction):
+        model.select_id(name)
+        model.pick()
+        moved = model.carry(direction)
+        model.pick()
+        return moved
+
+    def test_down_carries_the_heading_with_its_run(self):
+        model = self.model()
+        model.set_edit(True)
+        self.assertTrue(self.carry_section(model, "games", "down"))
+        self.assertEqual(self.order(model), [
+            "one", "tools", "four", "five", "games", "two", "three"])
+        self.assertTrue(self.carry_section(model, "games", "up"))
+        self.assertEqual(self.order(model), [
+            "one", "games", "two", "three", "tools", "four", "five"])
+
+    def test_the_run_above_every_heading_is_a_wall(self):
+        # Carried past, One would be filed under Games.
+        model = self.model()
+        model.set_edit(True)
+        self.assertFalse(self.carry_section(model, "games", "up"))
+        self.assertFalse(self.carry_section(model, "tools", "down"))
+
+    def test_a_tile_put_in_a_section_is_counted_from_its_heading(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("three")
+        model.pick()
+        self.assertTrue(model.carry("right"))
+        model.pick()
+        x, y = self.cells(model)["three"]
+        self.assertEqual(model.plan()["at"]["three"],
+                         (x, y - 2, "games"))
+
+    def test_a_pin_goes_where_its_section_goes(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("three")
+        model.pick()
+        model.carry("right")
+        model.pick()
+        before = self.cells(model)["three"][1] - self.cells(model)["games"][1]
+        self.assertTrue(self.carry_section(model, "games", "down"))
+        cells = self.cells(model)
+        self.assertEqual(cells["three"][1] - cells["games"][1], before)
+        # And Tools, now above it, ends before Games begins.
+        self.assertLess(cells["five"][1], cells["games"][1])
+
+    def test_a_pin_written_on_the_page_is_taken_along(self):
+        model = self.model()
+        model.set_edit(True)
+        plan = model._plan()
+        plan["at"]["three"] = (2, 2)
+        model.repack()
+        self.assertTrue(self.carry_section(model, "games", "down"))
+        cells = self.cells(model)
+        self.assertEqual(cells["three"], (2, cells["games"][1] + 1))
+        self.assertEqual(model.plan()["at"]["three"], (2, 0, "games"))
+
+    def test_a_pin_whose_heading_is_gone_flows(self):
+        tiles, _ = place(
+            [{"id": "a", "control": "", "span": (1, 1)},
+             {"id": "b", "control": "", "span": (1, 1)}],
+            3, {"at": {"b": (2, 4, "#9")}})
+        self.assertEqual([tile["at"] for tile in tiles], [(0, 0), (1, 0)])
+
+    def test_taking_a_heading_off_leaves_its_pins_where_they_are(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("three")
+        model.pick()
+        model.carry("right")
+        model.pick()
+        where = self.cells(model)["three"]
+        model.select_id("games")
+        self.assertTrue(model.remove())
+        self.assertEqual(len(model.plan()["at"]["three"]), 2)
+        self.assertEqual(model.plan()["at"]["three"][0], where[0])
+
+    def test_the_frames_are_sent_only_while_arranging(self):
+        model = self.model()
+        self.assertNotIn("sec", model.view_state(True))
+        model.set_edit(True)
+        self.assertEqual(model.view_state(True)["sec"], [
+            {"id": "games", "y": 2, "h": 1},
+            {"id": "tools", "y": 4, "h": 1},
+        ])
+        model.add_open()
+        self.assertNotIn("sec", model.view_state(True))
 
 
 class MovingATileToAnotherPage(unittest.TestCase):
@@ -3179,8 +3369,12 @@ class ShippedPageTests(unittest.TestCase):
         return model
 
     def reaches(self, model):
-        """Every tile on the page in front, from every other one."""
-        names = [tile["item"]["id"] for tile in model.tiles]
+        """Every tile on the page in front, from every other one.
+
+        A heading is not one: outside rearranging the pad walks past it.
+        """
+        names = [tile["item"]["id"] for tile in model.tiles
+                 if model.selectable(tile["item"])]
         ways = {}
         for name in names:
             out = set()

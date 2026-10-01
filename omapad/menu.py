@@ -68,6 +68,14 @@ PLACES = ("window", "empty")
 # a pause over something, and a card saying `Quick` says only which page it
 # is (decision 102). The label is what it says where nothing is in front.
 NAMES = ("window",)
+
+# Whose rows a card of rows draws instead of its own (`holds`). One: the app
+# in front, through `[profile.<name>.menu]` - a pause over a browser wants
+# its tabs, over a terminal its text size, and none of that is a button
+# everywhere. The card is written once, where it stands; what it holds is
+# the profile's, read when the menu opens. Where the app lends nothing the
+# card is not drawn and keeps its cells, as an unmet `when` does.
+HOLDS = ("window",)
 WHEN = PLACES + ("game", "handed_over", "locked", "kept", "first_run")
 
 # The values a listed line carries, in the order the row's action takes them.
@@ -456,7 +464,28 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             raise MenuError(
                 "%s: a %s tile is words - it has no action and no items"
                 % (path, TEXT))
-        if control == ROWS and children is None and source is None:
+        holds = str(entry.get("holds") or "").strip()
+        if holds:
+            if holds not in HOLDS:
+                raise MenuError("%s: 'holds' is %s, not %r"
+                                % (path, " or ".join(HOLDS), holds))
+            if control != ROWS:
+                raise MenuError(
+                    "%s: only a card of rows can hold the app's rows" % path)
+            if (children is not None or spec is not None
+                    or source is not None):
+                # Said rather than merged: rows written here and rows the app
+                # lends would be two lists on one card, and which one a press
+                # landed in would depend on what was in front.
+                raise MenuError(
+                    "%s: a card that holds the app's rows writes none of its "
+                    "own" % path)
+            if entry.get(MANY):
+                raise MenuError(
+                    "%s: a card that holds the app's rows does not latch"
+                    % path)
+        if (control == ROWS and children is None and source is None
+                and not holds):
             raise MenuError(
                 "%s: a %s tile is drawn from its items, and has none"
                 % (path, ROWS)
@@ -616,6 +645,7 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 "%s: only a page can spend a key - this tile is drawn in place"
                 % path
             )
+        item["holds"] = holds
         item["open_on"] = bool(entry.get("open_on", False))
         item["names"] = str(entry.get("names") or "").strip()
         if item["names"] and item["names"] not in NAMES:
@@ -690,6 +720,13 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             # Filled at the press, from the index the daemon last read, and
             # not None until then for the reason a listed row is not.
             item["items"] = []
+        elif holds:
+            # Not None, so it reads as a card everywhere that asks; what it
+            # draws is `MenuModel.lent`, which the daemon sets as it opens.
+            if item["repeat"] or item["stay"] or item["confirm"]:
+                raise MenuError(
+                    "%s: a card is not run - its rows are" % path)
+            item["rows"] = []
         elif children is not None:
             # Carrying both down, which is the whole of what a nested page
             # needs to be checked the same way this one is: without them a
@@ -712,6 +749,14 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             if item["confirm"] and item["repeat"]:
                 raise MenuError(
                     "%s: a row cannot both repeat and be confirmed" % path)
+            if item["stay"] and isinstance(item["action"], actions.KeyAction):
+                # The panel holds the keyboard while it is up, so a key sent
+                # from a menu that stays lands in the menu. Closing first is
+                # what hands the app in front its keyboard back.
+                raise MenuError(
+                    "%s: a key goes to the app in front, which has the "
+                    "keyboard only once the menu is closed - no 'stay' or "
+                    "'repeat'" % path)
         elif (item["control"] in CONTROL_KINDS
                 or item["control"] in (CLOCK, CHRONO)):
             # A control acts on what it reads. The press is the whole of it,
@@ -750,6 +795,21 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
             raise MenuError("%s needs an action or items" % path)
         items.append(item)
     return items
+
+
+def build_rows(entries, where, countdown=COUNTDOWN):
+    """Rows written somewhere other than the card that draws them.
+
+    What `[profile.<name>.menu]` lends a card that `holds` it: built and
+    checked as a card's own rows are, so `omapad check` names the profile
+    rather than the press finding a row that will not run. A row here is a
+    verb, for the reason it is one on any card - and so it reads nothing,
+    which is why no settings are passed.
+    """
+    rows = build(entries, where, countdown=countdown)
+    if not rows:
+        raise MenuError("%s: a card of no rows" % where)
+    return _rows(rows, where)
 
 
 def _rows(items, path, many=False):
@@ -1399,6 +1459,20 @@ def pinned_cell(item, plan):
     return (int(found[0]), int(found[1]))
 
 
+def pin_anchor(item, plan):
+    """The heading a pin is counted from, or None where it is a page's cell.
+
+    **A pin under a heading is a place in that section, not on the page.**
+    Its row is counted from the row under the heading, so carrying a section
+    carries what was put in it - a cell on the page would stay behind, and
+    the tile would land in whichever section came to stand over it.
+    """
+    found = (plan or {}).get("at", {}).get(item["id"])
+    if found is None or len(found) < 3:
+        return None
+    return found[2]
+
+
 def pages_of(root):
     """Every page in the tree: what it is called, and the tiles on it.
 
@@ -1749,28 +1823,49 @@ def place(items, columns, plan=None, rows=None):
                    for down in range(height)
                    for across in range(width))
 
+    def pin(item, cell, top):
+        """Claim the cell a pin names, `top` rows down. False if it is taken."""
+        nonlocal used
+        width, height = effective_span(item, plan)
+        width = min(width, columns)
+        x = max(0, min(cell[0], columns - width))
+        y = max(0, top + cell[1])
+        if rows is not None:
+            height = min(height, rows)
+            y = max(0, min(y, rows - height))
+        if not clear(x, y, width, height):
+            return False
+        claim(item, x, y, width, height)
+        used = max(used, y + height)
+        return True
+
+    # A pin under a heading waits for its heading, which is in the flow: it
+    # is placed the moment the heading is, counted from the row under it.
+    headings = set(item["id"] for item in items
+                   if item["control"] == HEADING)
+    sections = {}
     for item in items:
         if item["control"] == ROW_BREAK:
             continue
         cell = pinned_cell(item, plan)
         if cell is None:
             continue
-        width, height = effective_span(item, plan)
-        width = min(width, columns)
-        x = max(0, min(cell[0], columns - width))
-        y = max(0, cell[1])
-        if rows is not None:
-            height = min(height, rows)
-            y = max(0, min(y, rows - height))
-        if not clear(x, y, width, height):
+        anchor = pin_anchor(item, plan)
+        if anchor is not None:
+            # A heading no longer on the page leaves the tile to the flow
+            # rather than at a row counted from nowhere.
+            if anchor in headings and anchor != item["id"]:
+                sections.setdefault(anchor, []).append((item, cell))
             continue
-        claim(item, x, y, width, height)
-        used = max(used, y + height)
+        pin(item, cell, 0)
 
     # The flow, and the floor a row break raises. A pinned tile is out of the
     # flow entirely - it was put somewhere on purpose - so it neither moves a
     # paragraph mark nor is moved by one, and `floor` counts only what has
-    # flowed.
+    # flowed. A pin in a section is the exception: it is part of the run its
+    # heading names, so the next heading has to stand under it.
+    waiting = set(item["id"] for pins in sections.values()
+                  for item, _ in pins)
     floor = 0
     flowed = 0
     for item in items:
@@ -1778,7 +1873,7 @@ def place(items, columns, plan=None, rows=None):
             # Everything after it starts below everything before it.
             floor = flowed
             continue
-        if item["id"] in where:
+        if item["id"] in where or item["id"] in waiting:
             continue
         heading = item["control"] == HEADING
         if heading:
@@ -1796,6 +1891,28 @@ def place(items, columns, plan=None, rows=None):
             # heading that backfilled a hole above it would be a tile filed
             # under the wrong name.
             floor = flowed
+            for one, cell in sections.get(item["id"], ()):
+                if not pin(one, cell, floor):
+                    # Two pins over one cell, as on the page: the second
+                    # goes to the flow, though still in its own section.
+                    width, height = effective_span(one, plan)
+                    width = min(width, columns)
+                    x, y = _first_fit(taken, columns, width, height, floor)
+                    claim(one, x, y, width, height)
+                (x, y), (width, height) = where[one["id"]]
+                flowed = max(flowed, y + height)
+                used = max(used, flowed)
+
+    # A heading that was never flowed - pinned to a cell, which only a
+    # hand-edited file can do - leaves its section's pins with nothing to
+    # count from, so they end the page rather than vanish from it.
+    for item in items:
+        if item["id"] in waiting and item["id"] not in where:
+            width, height = effective_span(item, plan)
+            width = min(width, columns)
+            x, y = _first_fit(taken, columns, width, height, floor)
+            claim(item, x, y, width, height)
+            used = max(used, y + height)
 
     tiles = []
     for item in items:
@@ -1916,6 +2033,11 @@ class MenuModel:
         # opens, for a chip that `names = "window"`. Empty is the chip's own
         # label.
         self.window_name = ""
+        # What the app in front lends a card that `holds` it - its
+        # `[profile.<name>.menu]`, as `{label, detail, rows}` - or None where
+        # it lends nothing. Set by the daemon when the menu opens, for the
+        # reason `conditions` is.
+        self.lent = None
         self.groups = []
         self.group = 0
         # Whose page is in front: the group at depth 0, and the tile that was
@@ -2072,9 +2194,19 @@ class MenuModel:
         that is only there in game mode - and the row cursor walks what is
         drawn rather than what was written.
         """
+        if item and item.get("holds"):
+            return self.visible((self.lent or {}).get("rows") or [])
         if not item or not item.get("rows"):
             return []
         return self.visible(item["rows"])
+
+    def lends(self, item):
+        """Whether a card that holds the app's rows has any to hold.
+
+        Not `has`: which app is in front changes between two openings, and
+        a card that came and went with it would move the tiles after it.
+        """
+        return not item.get("holds") or bool(self.rows_of(item))
 
     @property
     def acting(self):
@@ -2328,7 +2460,8 @@ class MenuModel:
             *place([item for item in self.items
                     if self.has(item) and not self.spent(item)],
                    self.columns, plan, self.rows_limit()),
-            keep=lambda item: offered(item["when"], self.conditions))
+            keep=lambda item: (offered(item["when"], self.conditions)
+                               and self.lends(item)))
         every = [tile["item"] for tile in self.tiles]
         names = [item["id"] for item in every if self.selectable(item)]
         if select in names:
@@ -2751,21 +2884,106 @@ class MenuModel:
         if not self._room(x, y, width, height):
             return False
         plan = self._plan()
-        plan["at"][self.picked] = (x, whole_row(y, self.closed))
+        plan["at"][self.picked] = self._cell(x, y)
         self.repack()
         return True
 
-    def _carry_heading(self, direction):
-        """Move the heading in the hand past tiles rather than into a cell.
+    def _cell(self, x, y):
+        """A drawn cell as the pin that names it: on the page, or in a section.
 
-        **A place in the order, which is what a cell replaced for every other
-        tile.** A heading is a paragraph mark, and a paragraph mark pinned to
-        a cell would stop being one: the tiles under it flow around a pin, so
-        they would climb past it into holes above. So it keeps the old
-        gesture - left and right carry it past one tile, up and down past the
-        row of them next to it - and `place` keeps it heading what comes
-        after it.
+        Under a heading the row is counted from the row under it, so the tile
+        goes where the section goes. Above every heading it is the page's.
         """
+        anchor, under = self._section_at(y)
+        if anchor is None:
+            return (x, whole_row(y, self.closed))
+        return (x, whole_row(y, self.closed) - whole_row(under, self.closed),
+                anchor)
+
+    def _section_at(self, y):
+        """The heading over a drawn row, and the row under it. (None, 0) above all."""
+        anchor, under = None, 0
+        for tile in sorted(self.tiles, key=lambda tile: tile["at"][1]):
+            if tile["item"]["control"] != HEADING:
+                continue
+            bottom = tile["at"][1] + tile["size"][1]
+            if bottom > y:
+                break
+            anchor, under = tile["item"]["id"], bottom
+        return anchor, under
+
+    def sections(self):
+        """Each heading on the page with the rows its run takes, drawn.
+
+        `(id, top, bottom)`: from the row under the heading to the foot of
+        the last tile starting before the next one. A run with nothing in it
+        has `top == bottom`.
+        """
+        heads = sorted((tile for tile in self.tiles
+                        if tile["item"]["control"] == HEADING),
+                       key=lambda tile: tile["at"][1])
+        out = []
+        for number, head in enumerate(heads):
+            top = head["at"][1] + head["size"][1]
+            end = (heads[number + 1]["at"][1] if number + 1 < len(heads)
+                   else None)
+            bottom = top
+            for tile in self.tiles:
+                if tile["item"]["control"] == HEADING:
+                    continue
+                y = tile["at"][1]
+                if y >= top and (end is None or y < end):
+                    bottom = max(bottom, y + tile["size"][1])
+            out.append((head["item"]["id"], top, bottom))
+        return out
+
+    def _anchor_pins(self):
+        """Count every pin standing in a section from its heading.
+
+        A pin written before sections were - or above where a heading was
+        then - is a cell on the page, and a section carried away would leave
+        it behind under whatever came to stand there.
+        """
+        plan = self._plan()
+        for tile in self.tiles:
+            item = tile["item"]
+            if (item["control"] == HEADING
+                    or pinned_cell(item, plan) is None
+                    or pin_anchor(item, plan) is not None):
+                continue
+            plan["at"][item["id"]] = self._cell(*tile["at"])
+
+    def _unanchor(self, name):
+        """Hand the pins counted from a heading that is going back to the page.
+
+        Where they are drawn now, so taking the heading off moves none of
+        them - the run closes up under the heading above, as the flow does.
+        """
+        plan = self.plan()
+        if not plan:
+            return
+        for tile in self.tiles:
+            if pin_anchor(tile["item"], plan) == name:
+                x, y = tile["at"]
+                plan["at"][tile["item"]["id"]] = (x, whole_row(y, self.closed))
+
+    def _carry_heading(self, direction):
+        """Move the heading in the hand: past a tile, or with its run.
+
+        **Left and right are a place in the order, which is what a cell
+        replaced for every other tile.** A heading is a paragraph mark, and a
+        paragraph mark pinned to a cell would stop being one: the tiles under
+        it flow around a pin, so they would climb past it into holes above.
+        So it keeps the old gesture - one tile either way, which moves where
+        its run begins - and `place` keeps it heading what comes after it.
+
+        **Up and down carry the section**: the heading, its run, and the pins
+        counted from it, past the whole section above or below. Moving a group
+        of tiles was one tile at a time, and a run that was meant to go
+        together came apart on the way.
+        """
+        if direction in ("up", "down"):
+            return self._carry_section(direction)
         plan = self.plan()
         order = [item["id"] for item in self.items
                  if item["control"] != ROW_BREAK]
@@ -2779,36 +2997,44 @@ class MenuModel:
         if direction == "left":
             if not before:
                 return False
-            anchor = before[-1]
-        elif direction == "right":
-            if not after:
-                return False
-            anchor = after[0]
-        elif direction == "up":
-            if not before:
-                return False
-            # The run of tiles on the row just above, walked back from the
-            # heading: past all of it, and no further.
-            band = top[before[-1]]
-            anchor = before[-1]
-            for name in reversed(before):
-                if top[name] != band:
-                    break
-                anchor = name
+            order.remove(self.picked)
+            order.insert(order.index(before[-1]), self.picked)
         else:
             if not after:
                 return False
-            band = top[after[0]]
-            anchor = after[0]
-            for name in after:
-                if top[name] != band:
-                    break
-                anchor = name
-        order.remove(self.picked)
-        spot = order.index(anchor)
-        order.insert(spot if direction in ("left", "up") else spot + 1,
-                     self.picked)
+            order.remove(self.picked)
+            order.insert(order.index(after[0]) + 1, self.picked)
         self._plan()["order"] = order
+        self.repack()
+        return True
+
+    def _carry_section(self, direction):
+        """Swap the section in the hand with the one above or below it.
+
+        A section is its heading and everything the order holds up to the
+        next one. The run above the first heading is nobody's section, so
+        it is a wall rather than a neighbour: carried past, its tiles would
+        end up filed under the heading that went over them.
+        """
+        order = [item["id"] for item in self.items
+                 if item["control"] != ROW_BREAK]
+        heads = set(item["id"] for item in self.items
+                    if item["control"] == HEADING)
+        blocks = []
+        for name in order:
+            if name in heads or not blocks:
+                blocks.append([])
+            blocks[-1].append(name)
+        at = [block[0] for block in blocks].index(self.picked)
+        other = at - 1 if direction == "up" else at + 1
+        if other < 0 or other >= len(blocks) or blocks[other][0] not in heads:
+            return False
+        # Before the order moves, while every pin is still drawn where it
+        # was written: one written on the page would stay where the section
+        # was and end up under whatever took its place.
+        self._anchor_pins()
+        blocks[at], blocks[other] = blocks[other], blocks[at]
+        self._plan()["order"] = [name for block in blocks for name in block]
         self.repack()
         return True
 
@@ -2871,6 +3097,7 @@ class MenuModel:
         plan = self.plan()
         if plan is None or name not in (plan.get("headings") or {}):
             return False
+        self._unanchor(name)
         del plan["headings"][name]
         if name in plan.get("order", ()):
             plan["order"].remove(name)
@@ -2932,6 +3159,8 @@ class MenuModel:
             return self.drop_heading(name)
         if name in ((self.plan() or {}).get("apps") or {}):
             return self.drop_app(name)
+        if self.current["control"] == HEADING:
+            self._unanchor(name)
         home, bare = split_ref(name)
         if home is None:
             home, bare = self.page(), name
@@ -3621,6 +3850,12 @@ class MenuModel:
                 "x": tile["at"][0], "y": tile["at"][1],
                 "w": tile["size"][0], "h": tile["size"][1],
             }
+            if item.get("holds") and self.lent:
+                # The card's two ends are the app's where it named them: the
+                # heading says what this app's rows are, and the card's own
+                # label is what it is called where no app says.
+                row["l"] = self.lent.get("label") or row["l"]
+                row["d"] = self.lent.get("detail") or row["d"]
             if item.get("image"):
                 # An icon by the name an icon theme knows it by, where the
                 # tile is an application: the panel finds it in the theme in
@@ -3787,6 +4022,16 @@ class MenuModel:
         if read:
             # Off the wire where no text tile is on the page.
             state_out["scr"] = read
+        if state_out["edit"]:
+            # The run each heading names, as rows, so a tile being carried
+            # can be seen to cross from one into the next. Only while
+            # arranging: walking a page, a frame round a run would be a
+            # second hairline beside the one that says where the cursor is.
+            sections = [{"id": name, "y": top, "h": bottom - top}
+                        for name, top, bottom in self.sections()
+                        if bottom > top]
+            if sections:
+                state_out["sec"] = sections
         if measured is not None:
             # Off the wire entirely for a page with no chronograph on it, so
             # every other page costs nothing for this one existing - and there

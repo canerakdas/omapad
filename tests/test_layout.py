@@ -105,6 +105,15 @@ class ReadingTests(unittest.TestCase):
         got = self.write('[layout.a.at]\nx = [99, 0]\n')
         self.assertEqual(got["a"]["at"], {"x": (99, 0)})
 
+    def test_a_cell_in_a_section_names_its_heading(self):
+        got = self.write(
+            '[layout.a.at]\n'
+            'x = [1, 0, "#1"]\n'
+            'y = [1, 0, 7]\n'
+            'z = [1, 0, " "]\n'
+        )
+        self.assertEqual(got["a"]["at"], {"x": (1, 0, "#1")})
+
     def test_a_duplicate_id_keeps_the_first_and_drops_the_rest(self):
         got = self.write('[layout.a]\norder = ["x", "y", "x"]\n')
         self.assertEqual(got["a"]["order"], ["x", "y"])
@@ -136,7 +145,8 @@ class RoundTripTests(unittest.TestCase):
         path = os.path.join(directory, "layout.toml")
         layout = {
             "audio": {"order": ["volume", "mute"], "removed": ["devices"],
-                      "span": {"volume": (4, 2)}, "at": {"mute": (3, 1)},
+                      "span": {"volume": (4, 2)},
+                      "at": {"mute": (3, 1), "out": (0, 2, "#1")},
                       "adopted": ["now/keyboard"]},
             "now": {"order": ["keyboard"], "removed": [], "span": {},
                     "at": {}, "adopted": []},

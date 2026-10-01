@@ -49,9 +49,12 @@ READINGS = {
     "mic": {"kind": "bool", "touches": ("deafen",), "quiets": "microphone"},
     "deafen": {"kind": "bool", "touches": ("mic", "mute"),
                "quiets": "speakers"},
+    # Never all the way down: on a backlight 0% is off, and a black screen is
+    # one the slider that would bring it back can no longer be seen on.
+    # `grid` keeps the notches on the fives rather than walking 1, 6, 11.
     "brightness": {
-        "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
-        "unit": "%", "scale": 100,
+        "kind": "number", "step": 0.05, "min": 0.01, "max": 1.0,
+        "grid": 0.0, "unit": "%", "scale": 100,
     },
     # Its own kind, because what is playing is not a number, a switch or a
     # short list: it is a title, an artist, whether it is running and which
@@ -424,7 +427,8 @@ def _stepped(spec, current, steps):
     38 goes up to 40 and down to 35, and every notch after it is a whole one.
     """
     step = spec["step"]
-    units = (current - spec["min"]) / step
+    origin = spec.get("grid", spec["min"])
+    units = (current - origin) / step
     # A value read back as a whole percent is on the grid in principle and a
     # hair off it in floating point: 0.6 / 0.05 is 11.999999999999998.
     nearest = round(units)
@@ -434,7 +438,7 @@ def _stepped(spec, current, steps):
         base = math.floor(units)
     else:
         base = math.ceil(units)
-    return spec["min"] + (base + steps) * step
+    return origin + (base + steps) * step
 
 
 def _word(spec, value):

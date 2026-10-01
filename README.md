@@ -417,6 +417,12 @@ finding the menu again to take it back. `omapad ctl lock
 on|off|toggle` is the same thing without a pad, and the bar widget wears a
 padlock while it is on.
 
+**The lock ends with the window it was set over.** Close the game and it turns
+itself off, so Steam's client coming back to the front gets the pad back as
+any app does. It also ends when nothing is in front — over an empty workspace
+there is nothing to lock to, and the quick page with the lock on it is not
+offered there.
+
 ### Keeping the pad over an app that asked for it
 
 The hand-off can be right about the program and wrong about the screen. A cloud
@@ -428,8 +434,9 @@ NOW, whose session then never starts.
 
 **Keep the controller** is the row that takes it back. Every binding fires
 again over a window that had already claimed the pad, so the menu is a plain
-press away rather than a chord — and it stays on until it is turned off,
-because the stream that starts after **Play** does want the pad. The row is
+press away rather than a chord — and it stays on until it is turned off or
+its window closes, because the stream that starts after **Play** does want the
+pad. The row is
 offered while an app has the pad and for as long as it is on, so turning it on
 never takes away the way of turning it off. `omapad ctl keep on|off|toggle` is
 the same switch without a pad, and the bar widget lights up while it is on.
@@ -2453,9 +2460,12 @@ heading starts under it — nothing climbs over one into a hole above.
 A heading is **walked past** everywhere but here: the D-pad, the stick and the
 pointer never stop on one outside this mode. Standing on one, **X deletes it**
 and **LT types its words again**. Carried, it moves past one tile with
-left and right and past a whole row with up and down, rather than into a cell,
-because a heading pinned to a cell could have tiles flow over it. A config can
-write one too, as `control = "heading"` with a `label`.
+left and right rather than into a cell, because a heading pinned to a cell
+could have tiles flow over it. **Up and down carry the whole section** - the
+heading, the tiles under it and any you put in a cell there - past the section
+above or below. While you arrange, a thin line round each heading's tiles
+shows where one section ends and the next begins. A config can write one too,
+as `control = "heading"` with a `label`.
 
 On a screen with a different `[menu] columns`, a cell off the right-hand edge
 is **pulled back onto the page** rather than lost. `omapad check --layout`
@@ -3502,8 +3512,45 @@ What ships:
 | Volume | A bar: A takes it and ← → turn it, or sweep it with a trigger |
 | Mute microphone | Mutes or unmutes the microphone |
 | Deafen | Mutes the microphone and all sound, as Discord's button does. Off unmutes both |
+| *the app's card* | What the app in front lends: the browser's tabs, the terminal's text size, Steam's pages — see below |
 | Keyboard | The on-screen keyboard |
 | Close window | **Held**, like every guarded tile in the menu |
+
+**The card beside the sound belongs to the app in front.** Its rows are the
+app's profile's, read as the menu opens, and they are what that app does that
+no button of its profile does:
+
+| App | Rows |
+|---|---|
+| Browser (Chromium, Chrome, Brave, Vivaldi) | Close tab, Reopen tab, Full screen, History, Downloads |
+| Terminal (foot, Alacritty, Ghostty, kitty, WezTerm) | Bigger text, Smaller text, Reset text size, New terminal here, Files here |
+| Steam, and every game it started | Library, Friends, Store, Downloads, Big Picture |
+
+An app with no card leaves the space empty, so nothing beside it moves. A row
+that sends a key closes the menu first and the key goes once it has gone: the
+menu holds the keyboard while it is up. kitty's text size wants Shift as well,
+so those three rows do nothing there.
+
+To give another app one, or change a shipped one, write it under the app's
+profile in your own config:
+
+```toml
+[profile.files.menu]
+label = "Files"                   # the card's heading while it is in front
+
+  [[profile.files.menu.items]]
+  label = "New folder"
+  action = "key:CTRL+SHIFT+N"
+
+  [[profile.files.menu.items]]
+  label = "Show hidden files"
+  action = "key:CTRL+H"
+```
+
+Rows are written as any menu row is — `label`, `action`, `confirm`,
+`countdown` — and `omapad check` names a row that will not run. A `key:` row
+cannot `stay` or `repeat`. The card on the page is `control = "rows"` with
+`holds = "window"`; the rows are the profile's.
 
 **Over an empty workspace** there is nothing to resume, close or type into, so
 the page is not offered and PLUS opens the menu on its first page that is —

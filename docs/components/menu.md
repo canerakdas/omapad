@@ -126,6 +126,7 @@ anything a button can.
 | `open_on` | the menu opens on this tile while its `when` holds |
 | `meta` | a group only: the word under its name on the bar |
 | `names` | a group only: `"window"` names its card after the app in front instead of its `label` |
+| `holds` | a card of rows only: `"window"` draws the rows the app in front lends (`[profile.<name>.menu]`) instead of its own |
 
 `id` is unique per page: two tiles that would answer to the same name fail
 `omapad check` rather than one of them becoming unreachable.
@@ -1357,6 +1358,38 @@ the conditions.
 `quick:toggle`, `quick:open` and the rest still parse, as `QuickAction` - the
 menu spelt the way a config written before 102 spells it.
 
+### A card the app in front lends
+
+`holds = "window"` on a card of rows is a card whose rows are **not written
+where it stands**: they are `[profile.<name>.menu]` of the profile in front,
+built by `menu.build_rows` when the config loads and handed to
+`MenuModel.lent` - `{label, detail, rows}`, or None - as the menu opens,
+beside `conditions` and `window_name` and for their reason. Decision 107.
+
+- `rows_of` answers `lent` for it, so the cursor, `acting`, the legend and the
+  payload's `rs` all work as on any card; `view_state` puts the profile's
+  `label` and `detail` at the card's two ends where it gave them.
+- **Lending nothing keeps the cells**: `lends` joins `offered` in the `keep`
+  `_show` hands `vacate`, not `has`, because which app is in front changes
+  between two openings and the tiles beside the card should not.
+- A card that holds writes no `items`, has no `from` and does not latch -
+  `build` names each.
+
+The quick page's sound band is six wide and three tall for its sake, with the
+card at the end: first fit puts a three-wide one-row tile in the last three
+columns beside a tall card, which is off a 1080p screen.
+
+**A `key:` row waits for the menu to have gone.** The panel takes the
+keyboard exclusively while it is up, and a view message is read when the
+shell gets to it - so a key sent the moment the menu was told to close went
+into the menu. `daemon.menu_run` is the one way a row that closes the menu
+runs; for a `KeyAction` it parks the key in `_menu_key` until
+`closelayer>>omapad-menu` arrives on Hyprland's event socket
+(`_drain_hypr_events`), or `KEY_WAIT` has passed for a shell that is not
+drawing, and drops it if the menu opened again meanwhile. `build` refuses
+`stay` or `repeat` beside a key for the same reason: a menu that stays keeps
+the keyboard.
+
 ## The title, and what it says at each level
 
 It is not the same sentence at both levels, and it used to be nothing at one
@@ -1635,11 +1668,11 @@ on one hands it to the tile it heads (`_nearest`). Inside the mode it is a tile
 like any other, with two exceptions:
 
 - **It is carried through the order, not into a cell.** `_carry_heading` moves
-  it past one tile with left and right and past the run on the next row with
-  up and down, and writes `order` rather than `at`. A heading pinned to a cell
-  would have the tiles under it flow around the pin and up past it - which is
-  the one thing a heading is there to stop. It is the reorder decision 52
-  replaced, kept for the one tile it was right for.
+  it past one tile with left and right, and writes `order` rather than `at`.
+  A heading pinned to a cell would have the tiles under it flow around the
+  pin and up past it - which is the one thing a heading is there to stop. It
+  is the reorder decision 52 replaced, kept for the one tile it was right
+  for. Up and down carry its whole section instead - see below.
 - **X deletes one made from the pad** rather than taking it off. `removed`
   holds what the config has so the picker can find it again; a heading made
   on a page is words and a place, and both go with it. So there is a table
@@ -1677,7 +1710,7 @@ A control-socket command arriving mid-heading ends it first.
 second Repeater over the same model, and the tile's delegate stands down on
 one (`visible`): a heading shares nothing with a tile but the cell, and a card
 behind it would make it one more tile - the thing it names a run *of*. Its
-type is its own height over `metrics.silver` squared - over the ratio once it
+type is the height of the rows it spans over `metrics.silver` squared - over the ratio once it
 was twice the size of anything else on the card, and read as the page's title
 rather than a section of it - set at the book weight, and the air under it is
 what is left over the ratio twice, so it sits nearer the tiles it heads. The ladder is
@@ -1685,6 +1718,45 @@ for type that sits beside other type; a heading answers to the box it was
 given, and a taller one is a louder one. While arranging it gets an outline
 and nothing inside it - the accent where the selection or the hand is - and
 only then does the pointer find it.
+
+**A row that holds only a heading is half a tile tall.** A whole module for one
+line of words was a band of air over every run, and the page read as more gap
+than tiles. Only `Menu.qml` knows (`rowTops`): the daemon still counts it as a
+row, so the selection, the pins and the arrangement are the grid they were. A
+row any tile reaches into keeps the full module, and the type is still sized
+from the full module, so the row loses the air and not the words.
+
+### Sections, carried whole
+
+A **section** is a heading and the run it names: the order from it up to the
+next heading, and every pin counted from it. Not *group* - that is a nav card,
+and `build_groups` had the word first. Decision 106 is why.
+
+**A pin under a heading is counted from the heading**, not from the top of
+the page. `at` takes a third part, the heading's id, and the row is then rows
+below the row under it (`pin_anchor`). `place` puts those down the moment
+their heading has flowed and counts them towards the floor the next heading
+stands on, so a section is a band of whole rows whatever was pinned in it.
+`carry` writes one whenever the cell a tile is carried to is under a heading
+(`_cell`). A heading no longer on the page hands its tiles to the flow, and
+taking one off writes its pins back as page cells where they are drawn
+(`_unanchor`), so nothing moves at the press.
+
+**Up and down on a carried heading swap its section with the one above or
+below** (`_carry_section`). The run above the first heading is nobody's
+section and is a wall, because carried past, its tiles would end up filed
+under the heading that went over them. Pins written as page cells - before
+sections were, or by hand - are counted from their section first
+(`_anchor_pins`), so an old layout carries too. A `row_break` keeps its slot,
+as it always has when the order moves.
+
+**The frame is drawn only while arranging.** `sections()` answers each
+heading's run as drawn rows, and `view_state` sends it as `sec` while `edit`
+is true. `Menu.qml` draws a hairline down the middle of the gutter round each
+run, across the whole page and with the heading outside it - so two sections
+one above the other never share a line - in the accent while its heading is
+in the hand. Walking a page there is none: a section changes nothing a press
+does there, and a hairline outside a tile already means *here*.
 
 ### The arrangement, and the tree
 
@@ -1751,6 +1823,7 @@ processor = [3, 1]                        # cells across, cells down
 
 [layout.hud.at]
 memory = [3, 3]                           # the cell somebody put it in
+fan = [0, 1, "#1"]                        # one row under heading #1's row
 
 [layout.hud.headings]
 "#1" = "Heat"                             # made from the pad; placed by `order`
@@ -2370,8 +2443,11 @@ shipped config leaves empty because the head carries the time now.
 open, title, clock, depth, sel, row, g, n, hit, groups, head, headrows, keys,
 cols, rows, edit, add, pick,
 items: [ {id, l, i, d, sub, x, y, w, h, on?, k?, rs?, md?, e?, ai?} ]
-scr?
+scr?, sec?: [ {id, y, h} ]
 ```
+
+`sec` is each heading's run in rows, on the wire only while `edit` is true
+and a run has something in it.
 
 `edit` is whether the page in front is being rearranged and `add` whether
 the Add picker is what is in front; `edit` is false while `add` is true, so

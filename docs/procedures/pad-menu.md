@@ -96,6 +96,7 @@ action = "exec:omarchy-launch-browser"
 | `many` | on a `rows` card: its keys **latch** rather than interlock, so any number of rows can be on at once. The line down the card goes and every row gets a key. Refused anywhere else, and on a card that lists |
 | `shows` | which stick a `gauge` draws the position of, `left` or `right`. Required on one, refused on anything else |
 | `reads` | where a control takes its value, `pad:<setting>` or `live:<reading>`. Required on a control, refused on anything else |
+| `holds` | on a `rows` card: `"window"` draws the rows the app in front lends instead of its own - see below |
 
 `repeat` implies `stay`. Both are rejected on a submenu row - `MenuError` says
 which path.
@@ -188,6 +189,31 @@ from = "..."     # prints: label \t %1 \t %2, one row per line
   be tried without reopening anything.
 - `empty` is a user-facing line like any other:
   [`pad-wording`](pad-wording.md), not a stack trace.
+
+### A card the app in front fills
+
+The quick page has one card whose rows are not written there: `holds =
+"window"`, filled from `[profile.<name>.menu]` of the profile in front as the
+menu opens. To give an app one, write the profile's table, not a tile:
+
+```toml
+[profile.browser.menu]
+label = "Tabs and page"           # the card's heading while it is in front
+
+  [[profile.browser.menu.items]]
+  label = "Reopen tab"
+  action = "key:CTRL+SHIFT+T"
+```
+
+- **What the profile's buttons do not.** A row the guide already shows on X
+  is one verb in two places.
+- **A `key:` row closes the menu, always.** The menu holds the keyboard while
+  it is up; the daemon sends the key once the layer has gone, and `omapad
+  check` refuses `stay` and `repeat` beside one.
+- **Five rows** is what a `[3, 3]` card shows without scrolling.
+- An app that lends nothing leaves the card's cells empty, so nothing beside
+  it moves. `pad-bindings.md` says which of a button, a keyboard page and a
+  card a thing wants.
 
 ## Launching something
 
@@ -582,16 +608,24 @@ Reach for one to group tiles that belong together, and **not** to nudge a tile
 into place: the same page has to read at six columns and at four, and a break
 is the one gap that means the same thing at both.
 
-**A page is bands, and a band comes to twelve.** The card is `[menu] columns`
-wide whatever is on it, so a page whose tiles come to eight columns is a page
-with a third of itself blank - which reads as a drawing fault rather than as
-air. Add the spans up before you write them: every shipped page but one is a
-whole number of rows of twelve, and the spans are what gets adjusted to make
-it so. A tile is widened to the width of what it is under, not to fill a hole
-with nothing in it - `Previous` is four cells because the row is three verbs
-under a media tile, and it says its whole name at four.
+**Every shipped page but Readings is in sections**, a heading over each run -
+the first one too, so every run can be carried whole and nothing sits above
+the first heading as nobody's. So a new tile goes **into a section**: after
+the heading it belongs under and before the next one, at the size what it
+shows needs. A section does not have to fill the row - a band that ends short
+of the edge is fine, a tile stretched to reach it is not. A heading costs a row, which is why a page has two
+or three and not one per tile. Readings has none because it is the HUD's
+page too, drawn over the whole screen with a last row.
 
-Two things that will not bend for the arithmetic. **A circle is two by two** -
+**A tile is the size of what it shows, and a band may end short.** A name
+that is cut in half, a line under it that has no row to stand on, a bar too
+short to aim at - those set a span. Filling the row does not: a tile stretched
+to reach the edge is a big tile saying nothing, and the gap after a section's
+last tile reads as the end of that section, which is what it is. Where it is
+free, keep a section inside the nine columns a 1080p screen shows, so nothing
+in it is half off the edge.
+
+Two sizes that are fixed whatever the page. **A circle is two by two** -
 the knob and the dial are one drawing at one size,
 and a page that holds two of them at two sizes reads as a fault. And **a span
 is never wider than six**: `build` refuses one wider than the columns there

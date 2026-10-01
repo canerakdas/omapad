@@ -798,12 +798,16 @@ def _layout_cells(value):
     is not anywhere. How far *right* a cell may be is not checked here, since
     that depends on the column count the page is drawn at - `menu.place`
     clamps it, so a pin made on a wide screen comes back onto a narrow one.
+
+    A third part names the heading the row is counted from - a pin in a
+    section rather than on the page. Whether that heading is still there is
+    `menu.place`'s question, which hands the tile to the flow where not.
     """
     if not isinstance(value, dict):
         return {}
     out = {}
     for name, cell in value.items():
-        if not isinstance(cell, list) or len(cell) != 2:
+        if not isinstance(cell, list) or len(cell) not in (2, 3):
             continue
         try:
             x, y = int(cell[0]), int(cell[1])
@@ -811,7 +815,10 @@ def _layout_cells(value):
             continue
         if x < 0 or y < 0:
             continue
-        out[str(name)] = (x, y)
+        if len(cell) == 2:
+            out[str(name)] = (x, y)
+        elif isinstance(cell[2], str) and cell[2].strip():
+            out[str(name)] = (x, y, cell[2].strip())
     return out
 
 
@@ -834,6 +841,8 @@ def render_layout(layout):
         "# A tile under `at` was put in that cell and stays in it; everything",
         "# else flows around those, in the order above. A cell off the edge of",
         "# a narrower screen is pulled back onto it rather than lost.",
+        "# A third part names a heading: the row is then counted from the",
+        "# row under it, so the tile moves with that heading's section.",
         "#",
         "# `headings` are the words put over a run of tiles from the pad, by",
         "# id; where one stands is its place in `order`. `apps` are the",
@@ -871,8 +880,14 @@ def render_layout(layout):
             lines.append("")
             lines.append("[layout.%s.at]" % page)
             for name in sorted(plan["at"]):
-                x, y = plan["at"][name]
-                lines.append("%s = [%d, %d]" % (toml_string(name), x, y))
+                cell = plan["at"][name]
+                if len(cell) > 2:
+                    lines.append("%s = [%d, %d, %s]" % (
+                        toml_string(name), cell[0], cell[1],
+                        toml_string(cell[2])))
+                else:
+                    lines.append("%s = [%d, %d]"
+                                 % (toml_string(name), cell[0], cell[1]))
         if plan.get("headings"):
             lines.append("")
             lines.append("[layout.%s.headings]" % page)
@@ -967,7 +982,8 @@ APP_PAGE_LIMIT = 8
 # A closed list, so a key that is neither this nor a [layers.*] name is a typo
 # rather than a setting nobody has implemented yet.
 PROFILE_KEYS = frozenset(
-    ("match", "bindings", "osk", "left_stick", "right_stick", "handover")
+    ("match", "bindings", "osk", "menu", "left_stick", "right_stick",
+     "handover")
 )
 
 
@@ -1040,6 +1056,36 @@ def parse_app_page(profile, spec):
         "ttl": float(spec.get("ttl", APP_PAGE_TTL)),
         "limit": int(spec.get("limit", APP_PAGE_LIMIT)),
     }
+
+
+def parse_app_menu(profile, spec, countdown):
+    """The rows a profile lends the menu's card for the app in front, or None.
+
+    Written as a menu card's own rows are - `label`, `action`, `confirm`,
+    `repeat` - and built by the menu's own parser, so a row that will not run
+    is named here, under the profile, rather than found at the press. `label`
+    and `detail` are the card's two ends while this app is in front.
+    """
+    if spec is None:
+        return None
+    if not isinstance(spec, dict):
+        raise ConfigError("profile %r menu must be a table" % profile)
+    where = "profile.%s.menu" % profile
+    out = {}
+    for key in ("label", "detail"):
+        value = spec.get(key, "")
+        if not isinstance(value, str):
+            raise ConfigError("%s.%s must be a string" % (where, key))
+        out[key] = value.strip()
+    items = spec.get("items")
+    if not isinstance(items, list) or not items:
+        raise ConfigError("%s needs [[%s.items]]" % (where, where))
+    try:
+        out["rows"] = menu_module.build_rows(items, where + ".items",
+                                             countdown)
+    except menu_module.MenuError as exc:
+        raise ConfigError(str(exc)) from exc
+    return out
 
 
 def _match_patterns(spec):
@@ -2361,6 +2407,8 @@ class Config:
                     "layers": layers,
                     "handover": handed,
                     "osk": parse_app_page(name, spec.get("osk")),
+                    "menu": parse_app_menu(name, spec.get("menu"),
+                                           self.menu_countdown),
                     # An app may also disagree about what a stick is for. Empty
                     # means "whatever the layer says", so a profile that only
                     # rebinds buttons leaves both thumbs alone.

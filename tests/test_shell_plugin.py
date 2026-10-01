@@ -186,7 +186,9 @@ class TheFoldFallsBetweenTwoCells(unittest.TestCase):
         # `cols` and `rows` are the page's own size; the cut may only take
         # away.
         self.assertIn("Math.min(root.cols, root.wholeCells(", self.source)
-        self.assertIn("Math.min(root.rows, root.wholeCells(", self.source)
+        # Rows are walked rather than divided - a heading's is half a tile -
+        # and the walk stops at the page's own count.
+        self.assertIn("root.spanHeight(0, Math.min(root.rows, n))", self.source)
 
 
 class EverySocketIsDrawn(unittest.TestCase):

@@ -2302,6 +2302,74 @@ keys = [
   { label = "Pins", action = "CTRL+P" },
 ]
 
+# The quick page's card for the app in front: what a profile lends the menu
+# (`[profile.<name>.menu]`), drawn on the card that `holds = "window"` there.
+# The keyboard's page is for while you type; this is for while you pause, and
+# it holds what the app does that the pad has no button left for. A row is
+# written as a menu row is - `label`, `action`, `confirm` - and `label` on
+# the table is the card's heading while that app is in front.
+#
+# **Every row here closes the menu first**, and a `key:` row has to: the menu
+# holds the keyboard while it is up, so a key sent from one that stayed would
+# land in the menu. That is why the zoom on the browser's keyboard page is
+# not here as a row you hold down - `omapad check` refuses `stay` and
+# `repeat` beside a key.
+#
+# The browser's tabs and the page, minus what is on a button: the shoulders
+# walk the tabs, X opens one and held reloads, the stick clicks go back and
+# forward. Closing a tab is a plain press, because the row under it takes it
+# back. Chromium's shortcuts, as the keyboard page above uses.
+[profile.browser.menu]
+label = "Tabs and page"
+
+  [[profile.browser.menu.items]]
+  label = "Close tab"
+  action = "key:CTRL+W"
+
+  [[profile.browser.menu.items]]
+  label = "Reopen tab"
+  action = "key:CTRL+SHIFT+T"
+
+  [[profile.browser.menu.items]]
+  label = "Full screen"
+  action = "key:F11"
+
+  [[profile.browser.menu.items]]
+  label = "History"
+  action = "key:CTRL+H"
+
+  [[profile.browser.menu.items]]
+  label = "Downloads"
+  action = "key:CTRL+J"
+
+# The terminal's, minus what is on a button: Y pastes and held interrupts,
+# the stick clicks copy and clear. What is left is the text, which is the
+# couch's own complaint about a terminal - set for a desk, read from across a
+# room - and the two windows opened where this one is standing. The text keys
+# are foot's, Alacritty's, Ghostty's and WezTerm's; kitty wants Shift as well.
+[profile.shell.menu]
+label = "Terminal"
+
+  [[profile.shell.menu.items]]
+  label = "Bigger text"
+  action = "key:CTRL+EQUAL"
+
+  [[profile.shell.menu.items]]
+  label = "Smaller text"
+  action = "key:CTRL+MINUS"
+
+  [[profile.shell.menu.items]]
+  label = "Reset text size"
+  action = "key:CTRL+0"
+
+  [[profile.shell.menu.items]]
+  label = "New terminal here"
+  action = "exec:omarchy-launch-terminal"
+
+  [[profile.shell.menu.items]]
+  label = "Files here"
+  action = "exec:omarchy-launch-nautilus-cwd"
+
 # ---------------------------------------------------------------------------
 # Couch layer - what game mode changes about the desktop, and nothing more.
 #
@@ -2340,6 +2408,33 @@ match = ["steam"]
 [profile.steam.bindings]
 L = { hold = "hypr:hl.dsp.focus({ workspace = 'r-1' })", hold_desc = "Previous workspace", confirm = true }
 R = { hold = "hypr:hl.dsp.focus({ workspace = 'r+1' })", hold_desc = "Next workspace", confirm = true }
+
+# Steam's pages, which `steam` opens in the client already running. `match`
+# covers the games it launched, so over a game this is still Steam's card -
+# deliberately: who is online is what somebody pauses a game to look at, and
+# the menu is the one door that reaches past a game holding the pad.
+[profile.steam.menu]
+label = "Steam"
+
+  [[profile.steam.menu.items]]
+  label = "Library"
+  action = "exec:steam steam://open/games"
+
+  [[profile.steam.menu.items]]
+  label = "Friends"
+  action = "exec:steam steam://open/friends"
+
+  [[profile.steam.menu.items]]
+  label = "Store"
+  action = "exec:steam steam://store"
+
+  [[profile.steam.menu.items]]
+  label = "Downloads"
+  action = "exec:steam steam://open/downloads"
+
+  [[profile.steam.menu.items]]
+  label = "Big Picture"
+  action = "exec:steam steam://open/bigpicture"
 
 # Cloud gaming and remote play: the same shape as Steam, for the same reason.
 # These open the pad the moment a session starts - measured with GeForce NOW,
@@ -2846,6 +2941,15 @@ format = "%H:%M"
 # `control = "heading"` tile does the same with its `label` printed across the
 # row; the pad can put one on a page too, while the page is being rearranged.
 #
+# **Every page ships in sections, a heading over each** - the first one too,
+# so every run on a page is one that can be carried whole (decision 106) and
+# nothing sits above the first heading as nobody's. A section does not have to
+# fill the row: each tile is the size what it shows needs, and a band may end
+# short of the edge rather than a tile being stretched to reach it - inside
+# the nine columns a 1080p screen shows, where that is free. A heading costs a
+# row, so a page has two or three of them and not one per tile. Readings has none: it is also the HUD's page,
+# drawn over the whole screen with a last row.
+#
 # A page may also spend **X and Y** on a job of its own, and the legend along
 # the foot prints what it spent them on. Not A and B: the contract is that A
 # commits and B leaves, in every layer and every surface, and a page that took
@@ -2881,10 +2985,10 @@ format = "%H:%M"
 # to resume, close or type into, the chip is not offered, and PLUS opens on
 # the first one that is - Apps, which is what a bare desktop is opened for.
 #
-# Three bands of nine, because a 1080p screen shows nine of the twelve
-# columns: the ways back to the game, then the sound a call needs, then the
-# two verbs about the window. `id` is what `menu:toggle=quick` names, so
-# rename the label freely and keep the id.
+# Three sections, each nine wide, because a 1080p screen shows nine of the
+# twelve columns: who the presses go to, the sound a call needs, and the
+# window in front with what its app lends. `id` is what `menu:toggle=quick`
+# names, so rename the label freely and keep the id.
 #
 # **The card is named after the app in front** (`names = "window"`): its
 # desktop entry's name, or the window's title where no entry answers - a game
@@ -2899,6 +3003,10 @@ names = "window"
 meta = "Quick menu"
 detail = "Resume, lock, sound, keyboard"
 when = "window"
+
+  [[menu.items.items]]
+  label = "Controller"
+  control = "heading"
 
   # Resume first, so PLUS then A is always back.
   [[menu.items.items]]
@@ -2940,7 +3048,8 @@ when = "window"
   when = ["window", "handed_over", "kept"]
 
   [[menu.items.items]]
-  control = "row_break"
+  label = "Sound"
+  control = "heading"
 
   # The sound a call needs. A bar for the volume rather than Sound's ring:
   # a pause is glanced at, and a length is read faster than an angle.
@@ -2956,6 +3065,7 @@ when = "window"
   # says the opposite of what is true.
   [[menu.items.items]]
   label = "Volume"
+  span = [3, 1]
   control = "slider"
   reads = "live:volume"
 
@@ -2972,8 +3082,12 @@ when = "window"
   control = "toggle"
   reads = "live:deafen"
 
+  # The window in front: typing into it, closing it, and what its app lends.
+  # The card last, so the two verbs before it take the first row and it
+  # stands beside them in the three columns left of nine.
   [[menu.items.items]]
-  control = "row_break"
+  label = "Window"
+  control = "heading"
 
   [[menu.items.items]]
   icon = "󰌌"
@@ -2991,6 +3105,24 @@ when = "window"
   action = "hypr:hl.dsp.window.close()"
   confirm = true
 
+  # **What the app in front lends** (`holds = "window"`): the rows its
+  # `[profile.<name>.menu]` writes - a browser's tabs, a terminal's text
+  # size, Steam's own pages - read as the menu opens. They are the verbs the
+  # app has and the pad has no button left for: the menu is the one door
+  # that reaches past an app holding the pad, so over a game Steam started
+  # this is still Steam's card. An app that lends nothing leaves the cells
+  # empty rather than closing them up, as an unmet `when` does: which app is
+  # in front changes between two pauses, and the tiles beside it should not.
+  #
+  # `label` is the heading where the profile names none.
+  [[menu.items.items]]
+  label = "Shortcuts"
+  control = "rows"
+  holds = "window"
+  span = [3, 3]
+
+
+
 [[menu.items]]
 icon = "󰀻"
 label = "Apps"
@@ -3002,16 +3134,20 @@ detail = "Steam, chat, music, video"
 # `empty` is what it says when the command prints nothing. Left out entirely,
 # a card falls back to how many tiles its page holds.
 
+  [[menu.items.items]]
+  label = "Play"
+  control = "heading"
+
   # Steam first: on a sofa it is what the menu is opened for. The URL form
   # works either way - it starts Steam in Big Picture when it is closed, and
   # flips an already-running Steam into it.
   #
-  # **Half the page, and everything after it a quarter.** Seven apps at two
-  # cells each left the second band a third full - two small squares under a
-  # row of six - so the page is cut the other way: one tile that says what
-  # this machine is for, and six of one size under and beside it. Three
-  # cells is also where a name stops being cut in half and where the line
-  # under it has somewhere to go: `Big Picture`, `Voice chat`, `Video`.
+  # **Half a row, and every other app three cells.** Three cells is where a
+  # name stops being cut in half and where the line under it has somewhere to
+  # go: `Big Picture`, `Voice chat`, `Video`. Steam is twice that because it
+  # is what this machine is for. A section ends where its apps do, inside the
+  # nine columns a 1080p screen shows; apps put on this page from the pad
+  # land after the last heading, among the desktop's own.
   [[menu.items.items]]
   icon = ""
   label = "Steam"
@@ -3019,8 +3155,8 @@ detail = "Steam, chat, music, video"
   detail = "Big Picture"
   action = "exec:steam steam://open/bigpicture"
 
-  # Then the two that make the sofa a sofa rather than a desk, in the order a
-  # couch reaches for them. Both launch **or focus**: with a pointer this slow
+  # Then the two that make the sofa a sofa rather than a desk - the chat here,
+  # the music under the next heading. Both launch **or focus**: with a pointer this slow
   # a second copy of a chat client or a second music player is never what was
   # asked for, and `omarchy-launch-or-focus` matches the class *and* the title,
   # so it finds the window whichever way the thing is installed.
@@ -3036,6 +3172,10 @@ detail = "Steam, chat, music, video"
   span = [3, 2]
   detail = "Voice chat"
   action = 'exec:omarchy-launch-or-focus discord "$(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me)"'
+
+  [[menu.items.items]]
+  label = "Watch and listen"
+  control = "heading"
 
   # Spotify has a launcher of Omarchy's own that focuses a running one and
   # offers to install a missing one, which is more than this row could do.
@@ -3062,6 +3202,10 @@ detail = "Steam, chat, music, video"
   # is a desk's tool, and the CAPTURE button already records.
 
   [[menu.items.items]]
+  label = "Desktop"
+  control = "heading"
+
+  [[menu.items.items]]
   icon = ""
   label = "Browser"
   span = [3, 2]
@@ -3085,11 +3229,17 @@ detail = "Steam, chat, music, video"
   detail = "Everything installed, by kind"
   apps = "all"
 
+
+
 [[menu.items]]
 icon = "󰖯"
 label = "Spaces"
 detail = "Sets of apps, and the window in front"
 meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", ttl = 3 }
+
+  [[menu.items.items]]
+  label = "Sets of apps"
+  control = "heading"
 
   # **A space is a workspace with a name and the apps that belong on it.**
   # This page was one card of window verbs, named for what it had not got
@@ -3139,11 +3289,9 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
     steam steam://open/bigpicture &
     $(omarchy-cmd-present discord && echo uwsm-app -- discord || echo omarchy-launch-webapp https://discord.com/channels/@me) &"""
 
-  # The spaces are nine columns and the page is twelve, and the page is
-  # packed first fit: without a break the window card would take the hole
-  # beside them, off the edge of a screen that shows nine.
   [[menu.items.items]]
-  control = "row_break"
+  label = "Windows and notifications"
+  control = "heading"
 
   # **One card, not four cells.** Every one of these is a verb with nothing
   # to show but its name, and at one cell each that name was `Fullscre…`,
@@ -3213,6 +3361,7 @@ meta = { from = "hyprctl activeworkspace -j | jq -r '\"\\(.windows) open\"'", tt
   control = "toggle"
   reads = "live:dnd"
 
+
 [[menu.items]]
 icon = ""
 label = "Sound"
@@ -3231,6 +3380,10 @@ meta.from = '''
   port=$(pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" '$1=="Name:"{f=($2==s)} f && $1=="Active" && $2=="Port:"{print $3; exit}')
   pactl list sinks | awk -v s="$(omarchy-audio-output-sink)" -v p="$port:" '$1=="Name:"{f=($2==s)} f && $1==p {sub(/^[^:]*: /, ""); sub(/ \(.*/, ""); print; exit}'
 '''
+
+  [[menu.items.items]]
+  label = "Now playing"
+  control = "heading"
 
   # What is playing, in somebody else's words: a title and an artist, which
   # are as long as they are. Half the page, which is what the title is given
@@ -3279,8 +3432,6 @@ meta.from = '''
   control = "knob"
   reads = "live:volume"
 
-  # The title and the ring are two rows tall; the transport under them is
-  # one. The break is what says so.
   [[menu.items.items]]
   control = "row_break"
 
@@ -3321,7 +3472,8 @@ meta.from = '''
   reads = "live:mute"
 
   [[menu.items.items]]
-  control = "row_break"
+  label = "Devices"
+  control = "heading"
 
   # **Two cards that list, rather than a page holding two pages.** It was
   # `Devices` opening on `Output` opening on the outputs - two presses in
@@ -3419,11 +3571,16 @@ meta.from = '''
   control = "toggle"
   reads = "pad:dictate_clipboard"
 
+
 [[menu.items]]
 icon = "󰍹"
 label = "Display"
 detail = "How big, how bright, which screen"
 meta = { from = "hyprctl monitors -j | jq -r '.[] | select(.focused) | \"\\(.height)p · \\(.refreshRate|floor) Hz\"'", ttl = 30 }
+
+  [[menu.items.items]]
+  label = "Picture"
+  control = "heading"
 
   # How bright first: it follows the light coming in the window rather than
   # what you are doing with the machine, so it is the one thing on this page
@@ -3529,6 +3686,10 @@ meta = { from = "hyprctl monitors -j | jq -r '.[] | select(.focused) | \"\\(.hei
     row external "Laptop screen off"
   '''
 
+  [[menu.items.items]]
+  label = "Video mode"
+  control = "heading"
+
   # What the screen is driven at, under the card that says how big it is
   # drawn. Lists rather than steps, because neither is a ladder anybody
   # climbs: a television offers 4K, 1440p, 1080p and 720p and the answer is
@@ -3632,6 +3793,7 @@ meta = { from = "hyprctl monitors -j | jq -r '.[] | select(.focused) | \"\\(.hei
   control = "toggle"
   reads = "live:vrr"
 
+
 # The pad itself: what it does, what it is, and how it feels. Loose rows in the
 # root menu and a line in a config file before; a controller is one thing and
 # reads as one row.
@@ -3650,6 +3812,10 @@ icon = "󰊴"
 label = "Controller"
 detail = "Speed, vibration, labels, mapping"
 meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk '{print ($1 == 1) ? \"1 paired\" : $1 \" paired\"}'", ttl = 5, empty = "None paired" }
+
+  [[menu.items.items]]
+  label = "Feedback"
+  control = "heading"
 
   # The one tile that is only ever here once. A machine driven from a sofa is
   # the machine nobody walks to a keyboard to set up, so the first start has
@@ -3782,7 +3948,8 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   reads = "pad:hold_scale"
 
   [[menu.items.items]]
-  control = "row_break"
+  label = "Buttons and sticks"
+  control = "heading"
 
   # What the badges print, which is a second question from the profile below:
   # a PlayStation pad reports itself as an XInput one, so it takes the Xbox
@@ -3923,9 +4090,9 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   # something small - a close button, a link in a line of them - because it
   # slows the first half of the push and leaves full speed where it was.
   #
-  # It heads the column beside the cards, three cells wide like everything
-  # under it: the page's one door in, over the two switches that are the rest
-  # of what it holds.
+  # It heads the column beside the cards, three cells wide like the switch
+  # under it: the page's one door in, over the switch that is the rest of
+  # what it holds.
   [[menu.items.items]]
   icon = "󰍽"
   label = "Sticks"
@@ -4006,6 +4173,10 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   control = "toggle"
   reads = "pad:hide_pointer"
 
+  [[menu.items.items]]
+  label = "Appearance"
+  control = "heading"
+
   # And how they are drawn, which is the same question `Button labels` asks
   # about the shape instead of the letter. A stencil badge is the one to reach
   # for when the screen is across a room; a filled one is quieter beside a
@@ -4034,8 +4205,8 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   # These three are what omapad draws, not what the screen is set to, so
   # they are on the page of omapad's own settings beside `Button style`
   # rather than on Display next to the monitor's. They were there for a
-  # while and read as three questions about the television. Their own band,
-  # a third each: the page's last row, and a whole one.
+  # while and read as three questions about the television. Four cells each,
+  # after `Button style`: a bar is aimed at, and four is what one needs.
   [[menu.items.items]]
   icon = "󰓅"
   label = "Motion"
@@ -4091,6 +4262,8 @@ meta = { from = "ls /dev/input/by-id/ 2>/dev/null | grep -c event-joystick | awk
   span = [4, 1]
   control = "slider"
   reads = "pad:dim"
+
+
 
 # The readings, and the page the HUD draws (see [hud] and [sysinfo] above).
 #
@@ -4166,6 +4339,10 @@ detail = "How busy, how full, how hot"
 icon = ""
 label = "System"
 meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \" waiting\" : \"\"}'", ttl = 900, empty = "Up to date" }
+
+  [[menu.items.items]]
+  label = "Power and updates"
+  control = "heading"
 
   # Which mode the machine comes back in, set from the pad because that is the
   # only way to set it on a machine nobody walks to a keyboard for. It is here
@@ -4254,34 +4431,6 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
     action = "exec:omarchy-system-shutdown"
     countdown = true
 
-  # **The things this machine can do that nobody wrote down here.** A card of
-  # rows like `Power`, except that what is in it is a folder: every
-  # executable file in `~/.config/omapad/scripts` is a row, read when this
-  # page settles, so adding one is dropping a file in a folder rather than
-  # editing this file. It is the answer to "I want the pad to do this one
-  # thing" that does not cost a binding, a setting or a line in the shipped
-  # tree.
-  #
-  # `%1` is the path, quoted as it goes in - a script whose name has a space
-  # in it stays one argument. The label is the file's name without its
-  # extension, because `.sh` is not something anybody is choosing between,
-  # and only files that are executable are listed: a row that cannot run is
-  # worse from a sofa than no row at all.
-  [[menu.items.items]]
-  label = "Scripts"
-  control = "rows"
-  span = [3, 3]
-  detail = "~/.config/omapad/scripts"
-  empty = "Nothing there yet"
-  action = "exec:%1"
-  from = """
-    for file in "$HOME"/.config/omapad/scripts/*; do
-      [ -f "$file" ] && [ -x "$file" ] || continue
-      name=${file##*/}
-      printf '%s\t%s\n' "${name%.*}" "$file"
-    done
-  """
-
   # **The count on the bar, and the thing that answers it.** The nav card has
   # said `12 waiting` under `System` since a chip learned to say what a place
   # is doing, and a count on its own is a notice: it brings somebody to this
@@ -4310,11 +4459,10 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   [[menu.items.items]]
   icon = "󰚰"
   label = "Update"
-  # Two rows of the last column, with the door under it. It was three - a
-  # card's full height, because a shorter tile left a strip that nothing
-  # after a row break could reach - and dropping the break is what gives the
-  # strip to `Omarchy menu`. The page is three rows and every cell of them
-  # is spent.
+  # Two rows, beside the cards: what the machine needs, beside how it starts
+  # and stops. A one-row tile draws no line under its name, and the count is
+  # that line. `Omarchy menu`, which stood in the corner under it, is under
+  # Tools now with the other things that are not about power.
   span = [3, 2]
   meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \" waiting\" : \"\"}'", ttl = 900, empty = "Up to date" }
   action = "exec:omarchy-launch-floating-terminal-with-presentation omarchy-update"
@@ -4333,49 +4481,9 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   # countdown and the fill all name a tile by id, and two things answering to
   # one name is two things lighting up for one press.
 
-  # Last on this page, and the way out of this menu into the one that has
-  # everything else. It wants a keyboard, which is why it is not the menu the
-  # pad opens - and it is here rather than a chip of its own because the bar
-  # holds places you go to, and this is a door you leave by.
   [[menu.items.items]]
-  # A hamburger rather than Omarchy's own mark. The mark was the better
-  # label - the thing on the other side of a door is what a door should be
-  # labelled with - and it is at U+E900 in `omarchy.ttf`, a private-use
-  # codepoint that did not survive being written into this file: what shipped
-  # was an empty string, so the row drew no mark at all. `icon_font` is still
-  # how a row names the family its glyph came from, for whoever puts it back
-  # with the character intact.
-  icon = "󰍜"
-  label = "Omarchy menu"
-  detail = "Everything else"
-  # Three cells, in the corner the `Update` tile leaves: `Omarchy m…` is
-  # what one cell had room for, and the foot of the last column is the last
-  # thing read on the page - which is where a door belongs. It stood on a
-  # row of its own with nine empty cells beside it while a break kept it
-  # there.
-  span = [3, 1]
-  action = "exec:omarchy-menu toggle"
-
-# ---------------------------------------------------------------------------
-# Per-application profiles (item 09) - optional.
-#
-# A profile matches the focused window's class (case-insensitive substring; a
-# list matches any of them) and swaps the buttons it names over the shipped
-# map. Buttons a profile does not name keep working as before. A profile never
-# reaches the keyboard, menu or guide surfaces - what is drawn on screen
-# outranks the app underneath. `omapad check` flags a binding that does not
-# parse. Uncomment and edit to use.
-#
-# [profile.shell]
-# match = ["alacritty", "foot", "wezterm"]     # a list matches any of them
-# [profile.shell.bindings]
-# Y = "key:SUPER+L"        # lock the terminal - some terminals ignore this key
-# B = "exec:omarchy-menu toggle"
-
-# [profile.browser]
-# match = "chromium"        # a bare string is a single match
-# [profile.browser.bindings]
-# ZR = "exec:omarchy-capture-screenshot"
+  label = "Connections"
+  control = "heading"
 
   # What is paired, and which of it is connected. A pad that has slept, or
   # headphones that paired with a phone in the meantime, come back from here
@@ -4411,7 +4519,7 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   # because off there is an rfkill block and that is what survives a reboot.
   [[menu.items.items]]
   label = "Bluetooth"
-  span = [6, 1]
+  span = [3, 1]
   control = "toggle"
   reads = "live:bluetooth"
 
@@ -4424,11 +4532,104 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   icon = "󰂯"
   label = "Pair a device"
   detail = "In Omarchy's Bluetooth panel"
-  span = [4, 2]
+  span = [3, 1]
   action = '''exec:
     [ "$(omarchy-shell shell summon omarchy.bluetooth '{}' 2>/dev/null)" = ok ] ||
       omarchy-notification-send -g 󰂯 "Bluetooth panel unavailable" "It opens from Omarchy's bar, in desktop mode"
   '''
+
+  # Whether the machine is online, and through what: the first thing to ask
+  # when a stream will not start. Read-only where it stands - the line is
+  # Omarchy's own answer - and a press opens Omarchy's network panel, where
+  # a Wi-Fi network is picked. Choosing one wants a password, which is a
+  # keyboard, so this page does not try to be that list.
+  #
+  # Under the switch and the pairing door, beside the devices. Two rows tall
+  # because a one-row tile draws no line under its name, and the line is the
+  # whole of what this tile says.
+  [[menu.items.items]]
+  icon = "󰖩"
+  label = "Network"
+  span = [6, 2]
+  meta = { from = '''omarchy-network-status | awk -F'\t' 'NR == 1 { if ($1 == "wifi") print "Wi-Fi · " $2 (($3 != "") ? " · " $3 "%" : ""); else if ($1 == "ethernet") print "Wired"; else print "Not connected" }'''', ttl = 10, empty = "Checking" }
+  action = '''exec:
+    [ "$(omarchy-shell shell summon omarchy.network '{}' 2>/dev/null)" = ok ] ||
+      omarchy-notification-send -g 󰖩 "Network panel unavailable" "It opens from Omarchy's bar, in desktop mode"
+  '''
+
+  [[menu.items.items]]
+  label = "Tools"
+  control = "heading"
+
+  # **The things this machine can do that nobody wrote down here.** A card of
+  # rows like `Power`, except that what is in it is a folder: every
+  # executable file in `~/.config/omapad/scripts` is a row, read when this
+  # page settles, so adding one is dropping a file in a folder rather than
+  # editing this file. It is the answer to "I want the pad to do this one
+  # thing" that does not cost a binding, a setting or a line in the shipped
+  # tree.
+  #
+  # `%1` is the path, quoted as it goes in - a script whose name has a space
+  # in it stays one argument. The label is the file's name without its
+  # extension, because `.sh` is not something anybody is choosing between,
+  # and only files that are executable are listed: a row that cannot run is
+  # worse from a sofa than no row at all.
+  [[menu.items.items]]
+  label = "Scripts"
+  control = "rows"
+  span = [3, 3]
+  detail = "~/.config/omapad/scripts"
+  empty = "Nothing there yet"
+  action = "exec:%1"
+  from = """
+    for file in "$HOME"/.config/omapad/scripts/*; do
+      [ -f "$file" ] && [ -x "$file" ] || continue
+      name=${file##*/}
+      printf '%s\t%s\n' "${name%.*}" "$file"
+    done
+  """
+
+  # Last on this page, and the way out of this menu into the one that has
+  # everything else. It wants a keyboard, which is why it is not the menu the
+  # pad opens - and it is here rather than a chip of its own because the bar
+  # holds places you go to, and this is a door you leave by.
+  [[menu.items.items]]
+  # A hamburger rather than Omarchy's own mark. The mark was the better
+  # label - the thing on the other side of a door is what a door should be
+  # labelled with - and it is at U+E900 in `omarchy.ttf`, a private-use
+  # codepoint that did not survive being written into this file: what shipped
+  # was an empty string, so the row drew no mark at all. `icon_font` is still
+  # how a row names the family its glyph came from, for whoever puts it back
+  # with the character intact.
+  icon = "󰍜"
+  label = "Omarchy menu"
+  detail = "Everything else"
+  # Three cells, beside the scripts: `Omarchy m…` is what one cell had room
+  # for, and Tools is the last section read on the page - which is where a
+  # door belongs.
+  span = [3, 1]
+  action = "exec:omarchy-menu toggle"
+
+# ---------------------------------------------------------------------------
+# Per-application profiles (item 09) - optional.
+#
+# A profile matches the focused window's class (case-insensitive substring; a
+# list matches any of them) and swaps the buttons it names over the shipped
+# map. Buttons a profile does not name keep working as before. A profile never
+# reaches the keyboard, menu or guide surfaces - what is drawn on screen
+# outranks the app underneath. `omapad check` flags a binding that does not
+# parse. Uncomment and edit to use.
+#
+# [profile.shell]
+# match = ["alacritty", "foot", "wezterm"]     # a list matches any of them
+# [profile.shell.bindings]
+# Y = "key:SUPER+L"        # lock the terminal - some terminals ignore this key
+# B = "exec:omarchy-menu toggle"
+
+# [profile.browser]
+# match = "chromium"        # a bare string is a single match
+# [profile.browser.bindings]
+# ZR = "exec:omarchy-capture-screenshot"
 
   # A stopwatch: the one thing a clock cannot do, which is measure - a turn on
   # the sofa, a pot on the stove, how long that install has been going. It is
@@ -4441,29 +4642,13 @@ meta = { from = "checkupdates 2>/dev/null | wc -l | awk '{print ($1 > 0) ? $1 \"
   # of the three the next press is. What it costs is resuming.
   #
   # No icon, and no `reads`: what it holds is a press somebody made rather
-  # than anything a table could be pointed at. Two rows tall though it needs
-  # one, so the band it shares with the pairing tile is full rather than
-  # holed.
+  # than anything a table could be pointed at. Two cells square: a name over
+  # a figure, which is what a reading is drawn as.
   [[menu.items.items]]
   label = "Stopwatch"
   span = [2, 2]
   control = "chrono"
 
-  # Whether the machine is online, and through what: the first thing to ask
-  # when a stream will not start. Read-only where it stands - the line is
-  # Omarchy's own answer - and a press opens Omarchy's network panel, where
-  # a Wi-Fi network is picked. Choosing one wants a password, which is a
-  # keyboard, so this page does not try to be that list.
-  #
-  # On a row of its own after the stopwatch: the band above is full, and two
-  # rows tall because a one-row tile draws no line under its name, and the
-  # line is the whole of what this tile says.
-  [[menu.items.items]]
-  icon = "󰖩"
-  label = "Network"
-  span = [6, 2]
-  meta = { from = '''omarchy-network-status | awk -F'\t' 'NR == 1 { if ($1 == "wifi") print "Wi-Fi · " $2 (($3 != "") ? " · " $3 "%" : ""); else if ($1 == "ethernet") print "Wired"; else print "Not connected" }'''', ttl = 10, empty = "Checking" }
-  action = '''exec:
-    [ "$(omarchy-shell shell summon omarchy.network '{}' 2>/dev/null)" = ok ] ||
-      omarchy-notification-send -g 󰖩 "Network panel unavailable" "It opens from Omarchy's bar, in desktop mode"
-  '''
+
+
+

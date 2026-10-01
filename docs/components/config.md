@@ -57,7 +57,10 @@ X = { tap = "exec:my-window-thing", desc = "..." }
 ```
 
 `PROFILE_KEYS` is what a profile table may hold besides a layer name
-(`match`, `bindings`, `osk`, `left_stick`, `right_stick`, `handover`);
+(`match`, `bindings`, `osk`, `menu`, `left_stick`, `right_stick`,
+`handover`); `menu` is the card it lends the quick page, parsed by
+`parse_app_menu` through the menu's own builder - see
+[menu](menu.md#a-card-the-app-in-front-lends);
 `handover = false` keeps the pad from ever being handed to this application,
 which is the answer for one that opens a pad without being played through -
 see [handover](handover.md). Anything else raises

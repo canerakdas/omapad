@@ -581,6 +581,19 @@ class PointerTests(DaemonTestCase):
         )
 
 
+    def test_a_stick_held_down_does_not_scroll(self):
+        # A click tilts the stick. In the terminal R3 is Copy, a held
+        # Ctrl+Shift+C, and the tilt under it was Ctrl+wheel to foot - the
+        # text size changing at every copy.
+        self.daemon.set_focus("foot", "~")
+        self.feed((li.EV_ABS, li.ABS_RY, 32767))
+        self.press("RSTICK")
+        self.tick(1.0, steps=100)
+        self.assertEqual(self.mouse.scrolls, [])
+        self.release("RSTICK")
+        self.tick(1.0, steps=100)
+        self.assertNotEqual(self.mouse.scrolls, [])
+
 class PointerHidingTests(DaemonTestCase):
     """`[pointer] hide_on_press`: a press that is not pointing puts it away.
 
@@ -1897,6 +1910,61 @@ class WorkspaceLockTests(DaemonTestCase):
             actions.parse("lock:sideways")
 
 
+class OverrideEndsWithItsWindowTests(DaemonTestCase):
+    """The lock and the keep are about one window, and go when it does."""
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.set_focus("steam_app_1234", "A game")
+        self.daemon._hypr_window = "5a24830af760"
+
+    def unwanted(self):
+        return unittest.mock.patch.object(daemon_module.handover, "wants_pad",
+                                          return_value=False)
+
+    def events(self, *lines):
+        payload = ("\n".join(lines) + "\n").encode("utf-8")
+        stream = unittest.mock.Mock()
+        stream.recv.side_effect = [payload]
+        self.daemon.hypr_ev = stream
+        with self.unwanted():
+            self.daemon._drain_hypr_events()
+
+    def test_the_lock_goes_when_its_game_closes(self):
+        # Steam's client comes to the front after the game, and a lock left
+        # on held the pad for it.
+        with self.unwanted():
+            self.daemon.set_locked(True)
+        self.events("closewindow>>5a24830af760",
+                    "activewindow>>steam,Steam",
+                    "activewindowv2>>5a2482db1010")
+        self.assertFalse(self.daemon.locked)
+
+    def test_but_not_when_another_window_closes(self):
+        with self.unwanted():
+            self.daemon.set_locked(True)
+        self.events("closewindow>>5a2400000000")
+        self.assertTrue(self.daemon.locked)
+
+    def test_nothing_in_front_is_nothing_to_lock_to(self):
+        # And the quick page, which holds the tile that turns it off, is not
+        # offered over an empty workspace - the lock would have no way out.
+        with self.unwanted():
+            self.daemon.set_locked(True)
+            self.daemon.set_focus("", "")
+        self.assertFalse(self.daemon.locked)
+
+    def test_the_keep_goes_the_same_way(self):
+        with self.unwanted():
+            self.daemon.set_keeping(True)
+        self.events("closewindow>>5a24830af760")
+        self.assertFalse(self.daemon.keeping)
+        with self.unwanted():
+            self.daemon.set_keeping(True)
+            self.daemon.set_focus("", "")
+        self.assertFalse(self.daemon.keeping)
+
+
 class KeepingThePadTests(DaemonTestCase):
     """The hand-off said by hand the other way: the app opened the pad and is
     not being played with, so we keep it."""
@@ -3007,17 +3075,17 @@ class MenuTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu_open)
 
     def test_holding_a_direction_walks_the_grid(self):
-        # Across rather than down, for the same reason as above: the shipped
-        # page has a last row, and a second press of `down` from it is meant
-        # to do nothing.
+        # Down rather than across: the page opens at its top, and the first
+        # band of Apps is two tiles wide, so a second step right from it is
+        # the edge and is meant to do nothing.
         self.open_menu()
-        self.feed((li.EV_ABS, li.ABS_HAT0X, 1))
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 1))
         self.assertTrue(self.daemon.repeats, "a held direction should repeat")
         first = self.daemon.menu.selected
         entry = list(self.daemon.repeats.values())[0]
         self.daemon.fire_repeats(entry[1])
         self.assertNotEqual(self.daemon.menu.selected, first)
-        self.feed((li.EV_ABS, li.ABS_HAT0X, 0))
+        self.feed((li.EV_ABS, li.ABS_HAT0Y, 0))
         self.assertEqual(self.daemon.repeats, {})
 
     def test_the_shoulders_walk_the_bar(self):
@@ -3138,6 +3206,11 @@ class MenuTests(DaemonTestCase):
         self.release("A")
         self.assertEqual(len(self.session.spawned), 1)
 
+    def first_tile(self):
+        """The first tile the selection can stand on - a heading is not one."""
+        return next(tile["item"]["id"] for tile in self.daemon.menu.tiles
+                    if self.daemon.menu.selectable(tile["item"]))
+
     def test_the_first_time_it_opens_on_the_first_tile(self):
         # Nowhere to come back to yet, so the first chip and the first thing
         # on it.
@@ -3145,7 +3218,7 @@ class MenuTests(DaemonTestCase):
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.depth, 0)
         self.assertEqual(self.daemon.menu.group, 0)
-        self.assertEqual(self.daemon.menu.index, 0)
+        self.assertEqual(self.daemon.menu.selected, self.first_tile())
 
     def test_afterwards_it_opens_where_it_was_left(self):
         # Most of what a HUD is for is coming back: you turn the volume down,
@@ -3180,7 +3253,7 @@ class MenuTests(DaemonTestCase):
         self.daemon._menu_where = ("no-such-chip", "no-such-tile")
         self.daemon.set_menu(True)
         self.assertEqual(self.daemon.menu.group, 0)
-        self.assertEqual(self.daemon.menu.index, 0)
+        self.assertEqual(self.daemon.menu.selected, self.first_tile())
 
     def test_opening_it_puts_the_keyboard_away(self):
         self.daemon.set_osk(True)
@@ -3210,10 +3283,14 @@ class MenuTests(DaemonTestCase):
         # A cursor points at a row outright; the daemon turns that into the
         # selection, the same way every D-pad press lands in `menu.index`.
         self.open_menu()
-        named = self.daemon.menu.tiles[3]["item"]["id"]
-        reply = self.daemon.handle_control("menu select 3")
+        # A tile, not a heading: the pointer finds a heading only while the
+        # page is being arranged.
+        index = [number for number, tile in enumerate(self.daemon.menu.tiles)
+                 if self.daemon.menu.selectable(tile["item"])][2]
+        named = self.daemon.menu.tiles[index]["item"]["id"]
+        reply = self.daemon.handle_control("menu select %d" % index)
         self.assertIn("sel=%s" % named, reply)
-        self.assertEqual(self.daemon.menu.index, 3)
+        self.assertEqual(self.daemon.menu.index, index)
         self.assertEqual(self.menu_client.sent[-1]["sel"], named)
 
     def test_mouse_hover_out_of_range_clamps(self):
@@ -3246,9 +3323,10 @@ class MenuTests(DaemonTestCase):
 
     def test_mouse_hover_takes_a_bad_index_without_guessing(self):
         self.open_menu()
+        before = self.daemon.menu.index
         self.assertIn("select nonsense",
                       self.daemon.handle_control("menu select nonsense"))
-        self.assertEqual(self.daemon.menu.index, 0)
+        self.assertEqual(self.daemon.menu.index, before)
 
     def test_a_pointer_click_picks_the_tile_it_lands_on(self):
         # The panel sends the tile and the press in one go, so a click cannot
@@ -3540,9 +3618,11 @@ class ConfirmedRowTests(DaemonTestCase):
 
     def setUp(self):
         super().setUp()
-        apps_page(self.config)["items"].append({
+        # On a row of its own, under the page's first tile: the last band
+        # ends short, and a tile backfilled at its end has nothing above it.
+        apps_page(self.config)["items"].extend([{"control": "row_break"}, {
             "label": "Wipe it", "action": "exec:wipe-it", "confirm": True,
-        })
+        }])
         self.daemon.menu = daemon_module.MenuModel(
             daemon_module.build_menu(
                 self.config.menu_items, columns=self.config.menu_columns,
@@ -6062,7 +6142,11 @@ class EditModeTests(DaemonTestCase):
         self.assertTrue(self.daemon.menu.edit)
 
     def test_a_tile_is_picked_up_carried_and_put_down(self):
+        # The tile in front and the one after it - not the first two in the
+        # order, which starts with the page's first heading.
+        first = self.daemon.menu.selected
         before = self.order()
+        before = before[before.index(first):]
         self.daemon.menu_command("edit")
         self.daemon.menu_command("pick")
         self.assertEqual(self.daemon.menu.picked, before[0])
@@ -6170,12 +6254,13 @@ class EditModeTests(DaemonTestCase):
         # The whole of why this is a cell now: with reordering there was no
         # way to say "third column, fourth row" on a page that has no third
         # tile, and a page drawn over a game is where that is the point.
-        name = self.order()[0]
+        name = self.daemon.menu.selected
+        x, y = self.cells()[name]
         self.daemon.menu_command("edit")
         self.daemon.menu_command("pick")
         for command in ("right", "right", "down", "down"):
             self.daemon.menu_command(command)
-        self.assertEqual(self.cells()[name], (2, 2))
+        self.assertEqual(self.cells()[name], (x + 2, y + 2))
         self.daemon.menu_command("edit_off")
         self.assertIn("[layout.controller.at]", self.written())
 
@@ -6287,7 +6372,7 @@ class EditModeTests(DaemonTestCase):
 
     def test_removing_takes_a_tile_off_the_page_and_writes_it_down(self):
         self.daemon.menu_command("edit")
-        name = self.order()[0]
+        name = self.daemon.menu.selected
         self.daemon.menu_command("remove")
         self.assertNotIn(name, self.order())
         self.assertNotIn("rm", self.menu_client.sent[-1])
@@ -6299,13 +6384,13 @@ class EditModeTests(DaemonTestCase):
         # `hide` is what it was called while a tile taken off a page had
         # nowhere to go, and a config or a script that says it means this.
         self.daemon.menu_command("edit")
-        name = self.order()[0]
+        name = self.daemon.menu.selected
         self.daemon.menu_command("hide")
         self.assertNotIn(name, self.order())
 
     def test_a_tile_is_taken_off_one_page_and_added_to_another(self):
         self.daemon.menu_command("edit")
-        name = self.order()[0]
+        name = self.daemon.menu.selected
         self.daemon.menu_command("remove")
         page = self.daemon.menu.page()
         self.daemon.menu_command("group_next")
@@ -6860,7 +6945,7 @@ class QuickPageTests(DaemonTestCase):
         self.daemon.menu_command("open", page="quick")
         ids = self.ids()
         # After the way out, since it is a way back to the game too.
-        self.assertEqual(ids.index("workspace-lock"), 1)
+        self.assertEqual(ids.index("workspace-lock"), ids.index("resume") + 1)
         # Keeping is for a pad the app has taken, and this one has not.
         self.assertNotIn("keep-the-controller", ids)
 
@@ -7101,6 +7186,110 @@ class AppPageConfigTests(unittest.TestCase):
              keymap.resolve("V")),
             "a terminal pastes with Ctrl+Shift+V, not the bottom row's Ctrl+V",
         )
+
+
+class AppMenuConfigTests(unittest.TestCase):
+    """What a [profile.<name>.menu] table is allowed to say."""
+
+    def parse(self, spec):
+        return config_module.parse_app_menu("browser", spec, 10)
+
+    def test_the_rows_are_built_as_menu_rows(self):
+        lent = self.parse({"label": "Tabs", "items": [
+            {"label": "Close tab", "action": "key:CTRL+W"}]})
+        self.assertEqual(lent["label"], "Tabs")
+        self.assertEqual(lent["rows"][0]["label"], "Close tab")
+
+    def test_a_row_that_will_not_run_names_the_profile(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            self.parse({"items": [{"label": "x", "action": "key:NOSUCHKEY"}]})
+        self.assertIn("profile.browser.menu", str(caught.exception))
+
+    def test_a_row_cannot_open_a_page(self):
+        with self.assertRaises(config_module.ConfigError):
+            self.parse({"items": [{"label": "x", "items": [
+                {"label": "y", "action": "exec:true"}]}]})
+
+    def test_a_card_of_nothing_is_said(self):
+        with self.assertRaises(config_module.ConfigError):
+            self.parse({"label": "Tabs"})
+
+    def test_the_shipped_cards_parse(self):
+        config = shipped_config()
+        for window_class in ("chromium", "foot", "steam_app_1234"):
+            lent = config.profile_matching(window_class)["menu"]
+            self.assertTrue(lent["rows"], window_class)
+
+
+class AppMenuTests(DaemonTestCase):
+    """The quick page's card, filled by the app in front."""
+
+    def card(self):
+        return next((tile["item"] for tile in self.daemon.menu.tiles
+                     if tile["item"].get("holds")), None)
+
+    def open_over(self, window_class):
+        self.daemon.set_focus(window_class, "")
+        self.daemon.menu_command("toggle", page="quick")
+
+    def test_the_browser_lends_its_tabs(self):
+        self.open_over("chromium")
+        self.assertEqual(self.daemon.menu.rows_of(self.card())[0]["label"],
+                         "Close tab")
+
+    def test_a_game_steam_started_is_still_steams(self):
+        self.open_over("steam_app_1234")
+        self.daemon.handed_over = True
+        labels = [row["label"]
+                  for row in self.daemon.menu.rows_of(self.card())]
+        self.assertIn("Friends", labels)
+
+    def test_an_app_with_no_card_has_none_drawn(self):
+        self.open_over("org.gnome.Calculator")
+        self.assertIsNone(self.card())
+
+    def typed_t(self):
+        return any(code == keymap.resolve("T") and pressed
+                   for _, code, pressed in self.keyboard.chords)
+
+    def press_reopen_tab(self):
+        self.open_over("chromium")
+        walk_menu(self.daemon, ["Shortcuts", "Reopen tab"],
+                  lambda: self.daemon.menu_command("press"))
+        self.assertFalse(self.daemon.menu_open)
+
+    def with_events(self, *lines):
+        payload = ("\n".join(lines) + "\n").encode("utf-8")
+        stream = unittest.mock.Mock()
+        stream.recv.side_effect = [payload]
+        self.daemon.hypr_ev = stream
+
+    def test_a_row_closes_the_menu_and_then_sends_its_key(self):
+        # No compositor to wait for: the key goes at once.
+        self.press_reopen_tab()
+        self.assertTrue(self.typed_t())
+
+    def test_the_key_waits_for_the_menu_to_have_gone(self):
+        # The panel holds the keyboard while it is up, so a key sent before
+        # the layer closes is typed into the menu rather than the browser.
+        self.with_events("closelayer>>omapad-menu")
+        self.press_reopen_tab()
+        self.assertFalse(self.typed_t())
+        self.daemon._drain_hypr_events()
+        self.assertTrue(self.typed_t())
+
+    def test_and_goes_anyway_when_nothing_says_so(self):
+        self.with_events()
+        self.press_reopen_tab()
+        self.daemon.menu_key_due(time.monotonic() + daemon_module.KEY_WAIT)
+        self.assertTrue(self.typed_t())
+
+    def test_but_not_into_a_menu_opened_again(self):
+        self.with_events()
+        self.press_reopen_tab()
+        self.daemon.set_menu(True)
+        self.daemon.menu_key_due(time.monotonic() + daemon_module.KEY_WAIT)
+        self.assertFalse(self.typed_t())
 
 
 class ProfileHandoverConfigTests(unittest.TestCase):

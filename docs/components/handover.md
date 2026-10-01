@@ -182,6 +182,15 @@ The lock is runtime state and is not written to `settings.toml`. A pad that
 did nothing at the next boot for a reason nobody remembers is worse than
 locking again.
 
+**It ends with its window.** `set_locked` writes down the address of the
+window in front (`_override_window`, from `activewindowv2`), and
+`closewindow>>` naming it turns the lock off (`window_closed`) - a game that
+closes hands Steam's client the front, and a lock left on held the pad for a
+client nobody meant to lock to. Focus landing on nothing ends it too
+(`set_focus` with no class): there is nothing to lock to, and the quick page
+that holds the tile is not offered over an empty workspace, so a lock there
+had no way out but `omapad ctl`. Decision 107.
+
 ## Keeping the pad: the same question, the other way
 
 `/proc` can be right about the program and wrong about the screen. A cloud
@@ -207,8 +216,10 @@ Three things fall out of the direction it points:
   the one gesture it still lets through, which is why the chord is the door and
   why the notification names the menu. Keeping the pad makes every gesture work
   again, so the way out is a plain press of whatever opens the menu.
-- **It stays on until it is turned off**, and that is a decision rather than an
-  oversight: the stream that starts after **Play** does want the pad. What
+- **It stays on until it is turned off, or its window goes**, and that is a
+  decision rather than an oversight: the stream that starts after **Play**
+  does want the pad, in the same window. It ends with the window it was set
+  over and when nothing is in front, exactly as the lock does. What
   makes it safe is that the row cannot vanish underneath you - `when =
   ["handed_over", "kept"]`, so it is offered while an app has the pad *and* for
   as long as it is on.

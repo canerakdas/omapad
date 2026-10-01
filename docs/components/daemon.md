@@ -146,6 +146,11 @@ cannot make one whatever the stick is doing. Roles:
 the ramp), `emit_window`, `snap_cursor`, `check_focus_stick`, `check_swap`,
 `check_menu_stick`.
 
+**A stick whose own click is down does not scroll** (`STICK_CLICKS`). Pressing
+a stick tilts it, and a click's binding is often a held chord: the
+terminal's R3 is Copy, Ctrl+Shift+C held, and the tilt under it reached foot
+as Ctrl+wheel - its text size changing at every copy.
+
 `menu` is the one role a *surface* names rather than a layer: every other
 implicit surface layer keeps the base roles - the pointer still works under
 the keyboard - and the menu does not, because it is the one with something for
@@ -223,6 +228,8 @@ and the file is the thing that actually changed.
   menu, with the lock's tile on its quick page, and so the way back out. `chord_pending()` is the other half of it,
   and keeps a chord that can do nothing right now from making its buttons wait
   for their release. See [handover](handover.md).
+- Both end with the window they were set over (`window_closed`, from
+  `closewindow>>`) and when nothing is in front (`end_overrides`).
 - `set_keeping()` is the same question answered the other way: the pad is ours
   over an app that has opened it and is not being played with. The two are
   exclusive - turning one on turns the other off - and this one needs no way

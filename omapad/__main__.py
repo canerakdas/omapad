@@ -284,14 +284,19 @@ def cmd_check_layout(config):
             last = config.hud_rows - 1 if page == config.hud_page else None
             right = config.menu_columns - 1
             said = []
-            for name, (x, y) in placed:
+            for name, cell in placed:
+                x, y = cell[0], cell[1]
                 out = []
                 if x > right:
                     out.append("column %d" % right)
-                if last is not None and y > last:
+                # Counted from a heading, the row is not the page's, so
+                # only the column can be said to be off the edge.
+                if last is not None and y > last and len(cell) < 3:
                     out.append("row %d" % last)
-                said.append("%s at %d,%d%s"
+                said.append("%s at %d,%d%s%s"
                             % (name, x, y,
+                               " under %s" % cell[2] if len(cell) > 2
+                               else "",
                                " (clamped to %s)" % " and ".join(out)
                                if out else ""))
             print("    put in a cell: %s" % ", ".join(said))
