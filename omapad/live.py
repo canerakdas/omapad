@@ -30,9 +30,11 @@ log = logging.getLogger("omapad")
 # is. `kind` is what a tile may draw it as, and a number carries the arithmetic
 # a slider needs.
 READINGS = {
+    # `switch` is the reading a cell of this one turns off and on - see
+    # `menu.form_of`. The mute rather than nought, so the level is kept.
     "volume": {
         "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
-        "unit": "%", "scale": 100,
+        "unit": "%", "scale": 100, "switch": "mute",
     },
     # `quiets` marks a switch whose on is a silence, and says which end it
     # silences: on falls and off rises, and the speakers' own cue has to be

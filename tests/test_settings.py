@@ -57,6 +57,30 @@ class RequestTests(unittest.TestCase):
         )
 
 
+class SwitchCompanionTests(unittest.TestCase):
+    """A value's `switch` is what one cell of it turns off and on."""
+
+    def test_every_switch_is_a_bool_beside_its_value(self):
+        from omapad import live
+        for table in (config_module.CHOSEN, live.READINGS):
+            for name, spec in table.items():
+                other = spec.get("switch")
+                if other is None:
+                    continue
+                self.assertEqual(spec["kind"], "number", name)
+                self.assertEqual(table[other]["kind"], "bool", name)
+
+    def test_the_middle_lands_on_the_values_own_grid(self):
+        middle = config_module.middle_of
+        self.assertEqual(middle({"min": 0.0, "max": 1.0, "step": 0.05}), 0.5)
+        self.assertEqual(middle({"min": 200.0, "max": 4000.0,
+                                 "step": 100.0}), 2100.0)
+        self.assertEqual(middle({"min": 0.01, "max": 1.0, "step": 0.05,
+                                 "grid": 0.0}), 0.5)
+        self.assertEqual(middle({"min": 0.0, "max": 2.0,
+                                 "stops": (0.0, 0.5, 1.0, 2.0)}), 0.5)
+
+
 class IdleConfigTests(unittest.TestCase):
     def test_the_hold_on_the_screen_ships_with_an_end(self):
         self.assertGreater(shipped().idle_awake, 0.0)

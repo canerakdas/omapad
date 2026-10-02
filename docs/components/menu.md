@@ -321,6 +321,34 @@ while to find out which gets reached for, which settled something else - the
 drawing is not what decides where a tile lives - and the ring keeps the dial's
 square for the dial's reason.
 
+**So the cells decide, and the word only says where a tile starts.**
+`form_of()` reads a `slider` or a `knob` off its size, on every page and after
+every resize:
+
+| Cells | Drawn and pressed as |
+|---|---|
+| 2 by 2 or more | a ring |
+| one row, two or more wide | a bar along the tile |
+| one column, two or more tall | a bar up the tile - `up` on the wire, up and down push it, and the name stands on its own line over the figure |
+| one cell | a switch: A turns it off and back on - or, on a list, the `choice` card that walks it |
+
+`SPANS` is still the size a tile is born at, which is why the word in the
+config matters at all. What changes with the form is everything a press
+reaches through `MenuModel.form()`: whether A takes the tile, which pair of
+directions moves it (`menu_axis`), whether the stick turns it, and which
+fields it is sent.
+
+**A switch in one cell is the switch the value names.** A number's spec may
+carry `switch`, a bool in its own table: `live:volume` names `mute`, and
+`pad:rumble_strength` and `pad:sound_volume` name the motor and the cues. A
+press on the cell is that switch's own press, so a level is never lost to
+being turned off, and `on` is that switch read the right way up - a switch
+marked `quiets` is on when the value is off. A number with no switch goes to
+the bottom of its travel and back to where it was (`menu_flip`); found at the
+bottom with nothing remembered, it comes up to `middle_of()` its travel rather
+than to the far end, because the far end of a brightness is a lit room at
+night.
+
 **A `readout` is a control that is not a control.** What the machine is
 doing is published rather than set - a temperature is not a setting - so the
 tile commits to nothing and A on it does nothing rather than finding something
@@ -2463,7 +2491,8 @@ answered the same question twice is one that can disagree with itself. `head` is
 same three letters a badge takes on `gamebar.sock` - and `cols`, `rows` and
 `headrows` are the grids' shapes. On a tile, `l` label, `i` icon, `d` detail,
 `sub` whether it drills in, `x`/`y`/`w`/`h` its cells, and `k` its control
-where it has one. `ty` is on the one heading the keyboard is typing into, and
+where it has one - the form it is drawn as at those cells, not the word in the
+config - with `up` beside a slider that stands in a column. `ty` is on the one heading the keyboard is typing into, and
 off the wire everywhere else; the panel draws the caret after its words.
 
 `f` rides beside `i` where a glyph is somebody else's: a glyph only exists in

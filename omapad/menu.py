@@ -144,6 +144,43 @@ STICKS = ("left", "right")
 # side because which of them a page wants is the page's to say.
 KNOB = "knob"
 
+# **A value is drawn by the room it is given, not by the word it was declared
+# with.** `slider` and `knob` were always two drawings of one control, and
+# which of them a tile was is a question its cells already answer: a square
+# has a diameter, a row has a length, a column has a height. So the word in
+# the config says which shape the tile is *born* at (`SPANS`), and resizing
+# it from the sofa is how it becomes the other one.
+#
+# One cell is a switch. It has no length to aim at and no diameter to turn,
+# and what is left in a cell is the one thing a thumb can say to a value
+# without aiming: *off*, or *back to where it was*. Which switch that is, is
+# the reading's to say (`switch` beside its spec) - the volume's off is the
+# mute, not nought.
+RANGED = ("slider", KNOB)
+
+
+def form_of(item, size):
+    """What a tile is drawn and pressed as, at `size` cells.
+
+    Its declared control everywhere but a ranged one. A list has no off, so
+    a list in one cell is the `choice` card that walks it rather than a
+    switch.
+    """
+    control = item["control"]
+    if control not in RANGED:
+        return control
+    width, height = size
+    if width >= 2 and height >= 2:
+        return KNOB
+    if width == 1 and height == 1:
+        return "choice" if item.get("choices") else "toggle"
+    return "slider"
+
+
+def upright(size):
+    """Whether a slider in `size` cells runs up the tile rather than along."""
+    return size[0] < size[1]
+
 # The tile that holds a page rather than opening one: its `items` are drawn as
 # rows inside it, and A goes in before up and down walk them. A verb has no
 # value to show, so a cell spent on one says a single word - and
@@ -302,9 +339,10 @@ SPANS = {
     "toggle": (1, 1),
     # Wide enough to hold its longest value between two chevrons.
     "choice": (2, 1),
-    # A bar shorter than three cells cannot be aimed at: the whole of what a
-    # slider says is where along its travel it is, and at one cell that is a
-    # dozen pixels of difference between a setting and the one either side.
+    # Born at three because that is a bar a thumb can aim along: the whole
+    # of what a slider says is where along its travel it is. Two still holds
+    # one, and one cell does not - which is why a single cell of a value is a
+    # switch rather than a shorter bar (`form_of`).
     "slider": (3, 1),
     # Square, and the dial's own square: it is the same circle, and a page
     # that held a knob, a gauge and a clock drawn to three sizes would read as
@@ -970,6 +1008,9 @@ def _reads(entry, item, path, settings, readings=None, machine=None):
                 "%s: %r holds a %s, which a %s cannot draw"
                 % (path, name, found["kind"], control)
             )
+        # Kept on the tile because one cell of a list is not a switch, and
+        # `form_of` is asked where the tables are not to hand.
+        item["choices"] = found["kind"] == "choice"
     return (source, name)
 
 
@@ -2740,10 +2781,29 @@ class MenuModel:
             return False
         return self._step_row(self.current, direction)
 
+    def size_of(self, item):
+        """The cells a tile stands in on this page, or the ones it asks for.
+
+        The second only for a tile the page has not placed, which nothing
+        draws - asked anyway so a caller never has to tell the two apart.
+        """
+        for tile in self.tiles:
+            if tile["item"]["id"] == item["id"]:
+                return tile["size"]
+        return effective_span(item, self._plan())
+
+    def form(self, item):
+        """What the tile is drawn and pressed as at its size. See `form_of`."""
+        if item is None:
+            return ""
+        if item["control"] not in RANGED:
+            return item["control"]
+        return form_of(item, self.size_of(item))
+
     def takeable(self):
         """The tile in front, if it is one that has to be held to be moved."""
         item = self.current
-        if item is not None and item["control"] in TAKEABLE:
+        if item is not None and self.form(item) in TAKEABLE:
             if self.lone(item):
                 # Nothing to go in for. The one tile this surface already had
                 # with no press on it is the `readout`, for the same reason:
@@ -3885,7 +3945,11 @@ class MenuModel:
                 # Being typed into, so the panel draws the caret after it.
                 row["ty"] = True
             if item["control"]:
-                row["k"] = item["control"]
+                row["k"] = form_of(item, tile["size"])
+                if row["k"] == "slider" and upright(tile["size"]):
+                    # Off the wire on a slider laid along its tile, which is
+                    # every one there was before a tile could be a column.
+                    row["up"] = True
                 if item["control"] == CLOCK:
                     # The time of day, as the figure a reading carries. This
                     # module works it out itself - it can, because a clock

@@ -2743,6 +2743,23 @@ both directions belong to the grid until it is, so A takes it, left and right
 move it (faster the longer you hold one), either trigger sweeps its whole
 range, and then **A keeps what it is on and B puts it back**.
 
+**A slider and a knob change shape with their tile.** The word in the config
+only says what size the tile starts at; resize it and it becomes whatever fits:
+
+| Size | What it is |
+|---|---|
+| 2×2 or bigger | a knob |
+| one row, 2 or more wide | a slider |
+| one column, 2 or more tall | a slider standing up — up and down move it |
+| one cell | an on/off switch |
+
+In one cell, A turns the value off and back on. The volume's off is **mute**,
+the motor's strength and the sound's loudness turn **Vibration** and
+**Sounds** off, so the level you had is kept. Anything else goes to its lowest
+value and back to where it was — or to the middle, if it was already at the
+bottom. A knob reading a list (`Button style`) becomes the ‹ › choice card
+instead, since a list has no off.
+
 **A `knob` is the same value as a ring**, and the difference is the hand
 rather than the drawing. A slider is a length and a knob is an angle, and the
 stick you walk the page with is already a turn — so once A has taken a knob,

@@ -4295,6 +4295,85 @@ class KnobHarness(DaemonTestCase):
         self.daemon.tick(0.02)
 
 
+class SizedValueTests(KnobHarness):
+    """A value drawn by the room it is given: one cell is a switch, a column
+    is a slider that climbs, and the press follows the drawing."""
+
+    TREE = [{"label": "Sizes", "items": [
+        {"label": "Strength", "control": "slider",
+         "reads": "pad:rumble_strength", "span": [1, 1]},
+        {"label": "Speed", "control": "knob",
+         "reads": "pad:pointer_speed", "span": [1, 1]},
+        {"label": "Lift", "control": "slider",
+         "reads": "pad:pointer_speed", "span": [1, 3]},
+        {"label": "Style", "control": "knob",
+         "reads": "pad:badge_style", "span": [1, 1]},
+    ]}]
+
+    def test_a_cell_with_a_switch_beside_it_flips_that_switch(self):
+        # The level is kept: off is the motor off, not a strength of nought.
+        self.config.set_setting("rumble", ("set", True))
+        strength = self.config.setting("rumble_strength")
+        self.assertIs(self.drawn("Strength")["on"], True)
+        self.take("Strength")
+        self.assertFalse(self.config.setting("rumble"))
+        self.assertEqual(self.config.setting("rumble_strength"), strength)
+        self.assertIs(self.drawn("Strength")["on"], False)
+        self.assertIsNone(self.daemon.menu.taken)
+
+    def test_a_cell_without_one_goes_to_the_bottom_and_back(self):
+        spec = config_module.CHOSEN["pointer_speed"]
+        self.config.set_setting("pointer_speed", ("set", 1500.0))
+        self.take("Speed")
+        self.assertEqual(self.config.pointer_speed, spec["min"])
+        self.assertIs(self.drawn("Speed")["on"], False)
+        self.daemon.menu_command("press")
+        self.assertEqual(self.config.pointer_speed, 1500.0)
+
+    def test_a_cell_found_at_the_bottom_comes_up_to_the_middle(self):
+        spec = config_module.CHOSEN["pointer_speed"]
+        self.config.set_setting("pointer_speed", ("set", spec["min"]))
+        self.take("Speed")
+        self.assertEqual(self.config.pointer_speed,
+                         config_module.middle_of(spec))
+
+    def test_a_list_in_one_cell_is_walked(self):
+        choices = config_module.CHOSEN["badge_style"]["choices"]
+        self.config.set_setting("badge_style", ("set", choices[0]))
+        self.assertEqual(self.drawn("Style")["k"], "choice")
+        self.take("Style")
+        self.assertEqual(self.config.setting("badge_style"), choices[1])
+
+    def test_a_column_is_pushed_up_and_down(self):
+        # The needle climbs, so up raises it and right is nothing.
+        self.config.set_setting("pointer_speed", ("set", 1500.0))
+        self.assertTrue(self.drawn("Lift")["up"])
+        self.take("Lift")
+        self.daemon.menu_command("right")
+        self.assertEqual(self.config.pointer_speed, 1500.0)
+        self.daemon.menu_command("up")
+        self.assertGreater(self.config.pointer_speed, 1500.0)
+        self.assertEqual([row["b"] for row in self.daemon.menu_directions()
+                          if row["k"] == "dpad"],
+                         [guide_module.badge_of(button, self.daemon.guide.layout)
+                          for button in ("DPAD_DOWN", "DPAD_UP")])
+
+    def test_a_volume_in_one_cell_is_the_mute(self):
+        # A muted volume is off whatever level it would play at, and A on it
+        # is the Mute tile's own press.
+        live = self.daemon.live
+        item = dict(self.land("Strength"), reads=("live", "volume"))
+        live.took("mute", ["Mute: yes"], live.generation)
+        self.assertIs(self.daemon.menu_switched(item), False)
+        live.took("mute", ["Mute: no"], live.generation)
+        self.assertIs(self.daemon.menu_switched(item), True)
+        written = []
+        self.daemon.live_write = lambda name, asked, quiet=False: \
+            written.append((name, asked))
+        self.daemon.menu_flip(item)
+        self.assertEqual(written, [("mute", ("toggle", None))])
+
+
 class KnobTests(KnobHarness):
     """The same value, turned: the payload it is drawn from, and `carry`.
 

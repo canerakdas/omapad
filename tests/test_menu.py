@@ -12,8 +12,9 @@ from omapad import actions, config as config_module
 from omapad.menu import (MenuError, MenuModel, PICKER_MARK, ROOT_TITLE,
                          TAKEABLE,
                          adoptions, arrange, build, build_head, build_rows,
-                         effective_span, head_sources, listed, pages_of,
-                         place, slug, time_of_day, vacate, whole_row)
+                         effective_span, form_of, head_sources, listed,
+                         pages_of, place, slug, time_of_day, upright, vacate,
+                         whole_row)
 
 SAMPLE = [
     {"label": "Terminal", "icon": "T", "action": "exec:true"},
@@ -1096,6 +1097,54 @@ class KnobTileTests(unittest.TestCase):
         with self.assertRaises(MenuError) as caught:
             self.tile(reads="pad:rumble")
         self.assertIn("knob", str(caught.exception))
+
+    def test_a_value_is_drawn_by_the_room_it_is_given(self):
+        # Declared one way and drawn another: the word only says which shape
+        # the tile is born at, so a slider resized to a square is a ring and
+        # a ring laid along a row is a bar.
+        for control in ("slider", "knob"):
+            item = self.tile(control=control)
+            self.assertEqual(form_of(item, (1, 1)), "toggle")
+            self.assertEqual(form_of(item, (3, 1)), "slider")
+            self.assertEqual(form_of(item, (2, 1)), "slider")
+            self.assertEqual(form_of(item, (1, 3)), "slider")
+            self.assertEqual(form_of(item, (2, 2)), "knob")
+            self.assertEqual(form_of(item, (3, 2)), "knob")
+
+    def test_a_list_in_one_cell_is_walked_rather_than_switched(self):
+        # A list has no off to go to.
+        item = self.tile(reads="pad:badge_style")
+        self.assertEqual(form_of(item, (1, 1)), "choice")
+        self.assertEqual(form_of(item, (1, 2)), "slider")
+
+    def test_only_a_ranged_control_changes_shape(self):
+        switch = build([{"label": "Rumble", "control": "toggle",
+                         "reads": "pad:rumble"}], settings=self.SETTINGS)[0]
+        self.assertEqual(form_of(switch, (3, 3)), "toggle")
+
+    def test_a_column_stands_its_slider_up(self):
+        self.assertTrue(upright((1, 2)))
+        self.assertFalse(upright((2, 1)))
+        self.assertFalse(upright((2, 2)))
+
+    def test_the_payload_says_the_shape_and_the_way_it_runs(self):
+        model = MenuModel(build([{"label": "Page", "items": [
+            {"label": "One", "control": "slider",
+             "reads": "pad:pointer_speed", "span": [1, 1]},
+            {"label": "Column", "control": "slider",
+             "reads": "pad:pointer_speed", "span": [1, 3]},
+            {"label": "Row", "control": "knob",
+             "reads": "pad:pointer_speed", "span": [3, 1]},
+        ]}], settings=self.SETTINGS))
+        rows = {row["l"]: row for row in model.view_state(True)["items"]}
+        self.assertEqual(rows["One"]["k"], "toggle")
+        self.assertEqual(rows["Column"]["k"], "slider")
+        self.assertTrue(rows["Column"]["up"])
+        self.assertEqual(rows["Row"]["k"], "slider")
+        self.assertNotIn("up", rows["Row"])
+        # And a switch is pressed, not taken.
+        model.select_id(model.tiles[0]["item"]["id"])
+        self.assertIsNone(model.takeable())
 
     def test_a_knob_has_to_say_what_it_reads(self):
         with self.assertRaises(MenuError) as caught:

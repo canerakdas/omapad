@@ -257,6 +257,9 @@ CHOSEN = {
         # between two presses is not a step worth stopping on.
         "kind": "number", "step": 0.1, "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
+        # Off in one cell is the switch beside it, as `live.py` has it for
+        # the volume.
+        "switch": "sound",
     },
     # How hard a corner is rounded, against what the compositor rounds a
     # window by. On the pad because it is the one setting here you can only
@@ -334,6 +337,7 @@ CHOSEN = {
         # presses rather than a job.
         "kind": "number", "step": 0.05, "min": 0.0, "max": 1.0,
         "unit": "%", "scale": 100,
+        "switch": "rumble",
     },
     # How long every hold on the pad takes, against the lengths the bindings
     # were written at. On the pad because it is the one setting here that is
@@ -570,6 +574,24 @@ def setting_share(spec, value):
     if span <= 0:
         return 0.0
     return (float(value) - float(spec["min"])) / span
+
+
+def middle_of(spec):
+    """The stop or step nearest the middle of a number's travel.
+
+    On the value's own grid, so a cell switched back on lands somewhere a
+    press could have left it rather than between two of its marks.
+    """
+    stops = spec.get("stops")
+    if stops:
+        return stops[(len(stops) - 1) // 2]
+    low, high = float(spec["min"]), float(spec["max"])
+    step = float(spec.get("step") or 0)
+    middle = (low + high) / 2.0
+    if step > 0:
+        grid = float(spec.get("grid", low))
+        middle = grid + round((middle - grid) / step) * step
+    return round(min(max(middle, low), high), 3)
 
 
 def setting_text(name, value):

@@ -14,9 +14,9 @@ from . import actions, keymap, linux_input as li
 from . import apps as apps_module
 from .actions import MappingAction
 from .config import (
-    CHOSEN, DPAD_NAMES, SURFACES, layout_path, mapping_path, render_layout,
-    nearest_stop_index, render_settings, setting_share, setting_text,
-    settings_path,
+    CHOSEN, DPAD_NAMES, SURFACES, layout_path, mapping_path, middle_of,
+    nearest_stop_index, render_layout, render_settings, setting_share,
+    setting_text, settings_path,
 )
 from .control import ControlServer
 from . import guide as guide_module
@@ -705,6 +705,9 @@ class Daemon:
         # A switch that mutes the speakers, held back until its cue has been
         # heard: name -> (when, command). See `live_switch`.
         self._live_held = {}
+        # Where a value in one cell stood before A took it to the bottom of
+        # its travel, by its `reads`. See `menu_flip`.
+        self._menu_kept = {}
         self._live_sent = {}
         # A change the short push carried, so the surface still owes itself a
         # rebuild when the hand comes off.
@@ -1966,7 +1969,7 @@ class Daemon:
             return "Keep"
         if item["items"] is not None:
             return "Open"
-        control = item["control"]
+        control = self.menu.form(item)
         if control in ("readout", menu_module.CLOCK) or self.menu.lone(item):
             # The tiles with nothing to press: what the machine is doing is
             # published rather than set, a clock is not a button, and a card
@@ -2046,14 +2049,32 @@ class Daemon:
         less, more = ADJUST_WORDS.get(self.menu_kind(item), ADJUST_WORDS[""])
         rows = [{"b": guide_module.badge_of(button, self.guide.layout),
                  "k": "dpad", "n": word}
-                for button, word in (("DPAD_LEFT", less),
-                                     ("DPAD_RIGHT", more))]
-        if item["control"] == menu_module.KNOB:
+                for (button, _), word in zip(self.menu_axis(item),
+                                             (less, more))]
+        if self.menu.form(item) == menu_module.KNOB:
             # The badge the guide prints for the stick itself rather than for
             # clicking it: what turns a ring is the thumb going round, and L3
             # is a different button.
             rows.append({"b": "L", "k": "stick", "n": "Turn"})
         return rows
+
+    # The two directions that move a held value, the one that lowers it first:
+    # the button the legend prints, and the command it arrives as.
+    ALONG = (("DPAD_LEFT", "left"), ("DPAD_RIGHT", "right"))
+    UPWARD = (("DPAD_DOWN", "down"), ("DPAD_UP", "up"))
+
+    def menu_axis(self, item):
+        """Which pair of directions moves `item`, by which way it is drawn.
+
+        A slider standing in a column is pushed up and down, because that is
+        the way its needle runs; anything else is pushed sideways. Asking the
+        thumb to press right to raise a needle that climbs would be the one
+        control on the page whose drawing and whose buttons disagree.
+        """
+        if (self.menu.form(item) == "slider"
+                and menu_module.upright(self.menu.size_of(item))):
+            return self.UPWARD
+        return self.ALONG
 
     def menu_kind(self, item):
         """What a control tile holds - `number`, `choice`, `bool`, ``.
@@ -3503,14 +3524,17 @@ class Daemon:
             # tile draws bare rather than taking the menu down with it.
             log.warning("menu: nothing called %r to read", name)
             return None
-        if item["control"] == "toggle":
+        form = self.menu.form(item)
+        if form == "toggle" and item["control"] != "toggle":
+            return {"on": self.menu_switched(item)}
+        if form == "toggle":
             return {"on": bool(value)}
         if item["control"] == "gauge":
             return self.menu_gauge(item, name)
-        if item["control"] == "slider":
+        if form == "slider":
             return self.slider_fields(CHOSEN[name], value,
                                       self.setting_words(name, value))
-        if item["control"] == menu_module.KNOB:
+        if form == menu_module.KNOB:
             return self.knob_fields(CHOSEN[name], value,
                                     self.setting_words(name, value))
         return {"t": self.setting_words(name, value)}
@@ -3524,6 +3548,10 @@ class Daemon:
         taking is a control with a range, and that arrives with one.
         """
         source, name = item["reads"]
+        if (item["control"] in menu_module.RANGED
+                and self.menu.form(item) == "toggle"):
+            self.menu_flip(item)
+            return
         if item["control"] == "readout":
             # The one tile that is not a control. What the machine is doing is
             # published rather than set, so there is nothing here to commit
@@ -3546,6 +3574,78 @@ class Daemon:
         else:
             self.set_setting(name, ("step", 1))
 
+    def menu_switch(self, item):
+        """The switch a value names as its off, as (name, spec), or None."""
+        spec, _ = self.menu_reads(item)
+        other = (spec or {}).get("switch")
+        if not other:
+            return None
+        table = CHOSEN if item["reads"][0] == "pad" else live_module.READINGS
+        return (other, table[other])
+
+    def menu_switched(self, item):
+        """Whether a value drawn in one cell is on. None where unknown.
+
+        Through the switch it names where it names one - the volume is on
+        when the speakers are not muted, whatever level they would play at -
+        and otherwise above the bottom of its travel.
+        """
+        found = self.menu_switch(item)
+        if found is not None:
+            other, spec = found
+            try:
+                if item["reads"][0] == "pad":
+                    value = self.config.setting(other)
+                else:
+                    value = self.live.value(other)
+            except KeyError:
+                return None
+            if value is None:
+                return None
+            # A switch whose on is a silence is the value's off.
+            return not value if spec.get("quiets") else bool(value)
+        spec, value = self.menu_reads(item)
+        if spec is None or value is None:
+            return None
+        return value > spec["min"]
+
+    def menu_flip(self, item):
+        """A on a value in one cell: off, or back to where it was.
+
+        **The switch the value names, where it names one**, and pressed as
+        that switch's own tile would press it - so muting from a volume cell
+        sounds and touches what the Mute tile does. A level of nought is not
+        that: it would forget the level, and the speakers would come back
+        silent.
+
+        **Otherwise the bottom of its travel and back.** Where it was is kept
+        here, for as long as the daemon runs; a value found at the bottom
+        with nothing kept goes to the middle of its travel, because the far
+        end of a brightness is a room lit up at night.
+        """
+        source, name = item["reads"]
+        found = self.menu_switch(item)
+        if found is not None:
+            if source == "live":
+                self.live_write(found[0], ("toggle", None))
+            else:
+                self.set_setting(found[0], ("toggle", None))
+            return
+        spec, value = self.menu_reads(item)
+        if spec is None or value is None:
+            return
+        if value > spec["min"]:
+            self._menu_kept[(source, name)] = value
+            to = spec["min"]
+        else:
+            to = self._menu_kept.pop((source, name), None)
+            if to is None:
+                to = middle_of(spec)
+        if source == "live":
+            self.live_write(name, ("set", to))
+        else:
+            self.set_setting(name, ("set", to))
+
     # -- what the machine is doing -----------------------------------------
 
     def live_names(self, selected_only=False):
@@ -3559,6 +3659,12 @@ class Daemon:
                 continue
             if item["reads"][1] not in names:
                 names.append(item["reads"][1])
+            switch = self.menu_switch(item) \
+                if self.menu.form(item) == "toggle" else None
+            if switch is not None and switch[0] not in names:
+                # A volume in one cell is drawn from the mute, so the mute is
+                # asked whenever the volume is.
+                names.append(switch[0])
         # And what was left off the page for not being there: asked the way a
         # tile is when it appears, so the slider comes back with the screen
         # that has it.
@@ -3747,7 +3853,9 @@ class Daemon:
     def live_control(self, item, name):
         """What a live tile is on, for the payload it is drawn from."""
         value = self.live.value(name)
-        control = item["control"]
+        control = self.menu.form(item)
+        if control == "toggle" and item["control"] != "toggle":
+            return {"on": self.menu_switched(item)}
         if control == "toggle":
             return {"on": bool(value)}
         if control == "media":
@@ -4070,8 +4178,7 @@ class Daemon:
         panel fell behind the hand, and the value went on climbing after the
         thumb had come off.
         """
-        if held is None or held["control"] not in (menu_module.KNOB,
-                                                   "slider"):
+        if held is None or self.menu.form(held) not in menu_module.RANGED:
             return {}
         spec, value = self.menu_reads(held)
         if spec is None or value is None:
@@ -4409,7 +4516,8 @@ class Daemon:
         value that did not move becomes in `menu_adjust`.
         """
         spec = CHOSEN.get(name) or {}
-        if item["control"] != menu_module.KNOB or spec.get("kind") != "choice":
+        if (self.menu.form(item) not in menu_module.RANGED
+                or spec.get("kind") != "choice"):
             return ("step", direction * steps)
         choices = spec["choices"]
         landed = _choice_index(spec, self.config.setting(name)) \
@@ -4525,7 +4633,7 @@ class Daemon:
     def menu_turning(self):
         """The knob being held, or None. What diverts the stick to an angle."""
         held = self.menu.held
-        if held is None or held["control"] != menu_module.KNOB:
+        if held is None or self.menu.form(held) != menu_module.KNOB:
             return None
         return held
 
@@ -5303,8 +5411,9 @@ class Daemon:
                 # Both axes belong to the tile now. Only the one the control
                 # has: a range is one dimension, and answering up and down
                 # with it would step a value somebody was trying to leave.
-                if command in ("left", "right"):
-                    way = 1 if command == "right" else -1
+                (_, less), (_, more) = self.menu_axis(model.held)
+                if command in (less, more):
+                    way = 1 if command == more else -1
                     return self.menu_adjust(model.held, way)
                 return False
             # Four directions, one answer: the tile that way, decided by the

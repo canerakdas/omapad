@@ -2643,6 +2643,11 @@ Item {
                 // belong to it, which is the one state of this surface a press
                 // means something else in, so it is drawn as one.
                 readonly property bool slider: tile.modelData.k === "slider"
+                // A slider in a tile taller than it is wide, which runs up
+                // the card: the daemon says so, because which way the D-pad
+                // pushes it is its question too.
+                readonly property bool upright: tile.slider
+                  && tile.modelData.up === true
                 // The same value, turned. A slider is a length and a knob is
                 // an angle, and the stick this surface walks with is the one
                 // gesture on the pad that is already a turn - so a held knob
@@ -2857,13 +2862,25 @@ Item {
                   anchors.leftMargin: tile.pad
                   anchors.rightMargin: tile.pad
                   anchors.topMargin: tile.pad
-                  height: figureValue.height
+                  // **Standing up, the name gets a line of its own.** A
+                  // column is one cell wide and as tall as it likes, so the
+                  // name over the figure costs height it has to spare, where
+                  // the two side by side cost the name - `VOL…` beside
+                  // `100%`. Not turned on its side with the travel: a word
+                  // on its side is a pattern from a sofa, not a word.
+                  height: tile.upright
+                    ? figureName.height + figureValue.height
+                    : figureValue.height
 
                   Text {
+                    id: figureName
                     anchors.left: parent.left
-                    anchors.right: figureValue.left
-                    anchors.rightMargin: metrics.gap.sm
-                    anchors.baseline: figureValue.baseline
+                    anchors.right: tile.upright
+                      ? parent.right : figureValue.left
+                    anchors.rightMargin: tile.upright ? 0 : metrics.gap.sm
+                    anchors.top: tile.upright ? parent.top : undefined
+                    anchors.baseline: tile.upright
+                      ? undefined : figureValue.baseline
                     text: tile.modelData.l
                     textFormat: Text.PlainText
                     color: tile.ink
@@ -2886,8 +2903,10 @@ Item {
 
                   Text {
                     id: figureValue
-                    anchors.right: parent.right
-                    anchors.top: parent.top
+                    anchors.left: tile.upright ? parent.left : undefined
+                    anchors.right: tile.upright ? undefined : parent.right
+                    anchors.top: tile.upright
+                      ? figureName.bottom : parent.top
                     // Empty until something has answered. On the HUD such a
                     // tile is not drawn at all; here it stays, because this
                     // is the page you come to in order to find out that a
@@ -2946,59 +2965,88 @@ Item {
                 // A reading has none: it is words (see `readout`).
                 // Loaded for the knob's reason (below): built only on a
                 // slider. Anchored here and sized by what it holds - the
-                // Loader takes the line's own height.
+                // Loader takes the line's own height, or in a column its own
+                // width.
+                //
+                // **Standing up, it is the same drawing turned**, a quarter
+                // anticlockwise about its corner: the scale climbs, the
+                // figures stand to the left of the line where they stood
+                // above it, and the line keeps to the right edge where it
+                // kept to the foot. Turned rather than drawn twice, so the
+                // two cannot drift apart - and a quarter turn moves no pixel
+                // off the grid.
                 Loader {
                   id: travelLoader
                   active: tile.slider && tile.modelData.v !== undefined
                   visible: travelLoader.active
-                  anchors.left: parent.left
+                  anchors.left: tile.upright ? undefined : parent.left
                   anchors.right: parent.right
+                  anchors.top: tile.upright ? figureHead.bottom : undefined
                   anchors.bottom: parent.bottom
                   anchors.leftMargin: tile.pad
                   anchors.rightMargin: tile.pad
+                  anchors.topMargin: metrics.gap.lg
                   anchors.bottomMargin: tile.pad
                   sourceComponent: Component {
-                    Travel {
-                      id: figureTravel
-                      height: figureTravel.implicitHeight
-                      ladder: metrics
-                      // The page's own, not one per slider: a `ControlArt`
-                      // cannot be a singleton, so a component that built its
-                      // own would build one per tile on the page.
-                      art: controlArt
-                      // Bindings rather than anything a signal starts, so a
-                      // delegate rebuilt mid-push is born where the value
-                      // already is - qml.md 5.5. **The short push first** while
-                      // this is the tile it names: a held direction or a pulled
-                      // trigger moves the needle on the stream, and the page is
-                      // rebuilt once, when the hand comes off (`menu_adjust`).
-                      value: tile.streaming && root.live.hv !== undefined
-                        ? Number(root.live.hv)
-                        : (tile.modelData.v !== undefined
-                           ? tile.modelData.v : 0)
-                      stops: tile.modelData.seg !== undefined
-                        ? Number(tile.modelData.seg) : 0
-                      at: tile.modelData.at !== undefined
-                        ? Number(tile.modelData.at) : 0
-                      // Where the value stood when A took it, so the line can
-                      // show what this press has done to it. Only while it is
-                      // held: the daemon leaves the field off a control nobody
-                      // is holding, and a negative here is that absence.
-                      was: tile.modelData.b !== undefined
-                        ? Number(tile.modelData.b) : -1
-                      // The line is the card's structure, the trail is how far
-                      // along the value has got, the ghost is what this press
-                      // changed, and the mark is where it is.
-                      ink: root.spineInk
-                      trail: root.trailInk
-                      ghost: root.ghostInk
-                      mark: Color.accent
+                    Item {
+                      id: travelBox
+                      implicitWidth: figureTravel.implicitHeight
+                      implicitHeight: figureTravel.implicitHeight
+
+                      Travel {
+                        id: figureTravel
+                        width: tile.upright ? travelBox.height : travelBox.width
+                        height: figureTravel.implicitHeight
+                        transformOrigin: Item.TopLeft
+                        rotation: tile.upright ? -90 : 0
+                        y: tile.upright ? travelBox.height : 0
+                        ladder: metrics
+                        // The page's own, not one per slider: a `ControlArt`
+                        // cannot be a singleton, so a component that built its
+                        // own would build one per tile on the page.
+                        art: controlArt
+                        // Bindings rather than anything a signal starts, so a
+                        // delegate rebuilt mid-push is born where the value
+                        // already is - qml.md 5.5. **The short push first**
+                        // while this is the tile it names: a held direction or
+                        // a pulled trigger moves the needle on the stream, and
+                        // the page is rebuilt once, when the hand comes off
+                        // (`menu_adjust`).
+                        value: tile.streaming && root.live.hv !== undefined
+                          ? Number(root.live.hv)
+                          : (tile.modelData.v !== undefined
+                             ? tile.modelData.v : 0)
+                        stops: tile.modelData.seg !== undefined
+                          ? Number(tile.modelData.seg) : 0
+                        at: tile.modelData.at !== undefined
+                          ? Number(tile.modelData.at) : 0
+                        // Where the value stood when A took it, so the line can
+                        // show what this press has done to it. Only while it is
+                        // held: the daemon leaves the field off a control
+                        // nobody is holding, and a negative here is that
+                        // absence.
+                        was: tile.modelData.b !== undefined
+                          ? Number(tile.modelData.b) : -1
+                        // The line is the card's structure, the trail is how
+                        // far along the value has got, the ghost is what this
+                        // press changed, and the mark is where it is.
+                        ink: root.spineInk
+                        trail: root.trailInk
+                        ghost: root.ghostInk
+                        mark: Color.accent
+                      }
                     }
                   }
                 }
 
-                // **What is playing is a named tile, not a shape of its
-                // own.** It was a mark over a title over an artist, all three
+                // **What is playing is a named tile, not a shape of its own.**
+                // It was a mark over a title over an artist, all three centred
+                // in the middle of the cell - a fourth way of laying out a card
+                // on a surface that now has one. The mark goes where every mark
+                // goes, the title where every name goes, and the artist where
+                // the line under a name goes.  Both lines are somebody else's
+                // words and are as long as they are, so they elide rather than
+                // the tile growing.
                 // centred in the middle of the cell - a fourth way of laying
                 // out a card on a surface that now has one. The mark goes
                 // where every mark goes, the title where every name goes, and
