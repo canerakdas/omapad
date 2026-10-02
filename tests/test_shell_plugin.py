@@ -127,7 +127,9 @@ class TheGridScrollsToTheHaloToo(unittest.TestCase):
 
     def test_all_four_bounds_carry_the_reach(self):
         # Two near edges out, two far edges out: top, left, bottom, right.
-        self.assertEqual(self.body.count("- root.haloReach"), 2)
+        # The top is written twice - the tile's own, and its heading's when
+        # the tile is the first of a run and brings the heading with it.
+        self.assertEqual(self.body.count("- root.haloReach"), 3)
         self.assertEqual(self.body.count("+ root.haloReach"), 2)
 
 
