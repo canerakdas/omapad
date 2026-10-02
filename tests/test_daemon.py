@@ -594,6 +594,61 @@ class PointerTests(DaemonTestCase):
         self.tick(1.0, steps=100)
         self.assertNotEqual(self.mouse.scrolls, [])
 
+class AbsentPadTests(DaemonTestCase):
+    """Game mode steps aside for a pad that has gone, and comes back with it."""
+
+    def setUp(self):
+        super().setUp()
+        self.config.mode_desktop_after = 30.0
+        self.daemon.set_mode("game")
+        self.daemon.disconnect()
+
+    def wait(self, seconds):
+        start = 1000.0
+        self.daemon.check_pad_absent(start)
+        self.daemon.check_pad_absent(start + seconds)
+
+    def test_a_moment_without_the_pad_changes_nothing(self):
+        self.wait(5)
+        self.assertEqual(self.daemon.mode, "game")
+
+    def test_long_enough_without_it_is_the_desktop(self):
+        self.wait(30)
+        self.assertEqual(self.daemon.mode, "desktop")
+
+    def test_the_pad_coming_back_brings_game_mode_back(self):
+        self.wait(30)
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "game")
+
+    def test_a_mode_chosen_meanwhile_is_kept(self):
+        # Somebody at the keyboard chose the desktop; a pad switched on later
+        # does not take it from them.
+        self.wait(30)
+        self.daemon.set_mode("game")
+        self.daemon.set_mode("desktop")
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "desktop")
+
+    def test_desktop_mode_is_left_alone(self):
+        self.daemon.set_mode("desktop")
+        self.daemon.attach(self.device)
+        self.daemon.disconnect()
+        self.wait(60)
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "desktop")
+
+    def test_nought_waits_for_ever(self):
+        self.config.mode_desktop_after = 0.0
+        self.wait(3600)
+        self.assertEqual(self.daemon.mode, "game")
+
+    def test_a_pad_that_stays_does_not_count(self):
+        self.daemon.attach(self.device)
+        self.wait(60)
+        self.assertEqual(self.daemon.mode, "game")
+
+
 class PointerHidingTests(DaemonTestCase):
     """`[pointer] hide_on_press`: a press that is not pointing puts it away.
 

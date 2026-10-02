@@ -253,6 +253,14 @@ grab = true                   # take the pad exclusively, so nothing else acts
 # the pad the moment it is wanted, which is where this used to be.
 grab_settle = 2.0
 notify = true                 # notify on a mode, lock or setting change (never over an open menu)
+# Seconds game mode waits for a controller that has gone - switched off, out of
+# battery, the dongle pulled - before going back to desktop mode. Game mode
+# hides Omarchy's bar, and the bar that stands in for it draws the pad, so with
+# no pad the screen is left with no bar at all and only a keyboard to drive it.
+# When the controller comes back, game mode comes back with it - unless the
+# mode was changed by hand in between. Long enough that a dongle dropping out
+# for a moment changes nothing; 0 keeps game mode however long the pad is gone.
+desktop_after = 30
 # A tick on the motor at every mode switch too. The switch is the one press
 # whose result you may not be looking at - the pad is on your lap, the bar is
 # swapping itself out across the room - so it is worth feeling. One tick each

@@ -204,6 +204,10 @@ and the file is the thing that actually changed.
 
 - `set_mode()` switches desktop/game: it hides Omarchy's bar, raises the
   surface scale, swaps the cursor theme and opens the game bar.
+- `check_pad_absent()` puts game mode aside for a pad that has been gone
+  `[mode] desktop_after` seconds, and `attach()` brings it back when the pad
+  returns. `set_mode(..., aside=True)` is the daemon's own switch; any other
+  switch forgets the aside, so a mode chosen by hand meanwhile is kept.
 - `start()` is what a session that never switched modes still has to do - the
   cursor and the desktop bar - and `apply_bar()` runs again whenever our own
   bar opens, because the flag the desktop bar follows can be flipped by

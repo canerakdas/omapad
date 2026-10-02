@@ -480,6 +480,18 @@ shell is not restarted. It comes back on the way out, **and on the way down
 too**: a daemon that dies in game mode must not leave you with a barless
 desktop. On a machine with no Omarchy it is skipped quietly.
 
+**With no controller, game mode gives the desktop back.** omapad's bar draws
+the pad, so a controller switched off or out of battery would leave a screen
+with no bar at all. After `desktop_after` seconds without one (30 by default)
+omapad goes back to desktop mode by itself, and when the controller connects
+again, game mode comes back with it. Change the mode by hand in between and
+that choice stays.
+
+```toml
+[mode]
+desktop_after = 30   # 0 keeps game mode however long the pad is gone
+```
+
 The reason: every widget on that bar opens a popup you click, and in game mode
 the pad is in the game — so the whole bar is out of reach. A fullscreen game
 should have the screen to itself.

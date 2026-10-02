@@ -530,6 +530,10 @@ class Daemon:
         self.pad_profile = None
         self.rumble = Rumble(config)
         self.mode = config.start_mode
+        # When the pad was last found missing in game mode, and whether game
+        # mode was put aside for it - see `check_pad_absent`.
+        self._pad_gone_at = None
+        self._mode_aside = False
         self.running = True
 
         # The plugin binds its view sockets in this directory, and at login
@@ -1027,6 +1031,10 @@ class Daemon:
         self.pad_nodes = frozenset(handover.device_nodes(device.path))
         self.update_handover(force=True)
         self.rumble.attach(device)
+        if self._mode_aside and self.mode == "desktop":
+            # Game mode was only put aside for want of a pad.
+            self.set_mode("game", aside=True)
+        self._mode_aside = False
         self.push_status_view()
         if self.config.notify:
             self.session.notify(
@@ -1350,7 +1358,15 @@ class Daemon:
 
     # -- mode --------------------------------------------------------------
 
-    def set_mode(self, mode):
+    def set_mode(self, mode, aside=False):
+        """Switch modes. `aside` is the daemon doing it for an absent pad.
+
+        A switch anybody else asks for is the person deciding, so it forgets
+        that game mode was only put aside: a pad that comes back after
+        somebody chose the desktop at the keyboard does not take it from them.
+        """
+        if not aside:
+            self._mode_aside = False
         if mode == self.mode:
             return
         self.mode = mode
@@ -1374,10 +1390,43 @@ class Daemon:
         log.info("mode: %s", mode)
         if self.config.mode_rumble:
             self.say("tick")
+        if aside and mode == "game":
+            # The pad's own connect notice says so, a line later.
+            return
+        if aside:
+            self.announce("No controller - desktop mode")
+            return
         self.announce(
             "Desktop control on" if mode == "desktop"
             else "Controller released to games"
         )
+
+    def check_pad_absent(self, now):
+        """Give the desktop its bar back when game mode has lost its pad.
+
+        Game mode hides Omarchy's bar and puts up one that draws the pad, so a
+        pad switched off from the sofa leaves a screen with no bar and nothing
+        but a keyboard to bring one back with. It waits `[mode] desktop_after`
+        first: a dongle drops out for a second now and then, and a bar that
+        swapped itself out every time would be a worse fault than the one this
+        mends. What it did is remembered, so the pad coming back is game mode
+        coming back - see `attach`.
+        """
+        if self.device is not None or self.mode != "game":
+            self._pad_gone_at = None
+            return
+        if self.config.mode_desktop_after <= 0:
+            return
+        if self._pad_gone_at is None:
+            self._pad_gone_at = now
+            return
+        if now - self._pad_gone_at < self.config.mode_desktop_after:
+            return
+        log.info("mode: no controller for %.0fs",
+                 self.config.mode_desktop_after)
+        self._pad_gone_at = None
+        self.set_mode("desktop", aside=True)
+        self._mode_aside = True
 
     # -- the game-mode bar -------------------------------------------------
 
@@ -7608,6 +7657,7 @@ class Daemon:
             if self.device is None and now >= self._next_reconnect:
                 self._next_reconnect = now + RECONNECT_INTERVAL
                 self.connect()
+            self.check_pad_absent(now)
 
             if self.device is None:
                 if device_fd is not None:

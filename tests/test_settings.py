@@ -91,6 +91,16 @@ class IdleConfigTests(unittest.TestCase):
         self.assertIn("idle.awake_ms", str(caught.exception))
 
 
+class AbsentPadConfigTests(unittest.TestCase):
+    def test_game_mode_ships_waiting_a_while_for_its_pad(self):
+        self.assertGreater(shipped().mode_desktop_after, 0.0)
+
+    def test_a_wait_that_is_not_a_length_of_time_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"mode": {"desktop_after": -1}})
+        self.assertIn("mode.desktop_after", str(caught.exception))
+
+
 class ChronoConfigTests(unittest.TestCase):
     def test_the_minute_mark_ships_on(self):
         # A stopwatch on a pad that can be felt is the reason to keep one

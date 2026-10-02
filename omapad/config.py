@@ -1260,6 +1260,12 @@ class Config:
         if self.grab_settle < 0:
             raise ConfigError("mode.grab_settle must be 0 or more")
         self.notify = bool(mode.get("notify", True))
+        # How long game mode waits for a pad that has gone before giving the
+        # desktop its bar back. See `Daemon.check_pad_absent`. 0 waits for
+        # ever, which is how it behaved before.
+        self.mode_desktop_after = float(mode.get("desktop_after", 30.0))
+        if self.mode_desktop_after < 0:
+            raise ConfigError("mode.desktop_after must be 0 or more")
         # The switch is the one press whose result you may not be looking
         # at, so it is felt as well as seen. `[rumble] enabled` still wins:
         # this asks for a tick, it does not turn the motor on.
