@@ -944,6 +944,9 @@ class Daemon:
         # calibrate on.
         self.axis_info = {}
         self.uncalibrated = set()
+        # When the sticks' rest is next measured, or None. See
+        # `calibrate_sticks`.
+        self._calibrate_due = None
 
         for buttons, spec in config.chords:
             try:
@@ -1018,14 +1021,13 @@ class Daemon:
         for code in self.axes:
             info = device.absinfo(code)
             self.axis_info[code] = info
-            self.calibrate_axis(code)
-            if info is None or info.value == 0:
-                # Either the driver has had no report from this axis yet - the
-                # node can exist before the pad's first packet arrives - or the
-                # stick really does rest at zero. Either way the first value it
-                # sends is the one worth calibrating on, and in the second case
-                # calibrating on it changes nothing.
-                self.uncalibrated.add(code)
+            # The pad's own word until the rest is measured - see
+            # `calibrate_sticks`.
+            self.axis_scale[code] = ((info.center, info.half_range) if info
+                                     else (0.0, 1.0))
+        self._calibrate_due = time.monotonic() + self.config.recenter_after
+        if self.config.recenter_after <= 0:
+            self.calibrate_sticks()
         # Every node this pad answers on, so "has the app opened it" covers
         # the js node a game is just as likely to reach for.
         self.pad_nodes = frozenset(handover.device_nodes(device.path))
@@ -1062,6 +1064,33 @@ class Daemon:
         if self.osk_open:
             self.refresh_osk_badges()
         self.push_open_views()
+
+    def calibrate_sticks(self):
+        """Measure where each stick rests, a moment after the pad connected.
+
+        **Not at the moment it connects.** A node's values can predate the
+        pad's first report: an Xbox pad reconnected from sleep read its right
+        stick 40% off centre and its left at a full deflection, and the right
+        one - under `recenter_limit` - was calibrated there. Every real rest
+        after that read as a push, and the scroll stick ran the terminal for
+        as long as the pad stayed connected. `[pointer] recenter_after` later
+        the node holds what the pad has actually said.
+        """
+        self._calibrate_due = None
+        if self.device is None:
+            return
+        self.uncalibrated.clear()
+        for code in self.axes:
+            info = self.device.absinfo(code)
+            if info is not None:
+                self.axis_info[code] = info
+            self.calibrate_axis(code)
+            if info is None or info.value == 0:
+                # Either the driver has had no report from this axis yet, or
+                # the stick really does rest at zero. Either way the first
+                # value it sends is the one worth calibrating on, and in the
+                # second case calibrating on it changes nothing.
+                self.uncalibrated.add(code)
 
     def calibrate_axis(self, code, value=None):
         """Scale an axis around where its stick actually rests.
@@ -7658,6 +7687,8 @@ class Daemon:
                 self._next_reconnect = now + RECONNECT_INTERVAL
                 self.connect()
             self.check_pad_absent(now)
+            if self._calibrate_due is not None and now >= self._calibrate_due:
+                self.calibrate_sticks()
 
             if self.device is None:
                 if device_fd is not None:

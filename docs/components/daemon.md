@@ -168,8 +168,7 @@ thumb; asking at `swap.flick` instead of at the deadzone would cost the drag
 its fine end. With no compositor to ask, it drags - what the role did before
 it had a second half.
 
-`calibrate_axis()` runs before any of that, once per axis at `attach()`, and
-re-bases the axis on where its stick actually rests (`pointer.recenter`). What
+`calibrate_axis()` runs before any of that, once per axis, and re-bases the axis on where its stick actually rests (`pointer.recenter`). What
 it refuses matters as much as what it does: the half-range left over is always
 `1 - |offset|` of the advertised one, so calibrating on a stick held at connect
 leaves too little travel to ever reach full deflection *and* pins the stick's
@@ -177,6 +176,13 @@ real centre to one end. `pointer.recenter_limit` (0.60) is the line, above the
 0.50 a pad that genuinely rests off centre sits at, and a refused calibration
 is logged - the symptom, an axis stuck at full travel, names no cause by
 itself.
+
+It runs from `calibrate_sticks()`, **`pointer.recenter_after` (1.0 s) after
+`attach()`** rather than at it: a node's values at the instant it appears can
+predate the pad's first report. An Xbox pad back from sleep read its right
+stick 0.40 off centre - under the limit - and was calibrated there, so its
+real rest read as a push and the scroll role ran for as long as it stayed
+connected. Until the measurement the axes use the advertised centre.
 
 `stick_roles()` is where a role can be taken away, and being handed over takes
 all of them: a stick held over an app that has the pad would drive the pointer

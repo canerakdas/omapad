@@ -101,6 +101,16 @@ class AbsentPadConfigTests(unittest.TestCase):
         self.assertIn("mode.desktop_after", str(caught.exception))
 
 
+class RecenterAfterConfigTests(unittest.TestCase):
+    def test_the_rest_is_measured_after_a_moment(self):
+        self.assertGreater(shipped().recenter_after, 0.0)
+
+    def test_a_wait_that_is_not_a_length_of_time_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"pointer": {"recenter_after": -1}})
+        self.assertIn("pointer.recenter_after", str(caught.exception))
+
+
 class ChronoConfigTests(unittest.TestCase):
     def test_the_minute_mark_ships_on(self):
         # A stopwatch on a pad that can be felt is the reason to keep one

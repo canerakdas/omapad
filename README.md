@@ -4552,6 +4552,13 @@ a full deflection the stick can never be let go of. Under `right_stick =
 limit above is what stops the calibration happening; if a pad still slips past
 it, lower `pointer.recenter_limit` and reconnect.
 
+The same symptom also appears **right after a pad reconnects**, untouched, when
+the log shows a rest far off centre that the pad did not have a moment
+earlier. At the instant a pad connects, the kernel can still hold values from
+before its first report, so omapad measures the rest `recenter_after` seconds
+later (1.0 by default) and uses the pad's advertised centre until then. If it
+still happens, raise `pointer.recenter_after`.
+
 **The pointer drifts** — not enough dead zone on that stick: raise
 `pointer.left_deadzone` (0.10 → 0.15), or widen it from the pad in **Controller
 › Sticks**, where you can watch the pointer settle as you move the bar.

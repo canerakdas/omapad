@@ -286,6 +286,9 @@ class DaemonTestCase(unittest.TestCase):
 
         self.config = shipped_config()
         self.config.notify = False
+        # Measured at connect rather than a second later, so a test that
+        # attaches a pad reads it calibrated; `DeferredRestTests` is the wait.
+        self.config.recenter_after = 0.0
         # Following the layout asks the compositor and compiles a keymap in
         # the worker, and a suite counting what a keyboard's opening runs
         # would count that too. `LayoutLabelTests` turns it back on.
@@ -647,6 +650,39 @@ class AbsentPadTests(DaemonTestCase):
         self.daemon.attach(self.device)
         self.wait(60)
         self.assertEqual(self.daemon.mode, "game")
+
+
+class DeferredRestTests(DaemonTestCase):
+    """A stick's rest is measured a moment after the pad connects."""
+
+    def setUp(self):
+        super().setUp()
+        self.config.recenter_after = 1.0
+        self.daemon.disconnect()
+
+    def test_a_stale_value_at_connect_is_not_taken_for_the_rest(self):
+        # What an Xbox pad back from sleep left on its right stick: 40% off
+        # centre for the instant it connected, and at rest a second later.
+        self.device = FakeDevice(self.identity, rest={li.ABS_RX: -13178})
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.axis_scale[li.ABS_RX],
+                         (STICK_INFO.center, STICK_INFO.half_range))
+        self.device.rest[li.ABS_RX] = -331
+        self.daemon.calibrate_sticks()
+        center, _ = self.daemon.axis_scale[li.ABS_RX]
+        self.assertEqual(center, -331.0)
+        self.assertIsNone(self.daemon._calibrate_due)
+
+    def test_the_measurement_is_due_after_the_wait(self):
+        before = time.monotonic()
+        self.daemon.attach(self.device)
+        self.assertGreaterEqual(self.daemon._calibrate_due, before + 1.0)
+
+    def test_a_pad_gone_before_it_was_measured_is_left_alone(self):
+        self.daemon.attach(self.device)
+        self.daemon.disconnect()
+        self.daemon.calibrate_sticks()
+        self.assertIsNone(self.daemon._calibrate_due)
 
 
 class PointerHidingTests(DaemonTestCase):

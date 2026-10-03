@@ -389,6 +389,13 @@ right_accel = 2.0
 # nearer advertised end as the half-range, so rest reads 0 and both ends still
 # reach full speed. A pad that rests where it says it does is unaffected.
 recenter = true
+# Seconds after the pad connects before its rest is measured. At the moment of
+# connecting the kernel can still be holding values from before the pad's first
+# report - an Xbox pad back from sleep read its right stick 40% off centre -
+# and calibrating on those leaves a stick that scrolls or drifts by itself
+# until the pad is reconnected. Until then the sticks use the centre the pad
+# advertises. 0 measures at once, which is how it used to behave.
+recenter_after = 1.0
 recenter_limit = 0.60         # a rest farther than this from centre is a stick
                               # someone is holding at connect; leave it alone.
                               # It is also how much travel is left over, from

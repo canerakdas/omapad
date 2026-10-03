@@ -1375,6 +1375,12 @@ class Config:
         # recenter re-bases the "neutral" of each axis to what the stick
         # actually rests at around connect, so an idle stick really reads 0.
         self.recenter = bool(pointer.get("recenter", True))
+        # How long after connecting the rest is measured: the first values a
+        # node holds can predate the pad's first report. See
+        # `Daemon.calibrate_sticks`.
+        self.recenter_after = float(pointer.get("recenter_after", 1.0))
+        if self.recenter_after < 0:
+            raise ConfigError("pointer.recenter_after must be 0 or more")
         # A resting value further than this fraction of the range from the
         # device centre is assumed to be a stick the user is holding at connect
         # rather than the pad's true rest, and is left alone. The far side of
