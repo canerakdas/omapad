@@ -5330,7 +5330,8 @@ class ListedMenuTests(DaemonTestCase):
         self.enter("Sound")
         self.assertEqual(self.listings(), [])
         self.settle()
-        self.assertEqual(len(self.listings()), 2)   # the outputs and the inputs
+        # The applications, the outputs and the inputs.
+        self.assertEqual(len(self.listings()), 3)
         card = self.card("Output")
         self.assertEqual([row["l"] for row in card["rs"]],
                          ["Speakers", "Television"])
@@ -5371,14 +5372,14 @@ class ListedMenuTests(DaemonTestCase):
                               "* Television\t7\thdmi-out",
                               "Headphones\t9\tusb-out"]
         self.daemon.menu_pick_settled(time.monotonic())
-        self.assertEqual(len(self.listings()), before + 2)
+        self.assertEqual(len(self.listings()), before + 3)
         self.assertEqual([row["l"] for row in self.card("Microphone")["rs"]],
                          ["Speakers", "Television", "Headphones"])
         self.assertEqual([row["on"] for row in self.card("Output")["rs"]],
                          [False, True, False])
         # And once: the next turn of the loop has nothing left to read.
         self.daemon.menu_pick_settled(time.monotonic())
-        self.assertEqual(len(self.listings()), before + 2)
+        self.assertEqual(len(self.listings()), before + 3)
 
     def test_a_listing_that_finds_nothing_says_so_and_runs_nothing(self):
         self.session.lines = []
@@ -6693,7 +6694,7 @@ class ListedMenuWorkerTests(DaemonTestCase):
         self.enter("Sound")
         self.settle()
         listings = self.listings()
-        self.assertEqual(len(listings), 2)
+        self.assertEqual(len(listings), 3)
         self.assertEqual(listings[0][1], self.config.menu_list_timeout)
         # On the page, the card saying its own words: the pad answered the
         # press long before the command did.
@@ -10342,6 +10343,126 @@ class TextTileTests(DaemonTestCase):
         self.assertFalse(self.daemon.menu.reading)
         self.assertIn("unknown", self.daemon.handle_control(
             "menu scroll answer lots"))
+
+class LevelCardMenuTests(DaemonTestCase):
+    """The card of applications on `Sound`: a level on every row."""
+
+    enter = ListedMenuTests.enter
+    settle = ListedMenuTests.settle
+    card = ListedMenuTests.card
+
+    def setUp(self):
+        super().setUp()
+        self.daemon.menu.head = []
+        self.daemon.set_menu(True)
+        self.session.lines = ["Firefox\tFirefox\t60\t1",
+                              "Spotify\tSpotify\t38\t1"]
+        self.enter("Sound")
+        self.settle()
+        walk_menu(self.daemon, ["Volume by app"], lambda: None)
+        self.daemon.menu_command("press")
+
+    def mixer(self):
+        return self.card("Volume by app")
+
+    def turns(self):
+        # Spawned here, where there is no worker; through it, they are
+        # captured in the order they were asked.
+        return [one for one in self.session.spawned + self.session.captured
+                if "set-sink-input-volume" in one]
+
+    def test_each_row_carries_its_level(self):
+        self.assertTrue(self.daemon.menu.entered)
+        self.assertEqual([row["lv"] for row in self.mixer()["rs"]],
+                         [0.6, 0.38])
+
+    def test_right_turns_the_row_in_front_up_and_the_bar_follows(self):
+        self.assertTrue(self.daemon.menu_command("right"))
+        self.assertEqual(self.mixer()["rs"][0]["lv"], 0.65)
+        self.assertEqual(len(self.turns()), 1)
+        # Found by the application's name as it runs, since the stream it
+        # was read with may have been replaced since.
+        self.assertIn("--arg app Firefox", self.turns()[0])
+        self.assertIn('set-sink-input-volume "$i" 65%', self.turns()[0])
+        # Down is still the next row, and left there turns that one.
+        self.daemon.menu_command("down")
+        self.daemon.menu_command("left")
+        self.assertEqual(self.mixer()["rs"][1]["lv"], 0.35)
+        self.assertIn("--arg app Spotify", self.turns()[-1])
+        self.assertIn('set-sink-input-volume "$i" 35%', self.turns()[-1])
+        # And the menu stayed where it was.
+        self.assertTrue(self.daemon.menu.entered)
+
+    def reads(self):
+        return [one for one in self.session.captured
+                if "list sink-inputs" in one and "while read" not in one]
+
+    def test_the_card_is_asked_again_while_its_page_is_in_front(self):
+        before = len(self.reads())
+        now = time.monotonic()
+        # The first look only starts the clock: the page settling just read it.
+        self.daemon.menu_cards_poll(now)
+        self.assertEqual(len(self.reads()), before)
+        self.session.lines = ["Firefox\tFirefox\t60\t1",
+                              "Mpv\tMpv\t20\t1",
+                              "Spotify\tSpotify\t38\t1"]
+        self.daemon.menu_cards_poll(now + 2.1)
+        self.assertEqual(len(self.reads()), before + 1)
+        self.assertEqual([row["l"] for row in self.mixer()["rs"]],
+                         ["Firefox", "Mpv", "Spotify"])
+        # And still inside the card, on the row it was on.
+        self.assertTrue(self.daemon.menu.entered)
+        self.assertEqual(self.daemon.menu.row, "firefox")
+        # Not again until its ttl has passed once more.
+        self.daemon.menu_cards_poll(now + 3.0)
+        self.assertEqual(len(self.reads()), before + 1)
+
+    def test_a_card_without_a_ttl_is_not_asked_again(self):
+        outputs = [one for one in self.session.captured
+                   if "list sinks" in one]
+        now = time.monotonic()
+        self.daemon.menu_cards_poll(now)
+        self.daemon.menu_cards_poll(now + 60)
+        self.assertEqual([one for one in self.session.captured
+                          if "list sinks" in one], outputs)
+
+    def test_a_turn_puts_the_next_ask_off(self):
+        now = time.monotonic()
+        self.daemon._menu_cards_poll["volume-by-app"] = now
+        before = len(self.reads())
+        self.daemon.menu_command("right")
+        # Due by the first clock, but the thumb has just moved the row.
+        self.daemon.menu_cards_poll(time.monotonic() + 1.0)
+        self.assertEqual(len(self.reads()), before)
+
+    def test_an_answer_asked_before_a_turn_does_not_rewind_the_bar(self):
+        asked = []
+        self.daemon.submit_command = (
+            lambda command, done, timeout=2.0: asked.append(done) or True)
+        card = [tile["item"] for tile in self.daemon.menu.tiles
+                if tile["item"]["id"] == "volume-by-app"][0]
+        self.daemon.menu_fill(card)
+        self.daemon.menu_command("right")
+        asked[0](["Firefox\tFirefox\t60\t1", "Spotify\tSpotify\t38\t1"])
+        self.assertEqual(self.mixer()["rs"][0]["lv"], 0.65)
+
+    def test_the_end_of_the_bar_writes_nothing(self):
+        self.daemon.menu.acting["level"] = 1.0
+        self.daemon.menu_command("right")
+        self.assertEqual(self.turns(), [])
+
+    def test_a_mutes_the_row_and_the_legend_says_so(self):
+        words = dict((row["b"], row["n"])
+                     for row in self.daemon.menu_legend())
+        self.assertEqual(words.get("A"), "Mute")
+        self.assertEqual(words.get("\u25c0"), "Less")
+        self.assertEqual(words.get("\u25b6"), "More")
+        self.daemon.menu_command("press")
+        self.assertEqual(len(self.session.spawned), 1)
+        self.assertIn("--arg app Firefox", self.session.spawned[0])
+        # Every stream it has one way, so none is left half muted.
+        self.assertIn('set-sink-input-mute "$i" 1', self.session.spawned[0])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

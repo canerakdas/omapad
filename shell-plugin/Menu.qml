@@ -4021,11 +4021,22 @@ Item {
                         readonly property bool explained:
                           line.modelData.d !== undefined
                           && line.modelData.d.length > 0
+                        // **How loud one application is**, on a card of
+                        // levels: a share the daemon sends, drawn as a length
+                        // under the name and as the figure at the end of the
+                        // row where a value goes on every other tile here.
+                        readonly property bool levelled:
+                          line.modelData.lv !== undefined
+                        readonly property real level: line.levelled
+                          ? Math.max(0, Math.min(1, Number(line.modelData.lv)
+                                                     || 0)) : 0
 
                         width: rowStack.width
                         height: lineName.implicitHeight
                           + (line.explained
                              ? lineWhy.implicitHeight + metrics.gap.xxs : 0)
+                          + (line.levelled
+                             ? tile.spineWeight + metrics.gap.sm : 0)
                           + metrics.gap.lg * 2
                         // The row itself draws nothing: it is the box the rest
                         // is laid out in, and what fills it starts a spine's
@@ -4337,7 +4348,7 @@ Item {
                           // Out of the number's way while one is counting: a
                           // name running under the seconds left is the one
                           // row on the page where both matter at once.
-                          anchors.rightMargin: line.counting
+                          anchors.rightMargin: (line.counting || line.levelled)
                             ? metrics.gap.huge : metrics.gap.lg
                           // Placed from the top rather than centred: a row with
                           // a line under it is two lines centred *together*,
@@ -4393,6 +4404,60 @@ Item {
                           font.weight: metrics.weight.body
                           font.pixelSize: metrics.type.fine
                           elide: Text.ElideRight
+                        }
+
+                        // **The level, as a length.** The card's own line
+                        // laid along the row at the line's weight, lit up to
+                        // where the application is - a slider's scale with
+                        // nothing standing on it, because the needle's job is
+                        // done by the figure at the end of the row. Full ink
+                        // on the row in front, the theme's accent at the
+                        // share it fills, so a muted application reads as an
+                        // empty line from across a room.
+                        Item {
+                          id: lineLevel
+                          visible: line.levelled
+                          anchors.left: lineName.left
+                          anchors.right: lineName.right
+                          anchors.top: line.explained
+                            ? lineWhy.bottom : lineName.bottom
+                          anchors.topMargin: metrics.gap.sm
+                          height: tile.spineWeight
+
+                          Rectangle {
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: root.spineInk
+                          }
+
+                          Rectangle {
+                            width: Math.round(parent.width * line.level)
+                            height: parent.height
+                            radius: height / 2
+                            color: Color.accent
+                            opacity: line.here ? 1 : root.inkMuted
+                          }
+                        }
+
+                        // The figure, at the end of the row where the count
+                        // goes - the two never meet, since nothing on a card
+                        // of levels counts down. `tnum` for the countdown's
+                        // reason: a figure that re-lays itself as it changes
+                        // reads as twitching.
+                        Text {
+                          visible: line.levelled && !line.counting
+                          anchors.right: parent.right
+                          anchors.rightMargin: metrics.gap.lg
+                          anchors.verticalCenter: lineName.verticalCenter
+                          text: line.levelled
+                            ? Math.round(line.level * 100) + "%" : ""
+                          textFormat: Text.PlainText
+                          color: tile.ink
+                          opacity: line.here ? 1 : root.inkMuted
+                          font.family: metrics.font.family
+                          font.weight: metrics.weight.body
+                          font.pixelSize: metrics.type.body
+                          font.features: metrics.figures
                         }
 
                         // **The number, and it is the whole of the count.** A

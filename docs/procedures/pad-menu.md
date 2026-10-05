@@ -97,6 +97,9 @@ action = "exec:omarchy-launch-browser"
 | `shows` | which stick a `gauge` draws the position of, `left` or `right`. Required on one, refused on anything else |
 | `reads` | where a control takes its value, `pad:<setting>` or `live:<reading>`. Required on a control, refused on anything else |
 | `holds` | on a `rows` card: `"window"` draws the rows the app in front lends instead of its own - see below |
+| `level`, `turn`, `step` | on a `rows` card that lists: the field each line's level is printed in, the template left and right run, and how far one push moves it in percent (5 unless said) - see *A card of levels* |
+| `ttl` | on a `rows` card that lists: seconds before it is asked again while its page is in front. Unset, it is read once, when the page settles |
+| `short` | on a `rows` card that lists: what the legend calls A on one of its rows, where the row's own name is not what A does |
 
 `repeat` implies `stay`. Both are rejected on a submenu row - `MenuError` says
 which path.
@@ -516,6 +519,45 @@ the fill. It was `Devices` opening on `Output` opening on the outputs: two
 presses in before a name you could pick, and each of those pages held exactly
 one thing.
 
+### A card of levels
+
+A listing card whose rows each carry a **range** - `Mixer` on `Sound`, every
+application making a sound and how loud it is:
+
+```toml
+[[menu.items.items]]
+label = "Volume by app"
+control = "rows"
+span = [6, 3]
+action = "exec:..."     # A: every stream of app %1 muted, or not (%3)
+short = "Mute"          # what the legend calls A
+level = 2               # the field each line prints its percentage in
+step = 5                # one push, in percent
+turn = "exec:..."       # left and right: every stream of app %1 to %2%
+from = "..."            # prints: label \t app \t level \t mute, per app
+```
+
+- **`turn` is filled the way `action` is**, from the row's own values, with
+  the `level` field rewritten to where the row is going. So the command is
+  written once, against the same fields the listing prints.
+- **No row is the one in force**, so a `*` marks nothing and the card has no
+  line down its side. Reach for one where the rows run side by side - not for
+  a choice between them, which is an ordinary listing card.
+- **What a press changes has to reach the listing.** A pick reads the card
+  again once it has run, so a mute shows only if the command prints a muted
+  row at nought - the shipped one does.
+- A line with no number where `level` says is dropped, not drawn at a guess.
+- **Give it a `ttl`** where what it lists changes while somebody is looking -
+  the mixer asks every two seconds. A turn puts the next ask off by one, and
+  an answer to a question asked before a turn is thrown away, so a held
+  direction is never read back under the thumb.
+- **Key a row on what outlives a press.** A browser replaces its stream at
+  every new video, seek or pause, so a row holding a stream's index turns a
+  stream that is already gone, and a listing read mid-swap shows the dying
+  one beside its replacement. The shipped card keys each row on the
+  application's name, groups its streams into one row, and looks them up
+  again inside `action` and `turn` as they run.
+
 ### Going in, and coming back out
 
 **A card is entered with A**, the way a slider is taken, and up and down belong
@@ -526,7 +568,8 @@ underneath - which is what a thumb pushing down is reaching for - was two more
 presses away.
 
 Inside, up and down walk the rows and stop at either end (left and right say
-nothing - a list runs down the card), A runs the row in front, and **B leaves
+nothing - a list runs down the card - except on a card of levels, where they
+move the row in front), A runs the row in front, and **B leaves
 the card without leaving the page**. The row you were on is still there the
 next time you go in.
 

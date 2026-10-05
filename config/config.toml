@@ -3494,6 +3494,72 @@ meta.from = '''
   reads = "live:mute"
 
   [[menu.items.items]]
+  label = "Mixer"
+  control = "heading"
+
+  # **Every application making a sound, and how loud each one is.** The
+  # volume above is the speakers'; this is the film against the call against
+  # the game, which is the question a sofa actually asks when two things are
+  # playing at once and one of them is too loud.
+  #
+  # A card that lists, like the two under `Devices`, with a level on every
+  # row: `level` is the field that carries it, and `turn` is what left and
+  # right run once A has gone in - the same template a row's action is, with
+  # that field rewritten to where the row is going. A on a row mutes it, and
+  # a muted row is printed at nought, so the bar says what is heard. Turning
+  # one up unmutes it as well, because a row that climbed while nothing came
+  # out of the speakers would be a bar lying about the room.
+  #
+  # Sound effects are left out: a notification's chime is a stream for as
+  # long as it rings, and a row that vanished under the thumb would take the
+  # cursor with it. What starts playing while the page is up arrives within
+  # the card's `ttl`.
+  [[menu.items.items]]
+  label = "Volume by app"
+  control = "rows"
+  span = [6, 3]
+  detail = "Each app playing, quieter or louder"
+  empty = "Nothing is playing"
+  #
+  # **One row per application, found again at every press.** A browser opens
+  # a stream per tab and replaces it at every new video, seek or pause - the
+  # index a row was read with is often gone by the time a thumb turns it, and
+  # a listing read mid-swap held the dying stream and its replacement as two
+  # rows of one name. So a row is keyed on the application's name, not on a
+  # stream: its level is the loudest stream it has that is not muted, and A
+  # and left and right look the streams up by that name as they run, so they
+  # reach whatever the application is playing through *now*. The third field
+  # is which way A takes it - muted when anything is still heard, unmuted
+  # when nothing is - so a press never leaves half an application muted.
+  action = """exec:pactl -f json list sink-inputs | jq -r --arg app %1 '.[] | select((.properties["application.name"] // .properties["media.name"] // "Unknown app") == $app) | .index' | while read -r i; do pactl set-sink-input-mute "$i" %3; done"""
+  short = "Mute"
+  level = 2
+  step = 5
+  # Asked again every two seconds while the page is in front, beyond the read
+  # the page settling makes: what is playing changes while somebody looks at
+  # it, which the speakers in the room do not.
+  ttl = 2
+  turn = """exec:pactl -f json list sink-inputs | jq -r --arg app %1 '.[] | select((.properties["application.name"] // .properties["media.name"] // "Unknown app") == $app) | .index' | while read -r i; do pactl set-sink-input-mute "$i" 0; pactl set-sink-input-volume "$i" %2%; done"""
+  from = '''
+    pactl -f json list sink-inputs |
+      jq -r '
+        [ .[] | select(.properties["media.role"] != "event")
+              | { app: (.properties["application.name"]
+                        // .properties["media.name"] // "Unknown app"),
+                  mute,
+                  level: (.volume | to_entries[0].value.value_percent
+                          | rtrimstr("%") | tonumber) } ]
+        | group_by(.app)[]
+        | (all(.mute)) as $silent
+        | [ .[0].app, .[0].app,
+            (if $silent then 0
+             else [.[] | select(.mute | not) | .level] | max end
+             | tostring),
+            (if $silent then "0" else "1" end) ]
+        | @tsv'
+  '''
+
+  [[menu.items.items]]
   label = "Devices"
   control = "heading"
 

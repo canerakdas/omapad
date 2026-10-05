@@ -854,6 +854,13 @@ class Daemon:
         # front is due to be asked. See `menu_cards_settled`.
         self._menu_cards_page = ""
         self._menu_cards_due = 0.0
+        # When each card with a `ttl` on the page in front is next asked, and
+        # which listing cards have a question out. See `menu_cards_poll`.
+        self._menu_cards_poll = {}
+        self._menu_filling = set()
+        # Bumped by every turn of a card of levels: a listing asked before
+        # one is an answer about a level the thumb has already moved.
+        self._menu_turns = 0
         # A row a listing found that has been run and not yet come back:
         # (process, when to stop waiting for it). See `menu_pick`.
         self._menu_pick = None
@@ -2077,6 +2084,11 @@ class Daemon:
             return CONTROL_VERBS[control]
         if item["action"] is None:
             return ""
+        if item.get("listed") and self.menu.entered \
+                and self.menu.current.get("short"):
+            # A listed row's name is what it was found as, which on a card of
+            # applications is not what A does to one.
+            return self.menu.current["short"]
         # A row that runs something says **its own name**. The label is
         # already the interface's answer to "what happens if I press this",
         # written to the budget in `pad-wording.md` and kept in step with the
@@ -2127,6 +2139,13 @@ class Daemon:
         the D-pad said twice.
         """
         item = self.menu.held
+        if item is not None and self.menu.turnable and not self.menu.edit:
+            # A card of levels lends the row in front the axis its list
+            # leaves free, and that is the moment it is worth printing.
+            less, more = ADJUST_WORDS[""]
+            return [{"b": guide_module.badge_of(button, self.guide.layout),
+                     "k": "dpad", "n": word}
+                    for (button, _), word in zip(self.ALONG, (less, more))]
         if item is None or self.menu.entered or self.menu.edit:
             return []
         if self.menu.reading:
@@ -3423,8 +3442,17 @@ class Daemon:
         # are about to be on, and a card's are drawn where they stand.
         held = (item["rows"] if item.get("control") == ROWS
                 else item["items"])
+        turns = self._menu_turns
+        self._menu_filling.add(item["id"])
 
         def fill(lines):
+            self._menu_filling.discard(item["id"])
+            if item.get("turn") and turns != self._menu_turns:
+                # **The stale-read race, on a card of levels.** Asked before a
+                # turn and answered after it, the listing would put the bar
+                # back where the thumb had taken it from. The worker runs in
+                # order, so the next one asked comes after the write.
+                return
             try:
                 # In place: the model is already drawing this very list, and a
                 # fresh one bound here would be a page nobody is looking at.
@@ -4648,6 +4676,42 @@ class Daemon:
             return None
         return (float(spec["max"]) - float(spec["min"]), float(spec["step"]))
 
+    def menu_turn(self, way):
+        """Move the row in front of a card of levels. True: keep firing.
+
+        A held direction covers ground the way it does on a slider
+        (`menu_ramp`), and is felt the way one is - the first step of a push
+        on the side it went, the end of the travel once.
+
+        **Through the command worker, not `spawn`.** One push is a write per
+        notch, each an absolute level, and the worker runs them in the order
+        they were asked: let go of to race each other, an older write could
+        land last and leave the application where the thumb had already
+        left it.
+        """
+        card = self.menu.current
+        if card is not None and card.get("ttl"):
+            self._menu_cards_poll[card["id"]] = (time.monotonic()
+                                                 + card["ttl"])
+        action, _ = self.menu.turn_row(way * self.menu_ramp(way))
+        if action is None:
+            self.menu_edge()
+            return True
+        self._menu_turns += 1
+        self._menu_edged = False
+        self._menu_moving = MENU_SCRUB_HOLD
+        self.menu_feel(way)
+        if (isinstance(action, actions.ExecAction)
+                and self.allowed(action, "menu")):
+            if not self.submit_command(
+                    action.command, lambda lines: None,
+                    self.config.menu_list_timeout):
+                self.session.spawn(action.command)
+        elif not isinstance(action, actions.ExecAction):
+            self.fire_once(action, "menu")
+        self.push_menu_view()
+        return True
+
     def menu_edge(self):
         """The end of a control's travel, announced once per press.
 
@@ -5211,6 +5275,7 @@ class Daemon:
         page = self.menu.page_name() if self.menu_open else ""
         if page != self._menu_cards_page:
             self._menu_cards_page = page
+            self._menu_cards_poll.clear()
             self._menu_cards_due = (now + self.config.menu_group_settle
                                     if page else 0.0)
             return
@@ -5219,6 +5284,36 @@ class Daemon:
         self._menu_cards_due = 0.0
         for tile in self.menu.tiles:
             self.menu_fill(tile["item"])
+
+    def menu_cards_poll(self, now):
+        """Ask the cards on the page in front that say `ttl` again, when due.
+
+        For a card whose answer changes while somebody is looking at it -
+        what is playing - rather than once an evening. Counted from the read
+        the page settling made, so the first ask is a `ttl` after that one.
+
+        **Never over a press.** Not while a pick is still running, whose own
+        read is coming; not while this card's last question is unanswered,
+        for `live_refresh`'s reason - a command that has wedged must not
+        collect a queue of itself; and a turn puts the next ask a `ttl` off
+        (`menu_turn`), so a held direction is not read back under the thumb.
+        """
+        if not self.menu_open or self._menu_cards_due:
+            return
+        for tile in self.menu.tiles:
+            item = tile["item"]
+            ttl = item.get("ttl") or 0.0
+            if item.get("control") != ROWS or not item.get("from") or not ttl:
+                continue
+            due = self._menu_cards_poll.get(item["id"])
+            if due is None:
+                self._menu_cards_poll[item["id"]] = now + ttl
+                continue
+            if (now < due or self._menu_pick is not None
+                    or item["id"] in self._menu_filling):
+                continue
+            self._menu_cards_poll[item["id"]] = now + ttl
+            self.menu_fill(item)
 
     def menu_run(self, action):
         """Close the menu, then run a row - a key once the menu has gone.
@@ -5479,7 +5574,11 @@ class Daemon:
             if model.entered:
                 # A card of rows took **one** axis, and it is the other one: a
                 # list runs down the card, so left and right say nothing here
-                # rather than doing a slider's job on a thing with no range.
+                # rather than doing a slider's job on a thing with no range -
+                # except on a card of levels, where each row *is* a range and
+                # left and right move the one in front.
+                if command in ("left", "right") and model.turnable:
+                    return self.menu_turn(1 if command == "right" else -1)
                 if command in ("up", "down"):
                     if model.step_row(command):
                         # **Heard and not felt**, like every other step of a
@@ -7757,7 +7856,7 @@ class Daemon:
                 poller.register(hypr_ev_fd, select.POLLIN)
 
             if self.device is None:
-                timeout_ms = min(interval, RECONNECT_INTERVAL) * 1000.0
+                timeout_ms = IDLE_POLL_MS
             elif self.needs_tick():
                 timeout_ms = max(0.0, (last + interval - now)) * 1000.0
             else:
@@ -7822,6 +7921,7 @@ class Daemon:
                 if self.menu_open:
                     self.menu_group_settled(now)
                     self.menu_cards_settled(now)
+                    self.menu_cards_poll(now)
                     self.menu_pick_settled(now)
                     self.menu_head_refresh()
                     self.menu_meta_refresh()

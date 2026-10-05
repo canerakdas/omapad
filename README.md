@@ -2940,6 +2940,13 @@ card of inputs. A listed card is read when the **page it stands on settles**
 rather than at a press, because nobody enters a card; until the first answer
 lands it draws its own `empty` words rather than nothing.
 
+**A listed card can carry a level on every row** — `Mixer` on `Sound` is one:
+each app making a sound, with a bar for how loud it is. Go in with A, walk the
+apps with up and down, and left and right make the one in front quieter or
+louder; A mutes it. It is read again every two seconds while the page is
+up, so an app that starts playing appears on its own. `level` names the field the level is printed in and `turn`
+is what left and right run — see `docs/procedures/pad-menu.md`.
+
 **A listing that finds one thing it has marked is drawn as a reading** — the
 heading names it, the line is the answer, and A does nothing, because picking
 it would set what is already set. Plug a second device in and it is a list
@@ -3251,7 +3258,7 @@ The bar that ships is eight cards, in the order a thumb reaches for them:
 | **Quick** (named after the app in front) | only over a window: Resume, the workspace lock and *Keep the controller* while there is anything to use them on, the volume, the microphone, deafen, the keyboard, close the window — [the quick menu](#the-quick-menu) |
 | **Apps** | Steam Big Picture, Discord, Spotify, YouTube, browser, terminal, everything installed |
 | **Spaces** | three named spaces — Lounge, Focus, Co-op night — the window in front: fullscreen, next window, float / tile, close — and do not disturb |
-| **Sound** | what is playing, previous / next, the volume and mute; which speakers, which microphone, and where dictation puts the words |
+| **Sound** | what is playing, previous / next, the volume and mute; how loud each app is; which speakers, which microphone, and where dictation puts the words |
 | **Display** | how bright the screen is, night light, staying awake through a film, scale and the screensaver in one card, which screens are lit when a laptop is plugged into a television, and the resolution and refresh rate the screen in front offers, and VRR — those three until Hyprland next reloads, since nothing is written to `monitors.lua` |
 | **Controller** | everything about the pad — see below — how much omapad's own surfaces move, how hard they round their corners and how solid a tile is drawn, and, on the first start only, `Start here` |
 | **Readings** | how busy, how full, how hot — the page [the HUD draws](#the-readings-how-busy-how-full-how-hot) |

@@ -570,10 +570,16 @@ def setting_share(spec, value):
     stops = spec.get("stops")
     if stops:
         return _nearest_stop(stops, value) / float(len(stops) - 1)
-    span = float(spec["max"]) - float(spec["min"])
+    # Measured from the grid's origin where it has one, not from `min`. A
+    # floor that keeps a backlight off nought is a limit on what may be
+    # written, not where the scale starts: measured from 0.01, 50% stood at
+    # 49.5 of the travel and every notch landed beside its graduation, so
+    # the needle disagreed with the figure printed over it.
+    origin = float(spec.get("grid", spec["min"]))
+    span = float(spec["max"]) - origin
     if span <= 0:
         return 0.0
-    return (float(value) - float(spec["min"])) / span
+    return (float(value) - origin) / span
 
 
 def middle_of(spec):

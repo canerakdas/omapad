@@ -2415,6 +2415,55 @@ class SectionTests(unittest.TestCase):
         self.assertEqual(model.plan()["at"]["three"],
                          (x, y - 2, "games"))
 
+    def test_down_onto_a_heading_lands_in_its_section(self):
+        # Pinned on the heading's row instead, One pushed Games about and
+        # every press after it sank under the run rather than into it.
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("one")
+        model.pick()
+        self.assertTrue(model.carry("down"))
+        self.assertEqual(model.plan()["at"]["one"], (0, 0, "games"))
+        cells = self.cells(model)
+        self.assertEqual(cells["one"], (0, cells["games"][1] + 1))
+        # Two and Three share its row now: down opens one under them, and
+        # only from there does it reach Tools.
+        self.assertTrue(model.carry("down"))
+        self.assertEqual(model.plan()["at"]["one"], (0, 1, "games"))
+        cells = self.cells(model)
+        self.assertEqual(cells["tools"][1], cells["one"][1] + 1)
+        self.assertTrue(model.carry("down"))
+        self.assertEqual(model.plan()["at"]["one"], (0, 0, "tools"))
+
+    def test_up_onto_a_heading_lands_in_the_section_above(self):
+        model = self.model()
+        model.set_edit(True)
+        model.select_id("four")
+        model.pick()
+        self.assertTrue(model.carry("up"))
+        self.assertEqual(model.plan()["at"]["four"][2], "games")
+        self.assertLess(self.cells(model)["four"][1],
+                        self.cells(model)["tools"][1])
+        self.assertTrue(model.carry("up"))
+        self.assertEqual(len(model.plan()["at"]["four"]), 2)
+        self.assertLess(self.cells(model)["four"][1],
+                        self.cells(model)["games"][1])
+
+    def test_an_empty_section_can_be_carried_into(self):
+        model = MenuModel(build([{"label": "Group", "items": [
+            {"label": "Games", "control": "heading"},
+            {"label": "Tools", "control": "heading"},
+            {"label": "Four", "action": "nop"},
+        ]}], settings={}), columns=3)
+        model.set_edit(True)
+        model.select_id("four")
+        model.pick()
+        self.assertTrue(model.carry("up"))
+        self.assertEqual(model.plan()["at"]["four"], (0, 0, "games"))
+        cells = self.cells(model)
+        self.assertEqual(cells["four"][1], cells["games"][1] + 1)
+        self.assertEqual(cells["tools"][1], cells["four"][1] + 1)
+
     def test_a_pin_goes_where_its_section_goes(self):
         model = self.model()
         model.set_edit(True)
@@ -3857,3 +3906,148 @@ class TextTileTests(unittest.TestCase):
         self.model.release()
         self.assertFalse(self.model.reading)
         self.assertEqual(self.model.scrolled["answer"], 2)
+
+
+class LevelCardTests(unittest.TestCase):
+    """A card that lists with a level on every row: what each app plays at."""
+
+    MIXER = {
+        "label": "Volume by app",
+        "control": "rows",
+        "action": "exec:mute %1",
+        "from": "list-streams",
+        "level": 2,
+        "turn": "exec:volume %1 %2%",
+        "short": "Mute",
+    }
+
+    def card(self, **keys):
+        entry = dict(self.MIXER)
+        entry.update(keys)
+        return build([entry])[0]
+
+    def model(self, lines):
+        item = self.card()
+        item["rows"][:] = listed(item, lines, 10)
+        model = MenuModel([dict(item)])
+        model.take()
+        return model
+
+    def test_each_row_reads_its_level_from_the_field_named(self):
+        item = self.card()
+        rows = listed(item, ["Firefox\t41\t60", "Spotify\t42\t35%"], 10)
+        self.assertEqual([row["level"] for row in rows], [0.6, 0.35])
+        # Past a hundred is full: the bar has no room past its end.
+        self.assertEqual(listed(item, ["Mpv\t7\t150"], 10)[0]["level"], 1.0)
+
+    def test_no_row_is_the_one_in_force(self):
+        # Two applications playing at once is the ordinary case, so a `*` the
+        # command prints marks nothing and the card draws no spine.
+        rows = listed(self.card(), ["* Firefox\t41\t60"], 10)
+        self.assertIsNone(rows[0]["on"])
+
+    def test_a_line_with_no_level_is_dropped_rather_than_guessed(self):
+        rows = listed(self.card(), ["Firefox\t41", "Spotify\t42\tloud",
+                                    "Mpv\t7\t20"], 10)
+        self.assertEqual([row["label"] for row in rows], ["Mpv"])
+
+    def test_two_lines_named_alike_are_told_apart(self):
+        rows = listed(self.card(), ["Firefox\t41\t60", "Firefox\t43\t20"], 10)
+        self.assertEqual([row["id"] for row in rows],
+                         ["firefox", "firefox-2"])
+
+    def test_the_level_reaches_the_wire_as_a_share(self):
+        model = self.model(["Firefox\t41\t60"])
+        card = model.view_state(True)["items"][0]
+        self.assertEqual(card["rs"][0]["lv"], 0.6)
+        self.assertNotIn("on", card["rs"][0])
+
+    def test_left_and_right_turn_the_row_in_front(self):
+        model = self.model(["Firefox\t41\t60", "Spotify\t42\t38"])
+        self.assertTrue(model.turnable)
+        action, level = model.turn_row(1)
+        self.assertEqual(level, 0.65)
+        # The row's own values, the level field rewritten and quoted.
+        self.assertEqual(action.command, "volume 41 65%")
+        model.step_row("down")
+        # 38 goes to the next mark that way, not to 43.
+        action, level = model.turn_row(1)
+        self.assertEqual((action.command, level), ("volume 42 40%", 0.4))
+        action, level = model.turn_row(-1)
+        self.assertEqual(level, 0.35)
+
+    def test_and_the_end_of_the_bar_is_the_end_of_it(self):
+        model = self.model(["Firefox\t41\t100"])
+        self.assertEqual(model.turn_row(1), (None, 1.0))
+        model = self.model(["Firefox\t41\t0"])
+        self.assertEqual(model.turn_row(-3), (None, 0.0))
+
+    def test_a_card_that_has_not_been_entered_does_not_turn(self):
+        item = self.card()
+        item["rows"][:] = listed(item, ["Firefox\t41\t60"], 10)
+        model = MenuModel([dict(item)])
+        self.assertFalse(model.turnable)
+        self.assertEqual(model.turn_row(1), (None, None))
+
+    def test_a_press_on_a_row_moves_no_tick(self):
+        model = self.model(["Firefox\t41\t60", "Spotify\t42\t38"])
+        row = model.acting
+        model.choose(row)
+        self.assertIsNone(row["on"])
+
+    def test_an_ordinary_card_lends_left_and_right_to_nobody(self):
+        item = build([{"label": "Output", "control": "rows",
+                       "action": "exec:set %1", "from": "list-outputs"}])[0]
+        item["rows"][:] = listed(item, ["* Speakers\t1", "The TV\t2"], 10)
+        model = MenuModel([dict(item)])
+        model.take()
+        self.assertFalse(model.turnable)
+
+    def test_level_and_turn_come_together(self):
+        for missing in ("level", "turn"):
+            entry = dict(self.MIXER)
+            del entry[missing]
+            with self.assertRaises(MenuError) as caught:
+                build([entry])
+            self.assertIn("come together", str(caught.exception))
+
+    def test_the_level_is_a_field_a_line_can_carry(self):
+        for wrong in (0, 10, "2", True):
+            with self.assertRaises(MenuError):
+                self.card(level=wrong)
+
+    def test_a_step_is_a_percentage(self):
+        self.assertEqual(self.card(step=10)["step"], 0.1)
+        for wrong in (0, -5, 101, "5"):
+            with self.assertRaises(MenuError):
+                self.card(step=wrong)
+
+    def test_a_turn_that_will_not_parse_is_named(self):
+        with self.assertRaises(MenuError) as caught:
+            self.card(turn="nonsense:%1")
+        self.assertIn("turn", str(caught.exception))
+
+    def test_a_card_that_lists_may_be_asked_again(self):
+        self.assertEqual(self.card(ttl=2)["ttl"], 2.0)
+        self.assertEqual(self.card()["ttl"], 0.0)
+        with self.assertRaises(MenuError):
+            self.card(ttl=-1)
+        # A listed page is read at the press that enters it.
+        with self.assertRaises(MenuError):
+            build([{"label": "Output", "action": "exec:set %1",
+                    "from": "list", "ttl": 2}])
+        # And a card that lists nothing has nothing to ask.
+        with self.assertRaises(MenuError):
+            build([{"label": "Power", "control": "rows", "ttl": 2,
+                    "items": [{"label": "Rest", "action": "exec:rest"}]}])
+
+    def test_only_a_card_that_lists_has_levels(self):
+        with self.assertRaises(MenuError) as caught:
+            build([{"label": "Power", "control": "rows", "level": 2,
+                    "turn": "exec:x", "items": [
+                        {"label": "Rest", "action": "exec:rest"}]}])
+        self.assertIn("lists", str(caught.exception))
+        # And a listed page is not a card.
+        with self.assertRaises(MenuError):
+            build([{"label": "Output", "action": "exec:set %1",
+                    "from": "list", "level": 2, "turn": "exec:x %1"}])

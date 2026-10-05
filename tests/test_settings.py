@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from omapad import actions, config as config_module
+from omapad import actions, config as config_module, live as live_module
 
 MISSING = os.path.join(tempfile.gettempdir(), "omapad-no-such-config")
 
@@ -419,6 +419,14 @@ class ApplyTests(unittest.TestCase):
         speed = config_module.CHOSEN["scroll_speed"]
         self.assertAlmostEqual(
             config_module.setting_share(speed, 20.5), 0.5, places=2)
+
+    def test_a_floor_is_not_where_the_scale_starts(self):
+        # Brightness may not be written below 1%, but 75% is three quarters
+        # of the way along: measured from the floor, the needle stood beside
+        # the graduation the figure over it named.
+        spec = live_module.READINGS["brightness"]
+        self.assertAlmostEqual(config_module.setting_share(spec, 0.75), 0.75)
+        self.assertAlmostEqual(config_module.setting_share(spec, 0.05), 0.05)
 
     def test_a_stop_says_which_corner_it_is_rather_than_a_percentage(self):
         # A ladder has somewhere to be rather than an amount to be at, and

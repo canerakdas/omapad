@@ -21,7 +21,8 @@
 // **What it takes from the ring**, and why the line agrees with it:
 //
 // - **Its scale is printed.** A continuous line prints a graduation every
-//   five in a hundred, the ring's twenty-one; a stepped one prints one
+//   five in a hundred, the ring's twenty-one - fewer on a line too short to
+//   hold them apart (`printed`); a stepped one prints one
 //   detent per place it can stand and nothing between them. The two differ
 //   by exactly what the two controls differ by.
 // - **An end is a baton in outline with its foot open**, and the line closes
@@ -168,12 +169,29 @@ Item {
     : travel.needleAt
 
   // The printed scale: every place a figure stands, as a share of the
-  // travel. A continuous line prints one every five in a hundred - the
-  // ring's twenty-one, and five is the step the volume and the brightness
-  // take (`live.py`), so a press moves the needle exactly one graduation. A
-  // stepped one prints its stops and nothing else. Not a setting, for the
-  // ring's reason: it is how the scale is engraved.
-  readonly property int printed: 21
+  // travel. A continuous line prints one every five in a hundred where it
+  // has the room - the ring's twenty-one, and five is the step the volume
+  // and the brightness take (`live.py`), so a press moves the needle exactly
+  // one graduation. A stepped one prints its stops and nothing else.
+  //
+  // **A short line is engraved coarser, not crowded.** Twenty-one marks on
+  // a slider a cell long stood a few pixels apart and read as a comb rather
+  // than as a scale - and stood up, a column's travel is shorter still. So
+  // the scale takes the finest of every five, ten, twenty-five and fifty in
+  // a hundred whose marks stand at least `gap.xxxl` apart, and the ends alone
+  // where none of them do. Each divides the hundred evenly, so every mark
+  // left is still a round figure. Not a setting, for the ring's reason: it
+  // is how the scale is engraved, and the room is the ladder's.
+  readonly property var engravings: [21, 11, 5, 3]
+  readonly property int roomy: travel.ladder ? travel.ladder.gap.xxxl : 32
+  readonly property int printed: {
+    var run = travel.to - travel.from
+    for (var i = 0; i < travel.engravings.length; i++) {
+      if (run / (travel.engravings[i] - 1) >= travel.roomy)
+        return travel.engravings[i]
+    }
+    return 2
+  }
   readonly property var places: {
     var count = travel.stepped ? travel.stops : travel.printed
     var out = []
@@ -302,8 +320,8 @@ Item {
   // The printed scale, as one layer draws it: the figures it holds are the
   // ones the value has reached or the ones it has not, and every figure is
   // in exactly one of the two. A `Repeater` over a list the value cannot
-  // change, so pushing a slider never rebuilds its scale - only which layer
-  // shows a figure follows the value.
+  // change - only the line's length can - so pushing a slider never rebuilds
+  // its scale; only which layer shows a figure follows the value.
   //
   // **The travel is handed in**: an inline component does not see the ids of
   // the file it is declared in.

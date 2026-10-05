@@ -22,6 +22,7 @@ config file can know - the answer changes when a television is plugged in - and
 a menu that can only name what was written down cannot ask.
 """
 
+import math
 import re
 import shlex
 import time
@@ -207,6 +208,23 @@ ROWS = "rows"
 # differs - the same rows, the same walk, the same press - and a `rows` tile
 # that had a twin would be two files to keep in step for one drawing.
 MANY = "many"
+
+# A card that lists, with a **level on every row**: what is playing, one row
+# per application, and how loud each one is. `level` names the field of the
+# listing that carries the row's percentage, and `turn` is the template left
+# and right run once A has gone in - the same `%1`-`%9` a row's action takes,
+# with the level field rewritten to where the row is going. Fields of the card
+# rather than a control of its own, for `many`'s reason: the rows, the walk
+# and the press are the card's, and only the axis it left unspent is new.
+#
+# `step` is how far one push moves a row, in percent. `short` is the word the
+# legend prints for A on a row, which on a card of applications is not the
+# application's own name: A there mutes it.
+LEVEL_FIELDS = ("level", "turn", "step", "short")
+# A row's level is a share of a bar, so a percentage past a hundred - which a
+# sound server will hold - is drawn and stepped as full. A geometric identity
+# rather than a setting: the bar has no room past its end.
+LEVEL_TOP = 100
 
 # The time, printed on a tile. It is the second tile with nothing to press -
 # `readout` is the first - and the only one that reads nothing at all: what a
@@ -675,6 +693,15 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 "%s: a card that lists is marked by the command, not latched"
                 % path
             )
+        if source is None and "ttl" in entry:
+            raise MenuError("%s: 'ttl' asks a listing again, and this lists "
+                            "nothing" % path)
+        if source is None:
+            for field in LEVEL_FIELDS:
+                if field in entry:
+                    raise MenuError(
+                        "%s: '%s' belongs to a card that lists - the level "
+                        "is a field of what the command prints" % (path, field))
         if item["control"] == ROWS and item["keys"]:
             # `_keys` allows one because the entry has `items`; this tile has
             # them and is still not a page. A key is spent while a page is *in
@@ -740,6 +767,17 @@ def build(entries, where="menu.items", columns=COLUMNS, settings=None,
                 raise MenuError("%s: %s" % (path, exc)) from exc
             item["from"] = str(source).strip()
             item["template"] = spec
+            _levels(entry, item, path)
+            # How often a card that lists is asked again while its page is
+            # in front, beyond the read the page settling makes. Zero - the
+            # default - is that read alone: which speakers are plugged in
+            # changes once an evening, and what is playing changes under the
+            # thumb, so the card says which it is.
+            item["ttl"] = _ttl(entry.get("ttl"), path)
+            if item["ttl"] and item["control"] != ROWS:
+                raise MenuError(
+                    "%s: 'ttl' asks a card again while it is in front - a "
+                    "listed page is read at the press that enters it" % path)
             if item["control"] == ROWS:
                 # A **card** that lists, which is read when the page it sits on
                 # settles rather than at a press: nobody enters a card, it is
@@ -893,6 +931,79 @@ def _rows(items, path, many=False):
         if many:
             item["stay"] = True
     return items
+
+
+def _levels(entry, item, path):
+    """A listing card's levels, checked: which field, what moves one, how far.
+
+    `level` and `turn` come together. A level nothing can move is a reading,
+    and a reading is a tile rather than a column of rows; a `turn` with no
+    level has no number to step from, and stepping from a guess would jump
+    the volume to somewhere nobody asked for - `live.Live.apply`'s reason.
+    """
+    item["level"] = 0
+    item["turn"] = None
+    item["step"] = 0.0
+    item["short"] = str(entry.get("short", "")).strip()
+    if item["short"] and item["control"] != ROWS:
+        raise MenuError(
+            "%s: 'short' is what A on a card's row is called - this lists "
+            "a page" % path)
+    level = entry.get("level")
+    turn = entry.get("turn")
+    if level is None and turn is None:
+        if "step" in entry:
+            raise MenuError("%s: 'step' moves a 'level', and there is none"
+                            % path)
+        return
+    if item["control"] != ROWS:
+        raise MenuError("%s: only a card of rows draws a level on each"
+                        % path)
+    if level is None or turn is None:
+        raise MenuError("%s: 'level' and 'turn' come together" % path)
+    if isinstance(level, bool) or not isinstance(level, int) \
+            or not 1 <= level <= 9:
+        raise MenuError("%s: 'level' is the field it is printed in, 1 to 9"
+                        % path)
+    try:
+        actions.parse(_filled(str(turn), ["0"] * 9))
+    except actions.ActionError as exc:
+        raise MenuError("%s: turn: %s" % (path, exc)) from exc
+    step = entry.get("step", 5)
+    if isinstance(step, bool) or not isinstance(step, (int, float)) \
+            or not 0 < step <= LEVEL_TOP:
+        raise MenuError("%s: 'step' is a percentage, above 0 and up to %d"
+                        % (path, LEVEL_TOP))
+    item["level"] = level
+    item["turn"] = str(turn)
+    item["step"] = step / float(LEVEL_TOP)
+
+
+def _level_of(text):
+    """A listing's percentage -> 0..1, or None where it is not one."""
+    try:
+        amount = float(str(text).strip().rstrip("%"))
+    except ValueError:
+        return None
+    return max(0.0, min(1.0, amount / LEVEL_TOP))
+
+
+def turned(level, steps, step):
+    """Where `steps` notches from `level` land, on the step's own grid.
+
+    `live._stepped`'s rule for the same reason: an application's volume is set
+    from elsewhere too, so it is as often 38% as 40%, and the first notch goes
+    to the next mark that way rather than walking 43, 48, 53.
+    """
+    units = level / step
+    nearest = round(units)
+    if abs(units - nearest) < 1e-6:
+        base = nearest
+    elif steps > 0:
+        base = math.floor(units)
+    else:
+        base = math.ceil(units)
+    return round(max(0.0, min(1.0, (base + steps) * step)), 3)
 
 
 def _break_row():
@@ -1199,6 +1310,8 @@ def listed(item, lines, limit):
     so in its own words.
     """
     rows = []
+    taken = set()
+    slot = item.get("level") or 0
     for line in lines:
         fields = line.split("\t")
         label = fields[0].strip()
@@ -1215,7 +1328,31 @@ def listed(item, lines, limit):
             action = actions.parse(_filled(item["template"], values))
         except actions.ActionError:
             continue
-        rows.append(_listed_row(item, label, action, on))
+        level = None
+        if slot:
+            level = _level_of(values[slot - 1]) \
+                if slot <= len(values) else None
+            if level is None:
+                # A row whose level is missing is a line the command got
+                # wrong, and a bar drawn from a guess would be worse than
+                # the row not being there.
+                continue
+            # No row of a card of levels is the one in force: two
+            # applications playing at once is the ordinary case.
+            on = None
+        row = _listed_row(item, label, action, on)
+        if slot:
+            row["level"] = level
+            row["values"] = values
+        # Two lines may name themselves alike - two tabs of one browser - and
+        # the cursor finds a row by its id, so the second is told apart.
+        name = row["id"]
+        number = 1
+        while row["id"] in taken:
+            number += 1
+            row["id"] = "%s-%d" % (name, number)
+        taken.add(row["id"])
+        rows.append(row)
         if len(rows) >= limit:
             break
     if not rows:
@@ -2781,6 +2918,44 @@ class MenuModel:
             return False
         return self._step_row(self.current, direction)
 
+    @property
+    def turnable(self):
+        """Whether left and right move the row in front of an entered card.
+
+        Only on a card of levels: on every other card a list runs down it and
+        the other axis says nothing (`step_row`).
+        """
+        return self.entered and bool(self.current.get("turn"))
+
+    def turn_row(self, steps):
+        """Move the row in front by `steps` notches.
+
+        (action, level) where it moved, (None, level) at either end, and
+        (None, None) where there is nothing to move. The level is set here as
+        well as sent, so the bar moves under the thumb rather than a sound
+        server's round trip later - and the action is filled from the row's
+        own values with the level field rewritten, so `turn` reads the way a
+        row's action does.
+        """
+        if not self.turnable:
+            return (None, None)
+        item = self.current
+        row = self.acting
+        if row is None or row.get("level") is None:
+            return (None, None)
+        was = row["level"]
+        level = turned(was, steps, item["step"])
+        if level == was:
+            return (None, was)
+        values = list(row["values"])
+        values[item["level"] - 1] = "%d" % round(level * LEVEL_TOP)
+        try:
+            action = actions.parse(_filled(item["turn"], values))
+        except actions.ActionError:
+            return (None, None)
+        row["level"] = level
+        return (action, level)
+
     def size_of(self, item):
         """The cells a tile stands in on this page, or the ones it asks for.
 
@@ -2923,6 +3098,16 @@ class MenuModel:
         width, height = here["size"]
         x = here["at"][0] + step[0]
         y = here["at"][1] + step[1]
+        cell = None
+        crossed = step[1] and self._heading_in(x, y, width, height)
+        if crossed and step[1] > 0 and not self._alone(here):
+            # Down from a row the tile shares opens a row under it in its own
+            # section, the heading giving way; the next press, from that row
+            # alone, crosses. Stepping straight over left no way to make one.
+            crossed = None
+        if crossed:
+            y, cell = self._past_heading(crossed, x, width, height,
+                                         step[1])
         if x < 0 or x + width > self.columns or y < 0:
             return False
         limit = self.rows_limit()
@@ -2944,9 +3129,72 @@ class MenuModel:
         if not self._room(x, y, width, height):
             return False
         plan = self._plan()
-        plan["at"][self.picked] = self._cell(x, y)
+        plan["at"][self.picked] = cell or self._cell(x, y)
         self.repack()
         return True
+
+    def _alone(self, here):
+        """Does nothing else reach into the rows this tile takes?"""
+        top = here["at"][1]
+        bottom = top + here["size"][1]
+        for tile in self.tiles:
+            if tile is here:
+                continue
+            y = tile["at"][1]
+            if y < bottom and top < y + tile["size"][1]:
+                return False
+        return True
+
+    def _heading_in(self, x, y, width, height):
+        """The flowed heading that box would land on, or None.
+
+        Only one in the flow: a heading pinned to a cell is a hand-edited
+        file's doing, and `_room` already treats it as the tile it then is.
+        """
+        plan = self.plan()
+        for tile in self.tiles:
+            item = tile["item"]
+            if (item["control"] != HEADING or item["id"] == self.picked
+                    or pinned_cell(item, plan) is not None):
+                continue
+            left, top = tile["at"]
+            across, down = tile["size"]
+            if (x < left + across and left < x + width
+                    and y < top + down and top < y + height):
+                return tile
+        return None
+
+    def _past_heading(self, heading, x, width, height, way):
+        """(drawn row, pin) for a tile carried over a heading, `way` down or up.
+
+        **A heading is stepped over, never landed on.** It is in the flow, so
+        a tile pinned onto its row on the page pushed it down, or let it climb
+        into the hole the tile left; and the next press then counted from
+        wherever it had gone. Carried down, a tile above a section never
+        entered it - every press filed it under the run's last row instead.
+
+        Only from a row the tile has to itself, going down - from a shared one
+        that press opens a row instead (`carry`). Up always steps over.
+
+        Down is the first row of this heading's section. Up is the last row of
+        the section above, which may be empty - so its pin is counted from
+        that heading by hand rather than read off a drawn row, since an empty
+        section has no row of its own to read.
+        """
+        top = heading["at"][1]
+        if way > 0:
+            y = top + heading["size"][1]
+            return y, (x, 0, heading["item"]["id"])
+        anchor, under = self._section_at(top)
+        if anchor is None:
+            # The run above every heading. At the top of the page there is no
+            # row above it, so the tile takes the heading's row and the
+            # heading flows under it, which is the only way back out.
+            y = max(0, top - height)
+            return y, (x, whole_row(y, self.closed))
+        y = max(under, top - height)
+        return y, (x, whole_row(y, self.closed) - whole_row(under, self.closed),
+                   anchor)
 
     def _cell(self, x, y):
         """A drawn cell as the pin that names it: on the page, or in a section.
@@ -3717,7 +3965,11 @@ class MenuModel:
             rows = other.get("rows") or ()
             if any(row is item for row in rows):
                 for row in rows:
-                    if row.get("listed") and row["action"] is not None:
+                    # Not a row that is never in force: on a card of levels
+                    # A mutes one application, and the rest are not unmuted
+                    # by it.
+                    if (row.get("listed") and row["action"] is not None
+                            and row.get("on") is not None):
                         row["on"] = row is item
 
     def back(self):
@@ -3768,6 +4020,11 @@ class MenuModel:
                "d": item["detail"]}
         if item.get("icon_font"):
             out["f"] = item["icon_font"]
+        if item.get("level") is not None:
+            # How loud one application is, as the share of the bar under its
+            # name. A share rather than a word, for the reason a slider's
+            # value travels as one: the panel draws a length from it.
+            out["lv"] = item["level"]
         if item.get("on") is not None:
             # A **listed** row knows its own answer, the way a listed tile
             # does: the daemon can ask a setting what it holds, but not a

@@ -829,6 +829,15 @@ The needle clears an end by three weights above the line and hangs five below
 it; the ends' outer walls are flush with the card's padding, so the scale
 lines up with the words above it.
 
+**A short line is engraved coarser.** Twenty-one graduations on a slider one
+cell long stood a few pixels apart and read as a comb, and an upright one is
+shorter still. The scale takes the finest of every five, ten, twenty-five and
+fifty in a hundred whose marks stand at least `gap.xxxl` apart, and the ends
+alone where none does. Each divides the hundred evenly, so every mark left is a
+round figure; a press then moves the needle part of a graduation, which the
+run behind it still shows. A stepped line keeps every detent whatever its
+length: those are its places, not its engraving.
+
 **What a press is measured against is drawn too.** While a control is
 **held**, a faint stub the size of the needle's tail hangs under the line where
 A took the value from. It was the whole needle in outline first, and a second
@@ -1770,6 +1779,22 @@ stands on, so a section is a band of whole rows whatever was pinned in it.
 taking one off writes its pins back as page cells where they are drawn
 (`_unanchor`), so nothing moves at the press.
 
+**A tile carried onto a heading steps over it** (`_heading_in`,
+`_past_heading`): down lands on the first row of that heading's section, up
+on the last row of the section above - counted from that heading by hand, so
+an empty section can be entered too. Landing on the heading's row was a pin on
+the page there, and a heading is in the flow: it was pushed down, or climbed
+into the hole the tile left, and every press after that filed the tile under
+the run's last row. A tile above a section could never get into it. At the
+top of the page there is no row above, so up takes the heading's row and the
+heading flows under it.
+
+**Down steps over only from a row the tile has to itself** (`_alone`). From a
+row it shares, the press opens a row under it in its own section and the
+heading gives way, as it did before; the next press, from that row, crosses.
+So down, down is a new row and then the next section - without the first,
+there was no way left to give a section a row.
+
 **Up and down on a carried heading swap its section with the one above or
 below** (`_carry_section`). The run above the first heading is nobody's
 section and is a wall, because carried past, its tiles would end up filed
@@ -2387,6 +2412,55 @@ and `choose()` moves the fill among **that card's** rows only, because two
 lists on one page are two questions and picking a speaker says nothing about
 which microphone is in use.
 
+### A card of levels - the mixer
+
+`Sound` has a third listing card, under `Mixer`, and it is the first whose
+rows are not alternatives: every application making a sound, and how loud each
+one is. `level` names the field of the listing that carries a row's
+percentage, and `turn` is the template left and right run once A has gone in.
+They come together - a level nothing moves is a reading, and a `turn` with no
+level has nothing to step from - and `_levels` refuses either alone, on a card
+that writes its rows, and on a listed *page*.
+
+**It is the axis a card left unspent.** Inside an ordinary card left and right
+say nothing, because a list runs down it. Here every row is a range, so
+`turnable` lends them to the row in front: `turn_row` steps its level on the
+step's own grid (`turned`, `live._stepped`'s rule - 38% goes to 40%, not 43%),
+sets it on the row so the bar moves under the thumb, and fills `turn` from the
+row's own values with the level field rewritten. `menu_turn` sends that
+through the **command worker** rather than `spawn`: each write is an absolute
+level, and let go of to race each other an older one could land last. The
+ramp, the feel and the edge are a slider's.
+
+**No row is in force.** Two applications playing at once is the ordinary
+case, so a listed row on one carries no `on` - the card draws no spine, a `*`
+the command prints marks nothing, and `choose()` leaves every row alone. The
+row carries `lv` on the wire instead, which the panel draws as the card's line
+laid under the name, lit to the level, and as the figure at the end of the row.
+
+A on a row runs the card's `action`, a listed pick like any other, so the card
+is read again once it has run - which is how a mute reaches the bar: the
+shipped command prints a muted application at nought. `short` is what the
+legend calls that press, since a listed row's own name is what it was found
+as. The shipped card is one row per **application**, not per stream, and its
+commands look the streams up by name as they run: a browser replaces its
+stream at every new video or seek, so an index read with the page was often
+gone by the press, and a listing read mid-swap drew the dying stream beside
+its replacement. Two lines naming themselves alike - two tabs of one browser - are told
+apart by id (`firefox`, `firefox-2`), on every listing card, since the cursor
+finds a row by its id.
+
+**A card may be asked again while it is in front.** `ttl` on a card that
+lists is how often, and `menu_cards_poll` asks it - counted from the read the
+page settling made, never while a pick's own read is coming, and never while
+the card's last question is still out. The mixer says two seconds; the device
+cards say nothing, since what is plugged in changes once an evening. Two
+guards keep it from fighting the thumb: a turn puts that card's next ask a
+`ttl` off, and `_menu_turns` is the generation a read carries - an answer to a
+question asked before a turn is dropped in `menu_fill`, the stale-read race
+`live.md` describes, one card along. A row that vanishes takes the cursor to
+the first row; one that stays keeps it, since the cursor is an id.
+
 ## Tiles that list what is plugged in
 
 A tile may **list** its page rather than hold one. `from` is a command and
@@ -2550,7 +2624,7 @@ the field a reading's figure rides in, so the panel draws the two the same way.
 It rides on the clock alone, so a page of switches costs nothing for having one
 on it.
 
-A `rows` tile adds `rs`, its own rows as `[{id, l, i, d, on?}]` - the three
+A `rows` tile adds `rs`, its own rows as `[{id, l, i, d, on?, lv?}]` - the three
 questions a tile is asked and no others, because a row has no cells, no control
 and nowhere to drill in to. `d` is **the line a choice tile had nowhere to
 put**: a row is as wide as the card, so it can carry the sentence saying how it

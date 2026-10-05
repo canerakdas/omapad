@@ -97,7 +97,7 @@ missing optional package must cost one feature rather than the keyboard.
   knob's scale unrolled: a slider being pushed, and a slider with places to
   stand rather than a distance to cover. Every figure is one the ring has, at
   whole line weights - a graduation every five in a hundred on a continuous
-  scale, a detent per stop on a stepped one, open-footed ends, and a needle
+  scale (every ten, twenty-five or fifty on a line too short for them), a detent per stop on a stepped one, open-footed ends, and a needle
   across the line that is taller than an end, so a value at either end is
   still drawn. Nothing fills; what the value has covered is the line behind
   the needle - solid, with its detents filled, where it has stops, a tint at
