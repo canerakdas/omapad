@@ -100,6 +100,14 @@ class AbsentPadConfigTests(unittest.TestCase):
             config_module.Config({"mode": {"desktop_after": -1}})
         self.assertIn("mode.desktop_after", str(caught.exception))
 
+    def test_game_mode_stops_waiting_to_come_back(self):
+        self.assertEqual(shipped().mode_return_within, 300.0)
+
+    def test_a_return_window_that_is_not_a_length_of_time_is_named(self):
+        with self.assertRaises(config_module.ConfigError) as caught:
+            config_module.Config({"mode": {"return_within": -1}})
+        self.assertIn("mode.return_within", str(caught.exception))
+
 
 class RecenterAfterConfigTests(unittest.TestCase):
     def test_the_rest_is_measured_after_a_moment(self):

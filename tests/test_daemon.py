@@ -633,6 +633,27 @@ class AbsentPadTests(DaemonTestCase):
         self.daemon.attach(self.device)
         self.assertEqual(self.daemon.mode, "desktop")
 
+    def test_a_pad_back_too_late_leaves_the_desktop(self):
+        self.config.mode_return_within = 300.0
+        self.wait(30)
+        self.daemon.check_pad_absent(1030.0 + 300)
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "desktop")
+
+    def test_a_pad_back_in_time_still_brings_game_mode(self):
+        self.config.mode_return_within = 300.0
+        self.wait(30)
+        self.daemon.check_pad_absent(1030.0 + 299)
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "game")
+
+    def test_nought_brings_game_mode_back_however_late(self):
+        self.config.mode_return_within = 0.0
+        self.wait(30)
+        self.daemon.check_pad_absent(1030.0 + 86400)
+        self.daemon.attach(self.device)
+        self.assertEqual(self.daemon.mode, "game")
+
     def test_desktop_mode_is_left_alone(self):
         self.daemon.set_mode("desktop")
         self.daemon.attach(self.device)

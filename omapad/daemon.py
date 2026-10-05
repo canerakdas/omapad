@@ -534,6 +534,7 @@ class Daemon:
         # mode was put aside for it - see `check_pad_absent`.
         self._pad_gone_at = None
         self._mode_aside = False
+        self._mode_aside_at = None
         self.running = True
 
         # The plugin binds its view sockets in this directory, and at login
@@ -1439,8 +1440,17 @@ class Daemon:
         first: a dongle drops out for a second now and then, and a bar that
         swapped itself out every time would be a worse fault than the one this
         mends. What it did is remembered, so the pad coming back is game mode
-        coming back - see `attach`.
+        coming back - see `attach`. Only for `[mode] return_within`, though:
+        a pad switched on an evening later is somebody sitting down at the
+        desktop, not the game they left, and taking the screen from them
+        would be the daemon remembering a choice nobody is still making.
         """
+        within = self.config.mode_return_within
+        if (self._mode_aside and within > 0
+                and now - self._mode_aside_at >= within):
+            log.info("mode: no controller for %.0fs more; staying in desktop"
+                     " mode", within)
+            self._mode_aside = False
         if self.device is not None or self.mode != "game":
             self._pad_gone_at = None
             return
@@ -1456,6 +1466,7 @@ class Daemon:
         self._pad_gone_at = None
         self.set_mode("desktop", aside=True)
         self._mode_aside = True
+        self._mode_aside_at = now
 
     # -- the game-mode bar -------------------------------------------------
 

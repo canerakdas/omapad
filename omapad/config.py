@@ -1266,6 +1266,11 @@ class Config:
         self.mode_desktop_after = float(mode.get("desktop_after", 30.0))
         if self.mode_desktop_after < 0:
             raise ConfigError("mode.desktop_after must be 0 or more")
+        # How long after that the pad coming back still brings game mode
+        # with it. 0 brings it back however late the pad comes.
+        self.mode_return_within = float(mode.get("return_within", 300.0))
+        if self.mode_return_within < 0:
+            raise ConfigError("mode.return_within must be 0 or more")
         # The switch is the one press whose result you may not be looking
         # at, so it is felt as well as seen. `[rumble] enabled` still wins:
         # this asks for a tick, it does not turn the motor on.

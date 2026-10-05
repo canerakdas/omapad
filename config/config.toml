@@ -261,6 +261,13 @@ notify = true                 # notify on a mode, lock or setting change (never 
 # mode was changed by hand in between. Long enough that a dongle dropping out
 # for a moment changes nothing; 0 keeps game mode however long the pad is gone.
 desktop_after = 30
+# Seconds after that in which the controller coming back still brings game mode
+# back with it. Past this the desktop stays the desktop, and game mode is chosen
+# again from the pad: a controller switched on an hour later is somebody
+# sitting down to use the desktop, not the game they walked away from. Raise it
+# to forgive a longer battery swap; 0 brings game mode back however late the
+# controller comes.
+return_within = 300
 # A tick on the motor at every mode switch too. The switch is the one press
 # whose result you may not be looking at - the pad is on your lap, the bar is
 # swapping itself out across the room - so it is worth feeling. One tick each

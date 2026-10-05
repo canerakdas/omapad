@@ -484,12 +484,14 @@ desktop. On a machine with no Omarchy it is skipped quietly.
 the pad, so a controller switched off or out of battery would leave a screen
 with no bar at all. After `desktop_after` seconds without one (30 by default)
 omapad goes back to desktop mode by itself, and when the controller connects
-again, game mode comes back with it. Change the mode by hand in between and
-that choice stays.
+again within `return_within` seconds (5 minutes by default), game mode comes
+back with it. Later than that, the desktop stays and game mode is switched on
+again from the pad. Change the mode by hand in between and that choice stays.
 
 ```toml
 [mode]
-desktop_after = 30   # 0 keeps game mode however long the pad is gone
+desktop_after = 30    # 0 keeps game mode however long the pad is gone
+return_within = 300   # 0 brings game mode back however late the pad returns
 ```
 
 The reason: every widget on that bar opens a popup you click, and in game mode
