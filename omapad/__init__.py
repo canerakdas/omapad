@@ -1,3 +1,3 @@
 """Control the Omarchy/Hyprland desktop with a game controller."""
 
-__version__ = "2.6.2"
+__version__ = "2.6.3"
